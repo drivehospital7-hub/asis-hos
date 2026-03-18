@@ -1,0 +1,95 @@
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entornos virtuales
+venv/
+.env/
+.venv/
+env/
+
+# =========================
+# Flask
+# =========================
+instance/
+.webassets-cache
+
+# =========================
+# Configuración sensible
+# =========================
+.env
+.env.*
+config.py
+
+# =========================
+# Logs
+# =========================
+*.log
+
+# =========================
+# Archivos del sistema
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# IDE / Editores
+# =========================
+.vscode/
+.idea/
+
+# =========================
+# Tests / coverage
+# =========================
+.pytest_cache/
+.coverage
+htmlcov/
+
+# =========================
+# Build / dist
+# =========================
+build/
+dist/
+*.egg-info/
+
+# =========================
+# Archivos temporales
+# =========================
+*.tmp
+*.bak
+*.swp
+
+# =========================
+# DATA (CRÍTICO EN TU PROYECTO)
+# =========================
+
+# Ignorar todo el data por defecto
+data/*
+
+# Pero mantener estructura de carpetas
+!data/.gitkeep
+!data/entrada/
+!data/salida/
+
+# Mantener carpetas vacías
+data/entrada/*
+data/salida/*
+
+# Excepto archivos placeholder
+!data/entrada/.gitkeep
+!data/salida/.gitkeep
+
+# =========================
+# Scripts ejecutados manualmente (opcional logs/output)
+# =========================
+scripts/*.log
+scripts/output/
+
+# =========================
+# Base de datos (cuando la agregues)
+# =========================
+*.db
+*.sqlite3
