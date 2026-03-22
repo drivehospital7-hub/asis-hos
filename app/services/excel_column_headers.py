@@ -8,7 +8,7 @@ import polars as pl
 
 logger = logging.getLogger(__name__)
 
-_ALLOWED_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
+ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
 
 
 def get_excel_column_headers(
@@ -40,7 +40,7 @@ def get_excel_column_headers(
         }
 
     suffix = path.suffix.lower()
-    if suffix not in _ALLOWED_SUFFIXES:
+    if suffix not in ALLOWED_EXCEL_SUFFIXES:
         return {
             "status": "error",
             "data": {},
