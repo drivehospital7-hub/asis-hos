@@ -29,6 +29,26 @@ def _parse_sheet_id(value: str | None) -> tuple[int | None, str | None]:
         return None, "sheet_id debe ser un número entero."
 
 
+def build_excel_headers_form_context(
+    *,
+    file: str,
+    sheet_name: str | None,
+    sheet_id_raw: str | None,
+    header_row_raw: str | None,
+) -> dict[str, Any]:
+    """Contexto base del formulario sin ejecutar lectura de encabezados."""
+    return {
+        "available_files": list_excel_filenames(),
+        "form": {
+            "file": file.strip(),
+            "sheet_name": sheet_name or "",
+            "sheet_id": sheet_id_raw or "",
+            "header_row": header_row_raw or "0",
+        },
+        "result": None,
+    }
+
+
 def build_excel_headers_view_context(
     *,
     file: str,

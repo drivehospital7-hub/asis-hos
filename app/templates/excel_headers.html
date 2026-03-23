@@ -23,7 +23,7 @@
   <h1>Encabezados de columnas</h1>
   <p class="meta">Archivos leídos desde <code>app/data/input</code>. La búsqueda no modifica el Excel.</p>
 
-  <form method="get" action="{{ url_for('excel_headers.excel_headers_page') }}">
+  <form method="post" action="{{ url_for('excel_headers.export_cruce_facturas') }}">
     <fieldset>
       <legend>Parámetros</legend>
       <label for="file">Archivo</label>
@@ -46,9 +46,46 @@
       <label for="sheet_id">Índice de hoja (opcional, 0 = primera)</label>
       <input id="sheet_id" name="sheet_id" type="number" min="0" value="{{ form.sheet_id }}" placeholder="Dejar vacío si usas nombre">
 
-      <div><button type="submit">Mostrar encabezados</button></div>
+      <div>
+        <button
+          type="submit"
+          formmethod="get"
+          formaction="{{ url_for('excel_headers.excel_headers_page') }}"
+        >
+          Mostrar encabezados
+        </button>
+        <button type="submit">Exportar CruceFacturas</button>
+      </div>
     </fieldset>
   </form>
+
+  {% if export_result is defined %}
+    {% if export_result.status == "error" %}
+    <div class="errors">
+      <strong>Error de exportación</strong>
+      <ul>
+        {% for err in export_result.errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% else %}
+    <section>
+      <h2>Exportación</h2>
+      <p class="meta">
+        Archivo origen: <strong>{{ export_result.data.input_file }}</strong>
+        · Archivo salida: <strong>{{ export_result.data.output_file }}</strong>
+        · Hoja: <strong>{{ export_result.data.sheet }}</strong>
+      </p>
+      <p class="meta">
+        Encabezados escritos en: <strong>{{ export_result.data.headers_written | join(", ") }}</strong>
+      </p>
+      <p class="meta">
+        Ruta de salida: <code>{{ export_result.data.output_path }}</code>
+      </p>
+    </section>
+    {% endif %}
+  {% endif %}
 
   {% if result is not none %}
     {% if result.status == "error" %}
