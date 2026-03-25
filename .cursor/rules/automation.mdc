@@ -1,3 +1,43 @@
 ---
-alwaysApply: true
+description: Aplica cuando:  - Se procesan archivos (PDF, Excel) - Se trabaja en services/ - Se implementa lógica de negocio - Se mencionan: facturas, validaciones, procesamiento
+alwaysApply: false
 ---
+# AUTOMATION RULES
+
+## Scope
+
+
+## Procesamiento de datos
+
+- No modificar datos originales
+- Trabajar sobre copias
+- Validar datos antes de procesar
+
+## Flujo obligatorio
+
+1. Lectura
+2. Transformación
+3. Validación
+4. Clasificación
+5. Resultado
+
+## Validaciones
+
+- Cada regla debe ser independiente
+- No hardcodear reglas en múltiples lugares
+- Permitir agregar nuevas reglas fácilmente
+
+## Resultados
+
+- Retornar estructuras claras:
+
+{
+  "status": "success | error",
+  "data": {},
+  "errors": []
+}
+
+## Logs
+
+- Registrar pasos importantes
+- Permitir trazabilidad
