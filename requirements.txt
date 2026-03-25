@@ -2,3 +2,4 @@ flask
 python-dotenv
 polars[excel]>=1.39
 openpyxl
+waitress
