@@ -28,5 +28,9 @@ def export_cruce_facturas():
         sheet_id_raw=request.form.get("sheet_id"),
         header_row_raw=request.form.get("header_row"),
     )
-    export_result = export_excel_with_cruce_facturas(filename=request.form.get("file", ""))
+    export_result = export_excel_with_cruce_facturas(
+        filename=request.form.get("file", ""),
+        sheet_name=request.form.get("sheet_name") or None,
+        header_row=int(request.form.get("header_row", "0"))
+    )
     return render_template("excel_headers.html", **ctx, export_result=export_result)
