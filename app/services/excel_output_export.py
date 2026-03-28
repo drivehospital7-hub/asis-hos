@@ -8,6 +8,8 @@ from typing import Any
 from openpyxl import load_workbook
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
+from openpyxl.formatting.rule import FormulaRule
+from openpyxl.styles import PatternFill
 
 from app.services.excel_column_headers import ALLOWED_EXCEL_SUFFIXES
 from app.utils.input_data import (
@@ -62,16 +64,96 @@ def _get_or_create_sheet(workbook: Workbook, title: str) -> Worksheet:
     return workbook.create_sheet(title=title)
 
 
+def _find_numero_factura_column(sheet: Worksheet) -> str | None:
+    """Find the column letter for 'Número Factura' in the first row."""
+    for col in range(1, sheet.max_column + 1):
+        cell_value = sheet.cell(row=1, column=col).value
+        if cell_value == "Número Factura":
+            return sheet.cell(row=1, column=col).column_letter
+    return None
+
+
+def _apply_conditional_formulas_to_cruce_facturas(
+    workbook: Workbook, cruce_sheet: Worksheet, data_sheet: Worksheet
+) -> None:
+    """
+    Apply conditional formatting to CruceFacturas sheet and data sheet.
+    The formatting will highlight cells when invoice numbers match the headers.
+    """
+    numero_factura_col = _find_numero_factura_column(data_sheet)
+    if not numero_factura_col:
+        logger.warning("No se encontró columna 'Número Factura' en la hoja de datos")
+        return
+    
+    # Get max row in data sheet
+    max_data_row = data_sheet.max_row
+    
+    # Define column configurations for CruceFacturas sheet
+    # Each tuple: (column_letter, header_cell, color_rgb)
+    columns_config = [
+        ("B", "B1", "92D050"),  # Green
+        ("D", "D1", "FFC000"),  # Yellow
+        ("F", "F1", "FF0000"),  # Red
+    ]
+    
+    for col_letter, header_cell, color_rgb in columns_config:
+        # Apply conditional formatting with fill color
+        # Formula checks if the invoice number in the header matches any value in the data column
+        fill = PatternFill(start_color=color_rgb, end_color=color_rgb, fill_type="solid")
+        rule = FormulaRule(
+            formula=[f"COUNTIF({data_sheet.title}!${numero_factura_col}$2:${numero_factura_col}${max_data_row},{cruce_sheet.title}!{header_cell})>0"],
+            fill=fill
+        )
+        
+        # Apply to the range in the cruce sheet (just the header cell for now, but can be extended)
+        cruce_range = f"{col_letter}1:{col_letter}{max_data_row + 50}"
+        cruce_sheet.conditional_formatting.add(cruce_range, rule)
+        
+        logger.info(f"Conditional formatting applied to {cruce_range} with color {color_rgb}")
+    
+    # Also apply conditional formatting to the data sheet's numero_factura column
+    # for each of the three header values
+    fill_configs = [
+        ("B", "B1", "92D050"),  # Green for B column
+        ("D", "D1", "FFC000"),  # Yellow for D column
+        ("F", "F1", "FF0000"),  # Red for F column
+    ]
+    
+    for col_letter, header_cell, color_rgb in fill_configs:
+        fill = PatternFill(start_color=color_rgb, end_color=color_rgb, fill_type="solid")
+        # Formula that checks if the current cell appears anywhere in the CruceFacturas column
+        # Uses COUNTIF with entire column range (e.g., B:B) to avoid scope errors
+        rule = FormulaRule(
+            formula=[f"=COUNTIF({cruce_sheet.title}!{col_letter}:{col_letter}, {numero_factura_col}2)>0"],
+            fill=fill
+        )
+        
+        data_range = f"{numero_factura_col}2:{numero_factura_col}{max_data_row}"
+        data_sheet.conditional_formatting.add(data_range, rule)
+        
+        logger.info(f"Conditional formatting applied to {data_range} checking {cruce_sheet.title}!{col_letter}:{col_letter}")
+
+
 def _apply_cruce_facturas_headers(workbook: Workbook) -> dict[str, Any]:
-    sheet = _get_or_create_sheet(workbook, CRUCE_FACTURAS_SHEET)
+    cruce_sheet = _get_or_create_sheet(workbook, CRUCE_FACTURAS_SHEET)
     headers = {
         "B1": "Facturas Ok",
         "D1": "Facturas Pendientes",
         "F1": "PDFs de Facturas",
     }
     for cell, value in headers.items():
-        sheet[cell] = value
-    return {"rule": "cruce_facturas_headers", "sheet": CRUCE_FACTURAS_SHEET, "cells": headers}
+        cruce_sheet[cell] = value
+    
+    # Apply conditional formulas and formatting
+    data_sheet = workbook.active
+    _apply_conditional_formulas_to_cruce_facturas(workbook, cruce_sheet, data_sheet)
+    
+    return {
+        "rule": "cruce_facturas_headers",
+        "sheet": CRUCE_FACTURAS_SHEET,
+        "cells": headers,
+        "conditional_formulas": "applied",
+    }
 
 
 def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
