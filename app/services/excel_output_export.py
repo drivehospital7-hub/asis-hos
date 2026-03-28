@@ -73,6 +73,48 @@ def _find_numero_factura_column(sheet: Worksheet) -> str | None:
     return None
 
 
+def _find_column_letter_by_header(sheet: Worksheet, header_name: str) -> str | None:
+    """Find the column letter for a given header in the first row."""
+    for col in range(1, sheet.max_column + 1):
+        if sheet.cell(row=1, column=col).value == header_name:
+            return sheet.cell(row=1, column=col).column_letter
+    return None
+
+
+def _apply_conditional_convenio_facturado(data_sheet: Worksheet) -> dict[str, Any]:
+    """Apply hidden red conditional formatting for convenio facturado rule."""
+    entidad_col = _find_column_letter_by_header(data_sheet, "Entidad Cobrar")
+    convenio_col = _find_column_letter_by_header(data_sheet, "Convenio Facturado")
+    centro_col = _find_column_letter_by_header(data_sheet, "Centro Costo")
+
+    if not entidad_col or not convenio_col or not centro_col:
+        logger.warning(
+            "No se pueden aplicar reglas de convenio facturado: columnas requeridas no encontradas."
+        )
+        return {"rule": "convenio_facturado_conditional", "applied": False}
+
+    max_data_row = data_sheet.max_row
+    fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+
+    # Apply rule to the entire Convenio Facturado data column
+    data_range = f"{convenio_col}2:{convenio_col}{max_data_row}"
+    formula = (
+        f"=AND(${entidad_col}2=\"MALLAMAS EPS INDIGENA\","
+        f"${convenio_col}2=\"Asistencial\","
+        f"${centro_col}2=\"ODONTOLOGIA\")"
+    )
+
+    rule = FormulaRule(formula=[formula], fill=fill)
+    data_sheet.conditional_formatting.add(data_range, rule)
+
+    logger.info(
+        "Conditional formatting added for Convenio Facturado rule to %s with red fill",
+        data_range,
+    )
+
+    return {"rule": "convenio_facturado_conditional", "applied": True}
+
+
 def _apply_conditional_formulas_to_cruce_facturas(
     workbook: Workbook, cruce_sheet: Worksheet, data_sheet: Worksheet
 ) -> None:
@@ -84,6 +126,9 @@ def _apply_conditional_formulas_to_cruce_facturas(
     if not numero_factura_col:
         logger.warning("No se encontró columna 'Número Factura' en la hoja de datos")
         return
+    
+    # Apply convenio facturado conditional rule (no nuevas celdas visibles)
+    _apply_conditional_convenio_facturado(data_sheet)
     
     # Get max row in data sheet
     max_data_row = data_sheet.max_row
@@ -158,7 +203,7 @@ def _apply_cruce_facturas_headers(workbook: Workbook) -> dict[str, Any]:
 
 def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     """Create a revision sheet with headers for formulas and check for decimal values."""
-    sheet = workbook.create_sheet(title="revision")
+    sheet = workbook.create_sheet(title="Revision")
     
     # Add header for decimales formula
     sheet["A1"] = "Decimales"
