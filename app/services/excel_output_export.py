@@ -202,68 +202,124 @@ def _apply_cruce_facturas_headers(workbook: Workbook) -> dict[str, Any]:
 
 
 def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
-    """Create a revision sheet with headers for formulas and check for decimal values."""
+    """Create a revision sheet with headers for formulas and checks."""
     sheet = workbook.create_sheet(title="Revision")
-    
-    # Add header for decimales formula
+
+    # Add headers for decimales y doble tipo procedimiento
     sheet["A1"] = "Decimales"
-    
+    sheet["B1"] = "Doble tipo procedimiento"
+
     # Get the data sheet (after filtering)
     data_sheet = workbook.active
-    
-    # Find column indices for the required columns
+
+    def _normalize_header(value: Any) -> str:
+        return str(value).strip().lower() if value is not None else ""
+
+    def _normalize_invoice(value: Any) -> str | None:
+        if value is None:
+            return None
+        if isinstance(value, (int, float)) and value == int(value):
+            return str(int(value))
+        return str(value).strip()
+
     headers = []
     for col in range(1, data_sheet.max_column + 1):
         cell_value = data_sheet.cell(row=1, column=col).value
         headers.append(cell_value)
-    
-    # Find indices of required columns
+
     numero_factura_idx = None
     vlr_subsidiado_idx = None
     vlr_procedimiento_idx = None
-    
+    tipo_procedimiento_idx = None
+
     for i, header in enumerate(headers):
-        if header == "Número Factura":
+        normalized = _normalize_header(header)
+        if normalized == "número factura" or normalized == "numero factura":
             numero_factura_idx = i
-        elif header == "Vlr. Subsidiado":
+        elif normalized == "vlr. subsidiado":
             vlr_subsidiado_idx = i
-        elif header == "Vlr. Procedimiento":
+        elif normalized == "vlr. procedimiento":
             vlr_procedimiento_idx = i
-    
-    # Check for decimal values and collect invoice numbers
+        elif normalized == "tipo procedimiento":
+            tipo_procedimiento_idx = i
+
     decimal_invoices = []
+    tipo_por_factura: dict[str, set[str]] = {}
+
     if numero_factura_idx is not None:
-        for row in range(2, data_sheet.max_row + 1):  # Start from row 2 (data rows)
+        for row in range(2, data_sheet.max_row + 1):
             numero_factura = data_sheet.cell(row=row, column=numero_factura_idx + 1).value
-            
-            # Check Vlr. Subsidiado for decimals
+            if numero_factura is None:
+                logger.debug("Fila %s: Número Factura vacío, se omite", row)
+                continue
+            numero_factura_str = _normalize_invoice(numero_factura)
+            if not numero_factura_str:
+                logger.debug("Fila %s: Número Factura no valido (%r), se omite", row, numero_factura)
+                continue
+
+            # Collect tipo procedimiento por número de factura
+            if tipo_procedimiento_idx is not None:
+                tipo_value = data_sheet.cell(row=row, column=tipo_procedimiento_idx + 1).value
+                if tipo_value is not None:
+                    tipo_str = str(tipo_value).strip()
+                    if tipo_str:
+                        tipo_por_factura.setdefault(numero_factura_str, set()).add(tipo_str)
+                        logger.debug(
+                            "Fila %s: Factura %s agrega tipo procedimiento %s",
+                            row,
+                            numero_factura_str,
+                            tipo_str,
+                        )
+                    else:
+                        logger.debug(
+                            "Fila %s: Factura %s tiene tipo procedimiento vacio"
+                            ", se ignora",
+                            row,
+                            numero_factura_str,
+                        )
+                else:
+                    logger.debug(
+                        "Fila %s: Factura %s tipo procedimiento es None",
+                        row,
+                        numero_factura_str,
+                    )
+            else:
+                logger.debug("Tipo procedimiento no encontrado en headers")
+
+            # Check Vlr. Subsidiado for decimal values
             has_decimals = False
             if vlr_subsidiado_idx is not None:
                 vlr_subsidiado = data_sheet.cell(row=row, column=vlr_subsidiado_idx + 1).value
-                if vlr_subsidiado is not None and isinstance(vlr_subsidiado, (int, float)):
-                    if isinstance(vlr_subsidiado, float) and vlr_subsidiado % 1 != 0:
-                        has_decimals = True
-            
-            # Check Vlr. Procedimiento for decimals
+                if isinstance(vlr_subsidiado, float) and vlr_subsidiado % 1 != 0:
+                    has_decimals = True
+
+            # Check Vlr. Procedimiento for decimal values
             if not has_decimals and vlr_procedimiento_idx is not None:
                 vlr_procedimiento = data_sheet.cell(row=row, column=vlr_procedimiento_idx + 1).value
-                if vlr_procedimiento is not None and isinstance(vlr_procedimiento, (int, float)):
-                    if isinstance(vlr_procedimiento, float) and vlr_procedimiento % 1 != 0:
-                        has_decimals = True
-            
-            # If decimals found, add invoice number to list
-            if has_decimals and numero_factura is not None:
-                decimal_invoices.append(str(numero_factura))
-    
-    # Write decimal invoice numbers to revision sheet
-    for i, invoice in enumerate(decimal_invoices, 2):  # Start from row 2
+                if isinstance(vlr_procedimiento, float) and vlr_procedimiento % 1 != 0:
+                    has_decimals = True
+
+            if has_decimals:
+                decimal_invoices.append(numero_factura_str)
+                logger.debug("Factura %s con decimales detectada", numero_factura_str)
+
+    # Determine invoices con más de un tipo de procedimiento
+    doble_tipo_invoices = [fact for fact, tipos in tipo_por_factura.items() if len(tipos) > 1]
+
+    # Write decimal invoice numbers to Revision sheet column A
+    for i, invoice in enumerate(decimal_invoices, start=2):
         sheet.cell(row=i, column=1, value=invoice)
-    
+
+    # Write invoices with doble tipo de procedimiento to Revision sheet column B
+    for i, invoice in enumerate(doble_tipo_invoices, start=2):
+        sheet.cell(row=i, column=2, value=invoice)
+
     return {
-        "rule": "create_revision_sheet", 
-        "sheet": "revision", 
-        "headers": ["Decimales"],
-        "decimal_invoices_found": len(decimal_invoices)
+        "rule": "create_revision_sheet",
+        "sheet": "Revision",
+        "headers": ["Decimales", "Doble tipo de procedimiento"],
+        "decimal_invoices_found": len(decimal_invoices),
+        "doble_tipo_invoices_found": len(doble_tipo_invoices),
     }
 
 
