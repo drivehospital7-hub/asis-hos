@@ -250,6 +250,7 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     sheet["B1"] = "Doble tipo procedimiento"
     sheet["C1"] = "Ruta Duplicada"
     sheet["D1"] = "Convenio de procedimiento"
+    sheet["E1"] = "Cantidades"
 
     # Get the data sheet (after filtering)
     data_sheet = workbook.active
@@ -276,6 +277,7 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     procedimiento_idx = None
     identificacion_idx = None
     convenio_facturado_idx = None
+    cantidad_idx = None
 
     for i, header in enumerate(headers):
         normalized = _normalize_header(header)
@@ -293,11 +295,14 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
             identificacion_idx = i
         elif normalized == "convenio facturado":
             convenio_facturado_idx = i
+        elif normalized == "cantidad":
+            cantidad_idx = i
 
     decimal_invoices = []
     tipo_por_factura: dict[str, set[str]] = {}
     ruta_duplicada = []
     convenio_de_procedimiento = []
+    cantidades_invoices = []
 
     # Define target procedures for filtering
     target_procedures = {
@@ -347,6 +352,30 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
                     )
             else:
                 logger.debug("Tipo procedimiento no encontrado en headers")
+
+            # Check for Cantidades:
+            # - Tipo Procedimiento == "Consultas" and Cantidad >= 2
+            # - Cantidad > 10
+            # - Convenio Facturado == "Promoción y Prevención" and Cantidad >= 3
+            if tipo_procedimiento_idx is not None and cantidad_idx is not None and convenio_facturado_idx is not None:
+                tipo_value = data_sheet.cell(row=row, column=tipo_procedimiento_idx + 1).value
+                cantidad_value = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+                convenio_value = data_sheet.cell(row=row, column=convenio_facturado_idx + 1).value
+
+                cond_consultas = tipo_value == "Consultas" and isinstance(cantidad_value, (int, float)) and cantidad_value >= 2
+                cond_mayor_10 = isinstance(cantidad_value, (int, float)) and cantidad_value > 10
+                cond_pyp = convenio_value == "Promoción y Prevención" and isinstance(cantidad_value, (int, float)) and cantidad_value >= 3
+
+                if cond_consultas or cond_mayor_10 or cond_pyp:
+                    cantidades_invoices.append(numero_factura_str)
+                    logger.debug(
+                        "Fila %s: Factura %s agregada a Cantidades (Tipo: %s, Convenio: %s, Cantidad: %s)",
+                        row,
+                        numero_factura_str,
+                        tipo_value,
+                        convenio_value,
+                        cantidad_value,
+                    )
 
             # Check Vlr. Subsidiado for decimal values
             has_decimals = False
@@ -430,14 +459,19 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     for i, invoice in enumerate(convenio_de_procedimiento, start=2):
         sheet.cell(row=i, column=4, value=invoice)
 
+    # Write Cantidades to Revision sheet column E
+    for i, invoice in enumerate(cantidades_invoices, start=2):
+        sheet.cell(row=i, column=5, value=invoice)
+
     return {
         "rule": "create_revision_sheet",
         "sheet": "Revision",
-        "headers": ["Decimales", "Doble tipo de procedimiento", "Ruta Duplicada", "Convenio de procedimiento"],
+        "headers": ["Decimales", "Doble tipo de procedimiento", "Ruta Duplicada", "Convenio de procedimiento", "Cantidades"],
         "decimal_invoices_found": len(decimal_invoices),
         "doble_tipo_invoices_found": len(doble_tipo_invoices),
         "ruta_duplicada_found": len(ruta_duplicada),
         "convenio_de_procedimiento_found": len(convenio_de_procedimiento),
+        "cantidades_found": len(cantidades_invoices),
     }
 
 
