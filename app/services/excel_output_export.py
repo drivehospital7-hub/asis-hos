@@ -205,9 +205,10 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     """Create a revision sheet with headers for formulas and checks."""
     sheet = workbook.create_sheet(title="Revision")
 
-    # Add headers for decimales y doble tipo procedimiento
+    # Add headers for decimales, doble tipo procedimiento, and ruta duplicada
     sheet["A1"] = "Decimales"
     sheet["B1"] = "Doble tipo procedimiento"
+    sheet["C1"] = "Ruta Duplicada"
 
     # Get the data sheet (after filtering)
     data_sheet = workbook.active
@@ -231,6 +232,8 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     vlr_subsidiado_idx = None
     vlr_procedimiento_idx = None
     tipo_procedimiento_idx = None
+    identificacion_idx = None
+    convenio_facturado_idx = None
 
     for i, header in enumerate(headers):
         normalized = _normalize_header(header)
@@ -242,9 +245,14 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
             vlr_procedimiento_idx = i
         elif normalized == "tipo procedimiento":
             tipo_procedimiento_idx = i
+        elif normalized == "nº identificación" or normalized == "numero identificacion":
+            identificacion_idx = i
+        elif normalized == "convenio facturado":
+            convenio_facturado_idx = i
 
     decimal_invoices = []
     tipo_por_factura: dict[str, set[str]] = {}
+    ruta_duplicada = []
 
     if numero_factura_idx is not None:
         for row in range(2, data_sheet.max_row + 1):
@@ -306,6 +314,22 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     # Determine invoices con más de un tipo de procedimiento
     doble_tipo_invoices = [fact for fact, tipos in tipo_por_factura.items() if len(tipos) > 1]
 
+    # Process Ruta Duplicada
+    from collections import defaultdict
+    conteo_ident = defaultdict(set)
+    if identificacion_idx is not None and convenio_facturado_idx is not None and numero_factura_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            convenio = data_sheet.cell(row=row, column=convenio_facturado_idx + 1).value
+            if convenio == "Promoción y Prevención":
+                ident = data_sheet.cell(row=row, column=identificacion_idx + 1).value
+                factura = data_sheet.cell(row=row, column=numero_factura_idx + 1).value
+                if ident is not None and factura is not None:
+                    ident_str = str(ident).strip()
+                    factura_str = str(factura).strip()
+                    if ident_str and factura_str:
+                        conteo_ident[ident_str].add(factura_str)
+        ruta_duplicada = [ident for ident, facturas in conteo_ident.items() if len(facturas) >= 3]
+
     # Write decimal invoice numbers to Revision sheet column A
     for i, invoice in enumerate(decimal_invoices, start=2):
         sheet.cell(row=i, column=1, value=invoice)
@@ -314,12 +338,17 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     for i, invoice in enumerate(doble_tipo_invoices, start=2):
         sheet.cell(row=i, column=2, value=invoice)
 
+    # Write Ruta Duplicada to Revision sheet column C
+    for i, dup in enumerate(ruta_duplicada, start=2):
+        sheet.cell(row=i, column=3, value=dup)
+
     return {
         "rule": "create_revision_sheet",
         "sheet": "Revision",
-        "headers": ["Decimales", "Doble tipo de procedimiento"],
+        "headers": ["Decimales", "Doble tipo de procedimiento", "Ruta Duplicada"],
         "decimal_invoices_found": len(decimal_invoices),
         "doble_tipo_invoices_found": len(doble_tipo_invoices),
+        "ruta_duplicada_found": len(ruta_duplicada),
     }
 
 
