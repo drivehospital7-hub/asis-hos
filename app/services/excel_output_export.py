@@ -26,7 +26,6 @@ COLUMNS_TO_KEEP = {
     "Entidad Cobrar",
     "Profesional Atiende",
     "Fec. Factura",
-    "Fecha Cierre",
     "Número Factura",
     "Tipo Entidad Cobrar",
     "Convenio Facturado",
@@ -115,6 +114,44 @@ def _apply_conditional_convenio_facturado(data_sheet: Worksheet) -> dict[str, An
     return {"rule": "convenio_facturado_conditional", "applied": True}
 
 
+def _apply_conditional_tipo_identificacion(data_sheet: Worksheet) -> dict[str, Any]:
+    """Apply red conditional formatting for Tipo Identificación rule based on age and document type match."""
+    tipo_id_col = _find_column_letter_by_header(data_sheet, "Tipo Identificación")
+    fec_nac_col = _find_column_letter_by_header(data_sheet, "Fec. Nacimiento")
+    fec_fact_col = _find_column_letter_by_header(data_sheet, "Fec. Factura")
+
+    if not tipo_id_col or not fec_nac_col or not fec_fact_col:
+        logger.warning(
+            "No se pueden aplicar reglas de tipo identificación: columnas requeridas no encontradas."
+        )
+        return {"rule": "tipo_identificacion_conditional", "applied": False}
+
+    max_data_row = data_sheet.max_row
+    fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
+
+    # Apply rule to the entire Tipo Identificación data column
+    data_range = f"{tipo_id_col}2:{tipo_id_col}{max_data_row}"
+    formula = (
+        f"=IF(OR(${tipo_id_col}2=\"RC\",${tipo_id_col}2=\"TI\",${tipo_id_col}2=\"CC\"), "
+        f"OR(AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<7, ${tipo_id_col}2<>\"RC\"), "
+        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=7, DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<18, ${tipo_id_col}2<>\"TI\"), "
+        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=18, ${tipo_id_col}2<>\"CC\")), "
+        f"IF(OR(${tipo_id_col}2=\"MS\",${tipo_id_col}2=\"AS\"), "
+        f"OR(AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<18, ${tipo_id_col}2<>\"MS\"), "
+        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=18, ${tipo_id_col}2<>\"AS\")), FALSE))"
+    )
+
+    rule = FormulaRule(formula=[formula], fill=fill)
+    data_sheet.conditional_formatting.add(data_range, rule)
+
+    logger.info(
+        "Conditional formatting added for Tipo Identificación rule to %s with red fill",
+        data_range,
+    )
+
+    return {"rule": "tipo_identificacion_conditional", "applied": True}
+
+
 def _apply_conditional_formulas_to_cruce_facturas(
     workbook: Workbook, cruce_sheet: Worksheet, data_sheet: Worksheet
 ) -> None:
@@ -129,6 +166,9 @@ def _apply_conditional_formulas_to_cruce_facturas(
     
     # Apply convenio facturado conditional rule (no nuevas celdas visibles)
     _apply_conditional_convenio_facturado(data_sheet)
+    
+    # Apply tipo identificación conditional rule
+    _apply_conditional_tipo_identificacion(data_sheet)
     
     # Get max row in data sheet
     max_data_row = data_sheet.max_row
