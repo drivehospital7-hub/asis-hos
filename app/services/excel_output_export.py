@@ -245,10 +245,11 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     """Create a revision sheet with headers for formulas and checks."""
     sheet = workbook.create_sheet(title="Revision")
 
-    # Add headers for decimales, doble tipo procedimiento, and ruta duplicada
+    # Add headers for decimales, doble tipo procedimiento, ruta duplicada, and convenio de procedimiento
     sheet["A1"] = "Decimales"
     sheet["B1"] = "Doble tipo procedimiento"
     sheet["C1"] = "Ruta Duplicada"
+    sheet["D1"] = "Convenio de procedimiento"
 
     # Get the data sheet (after filtering)
     data_sheet = workbook.active
@@ -272,6 +273,7 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     vlr_subsidiado_idx = None
     vlr_procedimiento_idx = None
     tipo_procedimiento_idx = None
+    procedimiento_idx = None
     identificacion_idx = None
     convenio_facturado_idx = None
 
@@ -285,6 +287,8 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
             vlr_procedimiento_idx = i
         elif normalized == "tipo procedimiento":
             tipo_procedimiento_idx = i
+        elif normalized == "procedimiento":
+            procedimiento_idx = i
         elif normalized == "nº identificación" or normalized == "numero identificacion":
             identificacion_idx = i
         elif normalized == "convenio facturado":
@@ -293,6 +297,16 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     decimal_invoices = []
     tipo_por_factura: dict[str, set[str]] = {}
     ruta_duplicada = []
+    convenio_de_procedimiento = []
+
+    # Define target procedures for filtering
+    target_procedures = {
+        "Control de Placa Bacteriana",
+        "Aplicación de Sellantes",
+        "Detartraje Supragingival",
+        "Topicacion de Fluor en Barniz",
+        "Consulta de Primera vez por Odontologia General",
+    }
 
     if numero_factura_idx is not None:
         for row in range(2, data_sheet.max_row + 1):
@@ -351,6 +365,36 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
                 decimal_invoices.append(numero_factura_str)
                 logger.debug("Factura %s con decimales detectada", numero_factura_str)
 
+            # Check for Convenio de procedimiento
+            if convenio_facturado_idx is not None and procedimiento_idx is not None:
+                convenio = data_sheet.cell(row=row, column=convenio_facturado_idx + 1).value
+                procedimiento = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                
+                should_add = False
+                reason = ""
+                
+                if procedimiento is not None:
+                    procedimiento_str = str(procedimiento).strip()
+                    
+                    # Case 1: Convenio Asistencial with target procedures
+                    if convenio == "Asistencial" and procedimiento_str in target_procedures:
+                        should_add = True
+                        reason = f"Asistencial con procedimiento: {procedimiento_str}"
+                    
+                    # Case 2: Convenio Promoción y Prevención with procedures NOT in target list
+                    elif convenio == "Promoción y Prevención" and procedimiento_str not in target_procedures:
+                        should_add = True
+                        reason = f"Promoción y Prevención con procedimiento diferente: {procedimiento_str}"
+                
+                if should_add and numero_factura_str not in convenio_de_procedimiento:
+                    convenio_de_procedimiento.append(numero_factura_str)
+                    logger.debug(
+                        "Fila %s: Factura %s agregada a Convenio de procedimiento (%s)",
+                        row,
+                        numero_factura_str,
+                        reason,
+                    )
+
     # Determine invoices con más de un tipo de procedimiento
     doble_tipo_invoices = [fact for fact, tipos in tipo_por_factura.items() if len(tipos) > 1]
 
@@ -382,13 +426,18 @@ def _create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     for i, dup in enumerate(ruta_duplicada, start=2):
         sheet.cell(row=i, column=3, value=dup)
 
+    # Write Convenio de procedimiento to Revision sheet column D
+    for i, invoice in enumerate(convenio_de_procedimiento, start=2):
+        sheet.cell(row=i, column=4, value=invoice)
+
     return {
         "rule": "create_revision_sheet",
         "sheet": "Revision",
-        "headers": ["Decimales", "Doble tipo de procedimiento", "Ruta Duplicada"],
+        "headers": ["Decimales", "Doble tipo de procedimiento", "Ruta Duplicada", "Convenio de procedimiento"],
         "decimal_invoices_found": len(decimal_invoices),
         "doble_tipo_invoices_found": len(doble_tipo_invoices),
         "ruta_duplicada_found": len(ruta_duplicada),
+        "convenio_de_procedimiento_found": len(convenio_de_procedimiento),
     }
 
 
