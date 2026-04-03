@@ -4,6 +4,9 @@ from config.prod import ProdConfig
 
 
 def main():
+    # Validate config before starting
+    ProdConfig.validate()
+    
     app = create_app(ProdConfig)
     
     print(f"Starting production server on {ProdConfig.HOST}:{ProdConfig.PORT}")

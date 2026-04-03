@@ -18,5 +18,8 @@ class ProdConfig:
     LOG_LEVEL = "INFO"
     LOG_FILE = "logs/prod.log"
     
-    if not SECRET_KEY:
-        raise ValueError("SECRET_KEY must be set in production environment")
+    @classmethod
+    def validate(cls):
+        """Validate config before using in production."""
+        if not cls.SECRET_KEY:
+            raise ValueError("SECRET_KEY must be set in production environment")

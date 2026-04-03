@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.services.excel_column_headers import ALLOWED_EXCEL_SUFFIXES
+from app.constants import ALLOWED_EXCEL_SUFFIXES
 
 
 def input_data_directory() -> Path:

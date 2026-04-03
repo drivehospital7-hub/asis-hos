@@ -6,9 +6,9 @@ from typing import Any
 
 import polars as pl
 
-logger = logging.getLogger(__name__)
+from app.constants import ALLOWED_EXCEL_SUFFIXES
 
-ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
+logger = logging.getLogger(__name__)
 
 
 def get_excel_column_headers(

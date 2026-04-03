@@ -4,7 +4,7 @@ from app.services.excel_headers_page import (
     build_excel_headers_form_context,
     build_excel_headers_view_context,
 )
-from app.services.excel_output_export import export_excel_with_cruce_facturas
+from app.services.exporter import export_excel_with_cruce_facturas
 
 excel_headers_bp = Blueprint("excel_headers", __name__)
 
