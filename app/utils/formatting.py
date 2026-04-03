@@ -32,19 +32,21 @@ def find_column_letter_by_header(
 ) -> str | None:
     """
     Busca la letra de columna para un header dado.
-    
+
     Args:
         sheet: Hoja de Excel
         header_name: Nombre del header a buscar
         headers_row: Fila donde están los headers (por defecto 1)
-    
+
     Returns:
         Letra de la columna o None si no se encuentra
     """
+    from openpyxl.utils import get_column_letter
+
     for col in range(1, sheet.max_column + 1):
         cell_value = sheet.cell(row=headers_row, column=col).value
         if cell_value == header_name:
-            return sheet.cell(row=headers_row, column=col).column_letter
+            return get_column_letter(col)
     return None
 
 

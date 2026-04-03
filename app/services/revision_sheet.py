@@ -24,6 +24,7 @@ from app.constants import (
     CONVENIO_ASISTENCIAL,
     CONVENIO_PYP,
     REVISION_SHEET,
+    REVISION_HEADERS,
     TARGET_PROCEDURES,
     RUTA_DUPLICADA_THRESHOLD,
     CANTIDAD_CONSULTAS_MIN,
@@ -32,16 +33,6 @@ from app.constants import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-# Headers de la hoja Revisión
-REVISION_HEADERS = {
-    1: "Decimales",
-    2: "Doble tipo procedimiento",
-    3: "Ruta Duplicada",
-    4: "Convenio de procedimiento",
-    5: "Cantidades",
-}
 
 
 def _normalize_header(value: Any) -> str:

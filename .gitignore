@@ -68,20 +68,20 @@ dist/
 # =========================
 
 # Ignorar todo el data por defecto
-data/*
+app/data/*
 
 # Pero mantener estructura de carpetas
-!data/.gitkeep
-!data/entrada/
-!data/salida/
+!app/data/.gitkeep
+!app/data/input/
+!app/data/output/
 
 # Mantener carpetas vacías
-data/entrada/*
-data/salida/*
+app/data/input/*
+app/data/output/*
 
 # Excepto archivos placeholder
-!data/entrada/.gitkeep
-!data/salida/.gitkeep
+!app/data/input/.gitkeep
+!app/data/output/.gitkeep
 
 # =========================
 # Scripts ejecutados manualmente (opcional logs/output)

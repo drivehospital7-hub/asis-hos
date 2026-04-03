@@ -1,5 +1,10 @@
-flask
-python-dotenv
-polars[excel]>=1.39
-openpyxl
-waitress
+# Core
+flask==3.1.3
+python-dotenv==1.2.2
+
+# Excel processing
+polars[excel]==1.39.3
+openpyxl==3.1.5
+
+# Production server
+waitress==3.0.2

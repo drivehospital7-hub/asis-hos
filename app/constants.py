@@ -94,3 +94,23 @@ RUTA_DUPLICADA_THRESHOLD = 3
 CANTIDAD_CONSULTAS_MIN = 2      # Consultas >= 2 es anómalo
 CANTIDAD_MAX = 10               # Cantidad > 10 es anómalo
 CANTIDAD_PYP_MIN = 3            # PyP >= 3 es anómalo
+
+# =============================================================================
+# HEADERS - Headers de hojas especiales
+# =============================================================================
+
+# Headers para hoja CruceFacturas (celda -> valor)
+CRUCE_HEADERS: dict[str, str] = {
+    "B1": "Facturas Ok",
+    "D1": "Facturas Pendientes",
+    "F1": "PDFs de Facturas",
+}
+
+# Headers para hoja Revision (columna -> valor)
+REVISION_HEADERS: dict[int, str] = {
+    1: "Decimales",
+    2: "Doble tipo procedimiento",
+    3: "Ruta Duplicada",
+    4: "Convenio de procedimiento",
+    5: "Cantidades",
+}

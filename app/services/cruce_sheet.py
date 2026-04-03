@@ -12,17 +12,10 @@ from typing import Any
 from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import CRUCE_FACTURAS_SHEET
+from app.constants import CRUCE_FACTURAS_SHEET, CRUCE_HEADERS
+from app.utils.formatting import find_column_letter_by_header
 
 logger = logging.getLogger(__name__)
-
-
-# Headers predefinidos para CruceFacturas
-CRUCE_HEADERS = {
-    "B1": "Facturas Ok",
-    "D1": "Facturas Pendientes",
-    "F1": "PDFs de Facturas",
-}
 
 
 def get_or_create_sheet(workbook: Workbook, sheet_name: str) -> Worksheet:
@@ -42,29 +35,6 @@ def get_or_create_sheet(workbook: Workbook, sheet_name: str) -> Worksheet:
     
     logger.info("Creando hoja '%s'", sheet_name)
     return workbook.create_sheet(title=sheet_name)
-
-
-def find_column_letter_by_header(
-    sheet: Worksheet,
-    header_name: str,
-    headers_row: int = 1,
-) -> str | None:
-    """
-    Busca la letra de columna para un header dado.
-    
-    Args:
-        sheet: Hoja de Excel
-        header_name: Nombre del header a buscar
-        headers_row: Fila donde están los headers (por defecto 1)
-    
-    Returns:
-        Letra de la columna o None si no se encuentra
-    """
-    for col in range(1, sheet.max_column + 1):
-        cell_value = sheet.cell(row=headers_row, column=col).value
-        if cell_value == header_name:
-            return sheet.cell(row=headers_row, column=col).column_letter
-    return None
 
 
 def apply_cruce_headers(
