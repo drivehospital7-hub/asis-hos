@@ -11,6 +11,7 @@ from __future__ import annotations
 # =============================================================================
 
 ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
+MAX_UPLOAD_SIZE_MB = 10
 
 # =============================================================================
 # SHEETS - Nombres de hojas

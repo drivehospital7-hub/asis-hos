@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Control Facturacion{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+  {% block head_extra %}{% endblock %}
+</head>
+<body>
+  <div class="layout">
+    <header class="layout__header">
+      <div class="header">
+        <span class="header__title">Control Facturacion</span>
+        <span class="header__subtitle">EPS MALLAMAS</span>
+      </div>
+    </header>
+
+    <main class="layout__main">
+      {% block content %}{% endblock %}
+    </main>
+
+    <footer class="layout__footer">
+      Asistencial &middot; EPS MALLAMAS
+    </footer>
+  </div>
+
+  {% block scripts %}{% endblock %}
+</body>
+</html>

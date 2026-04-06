@@ -31,11 +31,11 @@ app/
 
 ### Reglas (NO NEGOCIABLES)
 
-| Regla | Descripción |
-|-------|-------------|
+| Regla                    | Descripción                                                          |
+| ------------------------ | -------------------------------------------------------------------- |
 | **Routes = delegadores** | Reciben request → llaman servicio → retornan respuesta. CERO lógica. |
-| **Services = SRP** | Una responsabilidad por servicio. Si hace dos cosas, dividir. |
-| **No hardcodear** | Valores compartidos van en `constants.py` |
+| **Services = SRP**       | Una responsabilidad por servicio. Si hace dos cosas, dividir.        |
+| **No hardcodear**        | Valores compartidos van en `constants.py`                            |
 
 ---
 
@@ -53,12 +53,11 @@ app/
 
 ## Código
 
-| Regla | Ejemplo |
-|-------|---------|
-| Funciones < 50 líneas | ✅ |
-| Nombres descriptivos | `get_excel_column_headers` ✅ / `get_cols` ❌ |
-| Clases: PascalCase | `DevConfig` |
-| Funciones: snake_case | `process_excel` |
+| Regla                   | Ejemplo                  |
+| ----------------------- | ------------------------ |
+| Funciones < 50 líneas   | ✅                       |
+| Clases: PascalCase      | `DevConfig`              |
+| Funciones: snake_case   | `process_excel`          |
 | Constantes: UPPER_SNAKE | `ALLOWED_EXCEL_SUFFIXES` |
 
 ### Imports (orden)
@@ -132,15 +131,15 @@ from app.constants import CRUCE_FACTURAS_SHEET
 
 ## Archivos Clave
 
-| Archivo | Propósito | Estado |
-|---------|-----------|--------|
-| `app/services/exporter.py` | Orquestador de exportación | ✅ |
-| `app/services/cruce_sheet.py` | Hoja CruceFacturas | ✅ |
-| `app/services/revision_sheet.py` | Detección de problemas | ✅ |
-| `app/utils/column_filter.py` | Filtrado de columnas | ✅ |
-| `app/utils/formatting.py` | Formato condicional | ✅ |
-| `app/services/excel_column_headers.py` | Lee headers Excel (Polars) | ✅ |
-| `app/utils/input_data.py` | Paths seguros | ✅ |
+| Archivo                                | Propósito                  | Estado |
+| -------------------------------------- | -------------------------- | ------ |
+| `app/services/exporter.py`             | Orquestador de exportación | ✅     |
+| `app/services/cruce_sheet.py`          | Hoja CruceFacturas         | ✅     |
+| `app/services/revision_sheet.py`       | Detección de problemas     | ✅     |
+| `app/utils/column_filter.py`           | Filtrado de columnas       | ✅     |
+| `app/utils/formatting.py`              | Formato condicional        | ✅     |
+| `app/services/excel_column_headers.py` | Lee headers Excel (Polars) | ✅     |
+| `app/utils/input_data.py`              | Paths seguros              | ✅     |
 
 ---
 
@@ -150,7 +149,7 @@ from app.constants import CRUCE_FACTURAS_SHEET
 # Desarrollo
 mkdir -p logs && python run_dev.py
 
-# Producción  
+# Producción
 python run_prod.py
 ```
 

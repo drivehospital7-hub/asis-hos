@@ -1,0 +1,164 @@
+/* ============================================================
+   base.css — Reset, custom properties, layout, typography
+   ============================================================ */
+
+/* --- Reset -------------------------------------------------- */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* --- Custom Properties -------------------------------------- */
+:root {
+  /* Palette — neutral, professional */
+  --color-bg:         #fafafa;
+  --color-surface:    #ffffff;
+  --color-border:     #e0e0e0;
+  --color-border-strong: #c0c0c0;
+
+  --color-text:       #1a1a1a;
+  --color-text-muted: #606060;
+  --color-text-light: #888888;
+
+  --color-accent:     #4a6fa5;   /* blue-grey, subtle */
+  --color-accent-hover: #3b5b87;
+
+  --color-white:      #ffffff;
+  --color-code-bg:    #f0f0f0;
+  --color-hover-bg:   #f8f9fa;
+
+  --color-error-bg:   #fef2f2;
+  --color-error-border: #e74c3c;
+  --color-error-text: #991b1b;
+
+  --color-success-bg:   #f0fdf4;
+  --color-success-border: #22c55e;
+  --color-success-text: #166534;
+
+  /* Spacing scale */
+  --space-xs:  0.25rem;
+  --space-sm:  0.5rem;
+  --space-md:  1rem;
+  --space-lg:  1.5rem;
+  --space-xl:  2rem;
+  --space-2xl: 3rem;
+
+  /* Typography */
+  --font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono:   "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  --font-size-sm:  0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg:  1.125rem;
+  --font-size-xl:  1.25rem;
+  --font-size-2xl: 1.5rem;
+  --line-height:   1.6;
+
+  /* Borders */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+/* --- Base --------------------------------------------------- */
+html {
+  font-size: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  line-height: var(--line-height);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* --- Layout ------------------------------------------------- */
+.layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.layout__header {
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.layout__main {
+  flex: 1;
+  width: 100%;
+  max-width: 56rem;
+  margin: 0 auto;
+  padding: var(--space-xl) var(--space-lg);
+}
+
+.layout__footer {
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-md) var(--space-lg);
+  text-align: center;
+  color: var(--color-text-light);
+  font-size: var(--font-size-sm);
+}
+
+/* --- Header ------------------------------------------------- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  max-width: 56rem;
+  margin: 0 auto;
+}
+
+.header__title {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.header__subtitle {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+/* --- Typography --------------------------------------------- */
+h1, h2, h3 {
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+h1 { font-size: var(--font-size-2xl); }
+h2 { font-size: var(--font-size-xl); margin-bottom: var(--space-sm); }
+h3 { font-size: var(--font-size-lg); }
+
+p { margin-bottom: var(--space-sm); }
+
+code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  background-color: var(--color-code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: var(--radius-sm);
+}
+
+/* --- Utilities ---------------------------------------------- */
+.text-muted { color: var(--color-text-muted); }
+.text-light { color: var(--color-text-light); }
+.text-sm    { font-size: var(--font-size-sm); }
+.mt-sm      { margin-top: var(--space-sm); }
+.mt-md      { margin-top: var(--space-md); }
+.mt-lg      { margin-top: var(--space-lg); }
+.mb-md      { margin-bottom: var(--space-md); }
+.mb-lg      { margin-bottom: var(--space-lg); }

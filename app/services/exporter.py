@@ -24,6 +24,7 @@ from app.services.revision_sheet import create_revision_sheet
 from app.utils.column_filter import filter_columns
 from app.utils.formatting import apply_all_conditional_formatting
 from app.utils.input_data import (
+    resolve_safe_excel_absolute,
     resolve_safe_excel_in_input,
     resolve_safe_excel_in_output,
 )
@@ -71,8 +72,8 @@ def export_excel_with_cruce_facturas(
     """
     logger.info("Iniciando exportación: %s", filename)
     
-    # 1. Resolver y validar path de entrada
-    source_path, source_error = resolve_safe_excel_in_input(filename)
+    # 1. Resolver y validar path de entrada (soporta repo o archivo subido)
+    source_path, source_error = resolve_safe_excel_absolute(filename)
     if source_error:
         logger.error("Error resolviendo archivo de entrada: %s", source_error)
         return {"status": "error", "data": {}, "errors": [source_error]}
@@ -84,7 +85,15 @@ def export_excel_with_cruce_facturas(
         return {"status": "error", "data": {}, "errors": [validation_error]}
     
     # 2. Resolver path de salida
-    output_path, output_error = resolve_safe_excel_in_output(source_path.name)
+    # Usar nombre original del archivo (sin el UUID del temp upload)
+    original_filename = Path(filename).name
+    if "_" in original_filename:
+        # Es un archivo temporal: extraer nombre original despues del UUID
+        parts = original_filename.split("_", 1)
+        if len(parts) == 2 and len(parts[0]) == 32:  # UUID es 32 hex chars
+            original_filename = parts[1]
+    
+    output_path, output_error = resolve_safe_excel_in_output(original_filename)
     if output_error:
         logger.error("Error resolviendo archivo de salida: %s", output_error)
         return {"status": "error", "data": {}, "errors": [output_error]}

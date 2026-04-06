@@ -6,6 +6,7 @@ from typing import Any
 
 from app.services.excel_column_headers import get_excel_column_headers
 from app.utils.input_data import list_excel_filenames, resolve_safe_excel_in_input
+from app.utils.input_data import resolve_safe_excel_absolute
 
 
 def _parse_header_row(value: str | None) -> tuple[int | None, str | None]:
@@ -111,7 +112,7 @@ def build_excel_headers_view_context(
             "result": None,
         }
 
-    path, resolve_error = resolve_safe_excel_in_input(file)
+    path, resolve_error = resolve_safe_excel_absolute(file)
     if resolve_error:
         return {
             "available_files": available_files,
