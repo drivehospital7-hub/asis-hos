@@ -162,3 +162,91 @@ code {
 .mt-lg      { margin-top: var(--space-lg); }
 .mb-md      { margin-bottom: var(--space-md); }
 .mb-lg      { margin-bottom: var(--space-lg); }
+
+/* --- Home Page ------------------------------------------------ */
+.home {
+  max-width: 48rem;
+  margin: 0 auto;
+}
+
+.home__header {
+  text-align: center;
+  margin-bottom: var(--space-2xl);
+}
+
+.home__title {
+  font-size: 2.25rem;
+  color: var(--color-text);
+  margin-bottom: var(--space-sm);
+}
+
+.home__subtitle {
+  font-size: var(--font-size-lg);
+  color: var(--color-text-muted);
+}
+
+.home__areas {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+
+/* --- Area Card ------------------------------------------------ */
+.area-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg);
+  text-decoration: none;
+  color: inherit;
+  transition: all 0.2s ease;
+}
+
+.area-card:hover {
+  border-color: var(--color-accent);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-2px);
+}
+
+.area-card__icon {
+  flex-shrink: 0;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-hover-bg);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+}
+
+.area-card__content {
+  flex: 1;
+}
+
+.area-card__title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: var(--space-xs);
+}
+
+.area-card__description {
+  font-size: var(--font-size-base);
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.area-card__arrow {
+  flex-shrink: 0;
+  color: var(--color-text-light);
+  transition: transform 0.2s ease;
+}
+
+.area-card:hover .area-card__arrow {
+  transform: translateX(4px);
+  color: var(--color-accent);
+}
