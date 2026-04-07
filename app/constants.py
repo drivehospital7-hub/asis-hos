@@ -121,9 +121,9 @@ HEADER_BORDER_COLOR = "4472C4"
 # Color de fondo para filas de datos (azulado muy claro)
 DATA_ROW_BACKGROUND_COLOR = "F2F6FA"
 CRUCE_HEADERS: dict[str, str] = {
-    "B1": "Facturas Ok",
-    "D1": "Facturas Pendientes",
-    "F1": "PDFs de Facturas",
+    "B2": "Facturas Ok",
+    "D2": "Facturas Pendientes",
+    "F2": "PDFs de Facturas",
 }
 
 # Headers para hoja Revision (columna -> valor)

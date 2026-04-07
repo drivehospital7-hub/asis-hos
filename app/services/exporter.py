@@ -18,7 +18,7 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-from app.constants import CRUCE_FACTURAS_SHEET
+from app.constants import CRUCE_FACTURAS_SHEET, REVISION_SHEET
 from app.services.cruce_sheet import create_cruce_facturas_sheet
 from app.services.revision_sheet import create_revision_sheet
 from app.utils.column_filter import filter_columns
@@ -116,13 +116,17 @@ def export_excel_with_cruce_facturas(
         filter_result = filter_columns(data_sheet)
         logger.info("Columnas filtradas: %s", filter_result)
         
-        # 7. Crear hoja CruceFacturas
-        cruce_sheet, cruce_info = create_cruce_facturas_sheet(workbook)
-        
-        # 8. Crear hoja Revision
+        # 7. Crear hoja Revision
         revision_info = create_revision_sheet(workbook)
         
-        # 9. Aplicar formato condicional
+        # 8. Crear hoja CruceFacturas
+        cruce_sheet, cruce_info = create_cruce_facturas_sheet(workbook)
+        
+        # 9. Mover CruceFacturas a última posición (después de Revision)
+        cruce_sheet_obj = workbook[CRUCE_FACTURAS_SHEET]
+        workbook.move_sheet(cruce_sheet_obj, offset=1)
+        
+        # 10. Aplicar formato condicional
         formatting_results = apply_all_conditional_formatting(cruce_sheet, data_sheet)
         
         # 10. Guardar

@@ -317,10 +317,13 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     sheet = workbook.create_sheet(title=REVISION_SHEET)
     data_sheet = workbook.active
     
-    # Aplicar headers con estilo
+    # Insertar fila vacía arriba
+    sheet.insert_rows(1)
+    
+    # Aplicar headers con estilo en fila 2
     header_style = create_header_style()
     for col, header in REVISION_HEADERS.items():
-        cell = sheet.cell(row=1, column=col, value=header)
+        cell = sheet.cell(row=2, column=col, value=header)
         cell.font = header_style["font"]
         cell.fill = header_style["fill"]
         cell.border = header_style["border"]
@@ -340,16 +343,16 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
     cantidades = _detect_cantidades_anomalas(data_sheet, indices)
     
-    # Escribir resultados
-    _write_column(sheet, 1, decimales)
-    _write_column(sheet, 2, doble_tipo)
-    _write_column(sheet, 3, ruta_dup)
-    _write_column(sheet, 4, conveniente_proc)
-    _write_column(sheet, 5, cantidades)
+    # Escribir resultados en fila 3+
+    _write_column(sheet, 1, decimales, start_row=3)
+    _write_column(sheet, 2, doble_tipo, start_row=3)
+    _write_column(sheet, 3, ruta_dup, start_row=3)
+    _write_column(sheet, 4, conveniente_proc, start_row=3)
+    _write_column(sheet, 5, cantidades, start_row=3)
     
-    # Aplicar estilo a filas de datos (sin negrita)
+    # Aplicar estilo a filas de datos (fila 3+)
     data_style = create_data_row_style()
-    for row in range(2, sheet.max_row + 1):
+    for row in range(3, sheet.max_row + 1):
         for col in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row, column=col)
             cell.fill = data_style["fill"]

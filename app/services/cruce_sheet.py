@@ -99,11 +99,25 @@ def create_cruce_facturas_sheet(workbook: Workbook) -> tuple[Worksheet, dict[str
         Tupla (worksheet, info_dict)
     """
     sheet = get_or_create_sheet(workbook, CRUCE_FACTURAS_SHEET)
-    headers_info = apply_cruce_headers(sheet)
     
-    # Aplicar estilo a filas de datos (sin negrita)
+    # Insertar fila vacía arriba
+    sheet.insert_rows(1)
+    
+    # Aplicar headers en la fila 2
+    header_style = create_header_style()
+    
+    for cell, value in CRUCE_HEADERS.items():
+        cell_obj = sheet[cell]
+        cell_obj.value = value
+        cell_obj.font = header_style["font"]
+        cell_obj.fill = header_style["fill"]
+        cell_obj.border = header_style["border"]
+        cell_obj.alignment = header_style["alignment"]
+        logger.debug("Header aplicado: %s = '%s'", cell, value)
+    
+    # Aplicar estilo a filas de datos (comienzan en fila 3)
     data_style = create_data_row_style()
-    for row in range(2, sheet.max_row + 1):
+    for row in range(3, sheet.max_row + 1):
         for col in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row, column=col)
             cell.fill = data_style["fill"]
@@ -118,5 +132,4 @@ def create_cruce_facturas_sheet(workbook: Workbook) -> tuple[Worksheet, dict[str
         "sheet": CRUCE_FACTURAS_SHEET,
         "cells": CRUCE_HEADERS,
         "column_widths": column_widths,
-        **headers_info,
     }
