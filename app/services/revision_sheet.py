@@ -31,6 +31,11 @@ from app.constants import (
     CANTIDAD_MAX,
     CANTIDAD_PYP_MIN,
 )
+from app.utils.formatting import (
+    create_header_style,
+    create_data_row_style,
+    auto_adjust_column_width,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -312,9 +317,14 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     sheet = workbook.create_sheet(title=REVISION_SHEET)
     data_sheet = workbook.active
     
-    # Aplicar headers
+    # Aplicar headers con estilo
+    header_style = create_header_style()
     for col, header in REVISION_HEADERS.items():
-        sheet.cell(row=1, column=col, value=header)
+        cell = sheet.cell(row=1, column=col, value=header)
+        cell.font = header_style["font"]
+        cell.fill = header_style["fill"]
+        cell.border = header_style["border"]
+        cell.alignment = header_style["alignment"]
     
     # Obtener índices de columnas
     headers = [
@@ -327,15 +337,27 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     decimales = _detect_decimals(data_sheet, indices)
     doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
     ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
-    convenio_proc = _detect_convenio_procedimiento(data_sheet, indices)
+    conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
     cantidades = _detect_cantidades_anomalas(data_sheet, indices)
     
     # Escribir resultados
     _write_column(sheet, 1, decimales)
     _write_column(sheet, 2, doble_tipo)
     _write_column(sheet, 3, ruta_dup)
-    _write_column(sheet, 4, convenio_proc)
+    _write_column(sheet, 4, conveniente_proc)
     _write_column(sheet, 5, cantidades)
+    
+    # Aplicar estilo a filas de datos (sin negrita)
+    data_style = create_data_row_style()
+    for row in range(2, sheet.max_row + 1):
+        for col in range(1, sheet.max_column + 1):
+            cell = sheet.cell(row=row, column=col)
+            cell.fill = data_style["fill"]
+            cell.border = data_style["border"]
+            cell.alignment = data_style["alignment"]
+    
+    # Ajustar ancho de columnas automáticamente
+    column_widths = auto_adjust_column_width(sheet)
     
     logger.info(
         "Hoja Revision creada - Decimales: %d, Doble tipo: %d, "
@@ -343,7 +365,7 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
         len(decimales),
         len(doble_tipo),
         len(ruta_dup),
-        len(convenio_proc),
+        len(conveniente_proc),
         len(cantidades),
     )
     
@@ -354,6 +376,7 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
         "decimal_invoices_found": len(decimales),
         "doble_tipo_invoices_found": len(doble_tipo),
         "ruta_duplicada_found": len(ruta_dup),
-        "convenio_de_procedimiento_found": len(convenio_proc),
+        "convenio_de_procedimiento_found": len(conveniente_proc),
         "cantidades_found": len(cantidades),
+        "column_widths": column_widths,
     }

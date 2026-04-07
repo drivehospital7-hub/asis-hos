@@ -13,7 +13,12 @@ from openpyxl.workbook import Workbook
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import CRUCE_FACTURAS_SHEET, CRUCE_HEADERS
-from app.utils.formatting import find_column_letter_by_header
+from app.utils.formatting import (
+    find_column_letter_by_header,
+    create_header_style,
+    create_data_row_style,
+    auto_adjust_column_width,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +59,15 @@ def apply_cruce_headers(
     if headers is None:
         headers = CRUCE_HEADERS
     
+    header_style = create_header_style()
+    
     for cell, value in headers.items():
-        sheet[cell] = value
+        cell_obj = sheet[cell]
+        cell_obj.value = value
+        cell_obj.font = header_style["font"]
+        cell_obj.fill = header_style["fill"]
+        cell_obj.border = header_style["border"]
+        cell_obj.alignment = header_style["alignment"]
         logger.debug("Header aplicado: %s = '%s'", cell, value)
     
     logger.info(
@@ -76,7 +88,9 @@ def create_cruce_facturas_sheet(workbook: Workbook) -> tuple[Worksheet, dict[str
     
     Esta función:
     1. Crea la hoja si no existe
-    2. Aplica los headers predefinidos
+    2. Aplica los headers predefinidos con estilo
+    3. Aplica estilo a filas de datos
+    4. Ajusta el ancho de columnas automáticamente
     
     Args:
         workbook: Libro de Excel
@@ -87,9 +101,22 @@ def create_cruce_facturas_sheet(workbook: Workbook) -> tuple[Worksheet, dict[str
     sheet = get_or_create_sheet(workbook, CRUCE_FACTURAS_SHEET)
     headers_info = apply_cruce_headers(sheet)
     
+    # Aplicar estilo a filas de datos (sin negrita)
+    data_style = create_data_row_style()
+    for row in range(2, sheet.max_row + 1):
+        for col in range(1, sheet.max_column + 1):
+            cell = sheet.cell(row=row, column=col)
+            cell.fill = data_style["fill"]
+            cell.border = data_style["border"]
+            cell.alignment = data_style["alignment"]
+    
+    # Ajustar ancho de columnas
+    column_widths = auto_adjust_column_width(sheet)
+    
     return sheet, {
         "rule": "cruce_facturas_headers",
         "sheet": CRUCE_FACTURAS_SHEET,
         "cells": CRUCE_HEADERS,
+        "column_widths": column_widths,
         **headers_info,
     }

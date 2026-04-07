@@ -63,12 +63,25 @@ TARGET_PROCEDURES = frozenset({
 })
 
 # =============================================================================
-# COLORS - Colores para formato condicional (RGB hex)
+# COLORS - Colores para formato condicional (RGB hex - colores claros)
 # =============================================================================
 
-COLOR_GREEN = "92D050"   # Facturas Ok
-COLOR_YELLOW = "FFC000"  # Facturas Pendientes
-COLOR_RED = "FF0000"     # PDFs / Errores
+# Verdes claros para Facturas Ok
+COLOR_GREEN_LIGHT = "C6EFCE"  # Verde suave (fondo)
+COLOR_GREEN_DARK = "63BE7B"   # Verde más intenso (texto/bordes)
+
+# Amarillos claros para Facturas Pendientes
+COLOR_YELLOW_LIGHT = "FFEB9C"  # Amarillo suave (fondo)
+COLOR_YELLOW_DARK = "FFC000"  # Amarillo más intenso (texto/bordes)
+
+# Rojos claros para PDFs / Errores
+COLOR_RED_LIGHT = "FFC7CE"    # Rojo suave (fondo)
+COLOR_RED_DARK = "FF6B6B"     # Rojo más intenso (texto/bordes)
+
+# Colores para formato condicional (compatibilidad hacia atrás)
+COLOR_GREEN = "C6EFCE"
+COLOR_YELLOW = "FFEB9C"
+COLOR_RED = "FFC7CE"
 
 # =============================================================================
 # CONVENIOS - Valores de convenio
@@ -100,7 +113,13 @@ CANTIDAD_PYP_MIN = 3            # PyP >= 3 es anómalo
 # HEADERS - Headers de hojas especiales
 # =============================================================================
 
-# Headers para hoja CruceFacturas (celda -> valor)
+# Color azulado claro para encabezados
+HEADER_BACKGROUND_COLOR = "DCE6F1"
+# Color de borde para encabezados
+HEADER_BORDER_COLOR = "4472C4"
+
+# Color de fondo para filas de datos (azulado muy claro)
+DATA_ROW_BACKGROUND_COLOR = "F2F6FA"
 CRUCE_HEADERS: dict[str, str] = {
     "B1": "Facturas Ok",
     "D1": "Facturas Pendientes",
