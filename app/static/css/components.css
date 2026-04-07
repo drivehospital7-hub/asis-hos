@@ -166,6 +166,12 @@
   color: var(--color-success-text);
 }
 
+.alert--info {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  color: #1e40af;
+}
+
 .alert__title {
   font-weight: 600;
   margin-bottom: var(--space-xs);
@@ -271,4 +277,41 @@
 /* --- Utility classes --------------------------------------- */
 .hidden {
   display: none !important;
+}
+
+/* --- Advanced Options (details/summary) ---------------------- */
+.advanced-options {
+  margin-top: var(--space-lg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.advanced-options__summary {
+  display: block;
+  padding: var(--space-md);
+  background-color: var(--color-bg);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  user-select: none;
+  transition: background-color 0.15s ease;
+}
+
+.advanced-options__summary:hover {
+  background-color: var(--color-hover-bg);
+}
+
+.advanced-options__summary::marker {
+  color: var(--color-text-light);
+}
+
+.advanced-options[open] .advanced-options__summary {
+  border-bottom: 1px solid var(--color-border);
+}
+
+.advanced-options__content {
+  padding: var(--space-md);
+  background-color: var(--color-surface);
 }

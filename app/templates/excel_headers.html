@@ -1,12 +1,9 @@
 {% extends "base.html" %}
 
-{% block title %}Encabezados Excel — Control Facturacion{% endblock %}
+{% block title %}Consumos y Servicios — Control Facturacion{% endblock %}
 
 {% block content %}
   <h1>Consumos y Servicios</h1>
-  <p class="text-muted text-sm mb-lg">
-    Selecciona un archivo del repositorio o sube el tuyo propio.
-  </p>
 
   {# ── Upload error ── #}
   {% if upload_error is defined %}
@@ -28,18 +25,6 @@
   </div>
   {% endif %}
 
-  {# ── Headers error ── #}
-  {% if result is not none and result.status == "error" %}
-  <div class="alert alert--error">
-    <p class="alert__title">Error</p>
-    <ul class="alert__list">
-      {% for err in result.errors %}
-      <li>{{ err }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-
   {# ── Form card ── #}
   <form
     method="post"
@@ -48,39 +33,7 @@
     id="main-form"
     enctype="multipart/form-data"
   >
-    <h2 class="card__title">Parametros</h2>
-
-    {# ── File source selection ── #}
     <div class="form-group">
-      <label class="form-group__label">Origen del archivo</label>
-      <div class="radio-group">
-        <label class="radio-label">
-          <input type="radio" name="file_source" value="repo" checked onchange="toggleFileSource()">
-          <span>Repositorio (data/input)</span>
-        </label>
-        <label class="radio-label">
-          <input type="radio" name="file_source" value="upload" onchange="toggleFileSource()">
-          <span>Subir archivo propio</span>
-        </label>
-      </div>
-    </div>
-
-    {# ── Repo file selector ── #}
-    <div class="form-group" id="repo-file-group">
-      <label class="form-group__label" for="file">Archivo del repositorio</label>
-      <select class="form-select" id="file" name="file">
-        <option value="">— Elegir —</option>
-        {% for name in available_files %}
-        <option value="{{ name }}" {% if form.file == name %}selected{% endif %}>{{ name }}</option>
-        {% endfor %}
-      </select>
-      {% if not available_files %}
-      <p class="form-group__hint">No hay archivos Excel en la carpeta de entrada.</p>
-      {% endif %}
-    </div>
-
-    {# ── Upload file input ── #}
-    <div class="form-group hidden" id="upload-file-group">
       <label class="form-group__label" for="file_upload">Subir archivo Excel</label>
       <input
         class="form-input"
@@ -88,61 +41,63 @@
         name="file_upload"
         type="file"
         accept=".xlsx,.xls,.xlsm,.xlsb"
+        required
       >
       <p class="form-group__hint">Máximo 10MB. Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
     </div>
 
-    <div class="form-group">
-      <label class="form-group__label" for="header_row">Fila de encabezado</label>
-      <input
-        class="form-input"
-        id="header_row"
-        name="header_row"
-        type="number"
-        min="0"
-        value="{{ form.header_row }}"
-      >
-      <p class="form-group__hint">Indice 0 = primera fila</p>
+    <div class="alert alert--info mb-lg">
+      <p class="alert__title">Importante</p>
+      <p>Los reportes cargados deben estar sin modificaciones y deben haberse descargado en formato detallado (Enc., Detall. o HC).</p>
     </div>
 
-    <div class="form-group">
-      <label class="form-group__label" for="sheet_name">Nombre de hoja</label>
-      <input
-        class="form-input"
-        id="sheet_name"
-        name="sheet_name"
-        type="text"
-        value="{{ form.sheet_name }}"
-        placeholder="Ej. Hoja1"
-      >
-      <p class="form-group__hint">Opcional</p>
-    </div>
+    {# ── Opciones Avanzadas ── #}
+    <details class="advanced-options">
+      <summary class="advanced-options__summary">Opciones Avanzadas</summary>
+      <div class="advanced-options__content">
+        <div class="form-group">
+          <label class="form-group__label" for="header_row">Fila de encabezado</label>
+          <input
+            class="form-input"
+            id="header_row"
+            name="header_row"
+            type="number"
+            min="0"
+            value="{{ form.header_row | default('0') }}"
+          >
+          <p class="form-group__hint">Indice 0 = primera fila</p>
+        </div>
 
-    <div class="form-group">
-      <label class="form-group__label" for="sheet_id">Indice de hoja</label>
-      <input
-        class="form-input"
-        id="sheet_id"
-        name="sheet_id"
-        type="number"
-        min="0"
-        value="{{ form.sheet_id }}"
-        placeholder="Dejar vacio si usas nombre"
-      >
-      <p class="form-group__hint">Opcional, 0 = primera</p>
-    </div>
+        <div class="form-group">
+          <label class="form-group__label" for="sheet_name">Nombre de hoja</label>
+          <input
+            class="form-input"
+            id="sheet_name"
+            name="sheet_name"
+            type="text"
+            value="{{ form.sheet_name }}"
+            placeholder="Ej. Hoja1"
+          >
+          <p class="form-group__hint">Opcional</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-group__label" for="sheet_id">Indice de hoja</label>
+          <input
+            class="form-input"
+            id="sheet_id"
+            name="sheet_id"
+            type="number"
+            min="0"
+            value="{{ form.sheet_id }}"
+            placeholder="Dejar vacio si usas nombre"
+          >
+          <p class="form-group__hint">Opcional, 0 = primera</p>
+        </div>
+      </div>
+    </details>
 
     <div class="btn-group">
-      <button
-        class="btn"
-        type="submit"
-        formmethod="post"
-        formaction="{{ url_for('excel_headers.excel_headers_page') }}"
-        data-loading-text="Cargando..."
-      >
-        <span class="btn__spinner"></span>
-        <span class="btn__label">Mostrar encabezados</span>
-      </button>
       <button
         class="btn btn--primary"
         type="submit"
@@ -153,70 +108,8 @@
       </button>
     </div>
   </form>
-
-  {# ── Results card ── #}
-  {% if result is not none and result.status == "success" %}
-  <div class="card mt-lg">
-    <div class="section-header">
-      <h2 class="section-header__title">Resultado</h2>
-    </div>
-
-    <div class="detail-list">
-      <span>Columnas: <strong>{{ result.data.columns | length }}</strong></span>
-      <span>Fila encabezado: <strong>{{ result.data.header_row }}</strong></span>
-      {% if "sheet" in result.data %}
-      <span>Hoja: <strong>{{ result.data.sheet }}</strong></span>
-      {% elif "sheet_id" in result.data %}
-      <span>Hoja indice: <strong>{{ result.data.sheet_id }}</strong></span>
-      {% endif %}
-    </div>
-
-    <div class="table-wrapper">
-      <table class="table">
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Columna</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for col in result.data.columns %}
-          <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ col }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </div>
-  {% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/form-loading.js') }}"></script>
-<script>
-function toggleFileSource() {
-  const source = document.querySelector('input[name="file_source"]:checked').value;
-  const repoGroup = document.getElementById('repo-file-group');
-  const uploadGroup = document.getElementById('upload-file-group');
-  const repoSelect = document.getElementById('file');
-  const uploadInput = document.getElementById('file_upload');
-  
-  if (source === 'repo') {
-    repoGroup.classList.remove('hidden');
-    uploadGroup.classList.add('hidden');
-    repoSelect.required = true;
-    uploadInput.required = false;
-  } else {
-    repoGroup.classList.add('hidden');
-    uploadGroup.classList.remove('hidden');
-    repoSelect.required = false;
-    uploadInput.required = true;
-  }
-}
-
-// Initialize on load
-document.addEventListener('DOMContentLoaded', toggleFileSource);
-</script>
 {% endblock %}
