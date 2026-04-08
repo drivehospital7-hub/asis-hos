@@ -25,15 +25,25 @@ from app.constants import (
     CONVENIO_PYP,
     REVISION_SHEET,
     REVISION_HEADERS,
+    URGENCIA_REVISION_HEADERS,
     TARGET_PROCEDURES,
     RUTA_DUPLICADA_THRESHOLD,
     CANTIDAD_CONSULTAS_MIN,
     CANTIDAD_MAX,
     CANTIDAD_PYP_MIN,
+    AREA_ODONTOLOGIA,
+    AREA_URGENCIAS,
+    CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO,
+    LABORATORIO_NO,
+    CENTRO_COSTO_APOYO_DIAGNOSTICO,
+    CODIGOS_EXCEPTUADOS,
+    URGENCIA_DATA_ROW_BACKGROUND_COLOR,
 )
 from app.utils.formatting import (
     create_header_style,
     create_data_row_style,
+    create_urgencia_header_style,
+    create_urgencia_data_row_style,
     auto_adjust_column_width,
 )
 
@@ -65,22 +75,30 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "numero_factura": None,
         "vlr_subsidiado": None,
         "vlr_procedimiento": None,
+        "codigo_tipo_procedimiento": None,
         "tipo_procedimiento": None,
+        "codigo": None,
         "procedimiento": None,
         "identificacion": None,
         "convenio_facturado": None,
         "cantidad": None,
+        "laboratorio": None,
+        "centro_costo": None,
     }
     
     header_mapping = {
         ("número factura", "numero factura"): "numero_factura",
         ("vlr. subsidiado",): "vlr_subsidiado",
         ("vlr. procedimiento",): "vlr_procedimiento",
+        ("código tipo procedimiento", "codigo tipo procedimiento"): "codigo_tipo_procedimiento",
         ("tipo procedimiento",): "tipo_procedimiento",
+        ("código",): "codigo",
         ("procedimiento",): "procedimiento",
         ("nº identificación", "numero identificacion"): "identificacion",
         ("convenio facturado",): "convenio_facturado",
         ("cantidad",): "cantidad",
+        ("laboratorio",): "laboratorio",
+        ("centro costo",): "centro_costo",
     }
     
     for i, header in enumerate(headers):
@@ -291,9 +309,115 @@ def _detect_cantidades_anomalas(
                 "Fila %s: Cantidad anómala (Tipo: %s, Convenio: %s, Cant: %s)",
                 row,
                 tipo_value,
-                convenio,
+                convento,
                 cantidad,
             )
+    
+    return problemas
+
+
+def _detect_centro_costo_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con problemas de centro de costo:
+    -Regla 1: Código=02 Y Laboratorio=No Y Centro != APOYO DIAGNOSTICO-IMAGENOLOGIA
+    -Regla 2: Código=14 Y Centro == TRASLADOS
+    
+    Returns:
+        Lista de dicts con keys: "factura", "centro_actual", "centro_deberia"
+    """
+    from app.constants import (
+        CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO,
+        CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS,
+        LABORATORIO_NO,
+        CENTRO_COSTO_APOYO_DIAGNOSTICO,
+        CENTRO_COSTO_TRASLADOS,
+    )
+    
+    num_fact_idx = indices["numero_factura"]
+    codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
+    codigo_idx = indices.get("codigo")
+    laboratorio_idx = indices.get("laboratorio")
+    centro_costo_idx = indices.get("centro_costo")
+    
+    if num_fact_idx is None:
+        return []
+    
+    # Si no tenemos las columnas necesarias, no podemos validar
+    if codigo_tipo_proc_idx is None and laboratorio_idx is None and centro_costo_idx is None:
+        logger.warning("No se encontraron columnas necesarias para validación de urgencias")
+        return []
+    
+    problemas = []
+    facturas_ya_procesadas = set()
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_ya_procesadas:
+            continue
+        
+        # Obtener valores de las columnas
+        codigo_tipo_proc = None
+        if codigo_tipo_proc_idx is not None:
+            codigo_tipo_proc = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+        
+        codigo = None
+        if codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        
+        laboratorio = None
+        if laboratorio_idx is not None:
+            laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
+        
+        centro_costo = None
+        if centro_costo_idx is not None:
+            centro_costo = data_sheet.cell(row=row, column=centro_costo_idx + 1).value
+        
+        # Normalizar strings
+        codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
+        codigo_excluir = str(codigo).strip() if codigo else ""
+        laboratorio_str = str(laboratorio).strip() if laboratorio else ""
+        centro_costo_str = str(centro_costo).strip() if centro_costo else ""
+        
+        # Excluir códigos específicos
+        if codigo_excluir in (CODIGOS_EXCEPTUADOS):
+            continue
+        
+        # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
+        regla_1_activa = (
+            codigo_str == CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO and
+            laboratorio_str == LABORATORIO_NO
+        )
+        if regla_1_activa and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
+            problemas.append({
+                "factura": factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
+            })
+            facturas_ya_procesadas.add(factura_str)
+            logger.debug(
+                "Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s')",
+                row,
+                centro_costo,
+            )
+            continue
+        
+        # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS (traslado sin centro correcto)
+        if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
+            if centro_costo_str != CENTRO_COSTO_TRASLADOS:
+                problemas.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_TRASLADOS,
+                })
+                facturas_ya_procesadas.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=14, Centrodistinto a TRASLADOS",
+                    row,
+                )
     
     return problemas
 
@@ -304,12 +428,16 @@ def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: i
         sheet.cell(row=i, column=column, value=value)
 
 
-def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
+def create_revision_sheet(
+    workbook: Workbook,
+    area: str = AREA_ODONTOLOGIA,
+) -> dict[str, Any]:
     """
     Crea la hoja Revision con los problemas detectados.
     
     Args:
         workbook: Libro de Excel (debe tener una hoja activa con datos)
+        area: Área del sistema ("odontologia" o "urgencias")
     
     Returns:
         Dict con información de los problemas encontrados
@@ -320,15 +448,6 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     # Insertar fila vacía arriba
     sheet.insert_rows(1)
     
-    # Aplicar headers con estilo en fila 2
-    header_style = create_header_style()
-    for col, header in REVISION_HEADERS.items():
-        cell = sheet.cell(row=2, column=col, value=header)
-        cell.font = header_style["font"]
-        cell.fill = header_style["fill"]
-        cell.border = header_style["border"]
-        cell.alignment = header_style["alignment"]
-    
     # Obtener índices de columnas
     headers = [
         data_sheet.cell(row=1, column=col).value
@@ -336,22 +455,72 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     ]
     indices = _get_column_indices(headers)
     
-    # Detectar problemas
-    decimales = _detect_decimals(data_sheet, indices)
-    doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
-    ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
-    conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
-    cantidades = _detect_cantidades_anomalas(data_sheet, indices)
+    # Seleccionar headers según el área
+    if area == AREA_URGENCIAS:
+        revision_headers = URGENCIA_REVISION_HEADERS
+        header_style = create_urgencia_header_style()
+    else:
+        revision_headers = REVISION_HEADERS
+        header_style = create_header_style()
     
-    # Escribir resultados en fila 3+
-    _write_column(sheet, 1, decimales, start_row=3)
-    _write_column(sheet, 2, doble_tipo, start_row=3)
-    _write_column(sheet, 3, ruta_dup, start_row=3)
-    _write_column(sheet, 4, conveniente_proc, start_row=3)
-    _write_column(sheet, 5, cantidades, start_row=3)
+    # Aplicar headers con estilo en fila 2
+    for col, header in revision_headers.items():
+        cell = sheet.cell(row=2, column=col, value=header)
+        cell.font = header_style["font"]
+        cell.fill = header_style["fill"]
+        cell.border = header_style["border"]
+        cell.alignment = header_style["alignment"]
     
-    # Aplicar estilo a filas de datos (fila 3+)
-    data_style = create_data_row_style()
+    # Detectar problemas según el área
+    if area == AREA_URGENCIAS:
+        # Urgencias: enlistar facturas con problemas de centro de costo
+        centros_costo = _detect_centro_costo_urgencias(data_sheet, indices)
+        
+        # Formatear para Excel: "FACTURA CENTRO_ACTUAL -> CENTRO_DEBERIA"
+        centros_costo_str = [
+            f"{item['factura']} {item['centro_actual']} -> {item['centro_deberia']}"
+            for item in centros_costo
+        ]
+        
+        # Escribir resultados en fila 3+
+        _write_column(sheet, 1, centros_costo_str, start_row=3)
+        
+        # ParaJSON: strings formateados "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
+        problemas_encontrados = {
+            "No se encuentra coincidencia con los siguientes centros de costos": [
+                f"{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
+                for item in centros_costo
+            ]
+        }
+    else:
+        # Odontología: todas las validaciones existentes
+        decimales = _detect_decimals(data_sheet, indices)
+        doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
+        ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
+        conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
+        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
+        
+        # Escribir resultados en fila 3+
+        _write_column(sheet, 1, decimales, start_row=3)
+        _write_column(sheet, 2, doble_tipo, start_row=3)
+        _write_column(sheet, 3, ruta_dup, start_row=3)
+        _write_column(sheet, 4, conveniente_proc, start_row=3)
+        _write_column(sheet, 5, cantidades, start_row=3)
+        
+        problemas_encontrados = {
+            "Decimales": decimales,
+            "Doble tipo procedimiento": doble_tipo,
+            "Ruta Duplicada": ruta_dup,
+            "Convenio de procedimiento": conveniente_proc,
+            "Cantidades": cantidades,
+        }
+    
+    # Aplicar estilo a filas de datos (fila 3+) según el área
+    if area == AREA_URGENCIAS:
+        data_style = create_urgencia_data_row_style()
+    else:
+        data_style = create_data_row_style()
+    
     for row in range(3, sheet.max_row + 1):
         for col in range(1, sheet.max_column + 1):
             cell = sheet.cell(row=row, column=col)
@@ -362,24 +531,45 @@ def create_revision_sheet(workbook: Workbook) -> dict[str, Any]:
     # Ajustar ancho de columnas automáticamente
     column_widths = auto_adjust_column_width(sheet)
     
-    logger.info(
-        "Hoja Revision creada - Decimales: %d, Doble tipo: %d, "
-        "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d",
-        len(decimales),
-        len(doble_tipo),
-        len(ruta_dup),
-        len(conveniente_proc),
-        len(cantidades),
-    )
+    # Logging según el área
+    if area == AREA_URGENCIAS:
+        logger.info(
+            "Hoja Revision Urgencias creada - Centros de Costos: %d",
+            len(centros_costo),
+        )
+    else:
+        logger.info(
+            "Hoja Revision Odontología creada - Decimales: %d, Doble tipo: %d, "
+            "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d",
+            len(decimales),
+            len(doble_tipo),
+            len(ruta_dup),
+            len(conveniente_proc),
+            len(cantidades),
+        )
     
-    return {
-        "rule": "create_revision_sheet",
-        "sheet": REVISION_SHEET,
-        "headers": list(REVISION_HEADERS.values()),
-        "decimal_invoices_found": len(decimales),
-        "doble_tipo_invoices_found": len(doble_tipo),
-        "ruta_duplicada_found": len(ruta_dup),
-        "convenio_de_procedimiento_found": len(conveniente_proc),
-        "cantidades_found": len(cantidades),
-        "column_widths": column_widths,
-    }
+    # Build resultado según el área
+    if area == AREA_URGENCIAS:
+        return {
+            "rule": "create_revision_sheet",
+            "sheet": REVISION_SHEET,
+            "area": area,
+            "headers": list(URGENCIA_REVISION_HEADERS.values()),
+            "centros_de_costos_found": len(centros_costo),
+            "problemas": problemas_encontrados,
+            "column_widths": column_widths,
+        }
+    else:
+        return {
+            "rule": "create_revision_sheet",
+            "sheet": REVISION_SHEET,
+            "area": area,
+            "headers": list(REVISION_HEADERS.values()),
+            "decimal_invoices_found": len(decimales),
+            "doble_tipo_invoices_found": len(doble_tipo),
+            "ruta_duplicada_found": len(ruta_dup),
+            "convenio_de_procedimiento_found": len(conveniente_proc),
+            "cantidades_found": len(cantidades),
+            "problemas": problemas_encontrados,
+            "column_widths": column_widths,
+        }

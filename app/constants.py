@@ -11,7 +11,6 @@ from __future__ import annotations
 # =============================================================================
 
 ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
-MAX_UPLOAD_SIZE_MB = 10
 
 # =============================================================================
 # SHEETS - Nombres de hojas
@@ -24,6 +23,7 @@ REVISION_SHEET = "Revision"
 # COLUMNS - Columnas a mostrar (las demás se ocultan)
 # =============================================================================
 
+# Columnas para ODONTOLOGÍA
 COLUMNS_TO_KEEP = frozenset({
     "Entidad Cobrar",
     "Profesional Atiende",
@@ -48,6 +48,35 @@ COLUMNS_TO_KEEP = frozenset({
     "Cita",
     "Tipo Cita",
     "Centro Costo",
+})
+
+# Columnas para URGENCIAS (incluye las necesarias para reglas)
+URGENCIA_COLUMNS_TO_KEEP = frozenset({
+    "Entidad Cobrar",
+    "Profesional Atiende",
+    "Fec. Factura",
+    "Número Factura",
+    "Tipo Entidad Cobrar",
+    "Convenio Facturado",
+    "Procedimiento",
+    "Tipo Identificación",
+    "Edad Completa",
+    "Nº Identificación",
+    "Primer Apellido",
+    "Responsable Cierra Facturar",
+    "Vlr. Procedimiento",
+    "Vlr. Subsidiado",
+    "Cantidad",
+    "Segundo Apellido",
+    "Primer Nombre",
+    "Segundo Nombre",
+    "Sexo",
+    "Fec. Nacimiento",
+    "Cita",
+    "Tipo Cita",
+    "Centro Costo",
+    "Código Tipo Procedimiento",
+    "Laboratorio",
 })
 
 # =============================================================================
@@ -126,20 +155,54 @@ CRUCE_HEADERS: dict[str, str] = {
     "F2": "PDFs de Facturas",
 }
 
-# Headers para hoja Revision (columna -> valor)
+# Headers para hoja Revision ODONTOLOGIA (columna -> valor)
 REVISION_HEADERS: dict[int, str] = {
     1: "Decimales",
     2: "Doble tipo procedimiento",
     3: "Ruta Duplicada",
     4: "Convenio de procedimiento",
     5: "Cantidades",
-    6: "Centros de Costos",
 }
+
+# Headers para hoja Revision URGENCIAS (columna -> valor)
+URGENCIA_REVISION_HEADERS: dict[int, str] = {
+    1: "Centros de Costos",
+}
+
+# =============================================================================
+# AREAS - Áreas del sistema de facturación
+# =============================================================================
+
+AREA_ODONTOLOGIA = "odontologia"
+AREA_URGENCIAS = "urgencias"
 
 # =============================================================================
 # URGENCIAS - Reglas específicas de Urgencias
 # =============================================================================
 
-TIPO_PROCEDIMIENTO_DIAGNOSTICOS = "Procedimientos de Diagnósticos"
+CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO = "02"
+CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS = "14"
 LABORATORIO_NO = "No"
 CENTRO_COSTO_APOYO_DIAGNOSTICO = "APOYO DIAGNOSTICO-IMAGENOLOGIA"
+CENTRO_COSTO_TRASLADOS = "TRASLADOS"
+
+# Códigos exceptuados (no listar aunque tenga Código=02 y Lab=No)
+CODIGOS_EXCEPTUADOS = frozenset({
+    "194901",
+    "23105",
+    "23116",
+    "232200",
+    "232201",
+    "25142AFINA",
+    "90123501",
+    "90385901",
+    "90386401",
+    "903883",
+    "9038831",
+    "904903",
+})
+
+# Color rojo claro para headers y datos de Revision Urgencias
+URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
+URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso
+URGENCIA_DATA_ROW_BACKGROUND_COLOR = "FFF0F0"  # Rojo muy claro para filas

@@ -13,18 +13,6 @@
   </div>
   {% endif %}
 
-  {# ── Export error (shown when POST fails) ── #}
-  {% if export_result is defined and export_result.status == "error" %}
-  <div class="alert alert--error">
-    <p class="alert__title">Error de exportacion</p>
-    <ul class="alert__list">
-      {% for err in export_result.errors %}
-      <li>{{ err }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-  {% endif %}
-
   {# ── Form card ── #}
   <form
     method="post"
@@ -43,7 +31,7 @@
         accept=".xlsx,.xls,.xlsm,.xlsb"
         required
       >
-      <p class="form-group__hint">Máximo 10MB. Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
+      <p class="form-group__hint">Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
     </div>
 
     <div class="alert alert--info mb-lg">
@@ -100,16 +88,184 @@
     <div class="btn-group">
       <button
         class="btn btn--primary"
-        type="submit"
-        data-loading-text="Generando..."
+        type="button"
+        id="btn-procesar"
+        data-loading-text="Procesando..."
       >
         <span class="btn__spinner"></span>
-        <span class="btn__label">Descargar Reporte</span>
+        <span class="btn__label">Procesar</span>
+      </button>
+      
+      <button
+        class="btn btn--secondary"
+        type="button"
+        id="btn-descargar"
+        disabled
+        data-loading-text="Descargando..."
+      >
+        <span class="btn__spinner"></span>
+        <span class="btn__label">Descargar Excel</span>
       </button>
     </div>
   </form>
+
+  {# ── Errores ── #}
+  <div id="errores-container" class="card" style="display: none;">
+    <h3 class="mb-md">Errores Detectados</h3>
+    <div id="errores-list"></div>
+  </div>
+
+  {# ── Success ── #}
+  <div id="success-container" class="alert alert--success" style="display: none;">
+    <p class="alert__title">Archivo procesado correctamente</p>
+    <p>Puedes descargar el Excel o revisar los errores arriba.</p>
+  </div>
+
 {% endblock %}
 
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/form-loading.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  const btnProcesar = document.getElementById('btn-procesar');
+  const btnDescargar = document.getElementById('btn-descargar');
+  const form = document.getElementById('main-form');
+  const erroresContainer = document.getElementById('errores-container');
+  const erroresList = document.getElementById('errores-list');
+  const successContainer = document.getElementById('success-container');
+  
+  let downloadUrl = null;
+
+  btnProcesar.addEventListener('click', async function() {
+    const fileInput = document.getElementById('file_upload');
+    if (!fileInput.files.length) {
+      alert('Debes seleccionar un archivo');
+      return;
+    }
+
+    // Mostrar spinner
+    btnProcesar.classList.add('btn--loading');
+    btnProcesar.disabled = true;
+
+    // Ocultar mensajes previos
+    erroresContainer.style.display = 'none';
+    successContainer.style.display = 'none';
+    btnDescargar.disabled = true;
+    downloadUrl = null;
+
+    try {
+      const formData = new FormData(form);
+      
+      const response = await fetch('{{ url_for("urgencias.export_urgencias") }}', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // Guardar URL de descarga
+        downloadUrl = result.data.download_url;
+        
+        // Mostrar success
+        successContainer.style.display = 'block';
+        
+        // Habilitar botón descargar
+        btnDescargar.disabled = false;
+        
+        // Mostrar errores si hay
+        const errores = result.data.errores || [];
+        const totalErrores = result.data.total_errores || 0;
+        
+        if (errores.length > 0) {
+          let html = '<p class="mb-md"><strong>Total errores: ' + totalErrores + '</strong></p>';
+          
+          errores.forEach(function(error) {
+            html += '<div class="mb-lg">';
+            html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
+            
+            // Tabla con 3 columnas
+            html += '<table class="table">';
+            html += '<thead><tr><th>Factura</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
+            html += '<tbody>';
+            
+            // Mostrar hasta 10 facturas
+            const facturasAMostrar = error.facturas.slice(0, 10);
+            facturasAMostrar.forEach(function(item) {
+              // Debug: ver qué viene
+              console.log('item:', item);
+              console.log('typeof:', typeof item);
+              
+              // Si es string, parsear
+              let factura = item;
+              let centroActual = '';
+              let centroDeberia = '';
+              
+              if (typeof item === 'object' && item !== null) {
+                factura = item.factura || '';
+                centroActual = item.centro_actual || '';
+                centroDeberia = item.centro_deberia || '';
+              } else if (typeof item === 'string' && item.includes('|')) {
+                const parts = item.split('|');
+                factura = parts[0] || '';
+                centroActual = parts[1] || '';
+                centroDeberia = parts[2] || '';
+              }
+              
+              html += '<tr>';
+              html += '<td>' + factura + '</td>';
+              html += '<td>' + centroActual + '</td>';
+              html += '<td>' + centroDeberia + '</td>';
+              html += '</tr>';
+            });
+            
+            if (error.facturas.length > 10) {
+              html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 10) + ' más</em></td></tr>';
+            }
+            
+            html += '</tbody>';
+            html += '</table>';
+          });
+          
+          erroresList.innerHTML = html;
+          erroresContainer.style.display = 'block';
+        }
+        
+      } else {
+        // Mostrar errores del servidor
+        let html = '<div class="alert alert--error">';
+        html += '<p class="alert__title">Error de procesamiento</p>';
+        html += '<ul class="alert__list">';
+        
+        (result.errors || []).forEach(function(err) {
+          html += '<li>' + err + '</li>';
+        });
+        
+        html += '</ul>';
+        html += '</div>';
+        erroresList.innerHTML = html;
+        erroresContainer.style.display = 'block';
+      }
+      
+    } catch (error) {
+      console.error('Error:', error);
+      let html = '<div class="alert alert--error">';
+      html += '<p class="alert__title">Error de conexión</p>';
+      html += '<p>Ocurrió un error al procesar el archivo. Intenta de nuevo.</p>';
+      html += '</div>';
+      erroresList.innerHTML = html;
+      erroresContainer.style.display = 'block';
+    } finally {
+      btnProcesar.classList.remove('btn--loading');
+      btnProcesar.disabled = false;
+    }
+  });
+
+  btnDescargar.addEventListener('click', function() {
+    if (downloadUrl) {
+      window.location.href = downloadUrl;
+    }
+  });
+});
+</script>
 {% endblock %}
