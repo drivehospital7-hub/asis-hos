@@ -18,7 +18,16 @@ from typing import Any
 
 from openpyxl import load_workbook
 
-from app.constants import CRUCE_FACTURAS_SHEET, REVISION_SHEET
+from app.constants import (
+    CRUCE_FACTURAS_SHEET,
+    REVISION_SHEET,
+    AREA_ODONTOLOGIA,
+    AREA_URGENCIAS,
+    REVISION_HEADERS,
+    URGENCIA_REVISION_HEADERS,
+    COLUMNS_TO_KEEP,
+    URGENCIA_COLUMNS_TO_KEEP,
+)
 from app.services.cruce_sheet import create_cruce_facturas_sheet
 from app.services.revision_sheet import create_revision_sheet
 from app.utils.column_filter import filter_columns
@@ -44,6 +53,7 @@ def export_excel_with_cruce_facturas(
     filename: str,
     sheet_name: str | None = None,
     header_row: int = 0,
+    area: str = AREA_ODONTOLOGIA,
 ) -> dict[str, Any]:
     """
     Exporta un archivo Excel con hojas de cruce y revisión.
@@ -53,7 +63,7 @@ def export_excel_with_cruce_facturas(
     2. Copia el archivo a output
     3. Filtra columnas de la hoja de datos
     4. Crea hoja CruceFacturas con headers
-    5. Crea hoja Revision con problemas detectados
+    5. Crea hoja Revision con problemas detectados (según área)
     6. Aplica formato condicional
     7. Guarda el archivo
     
@@ -61,6 +71,7 @@ def export_excel_with_cruce_facturas(
         filename: Nombre del archivo en input/
         sheet_name: Nombre de la hoja a procesar (None = hoja activa)
         header_row: Fila de headers (no usado actualmente, reservado para futuro)
+        area: Área del sistema ("odontologia" o "urgencias")
     
     Returns:
         Dict con formato estándar:
@@ -112,12 +123,18 @@ def export_excel_with_cruce_facturas(
         else:
             data_sheet = workbook.active
         
-        # 6. Filtrar columnas
-        filter_result = filter_columns(data_sheet)
+        # 6. Filtrar columnas (según el área)
+        if area == AREA_URGENCIAS:
+            # Urgencias: no ocultar columnas (None = mantener todas)
+            columns_to_keep = None
+        else:
+            columns_to_keep = COLUMNS_TO_KEEP
+        
+        filter_result = filter_columns(data_sheet, columns_to_keep=columns_to_keep)
         logger.info("Columnas filtradas: %s", filter_result)
         
-        # 7. Crear hoja Revision
-        revision_info = create_revision_sheet(workbook)
+        # 7. Crear hoja Revision (según el área)
+        revision_info = create_revision_sheet(workbook, area=area)
         
         # 8. Crear hoja CruceFacturas
         cruce_sheet, cruce_info = create_cruce_facturas_sheet(workbook)

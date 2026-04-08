@@ -23,6 +23,9 @@ from app.constants import (
     HEADER_BACKGROUND_COLOR,
     HEADER_BORDER_COLOR,
     DATA_ROW_BACKGROUND_COLOR,
+    URGENCIA_HEADER_BACKGROUND_COLOR,
+    URGENCIA_HEADER_BORDER_COLOR,
+    URGENCIA_DATA_ROW_BACKGROUND_COLOR,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,6 +83,79 @@ def create_data_row_style() -> dict:
     
     # Borde azulado claro
     side = Side(color="B4C7E7", style="thin")
+    border = Border(left=side, right=side, top=side, bottom=side)
+    
+    # Alineación a la izquierda
+    alignment = Alignment(horizontal="left", vertical="center")
+    
+    return {
+        "fill": fill,
+        "border": border,
+        "alignment": alignment,
+    }
+
+
+def create_urgencia_header_style() -> dict:
+    """
+    Crea un diccionario de estilos para headers de Revision Urgencias.
+    
+    Características:
+    - Negrita
+    - Fondo rojo claro
+    - Bordes rojos
+    
+    Returns:
+        Dict con Font, PatternFill y Border configurados
+    """
+    from openpyxl.styles import Alignment
+    
+    # Negrita
+    font = Font(bold=True)
+    
+    # Color de fondo rojo claro
+    fill = PatternFill(
+        start_color=URGENCIA_HEADER_BACKGROUND_COLOR,
+        end_color=URGENCIA_HEADER_BACKGROUND_COLOR,
+        fill_type="solid",
+    )
+    
+    # Borde rojo
+    side = Side(color=URGENCIA_HEADER_BORDER_COLOR, style="thin")
+    border = Border(left=side, right=side, top=side, bottom=side)
+    
+    # Alineación a la izquierda
+    alignment = Alignment(horizontal="left", vertical="center")
+    
+    return {
+        "font": font,
+        "fill": fill,
+        "border": border,
+        "alignment": alignment,
+    }
+
+
+def create_urgencia_data_row_style() -> dict:
+    """
+    Crea un diccionario de estilos para filas de datos de Revision Urgencias.
+    
+    Características:
+    - Fondo rojo claro
+    - Bordes rojos
+    
+    Returns:
+        Dict con PatternFill y Border configurados
+    """
+    from openpyxl.styles import Alignment
+    
+    # Color de fondo rojo muy claro
+    fill = PatternFill(
+        start_color=URGENCIA_DATA_ROW_BACKGROUND_COLOR,
+        end_color=URGENCIA_DATA_ROW_BACKGROUND_COLOR,
+        fill_type="solid",
+    )
+    
+    # Borde rojo
+    side = Side(color=URGENCIA_HEADER_BORDER_COLOR, style="thin")
     border = Border(left=side, right=side, top=side, bottom=side)
     
     # Alineación a la izquierda

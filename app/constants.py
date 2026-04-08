@@ -202,6 +202,41 @@ CODIGOS_EXCEPTUADOS = frozenset({
     "904903",
 })
 
+# Códigos que deben tener centro de costo "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
+CODIGOS_PYP_URGENCIAS = frozenset({
+    "990211",
+    "890205",
+    "890405",
+    "861801",
+})
+
+# Centro de costo para procedimientos PYP en urgencias
+CENTRO_COSTO_PYP_URGENCIAS = "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
+
+# Códigos que deben tener centro de costo "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
+CODIGOS_QUIROFANO_URGENCIAS = frozenset({
+    "735301",
+    "90DS02",
+})
+
+# Centro de costo para procedimientos de quirófano en urgencias
+CENTRO_COSTO_QUIROFANO_URGENCIAS = "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
+
+# Códigos que deben tener centro de costo "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+CODIGOS_LABORATORIO_URGENCIAS = frozenset({
+    "903866",
+    "903867",
+    "903856",
+    "9062082",
+    "903833",
+    "903828",
+    "902209",
+    "906340",
+})
+
+# Centro de costo para procedimientos de laboratorio en urgencias
+CENTRO_COSTO_LABORATORIO_URGENCIAS = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
 URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso

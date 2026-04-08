@@ -7,6 +7,7 @@ de columnas a mantener visibles (COLUMNS_TO_KEEP).
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
@@ -16,61 +17,44 @@ from app.constants import COLUMNS_TO_KEEP
 logger = logging.getLogger(__name__)
 
 
-def get_column_headers(sheet: Worksheet) -> list[Any]:
-    """
-    Extrae los headers de la primera fila de la hoja.
+def normalize_column_name(name: str) -> str:
+    """Normaliza un nombre de columna para comparación flexible.
     
-    Args:
-        sheet: Hoja de Excel
-        
-    Returns:
-        Lista con los valores de los headers (pueden ser None)
+    Convierte a minúsculas, elimina acentos y espacios extras.
+    Ej: "NÚMERO FACTURA" -> "numero factura"
     """
+    if name is None:
+        return ""
+    # Convertir a minúsculas
+    name = str(name).strip().lower()
+    # Eliminar acentos (ñ -> n, ú -> u, etc.)
+    normalized = unicodedata.normalize('NFD', name)
+    return ''.join(c for c in normalized if not unicodedata.combining(c))
+
+
+def unmerge_header_rows(sheet: Worksheet, rows_to_check: int = 2) -> int:
+    """
+    Desune celdas combinadas en las primeras filas para permitir su eliminación.
+    """
+    unmerged_count = 0
+    for merged_range in list(sheet.merged_cells):
+        if merged_range.min_row <= rows_to_check:
+            sheet.unmerge_cells(str(merged_range))
+            unmerged_count += 1
+    return unmerged_count
+
+
+def get_column_headers(sheet: Worksheet) -> list[Any]:
+    """Extrae los headers de la primera fila de la hoja."""
     return [
         sheet.cell(row=1, column=col).value
         for col in range(1, sheet.max_column + 1)
     ]
 
 
-def unmerge_header_rows(sheet: Worksheet, rows_to_check: int = 2) -> int:
-    """
-    Desune celdas combinadas en las primeras filas para permitir su eliminación.
-    
-    Args:
-        sheet: Hoja de Excel
-        rows_to_check: Número de filas a revisar (por defecto 2)
-        
-    Returns:
-        Número de rangos desunidos
-    """
-    unmerged_count = 0
-    for merged_range in list(sheet.merged_cells):
-        if merged_range.min_row <= rows_to_check:
-            sheet.unmerge_cells(str(merged_range))
-            logger.debug("Celdas desunidas: %s", merged_range)
-            unmerged_count += 1
-    return unmerged_count
-
-
 def delete_header_rows(sheet: Worksheet, rows_to_delete: int = 2) -> None:
-    """
-    Elimina las primeras N filas de la hoja.
-    
-    Args:
-        sheet: Hoja de Excel
-        rows_to_delete: Número de filas a eliminar (por defecto 2)
-    """
-    logger.info(
-        "Antes de eliminar filas: max_row=%s, max_column=%s",
-        sheet.max_row,
-        sheet.max_column,
-    )
+    """Elimina las primeras N filas de la hoja."""
     sheet.delete_rows(1, rows_to_delete)
-    logger.info(
-        "Después de eliminar filas: max_row=%s, max_column=%s",
-        sheet.max_row,
-        sheet.max_column,
-    )
 
 
 def hide_non_relevant_columns(
@@ -83,22 +67,34 @@ def hide_non_relevant_columns(
     Args:
         sheet: Hoja de Excel con headers en fila 1
         columns_to_keep: Set de nombres de columnas a mantener visibles.
-                        Si es None, usa COLUMNS_TO_KEEP de constants.
+                        Si es None, NO oculta ninguna columna.
     
     Returns:
         Dict con información sobre columnas procesadas
     """
+    # Si es None, no ocultar columnas
     if columns_to_keep is None:
-        columns_to_keep = COLUMNS_TO_KEEP
+        logger.info("No se ocultan columnas (columns_to_keep es None)")
+        return {
+            "kept_count": sheet.max_column,
+            "hidden_count": 0,
+            "kept_columns": [],
+        }
+    
+    # Normalizar columns_to_keep para comparación flexible
+    normalized_keep = {normalize_column_name(col) for col in columns_to_keep}
     
     headers = get_column_headers(sheet)
-    logger.debug("Headers encontrados: %s", headers[:10])
+    logger.info("Headers encontrados (primeros 20): %s", headers[:20])
+    logger.info("Columnas a mantener (normalizadas): %s", normalized_keep)
     
-    # Encontrar índices de columnas a mantener (0-based)
+    # Encontrar índices de columnas a mantener (0-based) - comparación flexible
     indices_to_keep = {
         i for i, header in enumerate(headers)
-        if header in columns_to_keep
+        if normalize_column_name(header) in normalized_keep
     }
+    
+    logger.info("Índices de columnas a mantener: %s", sorted(indices_to_keep))
     
     hidden_columns = []
     kept_columns = []

@@ -97,7 +97,7 @@ def export_urgencias():
         for tipo, items in problemas.items():
             if items:
                 facturas = []
-                for item in items[:20]:
+                for item in items[:50]:
                     # Formato "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
                     if "|" in str(item):
                         parts = item.split("|")

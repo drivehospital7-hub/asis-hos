@@ -102,6 +102,20 @@
   border-color: var(--color-text-light);
 }
 
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: inherit;
+  padding: 0;
+}
+
+.btn-link:hover {
+  color: var(--color-primary-dark);
+}
+
 .btn:active {
   transform: translateY(1px);
 }

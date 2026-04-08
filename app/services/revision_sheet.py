@@ -38,6 +38,12 @@ from app.constants import (
     CENTRO_COSTO_APOYO_DIAGNOSTICO,
     CODIGOS_EXCEPTUADOS,
     URGENCIA_DATA_ROW_BACKGROUND_COLOR,
+    CODIGOS_PYP_URGENCIAS,
+    CENTRO_COSTO_PYP_URGENCIAS,
+    CODIGOS_QUIROFANO_URGENCIAS,
+    CENTRO_COSTO_QUIROFANO_URGENCIAS,
+    CODIGOS_LABORATORIO_URGENCIAS,
+    CENTRO_COSTO_LABORATORIO_URGENCIAS,
 )
 from app.utils.formatting import (
     create_header_style,
@@ -84,6 +90,8 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "cantidad": None,
         "laboratorio": None,
         "centro_costo": None,
+        "codigo_entidad_cobrar": None,
+        "tipo_factura_descripcion": None,
     }
     
     header_mapping = {
@@ -99,6 +107,8 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         ("cantidad",): "cantidad",
         ("laboratorio",): "laboratorio",
         ("centro costo",): "centro_costo",
+        ("cód entidad cobrar",): "codigo_entidad_cobrar",
+        ("tipo factura descripción",): "tipo_factura_descripcion",
     }
     
     for i, header in enumerate(headers):
@@ -319,11 +329,15 @@ def _detect_cantidades_anomalas(
 def _detect_centro_costo_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[dict[str, str]]:
+) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """
-    Detecta facturas con problemas de centro de costo:
+    Detecta facturas con problemas de centro de costo y advertencias de derechos:
     -Regla 1: Código=02 Y Laboratorio=No Y Centro != APOYO DIAGNOSTICO-IMAGENOLOGIA
     -Regla 2: Código=14 Y Centro == TRASLADOS
+    -Regla 3: Código en (990211, 890205, 890405, 861801) Y Centro != PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN
+    -Regla 4: Código en (735301, 90DS02) Y Centro != QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO
+    -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
+    -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
     
     Returns:
         Lista de dicts con keys: "factura", "centro_actual", "centro_deberia"
@@ -334,6 +348,12 @@ def _detect_centro_costo_urgencias(
         LABORATORIO_NO,
         CENTRO_COSTO_APOYO_DIAGNOSTICO,
         CENTRO_COSTO_TRASLADOS,
+        CODIGOS_PYP_URGENCIAS,
+        CENTRO_COSTO_PYP_URGENCIAS,
+        CODIGOS_QUIROFANO_URGENCIAS,
+        CENTRO_COSTO_QUIROFANO_URGENCIAS,
+        CODIGOS_LABORATORIO_URGENCIAS,
+        CENTRO_COSTO_LABORATORIO_URGENCIAS,
     )
     
     num_fact_idx = indices["numero_factura"]
@@ -341,6 +361,8 @@ def _detect_centro_costo_urgencias(
     codigo_idx = indices.get("codigo")
     laboratorio_idx = indices.get("laboratorio")
     centro_costo_idx = indices.get("centro_costo")
+    codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
+    tipo_factura_descripcion_idx = indices.get("tipo_factura_descripcion")
     
     if num_fact_idx is None:
         return []
@@ -376,11 +398,21 @@ def _detect_centro_costo_urgencias(
         if centro_costo_idx is not None:
             centro_costo = data_sheet.cell(row=row, column=centro_costo_idx + 1).value
         
+        codigo_entidad_cobrar = None
+        if codigo_entidad_cobrar_idx is not None:
+            codigo_entidad_cobrar = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
+        
+        tipo_factura_descripcion = None
+        if tipo_factura_descripcion_idx is not None:
+            tipo_factura_descripcion = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+        
         # Normalizar strings
         codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
         codigo_excluir = str(codigo).strip() if codigo else ""
         laboratorio_str = str(laboratorio).strip() if laboratorio else ""
         centro_costo_str = str(centro_costo).strip() if centro_costo else ""
+        codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
+        tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         
         # Excluir códigos específicos
         if codigo_excluir in (CODIGOS_EXCEPTUADOS):
@@ -418,6 +450,67 @@ def _detect_centro_costo_urgencias(
                     "Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
                 )
+            continue
+        
+        # ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
+        if codigo_excluir in CODIGOS_PYP_URGENCIAS:
+            if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
+                problemas.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
+                })
+                facturas_ya_procesadas.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                )
+            continue
+        
+        # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS Y SALAS DE PARTO
+        if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
+            if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
+                problemas.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
+                })
+                facturas_ya_procesadas.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                )
+            continue
+        
+        # ----- Regla 5: Código en (903866, 903867, 903856, 9062082, 903833, 903828, 902209, 906340) 
+        #              + Entidad=ESS118 + Tipo=Intramural -> Centro debe ser LABORATORIO
+        if codigo_excluir in CODIGOS_LABORATORIO_URGENCIAS:
+            # Solo verificar si Entidad=ESS118 Y Tipo=Intramural
+            if codigo_entidad_str == "ESS118" and tipo_factura_str == "Intramural":
+                # Acepta ambas variantes del nombre (con o sin punto final)
+                centro_valido = centro_costo_str in (
+                    CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}.",
+                )
+                
+                if not centro_valido:
+                    problemas.append({
+                        "factura": factura_str,
+                        "centro_actual": centro_costo_str,
+                        "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    })
+                    facturas_ya_procesadas.add(factura_str)
+                    logger.debug(
+                        "Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
+                        row,
+                        codigo_excluir,
+                        centro_costo_str,
+                    )
+            continue
     
     return problemas
 

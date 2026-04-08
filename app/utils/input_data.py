@@ -7,7 +7,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-from app.constants import ALLOWED_EXCEL_SUFFIXES, MAX_UPLOAD_SIZE_MB
+from app.constants import ALLOWED_EXCEL_SUFFIXES
 
 logger = logging.getLogger(__name__)
 
@@ -144,13 +144,13 @@ def save_temp_excel(file_storage) -> tuple[Path | None, str | None]:
     if ext not in ALLOWED_EXCEL_SUFFIXES:
         return None, f"Formato no permitido. Usar: {', '.join(ALLOWED_EXCEL_SUFFIXES)}"
 
-    # Validar tamaño
-    file_storage.seek(0, 2)
-    size_mb = file_storage.tell() / (1024 * 1024)
-    file_storage.seek(0)
-
-    if size_mb > MAX_UPLOAD_SIZE_MB:
-        return None, f"Archivo demasiado grande. Máximo: {MAX_UPLOAD_SIZE_MB}MB"
+    # Validar tamaño (comentado - sin límite)
+    # file_storage.seek(0, 2)
+    # size_mb = file_storage.tell() / (1024 * 1024)
+    # file_storage.seek(0)
+    #
+    # if size_mb > MAX_UPLOAD_SIZE_MB:
+    #     return None, f"Archivo demasiado grande. Máximo: {MAX_UPLOAD_SIZE_MB}MB"
 
     # Generar nombre único para evitar conflictos
     unique_name = f"{uuid.uuid4().hex}_{filename}"
@@ -158,7 +158,7 @@ def save_temp_excel(file_storage) -> tuple[Path | None, str | None]:
 
     try:
         file_storage.save(dest)
-        logger.info("Archivo temporal guardado: %s (%.2f MB)", unique_name, size_mb)
+        logger.info("Archivo temporal guardado: %s", unique_name)
         return dest, None
     except Exception as e:
         logger.exception("Error guardando archivo temporal")

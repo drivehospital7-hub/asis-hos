@@ -13,7 +13,7 @@ class ProdConfig:
     
     SECRET_KEY = os.getenv("SECRET_KEY")
     
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    MAX_CONTENT_LENGTH = None  # Sin límite de tamaño
     
     LOG_LEVEL = "INFO"
     LOG_FILE = "logs/prod.log"

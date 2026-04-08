@@ -10,7 +10,7 @@ class DevConfig:
     
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
     
-    MAX_CONTENT_LENGTH = 16 * 1024 * 1024
+    MAX_CONTENT_LENGTH = None  # Sin límite de tamaño
     
     LOG_LEVEL = "DEBUG"
     LOG_FILE = "logs/dev.log"
