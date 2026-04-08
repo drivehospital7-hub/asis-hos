@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Urgencias — Control Facturacion{% endblock %}
+
+{% block content %}
+  <h1>Urgencias</h1>
+
+  {# ── Upload error ── #}
+  {% if upload_error is defined %}
+  <div class="alert alert--error">
+    <p class="alert__title">Error de upload</p>
+    <p>{{ upload_error }}</p>
+  </div>
+  {% endif %}
+
+  {# ── Export error (shown when POST fails) ── #}
+  {% if export_result is defined and export_result.status == "error" %}
+  <div class="alert alert--error">
+    <p class="alert__title">Error de exportacion</p>
+    <ul class="alert__list">
+      {% for err in export_result.errors %}
+      <li>{{ err }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  {# ── Form card ── #}
+  <form
+    method="post"
+    action="{{ url_for('urgencias.export_urgencias') }}"
+    class="card"
+    id="main-form"
+    enctype="multipart/form-data"
+  >
+    <div class="form-group">
+      <label class="form-group__label" for="file_upload">Subir archivo Excel</label>
+      <input
+        class="form-input"
+        id="file_upload"
+        name="file_upload"
+        type="file"
+        accept=".xlsx,.xls,.xlsm,.xlsb"
+        required
+      >
+      <p class="form-group__hint">Máximo 10MB. Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
+    </div>
+
+    <div class="alert alert--info mb-lg">
+      <p class="alert__title">Importante</p>
+      <p>Los reportes cargados deben estar sin modificaciones y deben haberse descargado en formato detallado (Enc., Detall. o HC).</p>
+    </div>
+
+    {# ── Opciones Avanzadas ── #}
+    <details class="advanced-options">
+      <summary class="advanced-options__summary">Opciones Avanzadas</summary>
+      <div class="advanced-options__content">
+        <div class="form-group">
+          <label class="form-group__label" for="header_row">Fila de encabezado</label>
+          <input
+            class="form-input"
+            id="header_row"
+            name="header_row"
+            type="number"
+            min="0"
+            value="{{ form.header_row | default('0') }}"
+          >
+          <p class="form-group__hint">Indice 0 = primera fila</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-group__label" for="sheet_name">Nombre de hoja</label>
+          <input
+            class="form-input"
+            id="sheet_name"
+            name="sheet_name"
+            type="text"
+            value="{{ form.sheet_name }}"
+            placeholder="Ej. Hoja1"
+          >
+          <p class="form-group__hint">Opcional</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-group__label" for="sheet_id">Indice de hoja</label>
+          <input
+            class="form-input"
+            id="sheet_id"
+            name="sheet_id"
+            type="number"
+            min="0"
+            value="{{ form.sheet_id }}"
+            placeholder="Dejar vacio si usas nombre"
+          >
+          <p class="form-group__hint">Opcional, 0 = primera</p>
+        </div>
+      </div>
+    </details>
+
+    <div class="btn-group">
+      <button
+        class="btn btn--primary"
+        type="submit"
+        data-loading-text="Generando..."
+      >
+        <span class="btn__spinner"></span>
+        <span class="btn__label">Descargar Reporte</span>
+      </button>
+    </div>
+  </form>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/form-loading.js') }}"></script>
+{% endblock %}

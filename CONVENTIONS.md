@@ -1,6 +1,6 @@
 # Convenciones de Negocio — Control System
 
-> **Versión**: 2.1.0  
+> **Versión**: 2.2.0  
 > **Propósito**: Reglas de DOMINIO — validaciones, procedimientos, formatos específicos del negocio.  
 > Para reglas técnicas (arquitectura, código) ver `AGENTS.md`.
 
@@ -70,6 +70,8 @@ Estos procedimientos DEBEN estar en convenio "Promoción y Prevención":
 Casos especiales (menores sin registro):
 - < 18 años sin RC/TI → MS (Menor sin Identificación)
 - ≥ 18 años sin CC → AS (Adulto sin Identificación)
+
+> **Nota**: Esta validación está implementada en el formato condicional (color rojo en la hoja de datos) pero NO se escribe en la hoja Revision.
 
 ---
 
@@ -186,4 +188,4 @@ Centro Costo
 
 ---
 
-*Última actualización: 2026-04-03*
+*Última actualización: 2026-04-07*

@@ -133,4 +133,13 @@ REVISION_HEADERS: dict[int, str] = {
     3: "Ruta Duplicada",
     4: "Convenio de procedimiento",
     5: "Cantidades",
+    6: "Centros de Costos",
 }
+
+# =============================================================================
+# URGENCIAS - Reglas específicas de Urgencias
+# =============================================================================
+
+TIPO_PROCEDIMIENTO_DIAGNOSTICOS = "Procedimientos de Diagnósticos"
+LABORATORIO_NO = "No"
+CENTRO_COSTO_APOYO_DIAGNOSTICO = "APOYO DIAGNOSTICO-IMAGENOLOGIA"
