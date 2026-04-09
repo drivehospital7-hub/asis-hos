@@ -542,7 +542,7 @@ def _detect_centro_costo_odontologia(
         
         # Debug: log de la fecha cruda
         if row <= 3:  # Solo las primeras 3 filas
-            logger.debug("Fila %s - fec_factura raw: %s (type: %s)", row, fec_factura, type(fec_factura).__name__)
+            logger.debug("Fila %s (%s) - fec_factura raw: %s (type: %s)", row, factura_str, fec_factura, type(fec_factura).__name__)
         
         if fec_factura:
             try:
@@ -569,15 +569,17 @@ def _detect_centro_costo_odontologia(
                     for fmt in formatos:
                         try:
                             dia_factura = datetime.strptime(fec_factura.strip(), fmt).day
-                            logger.debug("Fila %s - fecha parseada '%s' con formato '%s', día: %s", 
-                                        row, fec_factura, fmt, dia_factura)
+                            if row <= 3:
+                                logger.debug("Fila %s (%s) - fecha parseada '%s' con formato '%s', día: %s", 
+                                            row, factura_str, fec_factura, fmt, dia_factura)
                             break
                         except ValueError:
                             continue
-                    if dia_factura is None:
-                        logger.debug("Fila %s - NO se pudo parsear fecha: '%s'", row, fec_factura)
+                    if dia_factura is None and row <= 3:
+                        logger.debug("Fila %s (%s) - NO se pudo parsear fecha: '%s'", row, factura_str, fec_factura)
             except Exception as e:
-                logger.debug("Fila %s - error parseando fecha '%s': %s", row, fec_factura, e)
+                if row <= 3:
+                    logger.debug("Fila %s (%s) - error parseando fecha '%s': %s", row, factura_str, fec_factura, e)
         
         # Obtener identificación del profesional
         profesional_id = None
@@ -588,7 +590,7 @@ def _detect_centro_costo_odontologia(
         
         # Debug: log de la identificación del profesional
         if row <= 3:
-            logger.debug("Fila %s - profesional_id raw: %s (index: %s)", row, profesional_id, profesional_id_idx)
+            logger.debug("Fila %s (%s) - profesional_id raw: %s (index: %s)", row, factura_str, profesional_id, profesional_id_idx)
         
         # Determinar centro correcto según el modo
         if permitir_todos_centros:
@@ -597,10 +599,14 @@ def _detect_centro_costo_odontologia(
         else:
             # Modo con validación por fecha
             dias_profesional = []
+            if row <= 3:
+                logger.debug("Fila %s (%s) - Debug: profesional_id=%s, profesional_dias=%s", 
+                            row, factura_str, profesional_id, profesional_dias)
             if profesional_dias and profesional_id and profesional_id in profesional_dias:
                 dias_profesional = profesional_dias[profesional_id]
-                logger.debug("Fila %s - profesional_id: %s, dias_profesional: %s, dia_factura: %s", 
-                           row, profesional_id, dias_profesional, dia_factura)
+                if row <= 3:
+                    logger.debug("Fila %s (%s) - profesional_id: %s, dias_profesional: %s, dia_factura: %s", 
+                               row, factura_str, profesional_id, dias_profesional, dia_factura)
             
             if dia_factura and dias_profesional and dia_factura in dias_profesional:
                 centro_correcto = CENTRO_COSTO_EXTRAMURAL
@@ -609,6 +615,11 @@ def _detect_centro_costo_odontologia(
         
         # Validar
         centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
+        
+        # Debug: mostrar info completa para filas con problemas
+        if row == 133 or row == 259 or row == 3:
+            logger.debug("Fila %s (%s) - DEBUG COMPLETO: profesional_id=%s, fec_factura=%s, dia_factura=%s, dias_profesional=%s, centro_costo_str=%s, centro_correcto=%s, permitir_todos_centros=%s",
+                        row, factura_str, profesional_id, fec_factura, dia_factura, dias_profesional, centro_costo_str, centro_correcto, permitir_todos_centros)
         
         # Caso 1: Centro no está en la lista de válidos → siempre error
         if centro_costo_str not in centros_validos:

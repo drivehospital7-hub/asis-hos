@@ -39,48 +39,51 @@
       <p>Los reportes cargados deben estar sin modificaciones y deben haberse descargado en formato detallado (Enc., Detall. o HC).</p>
     </div>
 
-    {# ── Opciones Avanzadas ── #}
+    {# ── Selección Profesional y Días ── #}
     <details class="advanced-options">
-      <summary class="advanced-options__summary">Opciones Avanzadas</summary>
+      <summary class="advanced-options__summary">Configuración Odontología</summary>
       <div class="advanced-options__content">
         <div class="form-group">
-          <label class="form-group__label" for="header_row">Fila de encabezado</label>
-          <input
-            class="form-input"
-            id="header_row"
-            name="header_row"
-            type="number"
-            min="0"
-            value="{{ form.header_row | default('0') }}"
+          <label class="form-group__label" for="profesional">Profesional</label>
+          <select 
+            class="form-input" 
+            id="profesional" 
+            name="profesional"
           >
-          <p class="form-group__hint">Indice 0 = primera fila</p>
+            <option value="">-- Seleccionar profesional --</option>
+            {% for codigo, datos in profesionales.items() %}
+            <option value="{{ codigo }}">{{ datos.nombre }} ({{ datos.identificacion }})</option>
+            {% endfor %}
+          </select>
         </div>
 
         <div class="form-group">
-          <label class="form-group__label" for="sheet_name">Nombre de hoja</label>
-          <input
-            class="form-input"
-            id="sheet_name"
-            name="sheet_name"
-            type="text"
-            value="{{ form.sheet_name }}"
-            placeholder="Ej. Hoja1"
-          >
-          <p class="form-group__hint">Opcional</p>
+          <label class="form-group__label">Días del mes</label>
+          <p class="form-group__hint mb-sm">Selecciona los días del mes actual</p>
+          
+          <div class="calendar-grid" id="calendar-grid">
+            {# Los días se generan con JS #}
+          </div>
+          
+          <div class="mt-sm">
+            <button type="button" class="btn btn--secondary btn--sm" id="select-all-days">
+              Seleccionar todos
+            </button>
+            <button type="button" class="btn btn--secondary btn--sm" id="clear-all-days">
+              Limpiar
+            </button>
+          </div>
+          
+          <input type="hidden" id="dias_seleccionados" name="dias_seleccionados" value="">
+          <input type="hidden" id="todos_profesionales_dias" name="todos_profesionales_dias" value="">
         </div>
 
         <div class="form-group">
-          <label class="form-group__label" for="sheet_id">Indice de hoja</label>
-          <input
-            class="form-input"
-            id="sheet_id"
-            name="sheet_id"
-            type="number"
-            min="0"
-            value="{{ form.sheet_id }}"
-            placeholder="Dejar vacio si usas nombre"
-          >
-          <p class="form-group__hint">Opcional, 0 = primera</p>
+          <label class="checkbox-label">
+            <input type="checkbox" id="validar_centro_costo" name="validar_centro_costo">
+            <span>Activar validación de centro de costo por fecha</span>
+          </label>
+          <p class="form-group__hint">Al activar, los centros de costo se validan según los días seleccionados en el calendario</p>
         </div>
       </div>
     </details>
@@ -124,8 +127,179 @@
 {% endblock %}
 
 {% block scripts %}
+<style>
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+  max-width: 400px;
+  min-height: 50px;
+  padding: 10px;
+  background: #f9f9f9;
+  border-radius: 4px;
+}
+
+.calendar-day {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  background: #fff;
+  transition: all 0.15s ease;
+}
+
+.calendar-day:hover {
+  border-color: #4472C4;
+  background: #f0f4f8;
+}
+
+.calendar-day.selected {
+  background: #4472C4;
+  color: white;
+  border-color: #4472C4;
+}
+
+.calendar-day.empty {
+  background: transparent;
+  border-color: transparent;
+  cursor: default;
+}
+
+.btn--sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.mt-sm {
+  margin-top: 12px;
+}
+</style>
 <script src="{{ url_for('static', filename='js/form-loading.js') }}"></script>
 <script>
+const STORAGE_KEY = 'odontologia_seleccion';
+
+// Obtener días del mes actual
+function getDiasDelMes() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const primerDiaSemana = new Date(year, month, 1).getDay();
+  
+  return {
+    year,
+    month,
+    daysInMonth,
+    primerDiaSemana,
+    nombreMes: now.toLocaleString('es-CO', { month: 'long' })
+  };
+}
+
+// Cargar todos los profesionales y sus días desde localStorage
+function loadSeleccion() {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return {};
+    
+    const parsed = JSON.parse(stored);
+    
+    // Limpiar estructura mixta (si tiene keys "profesional" o "dias" a nivel raíz)
+    if (parsed.profesional || parsed.dias) {
+      // Migrar: si hay profesional y dias, guardarlos en la key correcta
+      const profesional = parsed.profesional;
+      const dias = parsed.dias || [];
+      
+      if (profesional) {
+        delete parsed.profesional;
+        delete parsed.dias;
+        parsed[profesional] = dias;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
+      }
+    }
+    
+    return parsed;
+  } catch (e) {
+    return {};
+  }
+}
+
+// Guardar días para un profesional específico
+function saveDiasProfesional(profesional, dias) {
+  if (!profesional) return;
+  
+  try {
+    const seleccion = loadSeleccion();
+    seleccion[profesional] = dias;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(seleccion));
+  } catch (e) {
+    console.error('Error guardando en localStorage:', e);
+  }
+}
+
+// Generar el calendario
+function renderCalendar(diasSeleccionados) {
+  const { year, month, daysInMonth, primerDiaSemana, nombreMes } = getDiasDelMes();
+  const grid = document.getElementById('calendar-grid');
+  
+  let html = `<p class="mb-sm"><strong>${nombreMes} ${year}</strong></p>`;
+  
+  // Encabezados de días
+  const diasSemana = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
+  diasSemana.forEach(d => {
+    html += `<div class="calendar-day empty" style="font-weight: bold; font-size: 12px;">${d}</div>`;
+  });
+  
+  // Días vacíos antes del primer día
+  for (let i = 0; i < primerDiaSemana; i++) {
+    html += `<div class="calendar-day empty"></div>`;
+  }
+  
+  // Días del mes
+  for (let dia = 1; dia <= daysInMonth; dia++) {
+    const selected = diasSeleccionados.includes(dia) ? 'selected' : '';
+    html += `<div class="calendar-day ${selected}" data-dia="${dia}">${dia}</div>`;
+  }
+  
+  grid.innerHTML = html;
+  
+  // Agregar eventos click
+  grid.querySelectorAll('.calendar-day:not(.empty)').forEach(el => {
+    el.addEventListener('click', function() {
+      const dia = parseInt(this.dataset.dia);
+      const profesional = document.getElementById('profesional').value;
+      
+      if (!profesional) {
+        alert('Seleccioná un profesional primero');
+        return;
+      }
+      
+      if (this.classList.contains('selected')) {
+        this.classList.remove('selected');
+        diasSeleccionados = diasSeleccionados.filter(d => d !== dia);
+      } else {
+        this.classList.add('selected');
+        diasSeleccionados.push(dia);
+        diasSeleccionados.sort((a, b) => a - b);
+      }
+      
+      // Actualizar input hidden
+      document.getElementById('dias_seleccionados').value = diasSeleccionados.join(',');
+      
+      // Guardar en localStorage (por profesional)
+      saveDiasProfesional(profesional, diasSeleccionados);
+      
+      // Guardar también el profesional actual
+      localStorage.setItem('odontologia_profesional_actual', profesional);
+    });
+  });
+  
+  return diasSeleccionados;
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const btnProcesar = document.getElementById('btn-procesar');
   const btnDescargar = document.getElementById('btn-descargar');
@@ -133,16 +307,88 @@ document.addEventListener('DOMContentLoaded', function() {
   const erroresContainer = document.getElementById('errores-container');
   const erroresList = document.getElementById('errores-list');
   const successContainer = document.getElementById('success-container');
+  const selectProfesional = document.getElementById('profesional');
+  const btnSelectAll = document.getElementById('select-all-days');
+  const btnClearAll = document.getElementById('clear-all-days');
   
   let downloadUrl = null;
-
-  btnProcesar.addEventListener('click', async function() {
+  let diasSeleccionados = [];
+  
+  // Cargar profesional guardado (último seleccionado)
+  const storedProfesional = localStorage.getItem('odontologia_profesional_actual') || '';
+  selectProfesional.value = storedProfesional;
+  
+  // Llamar loadSeleccion para asegurar migración y obtener datos frescos
+  const saved = loadSeleccion();
+  
+  // Cargar días del profesional guardado
+  const profesionalActual = selectProfesional.value;
+  diasSeleccionados = profesionalActual && saved[profesionalActual] ? saved[profesionalActual] : [];
+  renderCalendar(diasSeleccionados);
+  
+  // Actualizar input hidden con días cargados
+  document.getElementById('dias_seleccionados').value = diasSeleccionados.join(',');
+  
+  // Cuando cambia el profesional, cargar sus días específicos
+  selectProfesional.addEventListener('change', function() {
+    const profesional = this.value;
+    localStorage.setItem('odontologia_profesional_actual', profesional);
+    
+    // Recargar desde localStorage para obtener los datos actualizados
+    const saved = loadSeleccion();
+    
+    if (profesional && saved[profesional]) {
+      diasSeleccionados = saved[profesional];
+    } else {
+      diasSeleccionados = [];
+    }
+    
+    renderCalendar(diasSeleccionados);
+    document.getElementById('dias_seleccionados').value = diasSeleccionados.join(',');
+  });
+  
+  // Botón seleccionar todos
+  btnSelectAll.addEventListener('click', function() {
+    const profesional = selectProfesional.value;
+    
+    if (!profesional) {
+      alert('Seleccioná un profesional primero');
+      return;
+    }
+    
+    const { daysInMonth } = getDiasDelMes();
+    diasSeleccionados = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+    renderCalendar(diasSeleccionados);
+    document.getElementById('dias_seleccionados').value = diasSeleccionados.join(',');
+    saveDiasProfesional(profesional, diasSeleccionados);
+  });
+  
+  // Botón limpiar
+  btnClearAll.addEventListener('click', function() {
+    const profesional = selectProfesional.value;
+    
+    if (!profesional) {
+      alert('Seleccioná un profesional primero');
+      return;
+    }
+    
+    diasSeleccionados = [];
+    renderCalendar(diasSeleccionados);
+    document.getElementById('dias_seleccionados').value = '';
+    saveDiasProfesional(profesional, diasSeleccionados);
+  });
+  
+    btnProcesar.addEventListener('click', async function() {
     const fileInput = document.getElementById('file_upload');
     if (!fileInput.files.length) {
       alert('Debes seleccionar un archivo');
       return;
     }
 
+    // Cargar todos los profesionales y sus días del localStorage
+    const todosSeleccion = loadSeleccion();
+    document.getElementById('todos_profesionales_dias').value = JSON.stringify(todosSeleccion);
+    
     // Mostrar spinner
     btnProcesar.classList.add('btn--loading');
     btnProcesar.disabled = true;
@@ -188,6 +434,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let headersHtml = '';
             if (error.tipo_key === 'tipo_identificacion_edad') {
               headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+            } else if (error.tipo_key === 'centro_costo') {
+              headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
             } else {
               headersHtml = '<th>Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
             }
@@ -197,8 +445,20 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<thead><tr>' + headersHtml + '</tr></thead>';
             html += '<tbody>';
             
-            // Mostrar hasta 10 facturas
-            const facturasAMostrar = error.facturas.slice(0, 10);
+            // Mostrar hasta 50 facturas
+            const LIMITE_INICIAL = 50;
+            const facturasAMostrar = error.facturas.slice(0, LIMITE_INICIAL);
+            let colspan = 3;
+            if (error.tipo_key === 'tipo_identificacion_edad') colspan = 4;
+            if (error.tipo_key === 'centro_costo') colspan = 5;
+            
+            // Si hay más de 50, agregar botón para ver más
+            if (error.facturas.length > LIMITE_INICIAL) {
+              html += '<p class="mb-sm"><em>Mostrando ' + LIMITE_INICIAL + ' de ' + error.facturas.length + '</em> ';
+              html += '<button type="button" class="btn btn--sm btn--secondary" onclick="mostrarMas(this, ' + JSON.stringify(error).replace(/"/g, '&quot;') + ')">Ver todos</button></p>';
+            }
+            
+            // Renderizar las facturas
             facturasAMostrar.forEach(function(item) {
               let factura = item.factura || '';
               
@@ -209,6 +469,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + (item.tipo_actual || '') + '</td>';
                 html += '<td>' + (item.tipo_deberia || '') + '</td>';
                 html += '<td>' + (item.edad || '') + '</td>';
+              } else if (error.tipo_key === 'centro_costo') {
+                html += '<td>' + (item.profesional || '') + '</td>';
+                html += '<td>' + (item.fec_factura || '') + '</td>';
+                html += '<td>' + (item.centro_actual || '') + '</td>';
+                html += '<td>' + (item.centro_deberia || '') + '</td>';
               } else {
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
@@ -216,11 +481,6 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tr>';
             });
-            
-            if (error.facturas.length > 10) {
-              const colspan = error.tipo_key === 'tipo_identificacion_edad' ? 4 : 3;
-              html += '<tr><td colspan=' + colspan + '><em>... y ' + (error.facturas.length - 10) + ' más</em></td></tr>';
-            }
             
             html += '</tbody>';
             html += '</table>';
@@ -266,5 +526,48 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 });
+
+// Función para mostrar todos los errores al hacer click en "Ver todos"
+function mostrarMas(btn, errorData) {
+  const container = btn.closest('.mb-lg');
+  const table = container.querySelector('table');
+  const thead = table.querySelector('thead tr');
+  const tbody = table.querySelector('tbody');
+  
+  // Actualizar headers según el tipo
+  if (errorData.tipo_key === 'centro_costo') {
+    thead.innerHTML = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+  } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
+    thead.innerHTML = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+  }
+  
+  // Limpiar tabla y mostrar todos
+  tbody.innerHTML = '';
+  
+  errorData.facturas.forEach(function(item) {
+    let factura = item.factura || '';
+    let html = '<tr>';
+    html += '<td>' + factura + '</td>';
+    
+    if (errorData.tipo_key === 'tipo_identificacion_edad') {
+      html += '<td>' + (item.tipo_actual || '') + '</td>';
+      html += '<td>' + (item.tipo_deberia || '') + '</td>';
+      html += '<td>' + (item.edad || '') + '</td>';
+    } else if (errorData.tipo_key === 'centro_costo') {
+      html += '<td>' + (item.profesional || '') + '</td>';
+      html += '<td>' + (item.fec_factura || '') + '</td>';
+      html += '<td>' + (item.centro_actual || '') + '</td>';
+      html += '<td>' + (item.centro_deberia || '') + '</td>';
+    } else {
+      html += '<td>' + (item.centro_actual || '') + '</td>';
+      html += '<td>' + (item.centro_deberia || '') + '</td>';
+    }
+    html += '</tr>';
+    tbody.innerHTML += html;
+  });
+  
+  // Ocultar botón
+  btn.style.display = 'none';
+}
 </script>
 {% endblock %}
