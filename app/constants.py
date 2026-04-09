@@ -167,6 +167,7 @@ REVISION_HEADERS: dict[int, str] = {
 # Headers para hoja Revision URGENCIAS (columna -> valor)
 URGENCIA_REVISION_HEADERS: dict[int, str] = {
     1: "Centros de Costos",
+    2: "IDE Contrato",
 }
 
 # =============================================================================
@@ -241,6 +242,10 @@ CENTRO_COSTO_LABORATORIO_URGENCIAS = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
 CODIGO_IDE_CONTRATO_URGENCIAS = "906340"
 ENTIDAD_IDE_CONTRATO_URGENCIAS = "EPSI05"
 IDE_CONTRATO_REQUERIDO_URGENCIAS = "986"
+
+# ----- Nueva Regla: IDE Contrato para Código=861801 -> IDE Contrato debe ser 977
+CODIGO_IDE_CONTRATO_861801 = "861801"
+IDE_CONTRATO_REQUERIDO_861801 = "977"
 
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro

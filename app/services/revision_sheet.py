@@ -347,6 +347,7 @@ def _detect_tipo_identificacion_edad(
     - >= 18 años: CC (Cédula de Ciudadanía)
     - Extranjeros < 18 años: MS
     - Extranjeros >= 18 años: AS
+    - CN (Certificado de Nacimiento): solo válido si edad < 1 año
     
     Returns:
         Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
@@ -439,6 +440,13 @@ def _detect_tipo_identificacion_edad(
                 tipo_correcto = "MS"
             else:
                 tipo_correcto = "AS"
+        elif tipo_id_str == "CN":
+            # CN solo válido si edad < 1 año
+            if edad >= 1:
+                tipo_correcto = "ERROR"  # CN no válido para >= 1 año
+        # Tipos no válidos siempre son error
+        elif tipo_id_str in ("CE", "NIP", "NIT", "PAS", "PE", "SC"):
+            tipo_correcto = "ERROR"  # Tipos no permitidos
         
         logger.debug(
             "Fila %s: Edad=%d, Tipo actual=%s, Tipo correcto=%s",
@@ -479,7 +487,9 @@ def _detect_centro_costo_urgencias(
     -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
     
     Returns:
-        Lista de dicts con keys: "factura", "centro_actual", "centro_deberia"
+        Tuple de dos listas:
+        - problemas_centros: lista de dicts con keys: "factura", "centro_actual", "centro_deberia"
+        - problemas_ide_contrato: lista de dicts con keys: "factura", "ide_contrato_actual", "ide_contrato_deberia"
     """
     from app.constants import (
         CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO,
@@ -496,6 +506,8 @@ def _detect_centro_costo_urgencias(
         CODIGO_IDE_CONTRATO_URGENCIAS,
         ENTIDAD_IDE_CONTRATO_URGENCIAS,
         IDE_CONTRATO_REQUERIDO_URGENCIAS,
+        CODIGO_IDE_CONTRATO_861801,
+        IDE_CONTRATO_REQUERIDO_861801,
     )
     
     num_fact_idx = indices["numero_factura"]
@@ -513,15 +525,17 @@ def _detect_centro_costo_urgencias(
     # Si no tenemos las columnas necesarias, no podemos validar
     if codigo_tipo_proc_idx is None and laboratorio_idx is None and centro_costo_idx is None:
         logger.warning("No se encontraron columnas necesarias para validación de urgencias")
-        return []
+        return [], []
     
-    problemas = []
-    facturas_ya_procesadas = set()
+    problemas_centros = []
+    problemas_ide_contrato = []
+    facturas_ya_procesadas_centros = set()
+    facturas_ya_procesadas_ide = set()
     
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_ya_procesadas:
+        if not factura_str:
             continue
         
         # Obtener valores de las columnas
@@ -571,12 +585,12 @@ def _detect_centro_costo_urgencias(
         # Excepciones específicas de la Regla 1 (no afecta otras reglas)
         es_exceptuado = codigo_excluir in CODIGOS_EXCEPTUADOS
         if regla_1_activa and not es_exceptuado and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
-            problemas.append({
+            problemas_centros.append({
                 "factura": factura_str,
                 "centro_actual": centro_costo_str,
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
             })
-            facturas_ya_procesadas.add(factura_str)
+            facturas_ya_procesadas_centros.add(factura_str)
             logger.debug(
                 "Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s')",
                 row,
@@ -587,12 +601,12 @@ def _detect_centro_costo_urgencias(
         # (Independiente)
         if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
             if centro_costo_str != CENTRO_COSTO_TRASLADOS:
-                problemas.append({
+                problemas_centros.append({
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
                 })
-                facturas_ya_procesadas.add(factura_str)
+                facturas_ya_procesadas_centros.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
@@ -602,12 +616,12 @@ def _detect_centro_costo_urgencias(
         # (Independiente)
         if codigo_excluir in CODIGOS_PYP_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
-                problemas.append({
+                problemas_centros.append({
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
                 })
-                facturas_ya_procesadas.add(factura_str)
+                facturas_ya_procesadas_centros.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
                     row,
@@ -619,12 +633,12 @@ def _detect_centro_costo_urgencias(
         # (Independiente)
         if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
-                problemas.append({
+                problemas_centros.append({
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
                 })
-                facturas_ya_procesadas.add(factura_str)
+                facturas_ya_procesadas_centros.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
                     row,
@@ -641,12 +655,12 @@ def _detect_centro_costo_urgencias(
                     f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}.",
                 )
                 if not centro_valido:
-                    problemas.append({
+                    problemas_centros.append({
                         "factura": factura_str,
                         "centro_actual": centro_costo_str,
                         "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
                     })
-                    facturas_ya_procesadas.add(factura_str)
+                    facturas_ya_procesadas_centros.add(factura_str)
                     logger.debug(
                         "Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
                         row,
@@ -658,12 +672,12 @@ def _detect_centro_costo_urgencias(
         # (Independiente - NO depende de otras reglas)
         if codigo_excluir == CODIGO_IDE_CONTRATO_URGENCIAS and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_URGENCIAS:
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_URGENCIAS:
-                problemas.append({
+                problemas_ide_contrato.append({
                     "factura": factura_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_URGENCIAS,
                 })
-                facturas_ya_procesadas.add(factura_str)
+                facturas_ya_procesadas_ide.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (IDE: '%s')",
                     row,
@@ -671,8 +685,19 @@ def _detect_centro_costo_urgencias(
                     codigo_entidad_str,
                     ide_contrato_str,
                 )
+
+        # ----- Regla 7: Código=861801 -> IDE Contrato debe ser 977
+        # (Independiente - NO depende de otras reglas ni de la entidad)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801,
+                })
+                facturas_ya_procesadas_ide.add(factura_str)
     
-    return problemas
+    return problemas_centros, problemas_ide_contrato
 
 
 def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: int = 2) -> None:
@@ -726,24 +751,35 @@ def create_revision_sheet(
     
     # Detectar problemas según el área
     if area == AREA_URGENCIAS:
-        # Urgencias: enlistar facturas con problemas de centro de costo
-        centros_costo = _detect_centro_costo_urgencias(data_sheet, indices)
+        # Urgencias: enlistar facturas con problemas de centro de costo y IDE Contrato
+        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
         # Formatear para Excel: "FACTURA CENTRO_ACTUAL -> CENTRO_DEBERIA"
         centros_costo_str = [
             f"{item['factura']} {item['centro_actual']} -> {item['centro_deberia']}"
-            for item in centros_costo
+            for item in problemas_centros
+        ]
+        
+        # Formatear IDE Contrato: "FACTURA IDE_ACTUAL -> IDE_DEBERIA"
+        ide_contrato_str = [
+            f"{item['factura']} {item['ide_contrato_actual']} -> {item['ide_contrato_deberia']}"
+            for item in problemas_ide_contrato
         ]
         
         # Escribir resultados en fila 3+
         _write_column(sheet, 1, centros_costo_str, start_row=3)
+        _write_column(sheet, 2, ide_contrato_str, start_row=3)
         
         # ParaJSON: strings formateados "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
                 f"{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
-                for item in centros_costo
-            ]
+                for item in problemas_centros
+            ],
+            "Problemas de IDE Contrato": [
+                f"{item['factura']}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
+                for item in problemas_ide_contrato
+            ],
         }
     else:
         # Odontología: todas las validaciones existentes
@@ -864,16 +900,8 @@ def detect_all_problems(
     
     if area == AREA_URGENCIAS:
         # Urgencias: detectar centros de costo y IDE Contrato
-        problemas_todos = _detect_centro_costo_urgencias(data_sheet, indices)
-        
-        # Separar en dos listas: centros de costo vs IDE Contrato
-        centros_costo = []
-        ide_contrato = []
-        for item in problemas_todos:
-            if "centro_actual" in item and "centro_deberia" in item:
-                centros_costo.append(item)
-            elif "ide_contrato_actual" in item and "ide_contrato_deberia" in item:
-                ide_contrato.append(item)
+        # La función ahora retorna directamente dos listas separadas
+        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
         return {
             "area": area,
@@ -884,7 +912,7 @@ def detect_all_problems(
                         "centro_actual": item["centro_actual"],
                         "centro_deberia": item["centro_deberia"],
                     }
-                    for item in centros_costo
+                    for item in problemas_centros
                 ],
                 "ide_contrato": [
                     {
@@ -892,12 +920,12 @@ def detect_all_problems(
                         "ide_contrato_actual": item["ide_contrato_actual"],
                         "ide_contrato_deberia": item["ide_contrato_deberia"],
                     }
-                    for item in ide_contrato
+                    for item in problemas_ide_contrato
                 ],
             },
             "totales": {
-                "centros_de_costos": len(centros_costo),
-                "ide_contrato": len(ide_contrato),
+                "centros_de_costos": len(problemas_centros),
+                "ide_contrato": len(problemas_ide_contrato),
             }
         }
     else:
