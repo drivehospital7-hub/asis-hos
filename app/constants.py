@@ -125,6 +125,7 @@ CONVENIO_PYP = "Promoción y Prevención"
 
 ENTIDAD_MALLAMAS = "MALLAMAS EPS INDIGENA"
 CENTRO_COSTO_ODONTOLOGIA = "ODONTOLOGIA"
+CENTRO_COSTO_EXTRAMURAL = "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
 
 # =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
@@ -162,6 +163,7 @@ REVISION_HEADERS: dict[int, str] = {
     4: "Convenio de procedimiento",
     5: "Cantidades",
     6: "Tipo Identificación",
+    7: "Centro Costo",
 }
 
 # Headers para hoja Revision URGENCIAS (columna -> valor)
@@ -176,6 +178,37 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
 
 AREA_ODONTOLOGIA = "odontologia"
 AREA_URGENCIAS = "urgencias"
+
+# =============================================================================
+# PROFESIONALES - Listado de profesionales de Odontología
+# =============================================================================
+
+PROFESIONALES_ODONTOLOGIA: dict[str, dict[str, str]] = {
+    "001": {
+        "nombre": "ARIAS MOREANO LAURA MELISSA",
+        "identificacion": "1004730653",
+    },
+    "002": {
+        "nombre": "CASTILLO DUQUE NOHORA ELENA",
+        "identificacion": "38461725",
+    },
+    "003": {
+        "nombre": "MOSQUERA LOZANO YENIA YADIRIS",
+        "identificacion": "35852158",
+    },
+    "004": {
+        "nombre": "OSPINA MARTINEZ LIZETH",
+        "identificacion": "1110594106",
+    },
+    "005": {
+        "nombre": "PANTOJA MONTIEL LEIDY PAOLA",
+        "identificacion": "1123322483",
+    },
+    "006": {
+        "nombre": "QUINTERO QUIROZ NOBEIRA DORANI",
+        "identificacion": "1006848745",
+    },
+}
 
 # =============================================================================
 # URGENCIAS - Reglas específicas de Urgencias
@@ -243,9 +276,19 @@ CODIGO_IDE_CONTRATO_URGENCIAS = "906340"
 ENTIDAD_IDE_CONTRATO_URGENCIAS = "EPSI05"
 IDE_CONTRATO_REQUERIDO_URGENCIAS = "986"
 
-# ----- Nueva Regla: IDE Contrato para Código=861801 -> IDE Contrato debe ser 977
+# ----- Nueva Regla: IDE Contrato para Código=861801 -> IDE Contrato debe ser 977 + Entidad=EPSI05
 CODIGO_IDE_CONTRATO_861801 = "861801"
+ENTIDAD_IDE_CONTRATO_861801 = "EPSI05"
 IDE_CONTRATO_REQUERIDO_861801 = "977"
+
+# ----- Nueva Regla: Código=890405 + Entidad=EPSI05
+# Si identificación tiene código 861801 -> IDE Contrato = 976
+# Si identificación NO tiene código 861801 -> IDE Contrato = 977
+CODIGO_IDE_CONTRATO_890405 = "890405"
+ENTIDAD_IDE_CONTRATO_890405 = "EPSI05"
+IDE_CONTRATO_CON_INSERCION_890405 = "976"  # tiene código 861801
+IDE_CONTRATO_SIN_INSERCION_890405 = "977"  # no tiene código 861801
+CODIGO_INSERCION_BUSCAR = "861801"  # código a buscar para determinar IDE Contrato
 
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro

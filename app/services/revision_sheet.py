@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import logging
 from collections import defaultdict
+from datetime import datetime
 from typing import Any
 
 from openpyxl.workbook import Workbook
@@ -44,6 +45,9 @@ from app.constants import (
     CENTRO_COSTO_QUIROFANO_URGENCIAS,
     CODIGOS_LABORATORIO_URGENCIAS,
     CENTRO_COSTO_LABORATORIO_URGENCIAS,
+    CENTRO_COSTO_ODONTOLOGIA,
+    CENTRO_COSTO_EXTRAMURAL,
+    PROFESIONALES_ODONTOLOGIA,
 )
 from app.utils.formatting import (
     create_header_style,
@@ -96,6 +100,8 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "tipo_identificacion": None,
         "fec_nacimiento": None,
         "fec_factura": None,
+        "profesional_identificacion": None,  # Nueva columna
+        "profesional_atiende": None,           # Nueva columna
     }
     
     header_mapping = {
@@ -116,7 +122,9 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         ("ide contrato",): "ide_contrato",
         ("tipo identificación", "tipo identificacion"): "tipo_identificacion",
         ("fec. nacimiento", "fecha nacimiento"): "fec_nacimiento",
-        ("fec. factura", "fecha factura"): "fec_factura",
+        ("fec. factura", "fecha factura", "fec factura", "fecha"): "fec_factura",
+        ("identificación profesional", "id profesional", "identificacion profesional", "profesional identificación", "identificacion prof"): "profesional_identificacion",
+        ("profesional atiende", "profesional"): "profesional_atiende",
     }
     
     for i, header in enumerate(headers):
@@ -473,6 +481,172 @@ def _detect_tipo_identificacion_edad(
     return problemas
 
 
+def _detect_centro_costo_odontologia(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+    profesional_dias: dict[str, list[int]] | None = None,
+    permitir_todos_centros: bool = False,
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con problemas de centro de costo en Odontología.
+    
+    Dos modos de operación:
+    
+    1. permitir_todos_centros = True (validación desactivada):
+       - Solo se permiten: "ODONTOLOGIA" y "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
+       - Cualquier otro centro es error
+    
+    2. permitir_todos_centros = False (validación activada con días):
+       - Por defecto: Centro debe ser "ODONTOLOGIA"
+       - Si el profesional (por identificación) tiene días seleccionados en el calendario
+         Y la fecha de factura coincide con uno de esos días -> Centro debe ser "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
+       - Si el centro es diferente a los dos permitidos Y no coincide con fecha+día -> ERROR
+       - Si el centro es diferente a los dos permitidos Y coincide con fecha+día -> ERROR
+    
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+        profesional_dias: Dict {identificacion: [dias]} con los días seleccionados por profesional
+        permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL (sin validación por fecha)
+    
+    Returns:
+        Lista de dicts con keys: "factura", "centro_actual", "centro_deberia", "profesional", "fec_factura"
+    """
+    problemas = []
+    
+    num_fact_idx = indices["numero_factura"]
+    centro_costo_idx = indices["centro_costo"]
+    fec_factura_idx = indices["fec_factura"]
+    profesional_id_idx = indices["profesional_identificacion"]
+    
+    logger.info("Índices para validación centro costo - numero_fact: %s, centro_costo: %s, fec_factura: %s, profesional_id: %s",
+                num_fact_idx, centro_costo_idx, fec_factura_idx, profesional_id_idx)
+    
+    if num_fact_idx is None or centro_costo_idx is None:
+        logger.warning("Columnas necesarias no encontradas para validar centro de costo")
+        return []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        # Obtener datos de la fila
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        centro_costo = data_sheet.cell(row=row, column=centro_costo_idx + 1).value
+        centro_costo_str = str(centro_costo).strip().upper() if centro_costo else ""
+        
+        # Obtener fecha de factura
+        fec_factura = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx is not None else None
+        dia_factura = None
+        
+        # Debug: log de la fecha cruda
+        if row <= 3:  # Solo las primeras 3 filas
+            logger.debug("Fila %s - fec_factura raw: %s (type: %s)", row, fec_factura, type(fec_factura).__name__)
+        
+        if fec_factura:
+            try:
+                if isinstance(fec_factura, datetime):
+                    dia_factura = fec_factura.day
+                elif isinstance(fec_factura, (int, float)):
+                    # Puede ser un número de serie de Excel
+                    try:
+                        from datetime import datetime as dt, timedelta
+                        excel_date = int(fec_factura)
+                        dia_factura = (dt(1900, 1, 1) + timedelta(days=excel_date - 1)).day
+                    except:
+                        pass
+                elif isinstance(fec_factura, str):
+                    # Intentar múltiples formatos de fecha
+                    formatos = [
+                        "%Y-%m-%d %H:%M:%S",  # 2026-04-06 06:40:14
+                        "%Y-%m-%d",            # 2026-04-06
+                        "%d/%m/%Y", "%d-%m-%Y",
+                        "%d-%b-%Y", "%b %d, %Y", "%d %b %Y",
+                        "%m/%d/%Y", "%Y/%m/%d",
+                        "%d.%m.%Y", "%Y.%m.%d",
+                    ]
+                    for fmt in formatos:
+                        try:
+                            dia_factura = datetime.strptime(fec_factura.strip(), fmt).day
+                            logger.debug("Fila %s - fecha parseada '%s' con formato '%s', día: %s", 
+                                        row, fec_factura, fmt, dia_factura)
+                            break
+                        except ValueError:
+                            continue
+                    if dia_factura is None:
+                        logger.debug("Fila %s - NO se pudo parsear fecha: '%s'", row, fec_factura)
+            except Exception as e:
+                logger.debug("Fila %s - error parseando fecha '%s': %s", row, fec_factura, e)
+        
+        # Obtener identificación del profesional
+        profesional_id = None
+        if profesional_id_idx is not None:
+            profesional_id = data_sheet.cell(row=row, column=profesional_id_idx + 1).value
+            if profesional_id:
+                profesional_id = str(profesional_id).strip()
+        
+        # Debug: log de la identificación del profesional
+        if row <= 3:
+            logger.debug("Fila %s - profesional_id raw: %s (index: %s)", row, profesional_id, profesional_id_idx)
+        
+        # Determinar centro correcto según el modo
+        if permitir_todos_centros:
+            # Modo simple: solo permitir los dos centros válidos
+            centro_correcto = None  # No hay uno específico, cualquiera de los dos es válido
+        else:
+            # Modo con validación por fecha
+            dias_profesional = []
+            if profesional_dias and profesional_id and profesional_id in profesional_dias:
+                dias_profesional = profesional_dias[profesional_id]
+                logger.debug("Fila %s - profesional_id: %s, dias_profesional: %s, dia_factura: %s", 
+                           row, profesional_id, dias_profesional, dia_factura)
+            
+            if dia_factura and dias_profesional and dia_factura in dias_profesional:
+                centro_correcto = CENTRO_COSTO_EXTRAMURAL
+            else:
+                centro_correcto = CENTRO_COSTO_ODONTOLOGIA
+        
+        # Validar
+        centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
+        
+        # Caso 1: Centro no está en la lista de válidos → siempre error
+        if centro_costo_str not in centros_validos:
+            problema = {
+                "factura": factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": centro_correcto if centro_correcto else "ODONTOLOGIA o SERVICIOS ODONTOLOGIA -EXTRAMURALES",
+                "profesional": profesional_id or "",
+                "fec_factura": str(fec_factura) if fec_factura else "",
+            }
+            problemas.append(problema)
+            logger.debug(
+                "Fila %s: Centro de costo inválido (%s, debería ser uno de: %s)",
+                row,
+                centro_costo_str,
+                centros_validos,
+            )
+        # Caso 2: Validación activada Y centro no coincide con el esperado según fecha
+        elif not permitir_todos_centros and centro_correcto and centro_costo_str != centro_correcto:
+            problema = {
+                "factura": factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": centro_correcto,
+                "profesional": profesional_id or "",
+                "fec_factura": str(fec_factura) if fec_factura else "",
+            }
+            problemas.append(problema)
+            logger.debug(
+                "Fila %s: Centro de costo no coincide con fecha (%s, debería ser %s para día %s)",
+                row,
+                centro_costo_str,
+                centro_correcto,
+                dia_factura,
+            )
+    
+    return problemas
+
+
 def _detect_centro_costo_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -507,10 +681,17 @@ def _detect_centro_costo_urgencias(
         ENTIDAD_IDE_CONTRATO_URGENCIAS,
         IDE_CONTRATO_REQUERIDO_URGENCIAS,
         CODIGO_IDE_CONTRATO_861801,
+        ENTIDAD_IDE_CONTRATO_861801,
         IDE_CONTRATO_REQUERIDO_861801,
+        CODIGO_IDE_CONTRATO_890405,
+        ENTIDAD_IDE_CONTRATO_890405,
+        IDE_CONTRATO_CON_INSERCION_890405,
+        IDE_CONTRATO_SIN_INSERCION_890405,
+        CODIGO_INSERCION_BUSCAR,
     )
     
     num_fact_idx = indices["numero_factura"]
+    ident_idx = indices.get("identificacion")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
     codigo_idx = indices.get("codigo")
     laboratorio_idx = indices.get("laboratorio")
@@ -531,6 +712,18 @@ def _detect_centro_costo_urgencias(
     problemas_ide_contrato = []
     facturas_ya_procesadas_centros = set()
     facturas_ya_procesadas_ide = set()
+    
+    # ----- Pre-recorrido:收集 identificaciones con código 861801
+    identificaciones_con_insercion = set()
+    if ident_idx is not None and codigo_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero_ident = data_sheet.cell(row=row, column=ident_idx + 1).value
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if numero_ident and codigo:
+                ident_normalized = str(numero_ident).strip()
+                codigo_normalized = str(codigo).strip()
+                if codigo_normalized == CODIGO_INSERCION_BUSCAR:
+                    identificaciones_con_insercion.add(ident_normalized)
     
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -567,6 +760,10 @@ def _detect_centro_costo_urgencias(
         if ide_contrato_idx is not None:
             ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
         
+        numero_identificacion = None
+        if ident_idx is not None:
+            numero_identificacion = data_sheet.cell(row=row, column=ident_idx + 1).value
+        
         # Normalizar strings
         codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
         codigo_excluir = str(codigo).strip() if codigo else ""
@@ -575,6 +772,7 @@ def _detect_centro_costo_urgencias(
         codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
         tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         ide_contrato_str = str(ide_contrato).strip() if ide_contrato else ""
+        ident_str = str(numero_identificacion).strip() if numero_identificacion else ""
         
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
         # (Independiente - con excepciones propias: no aplica a ciertos códigos)
@@ -686,9 +884,9 @@ def _detect_centro_costo_urgencias(
                     ide_contrato_str,
                 )
 
-        # ----- Regla 7: Código=861801 -> IDE Contrato debe ser 977
-        # (Independiente - NO depende de otras reglas ni de la entidad)
-        if codigo_excluir == CODIGO_IDE_CONTRATO_861801:
+        # ----- Regla 7: Código=861801 + Entidad=EPSI05 -> IDE Contrato debe ser 977
+        # (Independiente - NO depende de otras reglas)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_861801:
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
@@ -696,6 +894,28 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801,
                 })
                 facturas_ya_procesadas_ide.add(factura_str)
+
+        # ----- Regla 8: Código=890405 + Entidad=EPSI05
+        # Si identificación tiene código 861801 -> IDE Contrato = 976
+        # Si identificación NO tiene código 861801 -> IDE Contrato = 977
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405:
+            # Determinar el IDE Contrato esperado basado en si tiene inserción
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405 if ident_str in identificaciones_con_insercion else IDE_CONTRATO_SIN_INSERCION_890405
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "tiene_insercion": ident_str in identificaciones_con_insercion,
+                })
+                facturas_ya_procesadas_ide.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=890405, Entidad=EPSI05, IDE incorrecto (Actual: '%s', Esperado: '%s', Tiene inserción: %s)",
+                    row,
+                    ide_contrato_str,
+                    ide_esperado,
+                    ident_str in identificaciones_con_insercion,
+                )
     
     return problemas_centros, problemas_ide_contrato
 
@@ -708,20 +928,25 @@ def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: i
 
 def create_revision_sheet(
     workbook: Workbook,
+    data_sheet: Worksheet,
     area: str = AREA_ODONTOLOGIA,
+    profesional_dias: dict[str, list[int]] | None = None,
+    permitir_todos_centros: bool = False,
 ) -> dict[str, Any]:
     """
     Crea la hoja Revision con los problemas detectados.
     
     Args:
         workbook: Libro de Excel (debe tener una hoja activa con datos)
+        data_sheet: Hoja de datos a analizar
         area: Área del sistema ("odontologia" o "urgencias")
+        profesional_dias: Dict {identificacion: [dias]} con días seleccionados por profesional
+        permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL
     
     Returns:
         Dict con información de los problemas encontrados
     """
     sheet = workbook.create_sheet(title=REVISION_SHEET)
-    data_sheet = workbook.active
     
     # Insertar fila vacía arriba
     sheet.insert_rows(1)
@@ -833,7 +1058,7 @@ def create_revision_sheet(
     if area == AREA_URGENCIAS:
         logger.info(
             "Hoja Revision Urgencias creada - Centros de Costos: %d",
-            len(centros_costo),
+            len(problemas_centros),
         )
     else:
         logger.info(
@@ -854,7 +1079,7 @@ def create_revision_sheet(
             "sheet": REVISION_SHEET,
             "area": area,
             "headers": list(URGENCIA_REVISION_HEADERS.values()),
-            "centros_de_costos_found": len(centros_costo),
+            "centros_de_costos_found": len(problemas_centros),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
         }
@@ -878,6 +1103,8 @@ def create_revision_sheet(
 def detect_all_problems(
     data_sheet: Worksheet,
     area: str = AREA_ODONTOLOGIA,
+    profesional_dias: dict[str, list[int]] | None = None,
+    permitir_todos_centros: bool = False,
 ) -> dict[str, Any]:
     """
     Detecta todos los problemas en las facturas SIN crear hoja Excel.
@@ -887,6 +1114,8 @@ def detect_all_problems(
     Args:
         data_sheet: Hoja de Excel con los datos
         area: Área del sistema ("odontologia" o "urgencias")
+        profesional_dias: Dict {identificacion: [dias]} con días seleccionados por profesional
+        permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL sin validación por fecha
     
     Returns:
         Dict con los problemas encontrados por categoría
@@ -937,6 +1166,14 @@ def detect_all_problems(
         cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
         
+        # Validación centro de costo Odontología
+        centro_costo = _detect_centro_costo_odontologia(
+            data_sheet, 
+            indices, 
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+        )
+        
         return {
             "area": area,
             "problemas": {
@@ -946,6 +1183,7 @@ def detect_all_problems(
                 "convenio_procedimiento": conveniente_proc,
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
+                "centro_costo": centro_costo,
             },
             "totales": {
                 "decimales": len(decimales),
@@ -954,5 +1192,6 @@ def detect_all_problems(
                 "convenio_procedimiento": len(conveniente_proc),
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
+                "centro_costo": len(centro_costo),
             }
         }
