@@ -562,16 +562,15 @@ def _detect_centro_costo_urgencias(
         tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         ide_contrato_str = str(ide_contrato).strip() if ide_contrato else ""
         
-        # Excluir códigos específicos
-        if codigo_excluir in (CODIGOS_EXCEPTUADOS):
-            continue
-        
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
+        # (Independiente - con excepciones propias: no aplica a ciertos códigos)
         regla_1_activa = (
             codigo_str == CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO and
             laboratorio_str == LABORATORIO_NO
         )
-        if regla_1_activa and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
+        # Excepciones específicas de la Regla 1 (no afecta otras reglas)
+        es_exceptuado = codigo_excluir in CODIGOS_EXCEPTUADOS
+        if regla_1_activa and not es_exceptuado and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
             problemas.append({
                 "factura": factura_str,
                 "centro_actual": centro_costo_str,
@@ -583,9 +582,9 @@ def _detect_centro_costo_urgencias(
                 row,
                 centro_costo,
             )
-            continue
         
-        # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS (traslado sin centro correcto)
+        # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS
+        # (Independiente)
         if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
             if centro_costo_str != CENTRO_COSTO_TRASLADOS:
                 problemas.append({
@@ -598,9 +597,9 @@ def _detect_centro_costo_urgencias(
                     "Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
                 )
-            continue
         
         # ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
+        # (Independiente)
         if codigo_excluir in CODIGOS_PYP_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
                 problemas.append({
@@ -615,9 +614,9 @@ def _detect_centro_costo_urgencias(
                     codigo_excluir,
                     centro_costo_str,
                 )
-            continue
         
-        # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS Y SALAS DE PARTO
+        # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS
+        # (Independiente)
         if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
                 problemas.append({
@@ -632,19 +631,15 @@ def _detect_centro_costo_urgencias(
                     codigo_excluir,
                     centro_costo_str,
                 )
-            continue
         
-        # ----- Regla 5: Código en (903866, 903867, 903856, 9062082, 903833, 903828, 902209, 906340) 
-        #              + Entidad=ESS118 + Tipo=Intramural -> Centro debe ser LABORATORIO
+        # ----- Regla 5: Código en lista laboratorio + Entidad=ESS118 + Tipo=Intramural -> Centro LABORATORIO
+        # (Independiente)
         if codigo_excluir in CODIGOS_LABORATORIO_URGENCIAS:
-            # Solo verificar si Entidad=ESS118 Y Tipo=Intramural
             if codigo_entidad_str == "ESS118" and tipo_factura_str == "Intramural":
-                # Acepta ambas variantes del nombre (con o sin punto final)
                 centro_valido = centro_costo_str in (
                     CENTRO_COSTO_LABORATORIO_URGENCIAS,
                     f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}.",
                 )
-                
                 if not centro_valido:
                     problemas.append({
                         "factura": factura_str,
@@ -658,9 +653,9 @@ def _detect_centro_costo_urgencias(
                         codigo_excluir,
                         centro_costo_str,
                     )
-            continue
         
         # ----- Regla 6: Código=906340 + Cód Entidad Cobrar=EPSI05 -> IDE Contrato debe ser 986
+        # (Independiente - NO depende de otras reglas)
         if codigo_excluir == CODIGO_IDE_CONTRATO_URGENCIAS and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_URGENCIAS:
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_URGENCIAS:
                 problemas.append({
@@ -676,7 +671,6 @@ def _detect_centro_costo_urgencias(
                     codigo_entidad_str,
                     ide_contrato_str,
                 )
-            continue
     
     return problemas
 
