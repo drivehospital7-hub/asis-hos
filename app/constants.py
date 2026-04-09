@@ -95,15 +95,15 @@ TARGET_PROCEDURES = frozenset({
 # COLORS - Colores para formato condicional (RGB hex - colores claros)
 # =============================================================================
 
-# Verdes claros para Facturas Ok
+# Verdes claros para Cruce Facturas (coincidencias con Número Factura)
 COLOR_GREEN_LIGHT = "C6EFCE"  # Verde suave (fondo)
 COLOR_GREEN_DARK = "63BE7B"   # Verde más intenso (texto/bordes)
 
-# Amarillos claros para Facturas Pendientes
+# Amarillos claros para Cruce Identificación
 COLOR_YELLOW_LIGHT = "FFEB9C"  # Amarillo suave (fondo)
 COLOR_YELLOW_DARK = "FFC000"  # Amarillo más intenso (texto/bordes)
 
-# Rojos claros para PDFs / Errores
+# Rojos claros para errores generales
 COLOR_RED_LIGHT = "FFC7CE"    # Rojo suave (fondo)
 COLOR_RED_DARK = "FF6B6B"     # Rojo más intenso (texto/bordes)
 
@@ -150,9 +150,8 @@ HEADER_BORDER_COLOR = "4472C4"
 # Color de fondo para filas de datos (azulado muy claro)
 DATA_ROW_BACKGROUND_COLOR = "F2F6FA"
 CRUCE_HEADERS: dict[str, str] = {
-    "B2": "Facturas Ok",
-    "D2": "Facturas Pendientes",
-    "F2": "PDFs de Facturas",
+    "B2": "Cruce Facturas",
+    "D2": "Cruce Identificación",
 }
 
 # Headers para hoja Revision ODONTOLOGIA (columna -> valor)
@@ -162,6 +161,7 @@ REVISION_HEADERS: dict[int, str] = {
     3: "Ruta Duplicada",
     4: "Convenio de procedimiento",
     5: "Cantidades",
+    6: "Tipo Identificación",
 }
 
 # Headers para hoja Revision URGENCIAS (columna -> valor)
@@ -236,6 +236,11 @@ CODIGOS_LABORATORIO_URGENCIAS = frozenset({
 
 # Centro de costo para procedimientos de laboratorio en urgencias
 CENTRO_COSTO_LABORATORIO_URGENCIAS = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+
+# ----- Nueva Regla: IDE Contrato para Código=906340 + Entidad=EPSI05
+CODIGO_IDE_CONTRATO_URGENCIAS = "906340"
+ENTIDAD_IDE_CONTRATO_URGENCIAS = "EPSI05"
+IDE_CONTRATO_REQUERIDO_URGENCIAS = "986"
 
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro

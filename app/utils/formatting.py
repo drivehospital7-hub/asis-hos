@@ -349,79 +349,94 @@ def apply_conditional_cruce_facturas(
     cruce_sheet: Worksheet,
     data_sheet: Worksheet,
     numero_factura_col: str,
+    identificacion_col: str | None = None,
 ) -> dict[str, Any]:
     """
-    Aplica formato condicional a la hoja CruceFacturas y a la columna Número Factura.
+    Aplica formato condicional a la hoja CruceFacturas y a las columnas de datos.
     
     Colores según columna de CruceFacturas:
-    - B: Verde (Facturas Ok)
-    - D: Amarillo (Facturas Pendientes)
-    - F: Rojo (PDFs)
+    - B: Verde (Cruce Facturas - coincide con Número Factura)
+    - D: Amarillo (Cruce Identificación - coincide con Nº Identificación)
     
     Args:
         cruce_sheet: Hoja CruceFacturas
         data_sheet: Hoja de datos
         numero_factura_col: Letra de la columna Número Factura
+        identificacion_col: Letra de la columna Nº Identificación (opcional)
     
     Returns:
         Dict con información de las reglas aplicadas
     """
     max_data_row = data_sheet.max_row
     
-    # Configuración: (columna, color)
-    columns_config = [
-        ("B", COLOR_GREEN),   # Facturas Ok
-        ("D", COLOR_YELLOW),  # Facturas Pendientes
-        ("F", COLOR_RED),     # PDFs
-    ]
+    # Configuración para Cruce Facturas (columna B - verde)
+    # Comprobar contra Número Factura
+    fill_b = create_fill(COLOR_GREEN)
+    formula_b = (
+        f"COUNTIF({data_sheet.title}!${numero_factura_col}$2:"
+        f"${numero_factura_col}${max_data_row},"
+        f"{cruce_sheet.title}!B2)>0"
+    )
+    rule_b = FormulaRule(formula=[formula_b], fill=fill_b)
+    cruce_range_b = f"B2:B{max_data_row + 50}"
+    cruce_sheet.conditional_formatting.add(cruce_range_b, rule_b)
     
-    # Aplicar formato a columnas de CruceFacturas
-    for col_letter, color in columns_config:
-        fill = create_fill(color)
-        header_cell = f"{col_letter}1"
-        
-        # Fórmula: si el valor existe en la columna Número Factura
-        formula = (
-            f"COUNTIF({data_sheet.title}!${numero_factura_col}$2:"
-            f"${numero_factura_col}${max_data_row},"
-            f"{cruce_sheet.title}!{header_cell})>0"
+    logger.debug(
+        "Formato condicional aplicado a %s con color verde (Número Factura)",
+        cruce_range_b,
+    )
+    
+    # Configuración para Cruce Identificación (columna D - amarillo)
+    # Comprobar contra Nº Identificación
+    if identificacion_col:
+        fill_d = create_fill(COLOR_YELLOW)
+        formula_d = (
+            f"COUNTIF({data_sheet.title}!${identificacion_col}$2:"
+            f"${identificacion_col}${max_data_row},"
+            f"{cruce_sheet.title}!D2)>0"
         )
-        
-        rule = FormulaRule(formula=[formula], fill=fill)
-        cruce_range = f"{col_letter}1:{col_letter}{max_data_row + 50}"
-        cruce_sheet.conditional_formatting.add(cruce_range, rule)
+        rule_d = FormulaRule(formula=[formula_d], fill=fill_d)
+        cruce_range_d = f"D2:D{max_data_row + 50}"
+        cruce_sheet.conditional_formatting.add(cruce_range_d, rule_d)
         
         logger.debug(
-            "Formato condicional aplicado a %s con color %s",
-            cruce_range,
-            color,
+            "Formato condicional aplicado a %s con color amarillo (Nº Identificación)",
+            cruce_range_d,
         )
     
-    # Aplicar formato a columna Número Factura en hoja de datos
-    for col_letter, color in columns_config:
-        fill = create_fill(color)
-        
-        # Fórmula: si el número de factura aparece en la columna de CruceFacturas
-        formula = (
-            f"=COUNTIF({cruce_sheet.title}!{col_letter}:{col_letter}, "
-            f"{numero_factura_col}2)>0"
+    # Aplicar formato a columna Número Factura en hoja de datos (verde)
+    fill_b_data = create_fill(COLOR_GREEN)
+    formula_b_data = (
+        f"=COUNTIF({cruce_sheet.title}!B:B, {numero_factura_col}2)>0"
+    )
+    rule_b_data = FormulaRule(formula=[formula_b_data], fill=fill_b_data)
+    data_range_b = f"{numero_factura_col}2:{numero_factura_col}{max_data_row}"
+    data_sheet.conditional_formatting.add(data_range_b, rule_b_data)
+    
+    logger.debug(
+        "Formato condicional aplicado a %s verificando Cruce Facturas",
+        data_range_b,
+    )
+    
+    # Aplicar formato a columna Nº Identificación en hoja de datos (amarillo)
+    if identificacion_col:
+        fill_d_data = create_fill(COLOR_YELLOW)
+        formula_d_data = (
+            f"=COUNTIF({cruce_sheet.title}!D:D, {identificacion_col}2)>0"
         )
-        
-        rule = FormulaRule(formula=[formula], fill=fill)
-        data_range = f"{numero_factura_col}2:{numero_factura_col}{max_data_row}"
-        data_sheet.conditional_formatting.add(data_range, rule)
+        rule_d_data = FormulaRule(formula=[formula_d_data], fill=fill_d_data)
+        data_range_d = f"{identificacion_col}2:{identificacion_col}{max_data_row}"
+        data_sheet.conditional_formatting.add(data_range_d, rule_d_data)
         
         logger.debug(
-            "Formato condicional aplicado a %s verificando %s!%s",
-            data_range,
-            cruce_sheet.title,
-            col_letter,
+            "Formato condicional aplicado a %s verificando Cruce Identificación",
+            data_range_d,
         )
     
     return {
         "rule": "cruce_facturas_conditional",
         "applied": True,
-        "cruce_columns": ["B", "D", "F"],
+        "cruce_columns": ["B", "D"],
     }
 
 
@@ -447,13 +462,17 @@ def apply_all_conditional_formatting(
         logger.warning("No se encontró columna 'Número Factura' en la hoja de datos")
         return [{"rule": "all_conditional", "applied": False, "reason": "missing_column"}]
     
-    # Aplicar reglas de datos
+    # Buscar columna Nº Identificación
+    identificacion_col = find_column_letter_by_header(data_sheet, "Nº Identificación")
+    if not identificacion_col:
+        logger.warning("No se encontró columna 'Nº Identificación' en la hoja de datos")
+    
+    # Aplicar reglas de datos (solo conveniencia - tipo identificación se muestra en HTML)
     results.append(apply_conditional_convenio_facturado(data_sheet))
-    results.append(apply_conditional_tipo_identificacion(data_sheet))
     
     # Aplicar reglas de cruce
     results.append(apply_conditional_cruce_facturas(
-        cruce_sheet, data_sheet, numero_factura_col
+        cruce_sheet, data_sheet, numero_factura_col, identificacion_col
     ))
     
     return results

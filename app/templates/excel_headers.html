@@ -184,39 +184,42 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<div class="mb-lg">';
             html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
             
-            // Tabla con 3 columnas
+            // Determinar headers según el tipo de error
+            let headersHtml = '';
+            if (error.tipo_key === 'tipo_identificacion_edad') {
+              headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+            } else {
+              headersHtml = '<th>Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+            }
+            
+            // Tabla con columnas dinámicas
             html += '<table class="table">';
-            html += '<thead><tr><th>Factura</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
+            html += '<thead><tr>' + headersHtml + '</tr></thead>';
             html += '<tbody>';
             
             // Mostrar hasta 10 facturas
             const facturasAMostrar = error.facturas.slice(0, 10);
             facturasAMostrar.forEach(function(item) {
-              // Si es string, parsear
-              let factura = item;
-              let centroActual = '';
-              let centroDeberia = '';
-              
-              if (typeof item === 'object' && item !== null) {
-                factura = item.factura || '';
-                centroActual = item.centro_actual || '';
-                centroDeberia = item.centro_deberia || '';
-              } else if (typeof item === 'string' && item.includes('|')) {
-                const parts = item.split('|');
-                factura = parts[0] || '';
-                centroActual = parts[1] || '';
-                centroDeberia = parts[2] || '';
-              }
+              let factura = item.factura || '';
               
               html += '<tr>';
               html += '<td>' + factura + '</td>';
-              html += '<td>' + centroActual + '</td>';
-              html += '<td>' + centroDeberia + '</td>';
+              
+              if (error.tipo_key === 'tipo_identificacion_edad') {
+                html += '<td>' + (item.tipo_actual || '') + '</td>';
+                html += '<td>' + (item.tipo_deberia || '') + '</td>';
+                html += '<td>' + (item.edad || '') + '</td>';
+              } else {
+                html += '<td>' + (item.centro_actual || '') + '</td>';
+                html += '<td>' + (item.centro_deberia || '') + '</td>';
+              }
+              
               html += '</tr>';
             });
             
             if (error.facturas.length > 10) {
-              html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 10) + ' más</em></td></tr>';
+              const colspan = error.tipo_key === 'tipo_identificacion_edad' ? 4 : 3;
+              html += '<tr><td colspan=' + colspan + '><em>... y ' + (error.facturas.length - 10) + ' más</em></td></tr>';
             }
             
             html += '</tbody>';

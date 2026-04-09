@@ -80,15 +80,9 @@ def export_cruce_facturas():
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]
         
-        # Extraer info de problemas para mostrar en web
-        applied_rules = export_result["data"].get("applied_rules", [])
-        revision_info = None
-        for rule in applied_rules:
-            if rule.get("rule") == "create_revision_sheet":
-                revision_info = rule
-                break
-        
-        problemas = revision_info.get("problemas", {}) if revision_info else {}
+        # Extraer info de problemas del nuevo campo "problemas"
+        problemas_data = export_result["data"].get("problemas", {})
+        problemas = problemas_data.get("problemas", {})
         
         # Armar lista de errores para mostrar
         errores = []
@@ -96,24 +90,37 @@ def export_cruce_facturas():
             if items:
                 facturas = []
                 for item in items[:20]:
-                    # Formato "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
-                    if "|" in str(item):
-                        parts = item.split("|")
+                    # Algunos errores son dicts (tipo_identificacion_edad), otros son strings
+                    if isinstance(item, dict):
                         facturas.append({
-                            "factura": parts[0],
-                            "centro_actual": parts[1],
-                            "centro_deberia": parts[2],
+                            "factura": item.get("factura", ""),
+                            "tipo_actual": item.get("tipo_actual", ""),
+                            "tipo_deberia": item.get("tipo_deberia", ""),
+                            "edad": item.get("edad", ""),
                         })
                     else:
-                        # Formato viejo
                         facturas.append({
                             "factura": item,
                             "centro_actual": "",
                             "centro_deberia": "",
                         })
                 
+                # Nombre más legible para mostrar
+                tipo_display = tipo
+                if tipo == "tipo_identificacion_edad":
+                    tipo_display = "Tipo Identificación"
+                elif tipo == "doble_tipo_procedimiento":
+                    tipo_display = "Doble tipo procedimiento"
+                elif tipo == "ruta_duplicada":
+                    tipo_display = "Ruta Duplicada"
+                elif tipo == "convenio_procedimiento":
+                    tipo_display = "Convenio de procedimiento"
+                elif tipo == "cantidades_anomalas":
+                    tipo_display = "Cantidades"
+                
                 errores.append({
-                    "tipo": tipo,
+                    "tipo": tipo_display,
+                    "tipo_key": tipo,  # Key original para uso interno
                     "cantidad": len(items),
                     "facturas": facturas,
                 })
