@@ -34,6 +34,7 @@ from app.constants import (
     CANTIDAD_PYP_MIN,
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
+    AREA_EQUIPOS_BASICOS,
     CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO,
     LABORATORIO_NO,
     CENTRO_COSTO_APOYO_DIAGNOSTICO,
@@ -47,6 +48,7 @@ from app.constants import (
     CENTRO_COSTO_LABORATORIO_URGENCIAS,
     CENTRO_COSTO_ODONTOLOGIA,
     CENTRO_COSTO_EXTRAMURAL,
+    CENTRO_COSTO_EQUIPOS_BASICOS,
     PROFESIONALES_ODONTOLOGIA,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
@@ -72,6 +74,20 @@ from app.constants import (
     ENTIDAD_IDE_CONTRATO_ESS118,
     CODIGOS_IDE_CONTRATO_NO_969,
     IDE_CONTRATO_PROHIBIDO_ESS118,
+    # Nueva regla ESS118 + Código 735301
+    CODIGO_IDE_CONTRATO_735301,
+    ENTIDAD_IDE_CONTRATO_735301,
+    IDE_CONTRATO_REQUERIDO_735301,
+    # Nueva regla ESS118 + Código 906340 -> IDE Contrato debe ser 839
+    CODIGO_IDE_CONTRATO_906340,
+    ENTIDAD_IDE_CONTRATO_906340,
+    IDE_CONTRATO_REQUERIDO_906340,
+    # Equipos Básicos - Reglas independientes
+    EQUIPOS_BASICOS_TARGET_PROCEDURES,
+    EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
+    EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
+    EQUIPOS_BASICOS_CANTIDAD_MAX,
+    EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
 )
 from app.utils.formatting import (
     create_header_style,
@@ -235,16 +251,16 @@ def _detect_ruta_duplicada(
     """Detecta pacientes con múltiples facturas en PyP."""
     num_fact_idx = indices["numero_factura"]
     ident_idx = indices["identificacion"]
-    convenio_idx = indices["convenio_facturado"]
+    contrato_idx = indices["convenio_facturado"]
     
-    if None in (num_fact_idx, ident_idx, convenio_idx):
+    if None in (num_fact_idx, ident_idx, contrato_idx):
         return []
     
     conteo_ident: dict[str, set[str]] = defaultdict(set)
     
     for row in range(2, data_sheet.max_row + 1):
-        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
-        if convenio != CONVENIO_PYP:
+        contrato = data_sheet.cell(row=row, column=contrato_idx + 1).value
+        if contrato != CONVENIO_PYP:
             continue
         
         ident = data_sheet.cell(row=row, column=ident_idx + 1).value
@@ -259,6 +275,41 @@ def _detect_ruta_duplicada(
     return [
         ident for ident, facturas in conteo_ident.items()
         if len(facturas) >= RUTA_DUPLICADA_THRESHOLD
+    ]
+
+
+def _detect_ruta_duplicada_equipos_basicos(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """Detecta pacientes con múltiples facturas en PyP (Equipos Básicos - reglas independientes)."""
+    num_fact_idx = indices["numero_factura"]
+    ident_idx = indices["identificacion"]
+    contrato_idx = indices["convenio_facturado"]
+    
+    if None in (num_fact_idx, ident_idx, contrato_idx):
+        return []
+    
+    conteo_ident: dict[str, set[str]] = defaultdict(set)
+    
+    for row in range(2, data_sheet.max_row + 1):
+        contrato = data_sheet.cell(row=row, column=contrato_idx + 1).value
+        if contrato != CONVENIO_PYP:
+            continue
+        
+        ident = data_sheet.cell(row=row, column=ident_idx + 1).value
+        factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        
+        if ident is not None and factura is not None:
+            ident_str = str(ident).strip()
+            factura_str = str(factura).strip()
+            if ident_str and factura_str:
+                conteo_ident[ident_str].add(factura_str)
+    
+    # Usar umbral configurable de Equipos Básicos
+    return [
+        ident for ident, facturas in conteo_ident.items()
+        if len(facturas) >= EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
     ]
 
 
@@ -300,11 +351,117 @@ def _detect_convenio_procedimiento(
                 proc_str,
             )
         
-        # Caso 2: Convenio PyP con procedimientos NO PyP
+# Caso 2: Convenio PyP con procedimientos NO PyP
         elif convenio == CONVENIO_PYP and proc_str not in TARGET_PROCEDURES:
             should_add = True
             logger.debug(
                 "Fila %s: PyP con procedimiento diferente: %s",
+                row,
+                proc_str,
+            )
+        
+        if should_add and factura_str not in problemas:
+            problemas.append(factura_str)
+    
+    return problemas
+
+
+def _detect_convenio_procedimiento_equipos_basicos(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos - reglas independientes)."""
+    num_fact_idx = indices["numero_factura"]
+    convencio_idx = indices["convenio_facturado"]
+    proc_idx = indices["procedimiento"]
+    
+    if None in (num_fact_idx, convencio_idx, proc_idx):
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
+        procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        
+        if procedimiento is None:
+            continue
+        
+        proc_str = str(procedimiento).strip()
+        should_add = False
+        
+        # Caso 1: Convencio Asistencial con procedimientos PyP (Equipos Básicos)
+        if convencio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+            should_add = True
+            logger.debug(
+                "Fila %s: Asistencial con procedimiento PyP (Equipos Básicos): %s",
+                row,
+                proc_str,
+            )
+        
+        # Caso 2: Convencio PyP con procedimientos NO PyP (Equipos Básicos)
+        elif convencio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+            should_add = True
+            logger.debug(
+                "Fila %s: PyP con procedimiento diferente (Equipos Básicos): %s",
+                row,
+                proc_str,
+            )
+        
+        if should_add and factura_str not in problemas:
+            problemas.append(factura_str)
+    
+    return problemas
+
+
+def _detect_cantidades_anomalas(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos - reglas independientes)."""
+    num_fact_idx = indices["numero_factura"]
+    convencio_idx = indices["convenio_facturado"]
+    proc_idx = indices["procedimiento"]
+    
+    if None in (num_fact_idx, convencio_idx, proc_idx):
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
+        procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        
+        if procedimiento is None:
+            continue
+        
+        proc_str = str(procedimiento).strip()
+        should_add = False
+        
+        # Caso 1: Convencio Asistencial con procedimientos PyP (Equipos Básicos)
+        if convencio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+            should_add = True
+            logger.debug(
+                "Fila %s: Asistencial con procedimiento PyP (Equipos Básicos): %s",
+                row,
+                proc_str,
+            )
+        
+        # Caso 2: Convencio PyP con procedimientos NO PyP (Equipos Básicos)
+        elif convencio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+            should_add = True
+            logger.debug(
+                "Fila %s: PyP con procedimiento diferente (Equipos Básicos): %s",
                 row,
                 proc_str,
             )
@@ -323,9 +480,9 @@ def _detect_cantidades_anomalas(
     num_fact_idx = indices["numero_factura"]
     tipo_proc_idx = indices["tipo_procedimiento"]
     cantidad_idx = indices["cantidad"]
-    convenio_idx = indices["convenio_facturado"]
+    convencio_idx = indices["convenio_facturado"]
     
-    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, convenio_idx):
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, convencio_idx):
         return []
     
     problemas = []
@@ -338,7 +495,7 @@ def _detect_cantidades_anomalas(
         
         tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
         cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
-        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
+        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
         
         if not isinstance(cantidad, (int, float)):
             continue
@@ -350,7 +507,7 @@ def _detect_cantidades_anomalas(
             # Cualquier cantidad > 10
             or cantidad > CANTIDAD_MAX
             # PyP >= 3
-            or (convenio == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN)
+            or (convencio == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN)
         )
         
         if is_anomaly and factura_str not in problemas:
@@ -360,6 +517,57 @@ def _detect_cantidades_anomalas(
                 row,
                 tipo_value,
                 convento,
+                cantidad,
+            )
+    
+    return problemas
+
+
+def _detect_cantidades_anomalas_equipos_basicos(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """Detecta facturas con cantidades anómalas (Equipos Básicos - reglas independientes)."""
+    num_fact_idx = indices["numero_factura"]
+    tipo_proc_idx = indices["tipo_procedimiento"]
+    cantidad_idx = indices["cantidad"]
+    convencio_idx = indices["convenio_facturado"]
+    
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, convencio_idx):
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
+        
+        if not isinstance(cantidad, (int, float)):
+            continue
+        
+        # Reglas de cantidad anómala (Equipos Básicos - configurables)
+        is_anomaly = (
+            # Consultas >= umbral configurable
+            (tipo_value == "Consultas" and cantidad >= EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN)
+            # Cualquier cantidad > máximo configurable
+            or cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX
+            # PyP >= umbral configurable
+            or (convencio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
+        )
+        
+        if is_anomaly and factura_str not in problemas:
+            problemas.append(factura_str)
+            logger.debug(
+                "Fila %s: Cantidad anómala Equipos Básicos (Tipo: %s, Convenios: %s, Cant: %s)",
+                row,
+                tipo_value,
+                convencio,
                 cantidad,
             )
     
@@ -518,6 +726,7 @@ def _detect_centro_costo_odontologia(
     indices: dict[str, int | None],
     profesional_dias: dict[str, list[int]] | None = None,
     permitir_todos_centros: bool = False,
+    centros_validos: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """
     Detecta facturas con problemas de centro de costo en Odontología.
@@ -534,17 +743,22 @@ def _detect_centro_costo_odontologia(
          Y la fecha de factura coincide con uno de esos días -> Centro debe ser "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
        - Si el centro es diferente a los dos permitidos Y no coincide con fecha+día -> ERROR
        - Si el centro es diferente a los dos permitidos Y coincide con fecha+día -> ERROR
-    
+       
     Args:
         data_sheet: Hoja de Excel con los datos
         indices: Índices de columnas
         profesional_dias: Dict {identificacion: [dias]} con los días seleccionados por profesional
         permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL (sin validación por fecha)
+        centros_validos: Lista personalizada de centros válidos (por defecto: Odontología y Extramural)
     
     Returns:
         Lista de dicts con keys: "factura", "centro_actual", "centro_deberia", "profesional", "fec_factura"
     """
     problemas = []
+    
+    # Valores por defecto
+    if centros_validos is None:
+        centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
     
     num_fact_idx = indices["numero_factura"]
     centro_costo_idx = indices["centro_costo"]
@@ -571,6 +785,7 @@ def _detect_centro_costo_odontologia(
         # Obtener fecha de factura
         fec_factura = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx is not None else None
         dia_factura = None
+        fec_factura_dt = None  # datetime object para usar en strftime
         
         # Debug: log de la fecha cruda
         if row <= 3:  # Solo las primeras 3 filas
@@ -580,12 +795,14 @@ def _detect_centro_costo_odontologia(
             try:
                 if isinstance(fec_factura, datetime):
                     dia_factura = fec_factura.day
+                    fec_factura_dt = fec_factura
                 elif isinstance(fec_factura, (int, float)):
                     # Puede ser un número de serie de Excel
                     try:
                         from datetime import datetime as dt, timedelta
                         excel_date = int(fec_factura)
                         dia_factura = (dt(1900, 1, 1) + timedelta(days=excel_date - 1)).day
+                        fec_factura_dt = (dt(1900, 1, 1) + timedelta(days=excel_date - 1))
                     except:
                         pass
                 elif isinstance(fec_factura, str):
@@ -600,7 +817,8 @@ def _detect_centro_costo_odontologia(
                     ]
                     for fmt in formatos:
                         try:
-                            dia_factura = datetime.strptime(fec_factura.strip(), fmt).day
+                            fec_factura_dt = datetime.strptime(fec_factura.strip(), fmt)
+                            dia_factura = fec_factura_dt.day
                             if row <= 3:
                                 logger.debug("Fila %s (%s) - fecha parseada '%s' con formato '%s', día: %s", 
                                             row, factura_str, fec_factura, fmt, dia_factura)
@@ -642,8 +860,9 @@ def _detect_centro_costo_odontologia(
             else:
                 centro_correcto = CENTRO_COSTO_ODONTOLOGIA
         
-        # Validar
-        centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
+        # Validar - usar centros_validos del parámetro (con valor por defecto)
+        if centros_validos is None:
+            centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
         
         # Debug: mostrar info completa para filas con problemas
         if row == 133 or row == 259 or row == 3:
@@ -658,7 +877,7 @@ def _detect_centro_costo_odontologia(
                 "centro_actual": centro_costo_str,
                 "centro_deberia": centro_correcto if centro_correcto else "ODONTOLOGIA o SERVICIOS ODONTOLOGIA -EXTRAMURALES",
                 "profesional": profesional_id or "",
-                "fec_factura": fec_factura.strftime("%Y-%m-%d") if fec_factura else "",
+                "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
             }
             problemas.append(problema)
             logger.debug(
@@ -674,7 +893,7 @@ def _detect_centro_costo_odontologia(
                 "centro_actual": centro_costo_str,
                 "centro_deberia": centro_correcto,
                 "profesional": profesional_id or "",
-                "fec_factura": fec_factura.strftime("%Y-%m-%d") if fec_factura else "",
+                "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
             }
             problemas.append(problema)
             logger.debug(
@@ -729,6 +948,10 @@ def _detect_centro_costo_urgencias(
         IDE_CONTRATO_CON_INSERCION_890405,
         IDE_CONTRATO_SIN_INSERCION_890405,
         CODIGO_INSERCION_BUSCAR,
+        # Nueva regla ESS118 + Código 735301
+        CODIGO_IDE_CONTRATO_735301,
+        ENTIDAD_IDE_CONTRATO_735301,
+        IDE_CONTRATO_REQUERIDO_735301,
     )
     
     num_fact_idx = indices["numero_factura"]
@@ -997,7 +1220,7 @@ def _detect_centro_costo_urgencias(
                     ident_str in identificaciones_con_insercion,
                 )
 
-        # ----- Regla 11: Entidad=ESS118 + Códigos específicos -> IDE Contrato NO puede ser 969
+# ----- Regla 11: Entidad=ESS118 + Códigos específicos -> IDE Contrato NO puede ser 969
         # (Independiente - NO depende de otras reglas)
         if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118:
             if codigo_excluir in CODIGOS_IDE_CONTRATO_NO_969:
@@ -1012,7 +1235,45 @@ def _detect_centro_costo_urgencias(
                         row,
                         codigo_excluir,
                     )
-     
+
+        # ----- Regla 12: Cód Entidad Cobrar=ESS118 + Código=735301 -> IDE Contrato debe ser 970
+        # Urgencias y Contratos
+        # (Independiente - NO depende de otras reglas)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_735301 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_735301:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_735301:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_735301,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_735301,
+                )
+
+        # ----- Regla 13: Cód Entidad Cobrar=ESS118 + Código=906340 -> IDE Contrato debe ser 839
+        # Urgencias y Contratos
+        # (Independiente - NO depende de otras reglas)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_906340 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_906340:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_906340,
+                )
+
     return problemas_centros, problemas_ide_contrato
 
 
@@ -1209,7 +1470,7 @@ def detect_all_problems(
     
     Args:
         data_sheet: Hoja de Excel con los datos
-        area: Área del sistema ("odontologia" o "urgencias")
+        area: Área del sistema ("odontologia", "urgencias" o "equipos_basicos")
         profesional_dias: Dict {identificacion: [dias]} con días seleccionados por profesional
         permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL sin validación por fecha
     
@@ -1252,8 +1513,48 @@ def detect_all_problems(
                 "ide_contrato": len(problemas_ide_contrato),
             }
         }
+    elif area == AREA_EQUIPOS_BASICOS:
+        # Equipos Básicos: usar reglas independientes configurables
+        decimales = _detect_decimals(data_sheet, indices)
+        doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
+        ruta_dup = _detect_ruta_duplicada_equipos_basicos(data_sheet, indices)
+        conveniente_proc = _detect_convenio_procedimiento_equipos_basicos(data_sheet, indices)
+        cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
+        tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        
+        # Validación centro de costo (solo EQUIPOS BASICOS ODONTOLOGIA)
+        centro_costo = _detect_centro_costo_odontologia(
+            data_sheet, 
+            indices, 
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+            centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
+        )
+        
+        return {
+            "area": area,
+            "problemas": {
+                "decimales": decimales,
+                "doble_tipo_procedimiento": doble_tipo,
+                "ruta_duplicada": ruta_dup,
+                "convenio_procedimiento": conveniente_proc,
+                "cantidades_anomalas": cantidades,
+                "tipo_identificacion_edad": tipo_id_edad,
+                "centro_costo": centro_costo,
+            },
+            "totales": {
+                "decimales": len(decimales),
+                "doble_tipo_procedimiento": len(doble_tipo),
+                "ruta_duplicada": len(ruta_dup),
+                "convenio_procedimiento": len(conveniente_proc),
+                "cantidades_anomalas": len(cantidades),
+                "tipo_identificacion_edad": len(tipo_id_edad),
+                "centro_costo": len(centro_costo),
+            },
+            "es_equipos_basicos": True,
+        }
     else:
-        # Odontología: todas las validaciones
+        # Odontología estándar: todas las validaciones
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)

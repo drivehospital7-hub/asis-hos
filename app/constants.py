@@ -126,6 +126,7 @@ CONVENIO_PYP = "Promoción y Prevención"
 ENTIDAD_MALLAMAS = "MALLAMAS EPS INDIGENA"
 CENTRO_COSTO_ODONTOLOGIA = "ODONTOLOGIA"
 CENTRO_COSTO_EXTRAMURAL = "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
+CENTRO_COSTO_EQUIPOS_BASICOS = "EQUIPOS BASICOS ODONTOLOGIA"
 
 # =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
@@ -178,6 +179,7 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
 
 AREA_ODONTOLOGIA = "odontologia"
 AREA_URGENCIAS = "urgencias"
+AREA_EQUIPOS_BASICOS = "equipos_basicos"
 
 # =============================================================================
 # PROFESIONALES - Listado de profesionales de Odontología
@@ -324,3 +326,53 @@ IDE_CONTRATO_PROHIBIDO_ESS118 = "969"
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
 URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso
 URGENCIA_DATA_ROW_BACKGROUND_COLOR = "FFF0F0"  # Rojo muy claro para filas
+
+# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=735301 -> IDE Contrato debe ser 970
+# Urgencias y Contratos
+CODIGO_IDE_CONTRATO_735301 = "735301"
+ENTIDAD_IDE_CONTRATO_735301 = "ESS118"
+IDE_CONTRATO_REQUERIDO_735301 = "970"
+
+# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=906340 -> IDE Contrato debe ser 839
+# Urgencias y Contratos
+CODIGO_IDE_CONTRATO_906340 = "906340"
+ENTIDAD_IDE_CONTRATO_906340 = "ESS118"
+IDE_CONTRATO_REQUERIDO_906340 = "839"
+
+# =============================================================================
+# EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar
+# =============================================================================
+
+# Columnas para Equipos Básicos (mismas que odontología por ahora)
+EQUIPOS_BASICOS_COLUMNS_TO_KEEP = COLUMNS_TO_KEEP
+
+# Headers para hoja Revision EQUIPOS BÁSICOS (pueden ser diferentes)
+EQUIPOS_BASICOS_REVISION_HEADERS: dict[int, str] = {
+    1: "Decimales",
+    2: "Doble tipo procedimiento",
+    3: "Ruta Duplicada",
+    4: "Convenio de procedimiento",
+    5: "Cantidades",
+    6: "Tipo Identificación",
+    7: "Centro Costo",
+}
+
+# --- REGLAS CONFIGURABLES PARA EQUIPOS BÁSICOS ---
+# Estas你可以 modificar después sin afectar las reglas de Odontología estándar
+
+# Procedimientos objetivo para Equipos Básicos (PYá por defecto, configurable)
+EQUIPOS_BASICOS_TARGET_PROCEDURES = frozenset({
+    "Control de Placa Bacteriana",
+    "Aplicación de Sellantes",
+    "Detartraje Supragingival",
+    "Topicacion de Fluor en Barniz",
+    "Consulta de Primera vez por Odontologia General",
+})
+
+# Umbral ruta duplicada para Equipos Básicos (configurable)
+EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD = 3
+
+# Cantidades anómalas para Equipos Básicos (configurable)
+EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN = 2
+EQUIPOS_BASICOS_CANTIDAD_MAX = 10
+EQUIPOS_BASICOS_CANTIDAD_PYP_MIN = 3

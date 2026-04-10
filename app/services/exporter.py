@@ -21,6 +21,7 @@ from app.constants import (
     CRUCE_FACTURAS_SHEET,
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
+    AREA_EQUIPOS_BASICOS,
     COLUMNS_TO_KEEP,
     URGENCIA_COLUMNS_TO_KEEP,
     PROFESIONALES_ODONTOLOGIA,
@@ -55,6 +56,7 @@ def export_excel_with_cruce_facturas(
     dias: list[int] | None = None,
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
+    equipos_basicos: bool = False,
 ) -> dict[str, Any]:
     """
     Exporta un archivo Excel con hoja de cruce de facturas.
@@ -87,11 +89,15 @@ def export_excel_with_cruce_facturas(
     """
     logger.info("Iniciando exportación: %s", filename)
     
+    # Determinar el área efectiva (si equipos_basicos está activo, usar reglas independientes)
+    area_effective = AREA_EQUIPOS_BASICOS if equipos_basicos else area
+    logger.info("Área efectiva: %s (equipos_basicos: %s)", area_effective, equipos_basicos)
+    
     # Construir datos para validación de centro costo según el área
     profesional_dias = {}
     permitir_todos_centros = False  # Por defecto: solo ODONTOLOGIA y EXTRAMURAL
     
-    if area == AREA_ODONTOLOGIA:
+    if area_effective == AREA_ODONTOLOGIA or area_effective == AREA_EQUIPOS_BASICOS:
         if validar_centro_costo and todos_profesionales_dias:
             # Activado: usar todos los profesionales y sus días desde localStorage
             for prof_codigo, dias_list in todos_profesionales_dias.items():
@@ -163,7 +169,7 @@ def export_excel_with_cruce_facturas(
             data_sheet = workbook.active
         
         # 6. Filtrar columnas (según el área)
-        if area == AREA_URGENCIAS:
+        if area_effective == AREA_URGENCIAS:
             # Urgencias: no ocultar columnas (None = mantener todas)
             columns_to_keep = None
         else:
@@ -175,9 +181,9 @@ def export_excel_with_cruce_facturas(
         # 7. Detectar problemas para mostrar en HTML (sin crear hoja)
         problemas_detectados = detect_all_problems(
             data_sheet, 
-            area=area,
-            profesional_dias=profesional_dias if area == AREA_ODONTOLOGIA else None,
-            permitir_todos_centros=permitir_todos_centros if area == AREA_ODONTOLOGIA else False,
+            area=area_effective,
+            profesional_dias=profesional_dias if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else None,
+            permitir_todos_centros=permitir_todos_centros if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else False,
         )
         
         # 8. Crear hoja CruceFacturas

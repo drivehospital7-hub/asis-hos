@@ -51,9 +51,10 @@ def export_cruce_facturas():
         todos_profesionales_dias = {}
     
     validar_centro_costo = request.form.get("validar_centro_costo") == "on"
+    equipos_basicos = request.form.get("equipos_basicos") == "on"
     
-    logger.info("Procesando archivo - Profesional: %s, Días: %s, Validar Centro Costo: %s, TodosProfesionalesDias: %s", 
-                profesional, dias, validar_centro_costo, todos_profesionales_dias)
+    logger.info("Procesando archivo - Profesional: %s, Días: %s, Validar Centro Costo: %s, Equipos Básicos: %s, TodosProfesionalesDias: %s", 
+                profesional, dias, validar_centro_costo, equipos_basicos, todos_profesionales_dias)
     
     if not uploaded_file or not uploaded_file.filename:
         ctx = build_excel_headers_form_context(
@@ -99,6 +100,7 @@ def export_cruce_facturas():
         dias=dias,
         todos_profesionales_dias=todos_profesionales_dias,
         validar_centro_costo=validar_centro_costo,
+        equipos_basicos=equipos_basicos,
     )
 
     # Cleanup archivo temporal
