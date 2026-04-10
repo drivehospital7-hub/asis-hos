@@ -203,6 +203,12 @@ Centro Costo
 | **890405** | EPSIC5 | si tiene código 861801 en identificación | **967** |
 | **890405** | EPSIC5 | si NO tiene código 861801 | **979** |
 
+### ESS118 (Centro de Costo)
+
+| Código | Entidad | Condición | IDE Contrato esperado |
+|--------|--------|----------|------------------------|
+| 110001, 110001AUX, 861101, 890403, 890406, 890408, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
+
 > **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
 
 ---

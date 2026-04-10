@@ -304,6 +304,22 @@ ENTIDAD_IDE_CONTRATO_890405_EPSIC5 = "EPSIC5"
 IDE_CONTRATO_CON_INSERCION_890405_EPSIC5 = "967"
 IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5 = "979"
 
+# ----- Nueva Regla: Entidad=ESS118 + Códigos específicos -> IDE Contrato no puede ser 969
+# IDE Contrato 969 NO permitido para estos códigos
+ENTIDAD_IDE_CONTRATO_ESS118 = "ESS118"
+CODIGOS_IDE_CONTRATO_NO_969 = [
+    "110001",
+    "110001AUX",
+    "861101",
+    "890403",
+    "890406",
+    "890408",
+    "890409",
+    "890412",
+    "939403",
+]
+IDE_CONTRATO_PROHIBIDO_ESS118 = "969"
+
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
 URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso

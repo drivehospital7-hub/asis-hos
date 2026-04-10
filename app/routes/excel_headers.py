@@ -127,12 +127,16 @@ def export_cruce_facturas():
                             "edad": item.get("edad", ""),
                             "centro_actual": item.get("centro_actual", ""),
                             "centro_deberia": item.get("centro_deberia", ""),
+                            "profesional": item.get("profesional", ""),
+                            "fec_factura": item.get("fec_factura", ""),
                         })
                     else:
                         facturas.append({
                             "factura": item,
                             "centro_actual": "",
                             "centro_deberia": "",
+                            "profesional": "",
+                            "fec_factura": "",
                         })
                 
                 # Nombre más legible para mostrar

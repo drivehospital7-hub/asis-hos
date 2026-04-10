@@ -68,6 +68,10 @@ from app.constants import (
     ENTIDAD_IDE_CONTRATO_890405_EPSIC5,
     IDE_CONTRATO_CON_INSERCION_890405_EPSIC5,
     IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5,
+    # Regla ESS118
+    ENTIDAD_IDE_CONTRATO_ESS118,
+    CODIGOS_IDE_CONTRATO_NO_969,
+    IDE_CONTRATO_PROHIBIDO_ESS118,
 )
 from app.utils.formatting import (
     create_header_style,
@@ -375,7 +379,8 @@ def _detect_tipo_identificacion_edad(
     - >= 18 años: CC (Cédula de Ciudadanía)
     - Extranjeros < 18 años: MS
     - Extranjeros >= 18 años: AS
-    - CN (Certificado de Nacimiento): solo válido si edad < 1 año
+    - CN (Certificado de Nacimiento): solo válido si edad < 2 meses
+    - CE (Cédula Extranjería): solo válido si edad > 7 años
     
     Returns:
         Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
@@ -446,9 +451,12 @@ def _detect_tipo_identificacion_edad(
             if (fecha_fact.month, fecha_fact.day) < (fecha_nac.month, fecha_nac.day):
                 edad -= 1
             
+            # Calcular edad en meses para validaciones especiales (CN)
+            edad_meses = (fecha_fact.year - fecha_nac.year) * 12 + (fecha_fact.month - fecha_nac.month)
+            
             logger.debug(
-                "Fila %s: FechaNac=%s, FechaFact=%s, Edad calculada=%d",
-                row, fecha_nac.date(), fecha_fact.date(), edad
+                "Fila %s: FechaNac=%s, FechaFact=%s, Edad calculada=%d años, %d meses",
+                row, fecha_nac.date(), fecha_fact.date(), edad, edad_meses
             )
         except (ValueError, TypeError) as e:
             logger.debug("Fila %s: Error calculando edad: %s", row, e)
@@ -469,11 +477,15 @@ def _detect_tipo_identificacion_edad(
             else:
                 tipo_correcto = "AS"
         elif tipo_id_str == "CN":
-            # CN solo válido si edad < 1 año
-            if edad >= 1:
-                tipo_correcto = "ERROR"  # CN no válido para >= 1 año
+            # CN solo válido si edad < 2 meses
+            if edad_meses >= 2:
+                tipo_correcto = "ERROR"  # CN no válido para >= 2 meses
+        elif tipo_id_str == "CE":
+            # CE solo válido si edad > 7 años
+            if edad <= 7:
+                tipo_correcto = "ERROR"  # CE no válido para <= 7 años
         # Tipos no válidos siempre son error
-        elif tipo_id_str in ("CE", "NIP", "NIT", "PAS", "PE", "SC"):
+        elif tipo_id_str in ("NIP", "NIT", "PAS", "PE", "SC"):
             tipo_correcto = "ERROR"  # Tipos no permitidos
         
         logger.debug(
@@ -619,9 +631,6 @@ def _detect_centro_costo_odontologia(
         else:
             # Modo con validación por fecha
             dias_profesional = []
-            if row <= 3:
-                logger.debug("Fila %s (%s) - Debug: profesional_id=%s, profesional_dias=%s", 
-                            row, factura_str, profesional_id, profesional_dias)
             if profesional_dias and profesional_id and profesional_id in profesional_dias:
                 dias_profesional = profesional_dias[profesional_id]
                 if row <= 3:
@@ -638,8 +647,9 @@ def _detect_centro_costo_odontologia(
         
         # Debug: mostrar info completa para filas con problemas
         if row == 133 or row == 259 or row == 3:
+            dias_profesional_debug = dias_profesional if permitir_todos_centros is False else "N/A (modo simple)"
             logger.debug("Fila %s (%s) - DEBUG COMPLETO: profesional_id=%s, fec_factura=%s, dia_factura=%s, dias_profesional=%s, centro_costo_str=%s, centro_correcto=%s, permitir_todos_centros=%s",
-                        row, factura_str, profesional_id, fec_factura, dia_factura, dias_profesional, centro_costo_str, centro_correcto, permitir_todos_centros)
+                        row, factura_str, profesional_id, fec_factura, dia_factura, dias_profesional_debug, centro_costo_str, centro_correcto, permitir_todos_centros)
         
         # Caso 1: Centro no está en la lista de válidos → siempre error
         if centro_costo_str not in centros_validos:
@@ -648,7 +658,7 @@ def _detect_centro_costo_odontologia(
                 "centro_actual": centro_costo_str,
                 "centro_deberia": centro_correcto if centro_correcto else "ODONTOLOGIA o SERVICIOS ODONTOLOGIA -EXTRAMURALES",
                 "profesional": profesional_id or "",
-                "fec_factura": str(fec_factura) if fec_factura else "",
+                "fec_factura": fec_factura.strftime("%Y-%m-%d") if fec_factura else "",
             }
             problemas.append(problema)
             logger.debug(
@@ -664,7 +674,7 @@ def _detect_centro_costo_odontologia(
                 "centro_actual": centro_costo_str,
                 "centro_deberia": centro_correcto,
                 "profesional": profesional_id or "",
-                "fec_factura": str(fec_factura) if fec_factura else "",
+                "fec_factura": fec_factura.strftime("%Y-%m-%d") if fec_factura else "",
             }
             problemas.append(problema)
             logger.debug(
@@ -742,7 +752,8 @@ def _detect_centro_costo_urgencias(
     problemas_centros = []
     problemas_ide_contrato = []
     facturas_ya_procesadas_centros = set()
-    facturas_ya_procesadas_ide = set()
+    # NOTA: No usamos set para IDE Contrato porque cada regla es independiente
+    # y una factura puede tener múltiples errores (ej: diferente código)
     
     # ----- Pre-recorrido:收集 identificaciones con código 861801
     identificaciones_con_insercion = set()
@@ -906,7 +917,6 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_URGENCIAS,
                 })
-                facturas_ya_procesadas_ide.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (IDE: '%s')",
                     row,
@@ -924,7 +934,7 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801,
                 })
-                facturas_ya_procesadas_ide.add(factura_str)
+                # NO agregamos a set para permitir múltiples errores por factura
 
         # ----- Regla 8: Código=890405 + Entidad=EPSI05
         # Si identificación tiene código 861801 -> IDE Contrato = 976
@@ -939,7 +949,6 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_deberia": ide_esperado,
                     "tiene_insercion": ident_str in identificaciones_con_insercion,
                 })
-                facturas_ya_procesadas_ide.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=890405, Entidad=EPSI05, IDE incorrecto (Actual: '%s', Esperado: '%s', Tiene inserción: %s)",
                     row,
@@ -958,7 +967,6 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_EPSIC5,
                 })
-                facturas_ya_procesadas_ide.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (Actual: '%s', Esperado: %s)",
                     row,
@@ -981,7 +989,6 @@ def _detect_centro_costo_urgencias(
                     "ide_contrato_deberia": ide_esperado,
                     "tiene_insercion": ident_str in identificaciones_con_insercion,
                 })
-                facturas_ya_procesadas_ide.add(factura_str)
                 logger.debug(
                     "Fila %s: Código=890405, Entidad=EPSIC5, IDE incorrecto (Actual: '%s', Esperado: %s, Tiene inserción: %s)",
                     row,
@@ -989,6 +996,22 @@ def _detect_centro_costo_urgencias(
                     ide_esperado,
                     ident_str in identificaciones_con_insercion,
                 )
+
+        # ----- Regla 11: Entidad=ESS118 + Códigos específicos -> IDE Contrato NO puede ser 969
+        # (Independiente - NO depende de otras reglas)
+        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118:
+            if codigo_excluir in CODIGOS_IDE_CONTRATO_NO_969:
+                if ide_contrato_str == IDE_CONTRATO_PROHIBIDO_ESS118:
+                    problemas_ide_contrato.append({
+                        "factura": factura_str,
+                        "ide_contrato_actual": ide_contrato_str,
+                        "ide_contrato_deberia": "cualquiera EXCEPTO 969",
+                    })
+                    logger.debug(
+                        "Fila %s: Entidad=ESS118, Código=%s, IDE 969 no permitido",
+                        row,
+                        codigo_excluir,
+                    )
      
     return problemas_centros, problemas_ide_contrato
 
@@ -1058,17 +1081,17 @@ def create_revision_sheet(
             for item in problemas_centros
         ]
         
-        # Formatear IDE Contrato: "FACTURA IDE_ACTUAL -> IDE_DEBERIA"
+        # Formatear IDE Contrato: TODO en un solo bloque
         ide_contrato_str = [
             f"{item['factura']} {item['ide_contrato_actual']} -> {item['ide_contrato_deberia']}"
             for item in problemas_ide_contrato
         ]
         
-        # Escribir resultados en fila 3+
+        # Escribir en Excel: fila 3+
         _write_column(sheet, 1, centros_costo_str, start_row=3)
         _write_column(sheet, 2, ide_contrato_str, start_row=3)
         
-        # ParaJSON: strings formateados "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
+        # ParaJSON: un solo bloque para IDE Contrato
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
                 f"{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
@@ -1202,7 +1225,6 @@ def detect_all_problems(
     
     if area == AREA_URGENCIAS:
         # Urgencias: detectar centros de costo y IDE Contrato
-        # La función ahora retorna directamente dos listas separadas
         problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
         return {

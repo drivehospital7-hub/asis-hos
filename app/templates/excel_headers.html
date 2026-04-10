@@ -110,6 +110,55 @@
         <span class="btn__label">Descargar Excel</span>
       </button>
     </div>
+    
+    <button
+      type="button"
+      class="btn btn--sm btn--ghost"
+      id="btn-listar-reglas"
+      onclick="mostrarReglasOdontologia()"
+    >
+      Listar reglas
+    </button>
+    
+    {# ── Modal de Reglas ── #}
+    <div id="modal-reglas" class="modal" style="display: none;">
+      <div class="modal__backdrop" onclick="cerrarReglasOdontologia()"></div>
+      <div class="modal__content">
+        <button type="button" class="modal__close" onclick="cerrarReglasOdontologia()">&times;</button>
+        <h3>Reglas de Validación - Odontología</h3>
+        <div class="modal__body">
+          <ul class="reglas-list">
+            <li><strong>1. Decimales:</strong> Detecta valores con decimales en columnas de cantidad (deben ser enteros)</li>
+            <li><strong>2. Doble tipo procedimiento:</strong> Facturas con más de un tipo de procedimiento</li>
+            <li><strong>3. Ruta duplicada:</strong> El mismo número de factura aparece dos veces</li>
+            <li><strong>4. Convenio - Procedimiento:</strong> El procedimiento no corresponde al convenio del usuario</li>
+            <li><strong>5. Cantidades anómalas:</strong> Valores que parecen incorrectos (ej: cantidad 0 o muy alta)</li>
+            <li><strong>6. Tipo Identificación:</strong> El tipo de documento no coincide con la edad:
+              <ul>
+                <li>RC: menor de 7 años</li>
+                <li>TI: 7-17 años</li>
+                <li>CC: 18 años o más</li>
+                <li>MS: menor de 18 años (extranjero)</li>
+                <li>AS: 18 años o más (extranjero)</li>
+                <li>CN: solo menor de 2 meses</li>
+                <li>CE: solo mayor de 7 años</li>
+              </ul>
+            </li>
+            <li><strong>7. Centro de costo:</strong> 
+              <ul>
+                <li>Solo ODONTOLOGIA o EXTRAMURAL (por defecto)</li>
+                <li>Si validar por fecha <strong>ACTIVADO</strong>: 
+                  <ul>
+                    <li>Día del 1 al 15 → EXTRAMURAL</li>
+                    <li>Día 16 al 31 → ODONTOLOGIA</li>
+                  </ul>
+                </li>
+              </ul>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
   </form>
 
   {# ── Errores ── #}
@@ -568,6 +617,21 @@ function mostrarMas(btn, errorData) {
   
   // Ocultar botón
   btn.style.display = 'none';
+}
+
+// Funciones para modal de reglas
+function mostrarReglasOdontologia() {
+  var modal = document.getElementById('modal-reglas');
+  if (modal) {
+    modal.style.display = 'block';
+  }
+}
+
+function cerrarReglasOdontologia() {
+  var modal = document.getElementById('modal-reglas');
+  if (modal) {
+    modal.style.display = 'none';
+  }
 }
 </script>
 {% endblock %}
