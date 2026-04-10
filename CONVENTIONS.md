@@ -191,6 +191,22 @@ Centro Costo
 
 ---
 
+## IDE Contrato — Urgencias
+
+| Código | Entidad | Condición | IDE Contrato esperado |
+|--------|--------|----------|------------------------|
+| **906340** | EPSI05 | siempre | **986** |
+| **861801** | EPSI05 | siempre | **977** |
+| **890405** | EPSI05 | si tiene código 861801 en identificación | **976** |
+| **890405** | EPSI05 | si NO tiene código 861801 | **977** |
+| **861801** | EPSIC5 | siempre | **979** |
+| **890405** | EPSIC5 | si tiene código 861801 en identificación | **967** |
+| **890405** | EPSIC5 | si NO tiene código 861801 | **979** |
+
+> **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
+
+---
+
 ## Glosario
 
 | Término | Significado |

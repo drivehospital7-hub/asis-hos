@@ -48,6 +48,26 @@ from app.constants import (
     CENTRO_COSTO_ODONTOLOGIA,
     CENTRO_COSTO_EXTRAMURAL,
     PROFESIONALES_ODONTOLOGIA,
+    # IDE Contrato Urgencias
+    CODIGO_IDE_CONTRATO_URGENCIAS,
+    ENTIDAD_IDE_CONTRATO_URGENCIAS,
+    IDE_CONTRATO_REQUERIDO_URGENCIAS,
+    CODIGO_IDE_CONTRATO_861801,
+    ENTIDAD_IDE_CONTRATO_861801,
+    IDE_CONTRATO_REQUERIDO_861801,
+    CODIGO_IDE_CONTRATO_890405,
+    ENTIDAD_IDE_CONTRATO_890405,
+    IDE_CONTRATO_CON_INSERCION_890405,
+    IDE_CONTRATO_SIN_INSERCION_890405,
+    CODIGO_INSERCION_BUSCAR,
+    # Nueva regla EPSIC5
+    CODIGO_IDE_CONTRATO_EPSIC5,
+    ENTIDAD_IDE_CONTRATO_EPSIC5,
+    IDE_CONTRATO_REQUERIDO_EPSIC5,
+    CODIGO_IDE_CONTRATO_890405_EPSIC5,
+    ENTIDAD_IDE_CONTRATO_890405_EPSIC5,
+    IDE_CONTRATO_CON_INSERCION_890405_EPSIC5,
+    IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5,
 )
 from app.utils.formatting import (
     create_header_style,
@@ -927,7 +947,49 @@ def _detect_centro_costo_urgencias(
                     ide_esperado,
                     ident_str in identificaciones_con_insercion,
                 )
-    
+
+        # ----- Regla 9: Código=861801 + Entidad=EPSIC5 (OTHER entity, not EPSI05)
+        # IDE Contrato siempre debe ser 979
+        # (Independiente - NO depende de otras reglas)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_EPSIC5 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_EPSIC5:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_EPSIC5:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_EPSIC5,
+                })
+                facturas_ya_procesadas_ide.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_excluir,
+                    codigo_entidad_str,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_EPSIC5,
+                )
+
+        # ----- Regla 10: Código=890405 + Entidad=EPSIC5 (OTHER entity, not EPSI05)
+        # Si identificación tiene código 861801 -> IDE Contrato = 967
+        # Si identificación NO tiene código 861801 -> IDE Contrato = 979
+        # (Independiente - NO depende de otras reglas)
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_EPSIC5 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405_EPSIC5:
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_EPSIC5 if ident_str in identificaciones_con_insercion else IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "tiene_insercion": ident_str in identificaciones_con_insercion,
+                })
+                facturas_ya_procesadas_ide.add(factura_str)
+                logger.debug(
+                    "Fila %s: Código=890405, Entidad=EPSIC5, IDE incorrecto (Actual: '%s', Esperado: %s, Tiene inserción: %s)",
+                    row,
+                    ide_contrato_str,
+                    ide_esperado,
+                    ident_str in identificaciones_con_insercion,
+                )
+     
     return problemas_centros, problemas_ide_contrato
 
 

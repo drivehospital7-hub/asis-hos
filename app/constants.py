@@ -290,6 +290,20 @@ IDE_CONTRATO_CON_INSERCION_890405 = "976"  # tiene código 861801
 IDE_CONTRATO_SIN_INSERCION_890405 = "977"  # no tiene código 861801
 CODIGO_INSERCION_BUSCAR = "861801"  # código a buscar para determinar IDE Contrato
 
+# ----- Nueva Regla: Código=861801 + Entidad=EPSIC5 (OTHER entity, not EPSI05)
+# Código 861801 + Entidad EPSIC5 -> IDE Contrato siempre 979
+CODIGO_IDE_CONTRATO_EPSIC5 = "861801"
+ENTIDAD_IDE_CONTRATO_EPSIC5 = "EPSIC5"
+IDE_CONTRATO_REQUERIDO_EPSIC5 = "979"
+
+# ----- Nueva Regla: Código=890405 + Entidad=EPSIC5 (OTHER entity, not EPSI05)
+# Si identificación tiene código 861801 -> IDE Contrato = 967
+# Si identificación NO tiene código 861801 -> IDE Contrato = 979
+CODIGO_IDE_CONTRATO_890405_EPSIC5 = "890405"
+ENTIDAD_IDE_CONTRATO_890405_EPSIC5 = "EPSIC5"
+IDE_CONTRATO_CON_INSERCION_890405_EPSIC5 = "967"
+IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5 = "979"
+
 # Color rojo claro para headers y datos de Revision Urgencias
 URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
 URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso
