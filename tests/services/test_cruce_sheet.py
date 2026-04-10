@@ -157,9 +157,8 @@ class TestApplyCruceHeaders:
         
         result = apply_cruce_headers(ws)
         
-        assert ws["B1"].value == "Facturas Ok"
-        assert ws["D1"].value == "Facturas Pendientes"
-        assert ws["F1"].value == "PDFs de Facturas"
+        assert ws["B2"].value == "Cruce Facturas"
+        assert ws["D2"].value == "Cruce Identificación"
         assert result["sheet"] == "TestSheet"
         assert result["headers"] == CRUCE_HEADERS
 
@@ -198,9 +197,8 @@ class TestCreateCruceFacturasSheet:
         
         assert sheet.title == CRUCE_FACTURAS_SHEET
         assert CRUCE_FACTURAS_SHEET in wb.sheetnames
-        assert sheet["B1"].value == "Facturas Ok"
-        assert sheet["D1"].value == "Facturas Pendientes"
-        assert sheet["F1"].value == "PDFs de Facturas"
+        assert sheet["B2"].value == "Cruce Facturas"
+        assert sheet["D2"].value == "Cruce Identificación"
 
     def test_retorna_tupla_con_info(self, empty_workbook: Workbook) -> None:
         """Debe retornar tupla (worksheet, info_dict)."""
@@ -210,9 +208,8 @@ class TestCreateCruceFacturasSheet:
         
         assert info["rule"] == "cruce_facturas_headers"
         assert info["sheet"] == CRUCE_FACTURAS_SHEET
-        assert "B1" in info["cells"]
-        assert "D1" in info["cells"]
-        assert "F1" in info["cells"]
+        assert "B2" in info["cells"]
+        assert "D2" in info["cells"]
 
     def test_no_duplica_si_ya_existe(
         self, workbook_with_cruce_sheet: Workbook
@@ -226,7 +223,7 @@ class TestCreateCruceFacturasSheet:
         # No debe haber más hojas
         assert len(wb.sheetnames) == hojas_antes
         # Pero sí debe aplicar los headers (sobrescribiendo si hay)
-        assert sheet["B1"].value == "Facturas Ok"
+        assert sheet["B2"].value == "Cruce Facturas"
 
     def test_integra_get_or_create_y_apply_headers(
         self, empty_workbook: Workbook

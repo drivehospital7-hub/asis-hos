@@ -63,13 +63,30 @@ Estos procedimientos DEBEN estar en convenio "Promoción y Prevención":
 
 | Edad del paciente | Tipo esperado | Si no coincide |
 |-------------------|---------------|----------------|
-| < 7 años | RC (Registro Civil) | 🔴 Rojo |
-| 7 - 17 años | TI (Tarjeta de Identidad) | 🔴 Rojo |
-| ≥ 18 años | CC (Cédula de Ciudadanía) | 🔴 Rojo |
+| **< 7 años** | **RC** (Registro Civil) | 🔴 Rojo |
+| **7 - 17 años** | **TI** (Tarjeta de Identidad) | 🔴 Rojo |
+| **≥ 18 años** | **CC** (Cédula de Ciudadanía) | 🔴 Rojo |
+| **< 2 meses** | **CN** (Certificado de Nacimiento) | 🔴 Rojo |
 
 Casos especiales (menores sin registro):
-- < 18 años sin RC/TI → MS (Menor sin Identificación)
-- ≥ 18 años sin CC → AS (Adulto sin Identificación)
+- < 18 años sin RC/TI → **MS** (Menor sin Identificación)
+- ≥ 18 años sin CC → **AS** (Adulto sin Identificación)
+
+### Tipos de Documento No Válidos
+
+Los siguientes tipos de documento NO están permitidos y deben marcarse como error:
+
+| Tipo | Descripción |
+|------|-------------|
+| **CN** | Solo válido si edad < 2 meses (ver regla arriba) |
+| **CE** | Cédula de Extranjería — no válido para este sistema |
+| **NIP** | Número de Identificación Personal — no válido |
+| **NIT** | Número de Identificación Tributaria — no válido |
+| **PAS** | Pasaporte — no válido |
+| **PE** | Permiso Especial — no válido |
+| **SC** | Salvoconducto — no válido |
+
+> **Nota**: Cualquier tipo de documento que no sea RC, TI, CC, MS, AS, o CN (con la restricción de edad) debe marcarse como error.
 
 > **Nota**: Esta validación está implementada en el formato condicional (color rojo en la hoja de datos) pero NO se escribe en la hoja Revision.
 

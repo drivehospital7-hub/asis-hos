@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
       if (result.status === 'success') {
         // Guardar URL de descarga
         downloadUrl = result.data.download_url;
+        console.log('Download URL:', downloadUrl);
         
         // Mostrar success
         successContainer.style.display = 'block';
@@ -185,7 +186,8 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
             
             // Determinar columnas según el tipo de error
-            const esCentrosCostos = error.tipo.includes('Centros de Costos');
+            const esCentrosCostos = error.tipo.includes('centros_de_costos') || error.tipo.includes('Centros de Costos');
+            const esIdeContrato = error.tipo.includes('ide_contrato') || error.tipo.includes('IDE Contrato');
             const esVerificarDerechos = error.tipo.includes('Verificar Derechos');
             
             if (esVerificarDerechos) {
@@ -209,7 +211,7 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               
               html += '</tbody></table>';
-            } else {
+            } else if (esCentrosCostos) {
               // Centros de Costos: 3 columnas
               html += '<table class="table">';
               html += '<thead><tr><th>Factura</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
@@ -219,7 +221,7 @@ document.addEventListener('DOMContentLoaded', function() {
               function renderFacturas(items) {
                 let html = '';
                 items.slice(0, 50).forEach(function(item) {
-                  let factura = item;
+                  let factura = '';
                   let centroActual = '';
                   let centroDeberia = '';
                   
@@ -244,6 +246,41 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               
               html += renderFacturas(error.facturas);
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esIdeContrato) {
+              // IDE Contrato: 3 columnas
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>IDE Actual</th><th>IDE Debería</th></tr></thead>';
+              html += '<tbody>';
+              
+              function renderIdeContrato(items) {
+                let html = '';
+                items.slice(0, 50).forEach(function(item) {
+                  let factura = '';
+                  let ideActual = '';
+                  let ideDeberia = '';
+                  
+                  if (typeof item === 'object' && item !== null) {
+                    factura = item.factura || '';
+                    ideActual = item.ide_contrato_actual || '';
+                    ideDeberia = item.ide_contrato_deberia || '';
+                  }
+                  
+                  html += '<tr>';
+                  html += '<td>' + factura + '</td>';
+                  html += '<td>' + ideActual + '</td>';
+                  html += '<td>' + ideDeberia + '</td>';
+                  html += '</tr>';
+                });
+                return html;
+              }
+              
+              html += renderIdeContrato(error.facturas);
               
               if (error.facturas.length > 50) {
                 html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';

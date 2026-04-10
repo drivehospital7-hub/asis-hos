@@ -82,15 +82,9 @@ def export_urgencias():
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]
         
-        # Extraer info de problemas para mostrar en web
-        applied_rules = export_result["data"].get("applied_rules", [])
-        revision_info = None
-        for rule in applied_rules:
-            if rule.get("rule") == "create_revision_sheet":
-                revision_info = rule
-                break
-        
-        problemas = revision_info.get("problemas", {}) if revision_info else {}
+        # Extraer info de problemas del nuevo campo "problemas"
+        problemas_data = export_result["data"].get("problemas", {})
+        problemas = problemas_data.get("problemas", {})
         
         # Armar lista de errores para mostrar
         errores = []
@@ -98,16 +92,23 @@ def export_urgencias():
             if items:
                 facturas = []
                 for item in items[:50]:
-                    # Formato "FACTURA|CENTRO_ACTUAL|CENTRO_DEBERIA"
-                    if "|" in str(item):
-                        parts = item.split("|")
-                        facturas.append({
-                            "factura": parts[0],
-                            "centro_actual": parts[1],
-                            "centro_deberia": parts[2],
-                        })
+                    # Para urgencias: formato dict con factura, centro_actual, centro_deberia
+                    # o ide_contrato_actual, ide_contrato_deberia
+                    if isinstance(item, dict):
+                        factura_error = {"factura": item.get("factura", "")}
+                        
+                        # Agregar campos de centro de costo si existen
+                        if "centro_actual" in item and "centro_deberia" in item:
+                            factura_error["centro_actual"] = item.get("centro_actual", "")
+                            factura_error["centro_deberia"] = item.get("centro_deberia", "")
+                        # Agregar campos de IDE Contrato si existen
+                        if "ide_contrato_actual" in item and "ide_contrato_deberia" in item:
+                            factura_error["ide_contrato_actual"] = item.get("ide_contrato_actual", "")
+                            factura_error["ide_contrato_deberia"] = item.get("ide_contrato_deberia", "")
+                        
+                        facturas.append(factura_error)
                     else:
-                        # Formato viejo
+                        # Formato string
                         facturas.append({
                             "factura": item,
                             "centro_actual": "",

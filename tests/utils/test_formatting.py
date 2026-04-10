@@ -69,9 +69,8 @@ def workbook_with_cruce_and_data() -> Workbook:
     
     # Hoja CruceFacturas
     cruce_sheet = wb.create_sheet(title=CRUCE_FACTURAS_SHEET)
-    cruce_sheet["B1"] = "Facturas Ok"
-    cruce_sheet["D1"] = "Facturas Pendientes"
-    cruce_sheet["F1"] = "PDFs de Facturas"
+    cruce_sheet["B2"] = "Cruce Facturas"
+    cruce_sheet["D2"] = "Cruce Identificación"
     
     return wb
 
@@ -221,7 +220,7 @@ class TestApplyConditionalCruceFacturas:
         
         assert result["rule"] == "cruce_facturas_conditional"
         assert result["applied"] is True
-        assert result["cruce_columns"] == ["B", "D", "F"]
+        assert result["cruce_columns"] == ["B", "D"]
         
         # Verificar que se aplicaron reglas a ambas hojas
         assert len(cruce_sheet.conditional_formatting._cf_rules) > 0

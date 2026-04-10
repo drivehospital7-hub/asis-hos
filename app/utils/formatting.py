@@ -295,6 +295,8 @@ def apply_conditional_tipo_identificacion(
     - 7-17 años: TI (Tarjeta de Identidad)  
     - >= 18 años: CC (Cédula de Ciudadanía)
     - Para extranjeros: MS (<18) o AS (>=18)
+    - CN (Certificado Nacimiento): solo válido si edad < 2 meses
+    - Otros tipos no válidos: CE, NIP, NIT, PAS, PE, SC -> error
     
     Args:
         sheet: Hoja de datos
@@ -306,8 +308,9 @@ def apply_conditional_tipo_identificacion(
     tipo_id_col = find_column_letter_by_header(sheet, "Tipo Identificación", headers_row)
     fec_nac_col = find_column_letter_by_header(sheet, "Fec. Nacimiento", headers_row)
     fec_fact_col = find_column_letter_by_header(sheet, "Fec. Factura", headers_row)
+    edad_col = find_column_letter_by_header(sheet, "Edad Completa", headers_row)
 
-    if not all([tipo_id_col, fec_nac_col, fec_fact_col]):
+    if not all([tipo_id_col, fec_nac_col, fec_fact_col, edad_col]):
         logger.warning(
             "No se pueden aplicar reglas de tipo identificación: "
             "columnas requeridas no encontradas."
@@ -319,19 +322,33 @@ def apply_conditional_tipo_identificacion(
 
     data_range = f"{tipo_id_col}2:{tipo_id_col}{max_row}"
     
+    # Tipos válidos
+    # RC: < 7 años, TI: 7-17 años, CC: >= 18 años, MS: < 18 sin ID, AS: >= 18 sin ID
+    # CN: < 2 meses (usando DATEDIF en meses)
+    
     # Fórmula que valida tipo de documento según edad
+    # 1. Si es RC/TI/CC -> validar rango de edad usando columna Edad Completa
+    # 2. Si es MS/AS -> validar rango de edad
+    # 3. Si es CN -> solo válido si NO tiene "Años" (bebés de menos de 1 año)
+    # 4. Otros tipos (CE, NIP, NIT, PAS, PE, SC) -> siempre error
+    
+    # Para simplificar, usamos SEARCH para ver si contiene "Años" en la edad
+    # Si tiene "Años" -> tiene 1 año o más
     formula = (
         f"=IF(OR(${tipo_id_col}2=\"RC\",${tipo_id_col}2=\"TI\",${tipo_id_col}2=\"CC\"), "
         f"OR("
-        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<7, ${tipo_id_col}2<>\"RC\"), "
-        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=7, "
-        f"DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<18, ${tipo_id_col}2<>\"TI\"), "
-        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=18, ${tipo_id_col}2<>\"CC\")), "
+        f"AND(ISNUMBER(SEARCH(\"Años\",{edad_col}2)), VALUE(LEFT({edad_col}2,2))<7, ${tipo_id_col}2<>\"RC\"), "
+        f"AND(ISNUMBER(SEARCH(\"Años\",{edad_col}2)), VALUE(LEFT({edad_col}2,2))>=7, VALUE(LEFT({edad_col}2,2))<18, ${tipo_id_col}2<>\"TI\"), "
+        f"AND(ISNUMBER(SEARCH(\"Años\",{edad_col}2)), VALUE(LEFT({edad_col}2,2))>=18, ${tipo_id_col}2<>\"CC\"), "
+        f"NOT(ISNUMBER(SEARCH(\"Años\",{edad_col}2))))), "  # Si no tiene años, también error para RC/TI/CC
         f"IF(OR(${tipo_id_col}2=\"MS\",${tipo_id_col}2=\"AS\"), "
         f"OR("
-        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")<18, ${tipo_id_col}2<>\"MS\"), "
-        f"AND(DATEDIF(${fec_nac_col}2,${fec_fact_col}2,\"Y\")>=18, ${tipo_id_col}2<>\"AS\")), "
-        f"FALSE))"
+        f"AND(ISNUMBER(SEARCH(\"Años\",{edad_col}2)), VALUE(LEFT({edad_col}2,2))<18, ${tipo_id_col}2<>\"MS\"), "
+        f"AND(ISNUMBER(SEARCH(\"Años\",{edad_col}2)), VALUE(LEFT({edad_col}2,2))>=18, ${tipo_id_col}2<>\"AS\"), "
+        f"NOT(ISNUMBER(SEARCH(\"Años\",{edad_col}2)))), "  # Si no tiene años, también error para MS/AS
+        f"IF(${tipo_id_col}2=\"CN\", "  # CN solo válido si NO tiene "Años" (menor a 1 año)
+        f"ISNUMBER(SEARCH(\"Años\",{edad_col}2)), "  # Error si tiene "Años"
+        f"TRUE)))"  # Otros tipos siempre error
     )
 
     rule = FormulaRule(formula=[formula], fill=fill)

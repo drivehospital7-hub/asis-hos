@@ -10,7 +10,8 @@ class DevConfig:
     
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
     
-    MAX_CONTENT_LENGTH = None  # Sin límite de tamaño
+    # Límite de 50MB para uploads (proteger contra archivos gigante)
+    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     
     LOG_LEVEL = "DEBUG"
     LOG_FILE = "logs/dev.log"
