@@ -91,6 +91,41 @@ from app.constants import (
     ENTIDAD_IDE_CONTRATO_890405,
     IDE_CONTRATO_SIN_INSERCION_890405,
     IDE_CONTRATO_CON_INSERCION_890405,
+    # Nueva regla ESSC18 + Código 906340 -> IDE Contrato debe ser 842
+    CODIGO_IDE_CONTRATO_906340_ESSC18,
+    ENTIDAD_IDE_CONTRATO_ESSC18,
+    IDE_CONTRATO_REQUERIDO_906340_ESSC18,
+    # Nueva regla ESSC18 + Código 861801 -> IDE Contrato debe ser 975
+    CODIGO_IDE_CONTRATO_861801_ESSC18,
+    IDE_CONTRATO_REQUERIDO_861801_ESSC18,
+    # Nueva regla ESSC18 + Código 890405 -> IDE Contrato según inserción
+    CODIGO_IDE_CONTRATO_890405_ESSC18,
+    IDE_CONTRATO_CON_INSERCION_890405_ESSC18,
+    IDE_CONTRATO_SIN_INSERCION_890405_ESSC18,
+    # Nueva regla EPS037 + Código 906340 -> IDE Contrato debe ser 962
+    CODIGO_IDE_CONTRATO_906340_EPS037,
+    ENTIDAD_IDE_CONTRATO_EPS037,
+    IDE_CONTRATO_REQUERIDO_906340_EPS037,
+    # Nueva regla EPS037 + Código 861801 -> IDE Contrato debe ser 961
+    CODIGO_IDE_CONTRATO_861801_EPS037,
+    IDE_CONTRATO_REQUERIDO_861801_EPS037,
+    # Nueva regla EPS037 + Código 890405 -> IDE Contrato según inserción
+    CODIGO_IDE_CONTRATO_890405_EPS037,
+    ENTIDAD_IDE_CONTRATO_EPS037,
+    IDE_CONTRATO_CON_INSERCION_890405_EPS037,
+    IDE_CONTRATO_SIN_INSERCION_890405_EPS037,
+    # Nueva regla Código 906340 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 957
+    CODIGO_IDE_CONTRATO_906340_EMPRESA,
+    ENTIDAD_IDE_CONTRATO_EMPRESA,
+    ENTIDAD_COBRAR_NUEVA_EMPRESA,
+    IDE_CONTRATO_REQUERIDO_906340_EMPRESA,
+    # Nueva regla Código 861801 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 958
+    CODIGO_IDE_CONTRATO_861801_EMPRESA,
+    IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
+    # Nueva regla Código 890405 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE según inserción
+    CODIGO_IDE_CONTRATO_890405_EMPRESA,
+    IDE_CONTRATO_CON_INSERCION_890405_EMPRESA,
+    IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA,
     # Equipos Básicos - Reglas independientes
     EQUIPOS_BASICOS_TARGET_PROCEDURES,
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
@@ -123,12 +158,19 @@ def _normalize_invoice(value: Any) -> str | None:
     return str(value).strip() or None
 
 
-def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
+def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list[str]]:
     """
     Mapea nombres de columna a sus índices.
     
+    REQUIERE COINCIDENCIA EXACTA - NO infiere nombres similares.
+    Si una columna no coincide exactamente, retorna None y la reporta en la lista de errores.
+    
+    Args:
+        headers: Lista de nombres de columna del Excel
+        
     Returns:
-        Dict con nombre de columna -> índice (0-based) o None
+        Tuple de (dict con nombre de columna -> índice 0-based o None, 
+                  lista de columnas NO encontradas)
     """
     indices: dict[str, int | None] = {
         "numero_factura": None,
@@ -143,8 +185,8 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "cantidad": None,
         "laboratorio": None,
         "centro_costo": None,
-        "codigo_entidad_cobrar": None,  # Código de la entidad (para reglas)
-        "entidad_cobrar": None,         # Nombre de la entidad (para mostrar en HTML)
+        "codigo_entidad_cobrar": None,
+        "entidad_cobrar": None,
         "tipo_factura_descripcion": None,
         "ide_contrato": None,
         "tipo_identificacion": None,
@@ -154,68 +196,58 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "profesional_atiende": None,
     }
     
-    header_mapping = {
-        ("número factura", "numero factura"): "numero_factura",
-        ("vlr. subsidiado",): "vlr_subsidiado",
-        ("vlr. procedimiento",): "vlr_procedimiento",
-        ("código tipo procedimiento", "codigo tipo procedimiento"): "codigo_tipo_procedimiento",
-        ("tipo procedimiento",): "tipo_procedimiento",
-        ("código",): "codigo",
-        ("procedimiento", "procedimientos"): "procedimiento",
-        ("nº identificación", "numero identificacion"): "identificacion",
-        ("convenio facturado",): "convenio_facturado",
-        ("cantidad",): "cantidad",
-        ("laboratorio",): "laboratorio",
-        ("centro costo", "centro de costo"): "centro_costo",
-        ("cód entidad cobrar", "cod entidad cobrar"): "codigo_entidad_cobrar",  # Solo código
-        ("entidad cobrar",): "entidad_cobrar",  # Solo nombre
-        ("tipo factura descripción",): "tipo_factura_descripcion",
-        ("ide contrato",): "ide_contrato",
-        ("tipo identificación", "tipo identificacion"): "tipo_identificacion",
-        ("fec. nacimiento", "fecha nacimiento"): "fec_nacimiento",
-        ("fec. factura", "fecha factura", "fec factura", "fecha"): "fec_factura",
-        ("identificación profesional", "id profesional", "identificacion profesional", "profesional identificación", "identificacion prof"): "profesional_identificacion",
-        ("profesional atiende", "profesional"): "profesional_atiende",
+    # Nombres EXACTOS requeridos - uno solo por columna, sin variantes
+    # Si no coincide exactamente, NO infiere - reporta error
+    required_headers: dict[str, str] = {
+        "numero_factura": "Número Factura",
+        "vlr_subsidiado": "Vlr. Subsidiado",
+        "vlr_procedimiento": "Vlr. Procedimiento",
+        "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
+        "tipo_procedimiento": "Tipo Procedimiento",
+        "codigo": "Código",
+        "procedimiento": "Procedimiento",
+        "identificacion": "Nº Identificación",
+        "convenio_facturado": "Convenio Facturado",
+        "cantidad": "Cantidad",
+        "laboratorio": "Laboratorio",
+        "centro_costo": "Centro Costo",
+        "codigo_entidad_cobrar": "Cód Entidad Cobrar",
+        "entidad_cobrar": "Entidad Cobrar",
+        "tipo_factura_descripcion": "Tipo Factura Descripción",
+        "ide_contrato": "IDE Contrato",
+        "tipo_identificacion": "Tipo Identificación",
+        "fec_nacimiento": "Fec. Nacimiento",
+        "fec_factura": "Fec. Factura",
+        "profesional_identificacion": "Identificación Profesional",
+        "profesional_atiende": "Profesional Atiende",
     }
     
-    header_mapping = {
-        ("número factura", "numero factura"): "numero_factura",
-        ("vlr. subsidiado",): "vlr_subsidiado",
-        ("vlr. procedimiento",): "vlr_procedimiento",
-        ("código tipo procedimiento", "codigo tipo procedimiento"): "codigo_tipo_procedimiento",
-        ("tipo procedimiento",): "tipo_procedimiento",
-        ("código",): "codigo",  # Con tilde - no usar "codigo" sin tilde
-        ("procedimiento", "procedimientos"): "procedimiento",
-        ("nº identificación", "numero identificacion"): "identificacion",
-        ("convenio facturado",): "convenio_facturado",
-        ("cantidad",): "cantidad",
-        ("laboratorio",): "laboratorio",
-        ("centro costo", "centro de costo"): "centro_costo",
-        ("cód entidad cobrar", "cod entidad cobrar"): "codigo_entidad_cobrar",  # Código
-        ("entidad cobrar",): "entidad_cobrar",  # Nombre
-        ("tipo factura descripción",): "tipo_factura_descripcion",
-        ("ide contrato",): "ide_contrato",
-        ("tipo identificación", "tipo identificacion"): "tipo_identificacion",
-        ("fec. nacimiento", "fecha nacimiento"): "fec_nacimiento",
-        ("fec. factura", "fecha factura", "fec factura", "fecha"): "fec_factura",
-        ("identificación profesional", "id profesional", "identificacion profesional", "profesional identificación", "identificacion prof"): "profesional_identificacion",
-        ("profesional atiende", "profesional"): "profesional_atiende",
-    }
-    
+    # Normalizar headers del Excel para comparación exacta
+    excel_headers_normalized: dict[str, int] = {}
     for i, header in enumerate(headers):
-        normalized = _normalize_header(header)
-        for variants, key in header_mapping.items():
-            if normalized in variants:
-                indices[key] = i
-                break
+        if header is not None:
+            # Normalizar:strip y lowercase, pero guardamos el original para сравнение
+            normalized = str(header).strip()
+            excel_headers_normalized[normalized] = i
     
-    # Log de todos los índices detectados (útil para debug)
-    none_keys = [k for k, v in indices.items() if v is None]
-    if none_keys:
-        logger.warning("Columnas NO encontradas (None): %s", none_keys)
-    logger.info("Indices detectados: %s", {k: v for k, v in indices.items() if v is not None})
+    # Buscar coincidencia EXACTA para cada columna requerida
+    missing_columns: list[str] = []
+    for key, required_name in required_headers.items():
+        if required_name in excel_headers_normalized:
+            indices[key] = excel_headers_normalized[required_name]
+        else:
+            # NO infiere - reporta como faltante
+            missing_columns.append(required_name)
+            logger.warning("Columna NO encontrada (coincidencia exacta requerida): '%s'", required_name)
     
-    return indices
+    # Log de结果
+    found_columns = [k for k, v in indices.items() if v is not None]
+    if missing_columns:
+        logger.error("Columnas FALTANTES (no hay coincidencia exacta): %s", missing_columns)
+    
+    logger.info("Indices detectados (coincidencia exacta): %d/%d", len(found_columns), len(indices))
+    
+    return indices, missing_columns
 
 
 def _detect_decimals(
@@ -1000,6 +1032,7 @@ def _detect_centro_costo_urgencias(
     laboratorio_idx = indices.get("laboratorio")
     centro_costo_idx = indices.get("centro_costo")
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
+    entidad_cobrar_idx = indices.get("entidad_cobrar")
     tipo_factura_descripcion_idx = indices.get("tipo_factura_descripcion")
     ide_contrato_idx = indices.get("ide_contrato")
     proc_idx = indices.get("procedimiento")
@@ -1060,6 +1093,10 @@ def _detect_centro_costo_urgencias(
         if codigo_entidad_cobrar_idx is not None:
             codigo_entidad_cobrar = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
         
+        entidad_cobrar = None
+        if entidad_cobrar_idx is not None:
+            entidad_cobrar = data_sheet.cell(row=row, column=entidad_cobrar_idx + 1).value
+        
         tipo_factura_descripcion = None
         if tipo_factura_descripcion_idx is not None:
             tipo_factura_descripcion = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
@@ -1082,6 +1119,7 @@ def _detect_centro_costo_urgencias(
         laboratorio_str = str(laboratorio).strip() if laboratorio else ""
         centro_costo_str = str(centro_costo).strip() if centro_costo else ""
         codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
+        entidad_cobrar_str = str(entidad_cobrar).strip() if entidad_cobrar else ""
         tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         ide_contrato_str = str(ide_contrato).strip() if ide_contrato else ""
         ident_str = str(numero_identificacion).strip() if numero_identificacion else ""
@@ -1400,6 +1438,208 @@ def _detect_centro_costo_urgencias(
                     tiene_insercion,
                 )
 
+        # ----- Regla 16: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
+        # Urgencias y Contratos
+        if codigo_excluir == CODIGO_IDE_CONTRATO_906340_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340_ESSC18:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340_ESSC18,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_906340_ESSC18,
+                )
+
+        # ----- Regla 17: Cód Entidad Cobrar=ESSC18 + Código=861801 -> IDE Contrato debe ser 975
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_ESSC18:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_ESSC18,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_ESSC18,
+                )
+
+        # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=890405 -> IDE Contrato según inserción
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_ESSC18 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_ESSC18
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
+                )
+
+        # ----- Regla 19: Cód Entidad Cobrar=EPS037 + Código=906340 -> IDE Contrato debe ser 962
+        if codigo_excluir == CODIGO_IDE_CONTRATO_906340_EPS037 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_EPS037:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340_EPS037:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340_EPS037,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_906340_EPS037,
+                )
+
+        # ----- Regla 20: Cód Entidad Cobrar=EPS037 + Código=861801 -> IDE Contrato debe ser 961
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_EPS037 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_EPS037:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_EPS037:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_EPS037,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_EPS037,
+                )
+
+        # ----- Regla 21: Cód Entidad Cobrar=EPS037 + Código=890405 -> IDE Contrato según inserción
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_EPS037 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_EPS037:
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_EPS037 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_EPS037
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
+                )
+
+        # ----- Regla 22: Código 906340 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 959
+        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        if codigo_excluir == CODIGO_IDE_CONTRATO_906340_EMPRESA:
+            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+                if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340_EMPRESA:
+                    problemas_ide_contrato.append({
+                        "factura": factura_str,
+                        "procedimiento": proc_str,
+                        "codigo": codigo_excluir,
+                        "entidad_cobrar": entidad_cobrar_str,
+                        "ide_contrato_actual": ide_contrato_str,
+                        "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340_EMPRESA,
+                    })
+                    logger.debug(
+                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                        row,
+                        entidad_cobrar_str,
+                        codigo_excluir,
+                        ide_contrato_str,
+                        IDE_CONTRATO_REQUERIDO_906340_EMPRESA,
+                    )
+
+        # ----- Regla 23: Código 861801 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 958
+        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_EMPRESA:
+            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+                if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_EMPRESA:
+                    problemas_ide_contrato.append({
+                        "factura": factura_str,
+                        "procedimiento": proc_str,
+                        "codigo": codigo_excluir,
+                        "entidad_cobrar": entidad_cobrar_str,
+                        "ide_contrato_actual": ide_contrato_str,
+                        "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
+                    })
+                    logger.debug(
+                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                        row,
+                        entidad_cobrar_str,
+                        codigo_excluir,
+                        ide_contrato_str,
+                        IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
+                    )
+
+        # ----- Regla 24: Código 890405 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE según inserción
+        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_EMPRESA:
+            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+                tiene_insercion = ident_str in identificaciones_con_insercion
+                ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_EMPRESA if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA
+                
+                if ide_contrato_str != ide_esperado:
+                    problemas_ide_contrato.append({
+                        "factura": factura_str,
+                        "procedimiento": proc_str,
+                        "codigo": codigo_excluir,
+                        "entidad_cobrar": entidad_cobrar_str,
+                        "ide_contrato_actual": ide_contrato_str,
+                        "ide_contrato_deberia": ide_esperado,
+                        "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
+                    })
+                    logger.debug(
+                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                        row,
+                        entidad_cobrar_str,
+                        codigo_excluir,
+                        ide_contrato_str,
+                        ide_esperado,
+                        tiene_insercion,
+                    )
+
     return problemas_centros, problemas_ide_contrato
 
 
@@ -1486,12 +1726,16 @@ def create_revision_sheet(
     # Insertar fila vacía arriba
     sheet.insert_rows(1)
     
-    # Obtener índices de columnas
+    # Obtener índices de columnas (coincidencia exacta - reporta faltantes)
     headers = [
         data_sheet.cell(row=1, column=col).value
         for col in range(1, data_sheet.max_column + 1)
     ]
-    indices = _get_column_indices(headers)
+    indices, missing_columns = _get_column_indices(headers)
+    
+    # Si hay columnas faltantes, incluir en el resultado para mostrar al usuario
+    if missing_columns:
+        logger.error("Columnas faltantes en el Excel: %s", missing_columns)
     
     # Seleccionar headers según el área
     if area == AREA_URGENCIAS:
@@ -1615,6 +1859,7 @@ def create_revision_sheet(
             "centros_de_costos_found": len(problemas_centros),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
+            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
     else:
         return {
@@ -1630,6 +1875,7 @@ def create_revision_sheet(
             "tipo_identificacion_found": len(tipo_id_edad),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
+            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
 
 
@@ -1653,12 +1899,16 @@ def detect_all_problems(
     Returns:
         Dict con los problemas encontrados por categoría
     """
-    # Obtener índices de columnas
+    # Obtener índices de columnas (coincidencia exacta - reporta faltantes)
     headers = [
         data_sheet.cell(row=1, column=col).value
         for col in range(1, data_sheet.max_column + 1)
     ]
-    indices = _get_column_indices(headers)
+    indices, missing_columns = _get_column_indices(headers)
+    
+    # Si hay columnas faltantes, incluir en el resultado para mostrar al usuario
+    if missing_columns:
+        logger.error("Columnas faltantes en el Excel: %s", missing_columns)
     
     if area == AREA_URGENCIAS:
         # Urgencias: detectar centros de costo y IDE Contrato
@@ -1697,7 +1947,8 @@ def detect_all_problems(
             "totales": {
                 "centros_de_costos": len(problemas_centros),
                 "ide_contrato": len(problemas_ide_contrato),
-            }
+            },
+            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
     elif area == AREA_EQUIPOS_BASICOS:
         # Equipos Básicos: usar reglas independientes configurables
@@ -1738,6 +1989,7 @@ def detect_all_problems(
                 "centro_costo": len(centro_costo),
             },
             "es_equipos_basicos": True,
+            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
     else:
         # Odontología estándar: todas las validaciones
@@ -1775,5 +2027,6 @@ def detect_all_problems(
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
-            }
+            },
+            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
