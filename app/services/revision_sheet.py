@@ -1607,54 +1607,54 @@ def _detect_centro_costo_urgencias(
                     tiene_insercion,
                 )
 
-        # ----- Regla 22: Código 906340 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 959
-        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        # ----- Regla 22: Código 906340 + Cód Entidad Cobrar=EPSS41 -> IDE 959
+        # SOLO usa "Cód Entidad Cobrar", NO "Entidad Cobrar"
         if codigo_excluir == CODIGO_IDE_CONTRATO_906340_EMPRESA:
-            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+            if codigo_entidad_str == "EPSS41":
                 if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340_EMPRESA:
                     problemas_ide_contrato.append({
                         "factura": factura_str,
                         "procedimiento": proc_str,
                         "codigo": codigo_excluir,
-                        "entidad_cobrar": entidad_cobrar_str,
+                        "codigo_entidad": codigo_entidad_str,
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340_EMPRESA,
                     })
                     logger.debug(
-                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                        "Fila %s: Cód Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
                         row,
-                        entidad_cobrar_str,
+                        codigo_entidad_str,
                         codigo_excluir,
                         ide_contrato_str,
                         IDE_CONTRATO_REQUERIDO_906340_EMPRESA,
                     )
 
-        # ----- Regla 23: Código 861801 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 958
-        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        # ----- Regla 23: Código 861801 + Cód Entidad Cobrar=EPSS41 -> IDE 958
+        # SOLO usa "Cód Entidad Cobrar", NO "Entidad Cobrar"
         if codigo_excluir == CODIGO_IDE_CONTRATO_861801_EMPRESA:
-            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+            if codigo_entidad_str == "EPSS41":
                 if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_EMPRESA:
                     problemas_ide_contrato.append({
                         "factura": factura_str,
                         "procedimiento": proc_str,
                         "codigo": codigo_excluir,
-                        "entidad_cobrar": entidad_cobrar_str,
+                        "codigo_entidad": codigo_entidad_str,
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
                     })
                     logger.debug(
-                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                        "Fila %s: Cód Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
                         row,
-                        entidad_cobrar_str,
+                        codigo_entidad_str,
                         codigo_excluir,
                         ide_contrato_str,
                         IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
                     )
 
-        # ----- Regla 24: Código 890405 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE según inserción
-        # SOLO usa "Entidad Cobrar", NO "Cód Entidad Cobrar"
+        # ----- Regla 24: Código 890405 + Cód Entidad Cobrar=EPSS41 -> IDE según inserción
+        # SOLO usa "Cód Entidad Cobrar", NO "Entidad Cobrar"
         if codigo_excluir == CODIGO_IDE_CONTRATO_890405_EMPRESA:
-            if entidad_cobrar_str == ENTIDAD_COBRAR_NUEVA_EMPRESA:
+            if codigo_entidad_str == "EPSS41":
                 tiene_insercion = ident_str in identificaciones_con_insercion
                 ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_EMPRESA if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA
                 
@@ -1663,15 +1663,15 @@ def _detect_centro_costo_urgencias(
                         "factura": factura_str,
                         "procedimiento": proc_str,
                         "codigo": codigo_excluir,
-                        "entidad_cobrar": entidad_cobrar_str,
+                        "codigo_entidad": codigo_entidad_str,
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": ide_esperado,
                         "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
-                    }                    )
+                    })
                     logger.debug(
-                        "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                        "Fila %s: Cód Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
                         row,
-                        entidad_cobrar_str,
+                        codigo_entidad_str,
                         codigo_excluir,
                         ide_contrato_str,
                         ide_esperado,
