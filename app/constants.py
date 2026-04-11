@@ -446,6 +446,8 @@ URGENCIA_ENTIDAD_CONTRATO: dict[str, str] = {
     "1429": "884",
     "1425": "880",
     "144": "885",
+    "EPSS005": "934",
+    "EPSC005": "931",
 }
 
 # Entidades con múltiples contratos válidos (especial)
