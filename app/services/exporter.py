@@ -28,6 +28,7 @@ from app.constants import (
 )
 from app.services.cruce_sheet import create_cruce_facturas_sheet
 from app.services.revision_sheet import detect_all_problems
+from app.services.transversales.estructura_excel import detectar_estructura_excel
 from app.utils.column_filter import filter_columns
 from app.utils.formatting import apply_all_conditional_formatting
 from app.utils.input_data import (
@@ -168,14 +169,32 @@ def export_excel_with_cruce_facturas(
         else:
             data_sheet = workbook.active
         
-        # 6. Filtrar columnas (según el área)
+        # 6. Detectar estructura del Excel (cuántas filas eliminar)
+        estructura_result = detectar_estructura_excel(output_path)
+        if estructura_result["status"] == "success":
+            filas_a_eliminar = estructura_result["data"]["filas_a_eliminar"]
+            logger.info(
+                "Estructura detectada: %s - filas a eliminar: %d",
+                estructura_result["data"]["estructura"],
+                filas_a_eliminar,
+            )
+        else:
+            # Si falla la detección, asumir comportamiento por defecto (2 filas)
+            filas_a_eliminar = 2
+            logger.warning("Error detectando estructura, usando默认值: %d", filas_a_eliminar)
+        
+        # 7. Filtrar columnas (según el área)
         if area_effective == AREA_URGENCIAS:
             # Urgencias: no ocultar columnas (None = mantener todas)
             columns_to_keep = None
         else:
             columns_to_keep = COLUMNS_TO_KEEP
         
-        filter_result = filter_columns(data_sheet, columns_to_keep=columns_to_keep)
+        filter_result = filter_columns(
+            data_sheet, 
+            columns_to_keep=columns_to_keep,
+            delete_first_rows=filas_a_eliminar,
+        )
         logger.info("Columnas filtradas: %s", filter_result)
         
         # 7. Detectar problemas para mostrar en HTML (sin crear hoja)
@@ -210,6 +229,7 @@ def export_excel_with_cruce_facturas(
             "output_path": str(output_path),
             "sheet": CRUCE_FACTURAS_SHEET,
             "headers_written": ["B1", "D1", "F1"],
+            "estructura_excel": estructura_result.get("data", {}),
             "filter_result": filter_result,
             "problemas": problemas_detectados,
             "applied_rules": [
