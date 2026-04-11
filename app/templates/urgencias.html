@@ -190,6 +190,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const esCentrosCostos = tipoLower.includes('centros_de_costos') || tipoLower.includes('centros de costos');
             const esIdeContrato = tipoLower.includes('ide_contrato') || tipoLower.includes('ide contrato');
             const esVerificarDerechos = tipoLower.includes('verificar derechos');
+            const esDecimales = tipoLower.includes('decimales') || error.tipo_key === 'decimales';
+            const esTipoIdentificacion = tipoLower.includes('tipo identificación') || error.tipo_key === 'tipo_identificacion_edad';
             
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
@@ -299,6 +301,60 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               
               html += '</tbody></table>';
+            } else if (esDecimales) {
+              // Decimales: solo 1 columna (factura)
+              console.log('Renderizando decimales:', error.facturas);
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                } else {
+                  factura = item || '';
+                }
+                html += '<tr><td>' + factura + '</td></tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esTipoIdentificacion) {
+              // Tipo Identificación: 4 columnas (Factura, Tipo Actual, Tipo Debería, Edad)
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let tipoActual = '';
+                let tipoDeberia = '';
+                let edad = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  tipoActual = item.tipo_actual || '';
+                  tipoDeberia = item.tipo_deberia || '';
+                  edad = item.edad || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + tipoActual + '</td>';
+                html += '<td>' + tipoDeberia + '</td>';
+                html += '<td>' + edad + '</td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
             }
           });
           
@@ -310,13 +366,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mostrar errores del servidor
         let html = '<div class="alert alert--error">';
         html += '<p class="alert__title">Error de procesamiento</p>';
-        html += '<ul class="alert__list">';
         
-        (result.errors || []).forEach(function(err) {
-          html += '<li>' + err + '</li>';
-        });
+        // Verificar si son columnas faltantes
+        const missingColumns = result.missing_columns || [];
+        if (missingColumns.length > 0) {
+          html += '<p>El archivo Excel no tiene las columnas requeridas:</p>';
+          html += '<ul class="alert__list">';
+          missingColumns.forEach(function(col) {
+            html += '<li><strong>' + col + '</strong></li>';
+          });
+          html += '</ul>';
+          html += '<p class="mt-md"><em>Verifica que el archivo tenga los encabezados correctos según el formato esperado.</em></p>';
+        } else {
+          html += '<ul class="alert__list">';
+          (result.errors || []).forEach(function(err) {
+            html += '<li>' + err + '</li>';
+          });
+          html += '</ul>';
+        }
         
-        html += '</ul>';
         html += '</div>';
         erroresList.innerHTML = html;
         erroresContainer.style.display = 'block';

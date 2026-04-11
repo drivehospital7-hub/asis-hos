@@ -84,11 +84,8 @@ from app.constants import (
     IDE_CONTRATO_REQUERIDO_906340,
     # Nueva regla ESS118 + Código 861801 -> IDE Contrato debe ser 974
     CODIGO_IDE_CONTRATO_861801,
-    ENTIDAD_IDE_CONTRATO_861801,
     IDE_CONTRATO_REQUERIDO_861801,
     # Nueva regla ESS118 + Código 890405 -> IDE Contrato 977 o 973 según inserción
-    CODIGO_IDE_CONTRATO_890405,
-    ENTIDAD_IDE_CONTRATO_890405,
     IDE_CONTRATO_SIN_INSERCION_890405,
     IDE_CONTRATO_CON_INSERCION_890405,
     # Nueva regla ESSC18 + Código 906340 -> IDE Contrato debe ser 842
@@ -111,7 +108,6 @@ from app.constants import (
     IDE_CONTRATO_REQUERIDO_861801_EPS037,
     # Nueva regla EPS037 + Código 890405 -> IDE Contrato según inserción
     CODIGO_IDE_CONTRATO_890405_EPS037,
-    ENTIDAD_IDE_CONTRATO_EPS037,
     IDE_CONTRATO_CON_INSERCION_890405_EPS037,
     IDE_CONTRATO_SIN_INSERCION_890405_EPS037,
     # Nueva regla Código 906340 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 957
@@ -126,7 +122,7 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_861801_ESS062,
     ENTIDAD_IDE_CONTRATO_ESS062,
     IDE_CONTRATO_REQUERIDO_861801_ESS062,
-    # Nueva regla ESS062 + Código 890405 -> IDE Contrato según inserción (921 si tiene 861801, 922 si no)
+    # Nueva regla ESS062 + Código 890405 -> IDE Contrato según inserción
     CODIGO_IDE_CONTRATO_890405_ESS062,
     IDE_CONTRATO_CON_INSERCION_890405_ESS062,
     IDE_CONTRATO_SIN_INSERCION_890405_ESS062,
@@ -134,7 +130,7 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_861801_ESSC62,
     ENTIDAD_IDE_CONTRATO_ESSC62,
     IDE_CONTRATO_REQUERIDO_861801_ESSC62,
-    # Nueva regla ESSC62 + Código 890405 -> IDE Contrato según si tiene 890405 (862 si tiene, 863 si no)
+    # Nueva regla ESSC62 + Código 890405 -> IDE Contrato según si tiene 890405
     CODIGO_IDE_CONTRATO_890405_ESSC62,
     CODIGO_A_BUSCAR_890405_ESSC62,
     IDE_CONTRATO_CON_INSERCION_890405_ESSC62,
@@ -143,7 +139,7 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_890405_EMPRESA,
     IDE_CONTRATO_CON_INSERCION_890405_EMPRESA,
     IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA,
-    # Urgencias - Entidad -> IDE Contrato (reglas nuevas)
+    # Urgencias - Entidad -> IDE Contrato
     URGENCIA_ENTIDAD_CONTRATO,
     URGENCIA_ENTIDAD_MULTIPLE_CONTRATO,
     # Equipos Básicos - Reglas independientes
@@ -153,6 +149,7 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_MAX,
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
 )
+
 from app.utils.formatting import (
     create_header_style,
     create_data_row_style,
@@ -160,6 +157,9 @@ from app.utils.formatting import (
     create_urgencia_data_row_style,
     auto_adjust_column_width,
 )
+
+# Importar reglas transversales
+from app.services.transversales import detect_decimales, detect_tipo_documento_edad
 
 logger = logging.getLogger(__name__)
 
@@ -2087,12 +2087,16 @@ def detect_all_problems(
         logger.error("Columnas faltantes en el Excel: %s", missing_columns)
     
     if area == AREA_URGENCIAS:
-        # Urgencias: detectar centros de costo y IDE Contrato
+        # Urgencias: detectar centros de costo, IDE Contrato y reglas transversales
         _log_resumen_ide_contrato(data_sheet, indices)
         problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d",
-                   len(problemas_centros), len(problemas_ide_contrato))
+        # reglas transversales
+        decimales = detect_decimales(data_sheet, indices)
+        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+        
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d",
+                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad))
         
         # Incluir TODOS los campos en el resultado
         return {
@@ -2119,10 +2123,15 @@ def detect_all_problems(
                     }
                     for item in problemas_ide_contrato
                 ],
+                # reglas transversales
+                "decimales": decimales,
+                "tipo_identificacion_edad": tipo_identificacion_edad,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
                 "ide_contrato": len(problemas_ide_contrato),
+                "decimales": len(decimales),
+                "tipo_identificacion_edad": len(tipo_identificacion_edad),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }

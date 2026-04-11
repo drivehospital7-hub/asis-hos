@@ -551,13 +551,25 @@ document.addEventListener('DOMContentLoaded', function() {
         // Mostrar errores del servidor
         let html = '<div class="alert alert--error">';
         html += '<p class="alert__title">Error de procesamiento</p>';
-        html += '<ul class="alert__list">';
         
-        (result.errors || []).forEach(function(err) {
-          html += '<li>' + err + '</li>';
-        });
+        // Verificar si son columnas faltantes
+        const missingColumns = result.missing_columns || [];
+        if (missingColumns.length > 0) {
+          html += '<p>El archivo Excel no tiene las columnas requeridas:</p>';
+          html += '<ul class="alert__list">';
+          missingColumns.forEach(function(col) {
+            html += '<li><strong>' + col + '</strong></li>';
+          });
+          html += '</ul>';
+          html += '<p class="mt-md"><em>Verifica que el archivo tenga los encabezados correctos según el formato esperado.</em></p>';
+        } else {
+          html += '<ul class="alert__list">';
+          (result.errors || []).forEach(function(err) {
+            html += '<li>' + err + '</li>';
+          });
+          html += '</ul>';
+        }
         
-        html += '</ul>';
         html += '</div>';
         erroresList.innerHTML = html;
         erroresContainer.style.display = 'block';

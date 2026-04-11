@@ -106,6 +106,26 @@ def export_cruce_facturas():
     # Cleanup archivo temporal
     cleanup_temp_excel(temp_path)
 
+    # Verificar si hay columnas faltantes ANTES de procesar (coincidencia exacta)
+    problemas_data = export_result.get("data", {}).get("problemas", {})
+    missing_columns = problemas_data.get("missing_columns", [])
+    
+    # Cleanup archivo temporal ANTES de retornar (sea éxito o error)
+    cleanup_temp_excel(temp_path)
+    
+    if missing_columns:
+        # Columnas faltantes - no procesar, devolver error inmediatamente
+        logger.error("Columnas faltantes en el Excel: %s", missing_columns)
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [
+                f"Columnas no encontradas en el Excel: {', '.join(missing_columns)}. "
+                f"Verifica que el archivo tenga los encabezados correctos."
+            ],
+            "missing_columns": missing_columns,  # Para mostrar al usuario qué falta
+        })
+
     if export_result["status"] == "success":
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]

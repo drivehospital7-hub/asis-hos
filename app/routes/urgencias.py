@@ -75,8 +75,25 @@ def export_urgencias():
         area=AREA_URGENCIAS,
     )
 
-    # Cleanup archivo temporal
+    # Verificar si hay columnas faltantes ANTES de procesar (coincidencia exacta)
+    problemas_data = export_result.get("data", {}).get("problemas", {})
+    missing_columns = problemas_data.get("missing_columns", [])
+    
+    # Cleanup archivo temporal ANTES de retornar (sea éxito o error)
     cleanup_temp_excel(temp_path)
+    
+    if missing_columns:
+        # Columnas faltantes - no procesar, devolver error inmediatamente
+        logger.error("Columnas faltantes en el Excel: %s", missing_columns)
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [
+                f"Columnas no encontradas en el Excel: {', '.join(missing_columns)}. "
+                f"Verifica que el archivo tenga los encabezados correctos."
+            ],
+            "missing_columns": missing_columns,  # Para mostrar al usuario qué falta
+        })
 
     # Debug: logging de la estructura completa
     logger.info("Export result keys: %s", list(export_result.keys()))
@@ -156,8 +173,36 @@ def export_urgencias():
                 "facturas": facturas_ide,
             })
         
-        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato)",
-                   len(errores), len(centros), len(ide_contrato))
+        # Reglas transversales: Decimales
+        decimales = problemas_dict.get("decimales", [])
+        if decimales:
+            errores.append({
+                "tipo": "Decimales",
+                "tipo_key": "decimales",
+                "cantidad": len(decimales),
+                "facturas": [{"factura": f} for f in decimales[:50]],
+            })
+        
+        # Reglas transversales: Tipo Identificación vs Edad
+        tipo_id_edad = problemas_dict.get("tipo_identificacion_edad", [])
+        if tipo_id_edad:
+            facturas_tipo_id = []
+            for item in tipo_id_edad[:50]:
+                facturas_tipo_id.append({
+                    "factura": item.get("factura", ""),
+                    "tipo_actual": item.get("tipo_actual", ""),
+                    "tipo_deberia": item.get("tipo_deberia", ""),
+                    "edad": item.get("edad", ""),
+                })
+            errores.append({
+                "tipo": "Tipo Identificación",
+                "tipo_key": "tipo_identificacion_edad",
+                "cantidad": len(tipo_id_edad),
+                "facturas": facturas_tipo_id,
+            })
+        
+        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad)",
+                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad))
         
         return jsonify({
             "status": "success",
