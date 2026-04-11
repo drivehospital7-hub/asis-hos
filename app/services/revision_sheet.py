@@ -126,6 +126,9 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_890405_EMPRESA,
     IDE_CONTRATO_CON_INSERCION_890405_EMPRESA,
     IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA,
+    # Urgencias - Entidad -> IDE Contrato (reglas nuevas)
+    URGENCIA_ENTIDAD_CONTRATO,
+    URGENCIA_ENTIDAD_MULTIPLE_CONTRATO,
     # Equipos Básicos - Reglas independientes
     EQUIPOS_BASICOS_TARGET_PROCEDURES,
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
@@ -1639,6 +1642,49 @@ def _detect_centro_costo_urgencias(
                         ide_esperado,
                         tiene_insercion,
                     )
+
+        # ----- Regla 25: Entidad -> IDE Contrato (mapeo directo, sin importar código)
+        # Valida que cada entidad tenga su contrato específico
+        if codigo_entidad_str and codigo_entidad_str in URGENCIA_ENTIDAD_CONTRATO:
+            ide_contrato_requerido = URGENCIA_ENTIDAD_CONTRATO[codigo_entidad_str]
+            if ide_contrato_str != ide_contrato_requerido:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_contrato_requerido,
+                    "nota": "Regla Entidad->Contrato",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    ide_contrato_str,
+                    ide_contrato_requerido,
+                )
+
+        # ----- Regla 26: Entidad con múltiples contratos válidos
+        if codigo_entidad_str and codigo_entidad_str in URGENCIA_ENTIDAD_MULTIPLE_CONTRATO:
+            contratos_validos = URGENCIA_ENTIDAD_MULTIPLE_CONTRATO[codigo_entidad_str]
+            if ide_contrato_str not in contratos_validos:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": f"uno de: {contratos_validos}",
+                    "nota": "Entidad con múltiples contratos válidos",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
+                    row,
+                    codigo_entidad_str,
+                    ide_contrato_str,
+                    contratos_validos,
+                )
 
     return problemas_centros, problemas_ide_contrato
 

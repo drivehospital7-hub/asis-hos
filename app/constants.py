@@ -396,6 +396,39 @@ IDE_CONTRATO_CON_INSERCION_890405_EMPRESA = "959"  # Si tiene código 861801
 IDE_CONTRATO_SIN_INSERCION_890405_EMPRESA = "958"  # Si NO tiene código 861801
 
 # =============================================================================
+# URGENCIAS - Entidad -> IDE Contrato (reglas nuevas)
+# =============================================================================
+# Mapeo de Código Entidad Cobrar -> IDE Contrato requerido
+# Cada entidad debe tener exactamente ese contrato (no depende del código)
+
+URGENCIA_ENTIDAD_CONTRATO: dict[str, str] = {
+    "86000": "919",
+    "86": "911",
+    "5177": "917",
+    "RES004": "909",
+    "RES001": "953",
+    "983": "0001",
+    "984": "0001",
+    "AT1306": "867",
+    "1327": "882",
+    "AT1317": "887",
+    "1318": "912",
+    "AT1324": "915",
+    "AT1329": "916",
+    "MIN001": "918",   # primera opción
+    "000124": "874",
+    "1423": "966",
+    "1429": "884",
+    "1425": "880",
+    "144": "885",
+}
+
+# Entidades con múltiples contratos válidos (especial)
+URGENCIA_ENTIDAD_MULTIPLE_CONTRATO: dict[str, set] = {
+    "MIN001": {"910", "918"},
+}
+
+# =============================================================================
 # EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar
 # =============================================================================
 
