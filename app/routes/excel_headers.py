@@ -175,6 +175,41 @@ def export_cruce_facturas():
                     tipo_display = "Cantidades"
                 elif tipo == "centro_costo":
                     tipo_display = "Centro Costo"
+                elif tipo == "codigo_entidad_vs_afiliacion":
+                    tipo_display = "Entidad Cobrar vs Afiliación"
+                
+                # Extraer campos adicionales para el nuevo tipo de error
+                facturas = []
+                for item in items[:50]:
+                    # centro_costo viene como dict, tipo_identificacion_edad también
+                    if isinstance(item, dict):
+                        facturas.append({
+                            "factura": item.get("factura", ""),
+                            "tipo_actual": item.get("tipo_actual", ""),
+                            "tipo_deberia": item.get("tipo_deberia", ""),
+                            "edad": item.get("edad", ""),
+                            "centro_actual": item.get("centro_actual", ""),
+                            "centro_deberia": item.get("centro_deberia", ""),
+                            "profesional": item.get("profesional", ""),
+                            "fec_factura": item.get("fec_factura", ""),
+                            # Nuevos campos para codigo_entidad_vs_afiliacion
+                            "codigo_entidad_cobrar": item.get("codigo_entidad_cobrar", ""),
+                            "entidad_afiliacion": item.get("entidad_afiliacion", ""),
+                            "codigo_extraido_afiliacion": item.get("codigo_extraido_afiliacion", ""),
+                            "problema": item.get("problema", ""),
+                        })
+                    else:
+                        facturas.append({
+                            "factura": item,
+                            "centro_actual": "",
+                            "centro_deberia": "",
+                            "profesional": "",
+                            "fec_factura": "",
+                            "codigo_entidad_cobrar": "",
+                            "entidad_afiliacion": "",
+                            "codigo_extraido_afiliacion": "",
+                            "problema": "",
+                        })
                 
                 errores.append({
                     "tipo": tipo_display,

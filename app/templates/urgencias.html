@@ -192,6 +192,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const esVerificarDerechos = tipoLower.includes('verificar derechos');
             const esDecimales = tipoLower.includes('decimales') || error.tipo_key === 'decimales';
             const esTipoIdentificacion = tipoLower.includes('tipo identificación') || error.tipo_key === 'tipo_identificacion_edad';
+            const esCodigoEntidadVsAfiliacion = error.tipo_key === 'codigo_entidad_vs_afiliacion' || tipoLower.includes('entidad cobrar vs afiliación');
             
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
@@ -352,6 +353,41 @@ document.addEventListener('DOMContentLoaded', function() {
               
               if (error.facturas.length > 50) {
                 html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esCodigoEntidadVsAfiliacion) {
+              // Entidad Cobrar vs Afiliación: 5 columnas (Factura, Cód. Entidad Cobrar, Entidad Afiliación, Cód. Extraído, Problema)
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigoEntidadCobrar = '';
+                let entidadAfiliacion = '';
+                let codigoExtraido = '';
+                let problema = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigoEntidadCobrar = item.codigo_entidad_cobrar || '';
+                  entidadAfiliacion = item.entidad_afiliacion || '';
+                  codigoExtraido = item.codigo_extraido_afiliacion || '';
+                  problema = item.problema || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigoEntidadCobrar + '</td>';
+                html += '<td>' + entidadAfiliacion + '</td>';
+                html += '<td>' + codigoExtraido + '</td>';
+                html += '<td>' + problema + '</td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';

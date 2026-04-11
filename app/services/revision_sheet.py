@@ -159,7 +159,11 @@ from app.utils.formatting import (
 )
 
 # Importar reglas transversales
-from app.services.transversales import detect_decimales, detect_tipo_documento_edad
+from app.services.transversales import (
+    detect_decimales,
+    detect_tipo_documento_edad,
+    detect_codigo_entidad_vs_entidad_afiliacion,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +211,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "centro_costo": None,
         "codigo_entidad_cobrar": None,
         "entidad_cobrar": None,
+        "entidad_afiliacion": None,
         "tipo_factura_descripcion": None,
         "ide_contrato": None,
         "tipo_identificacion": None,
@@ -233,6 +238,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "centro_costo": "Centro Costo",
         "codigo_entidad_cobrar": "Cód Entidad Cobrar",
         "entidad_cobrar": "Entidad Cobrar",
+        "entidad_afiliacion": "Entidad Afiliación",
         "tipo_factura_descripcion": "Tipo Factura Descripción",
         "ide_contrato": "IDE Contrato",
         "tipo_identificacion": "Tipo Identificación",
@@ -2094,9 +2100,13 @@ def detect_all_problems(
         # reglas transversales
         decimales = detect_decimales(data_sheet, indices)
         tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+        # Nueva regla: Cód Entidad Cobrar vs Entidad Afiliación (solo loggear las 5 primeras filas)
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
+        )
         
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d",
-                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad))
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d",
+                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison))
         
         # Incluir TODOS los campos en el resultado
         return {
@@ -2126,12 +2136,14 @@ def detect_all_problems(
                 # reglas transversales
                 "decimales": decimales,
                 "tipo_identificacion_edad": tipo_identificacion_edad,
+                "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
                 "ide_contrato": len(problemas_ide_contrato),
                 "decimales": len(decimales),
                 "tipo_identificacion_edad": len(tipo_identificacion_edad),
+                "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
@@ -2143,6 +2155,11 @@ def detect_all_problems(
         conveniente_proc = _detect_convenio_procedimiento_equipos_basicos(data_sheet, indices)
         cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        
+        # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
+        )
         
         # Validación centro de costo (solo EQUIPOS BASICOS ODONTOLOGIA)
         centro_costo = _detect_centro_costo_odontologia(
@@ -2172,6 +2189,7 @@ def detect_all_problems(
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
+                "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "es_equipos_basicos": True,
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
@@ -2193,6 +2211,11 @@ def detect_all_problems(
             permitir_todos_centros=permitir_todos_centros,
         )
         
+        # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
+        )
+        
         return {
             "area": area,
             "problemas": {
@@ -2203,6 +2226,7 @@ def detect_all_problems(
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
+                "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             },
             "totales": {
                 "decimales": len(decimales),
@@ -2212,6 +2236,7 @@ def detect_all_problems(
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
+                "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }

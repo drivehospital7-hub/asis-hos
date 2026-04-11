@@ -163,6 +163,7 @@
                 </li>
               </ul>
             </li>
+            <li><strong>8. Entidad Cobrar vs Afiliación:</strong> Compara el código en "Cód Entidad Cobrar" con el código extraído de "Entidad Afiliación" (formato: {...})</li>
           </ul>
         </div>
       </div>
@@ -493,6 +494,8 @@ document.addEventListener('DOMContentLoaded', function() {
               headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
             } else if (error.tipo_key === 'centro_costo') {
               headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+            } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
+              headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
             } else {
               headersHtml = '<th>Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
             }
@@ -508,6 +511,7 @@ document.addEventListener('DOMContentLoaded', function() {
             let colspan = 3;
             if (error.tipo_key === 'tipo_identificacion_edad') colspan = 4;
             if (error.tipo_key === 'centro_costo') colspan = 5;
+            if (error.tipo_key === 'codigo_entidad_vs_afiliacion') colspan = 5;
             
             // Si hay más de 50, agregar botón para ver más
             if (error.facturas.length > LIMITE_INICIAL) {
@@ -531,6 +535,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + (item.fec_factura || '') + '</td>';
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
+              } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
+                html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
+                html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
+                html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
+                html += '<td>' + (item.problema || '') + '</td>';
               } else {
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
@@ -608,6 +617,8 @@ function mostrarMas(btn, errorData) {
     thead.innerHTML = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
   } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
     thead.innerHTML = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+  } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
+    thead.innerHTML = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
   }
   
   // Limpiar tabla y mostrar todos
@@ -627,6 +638,11 @@ function mostrarMas(btn, errorData) {
       html += '<td>' + (item.fec_factura || '') + '</td>';
       html += '<td>' + (item.centro_actual || '') + '</td>';
       html += '<td>' + (item.centro_deberia || '') + '</td>';
+    } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
+      html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
+      html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
+      html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
+      html += '<td>' + (item.problema || '') + '</td>';
     } else {
       html += '<td>' + (item.centro_actual || '') + '</td>';
       html += '<td>' + (item.centro_deberia || '') + '</td>';
@@ -692,6 +708,7 @@ function actualizarReglasModal() {
             </li>
           </ul>
         </li>
+        <li><strong>8. Entidad Cobrar vs Afiliación:</strong> Compara el código en "Cód Entidad Cobrar" con el código extraído de "Entidad Afiliación" (formato: {...})</li>
       `;
     }
   } else {
@@ -726,6 +743,7 @@ function actualizarReglasModal() {
             </li>
           </ul>
         </li>
+        <li><strong>8. Entidad Cobrar vs Afiliación:</strong> Compara el código en "Cód Entidad Cobrar" con el código extraído de "Entidad Afiliación" (formato: {...})</li>
       `;
     }
   }

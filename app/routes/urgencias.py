@@ -201,8 +201,27 @@ def export_urgencias():
                 "facturas": facturas_tipo_id,
             })
         
-        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad)",
-                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad))
+        # Reglas transversales: Cód Entidad Cobrar vs Entidad Afiliación
+        entidad_afiliacion = problemas_dict.get("codigo_entidad_vs_afiliacion", [])
+        if entidad_afiliacion:
+            facturas_entidad = []
+            for item in entidad_afiliacion[:50]:
+                facturas_entidad.append({
+                    "factura": item.get("factura", ""),
+                    "codigo_entidad_cobrar": item.get("codigo_entidad_cobrar", ""),
+                    "entidad_afiliacion": item.get("entidad_afiliacion", ""),
+                    "codigo_extraido_afiliacion": item.get("codigo_extraido_afiliacion", ""),
+                    "problema": item.get("problema", ""),
+                })
+            errores.append({
+                "tipo": "Entidad Cobrar vs Afiliación",
+                "tipo_key": "codigo_entidad_vs_afiliacion",
+                "cantidad": len(entidad_afiliacion),
+                "facturas": facturas_entidad,
+            })
+        
+        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad, %d entidad_afiliacion)",
+                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad), len(entidad_afiliacion))
         
         return jsonify({
             "status": "success",
