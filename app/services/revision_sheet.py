@@ -122,6 +122,23 @@ from app.constants import (
     # Nueva regla Código 861801 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE 958
     CODIGO_IDE_CONTRATO_861801_EMPRESA,
     IDE_CONTRATO_REQUERIDO_861801_EMPRESA,
+    # Nueva regla ESS062 + Código 861801 -> IDE Contrato debe ser 922
+    CODIGO_IDE_CONTRATO_861801_ESS062,
+    ENTIDAD_IDE_CONTRATO_ESS062,
+    IDE_CONTRATO_REQUERIDO_861801_ESS062,
+    # Nueva regla ESS062 + Código 890405 -> IDE Contrato según inserción (921 si tiene 861801, 922 si no)
+    CODIGO_IDE_CONTRATO_890405_ESS062,
+    IDE_CONTRATO_CON_INSERCION_890405_ESS062,
+    IDE_CONTRATO_SIN_INSERCION_890405_ESS062,
+    # Nueva regla ESSC62 + Código 861801 -> IDE Contrato debe ser 863
+    CODIGO_IDE_CONTRATO_861801_ESSC62,
+    ENTIDAD_IDE_CONTRATO_ESSC62,
+    IDE_CONTRATO_REQUERIDO_861801_ESSC62,
+    # Nueva regla ESSC62 + Código 890405 -> IDE Contrato según si tiene 890405 (862 si tiene, 863 si no)
+    CODIGO_IDE_CONTRATO_890405_ESSC62,
+    CODIGO_A_BUSCAR_890405_ESSC62,
+    IDE_CONTRATO_CON_INSERCION_890405_ESSC62,
+    IDE_CONTRATO_SIN_INSERCION_890405_ESSC62,
     # Nueva regla Código 890405 + Entidad=ESS118 + Entidad Cobrar="NUEVA EMPRESA PROMOTORA DE SALUD S.A." -> IDE según inserción
     CODIGO_IDE_CONTRATO_890405_EMPRESA,
     IDE_CONTRATO_CON_INSERCION_890405_EMPRESA,
@@ -1069,6 +1086,18 @@ def _detect_centro_costo_urgencias(
                 if codigo_normalized == CODIGO_INSERCION_BUSCAR:
                     identificaciones_con_insercion.add(ident_normalized)
     
+    # ----- Pre-recorrido:收集 identificaciones con código 890405 (para ESSC62)
+    identificaciones_con_890405 = set()
+    if ident_idx is not None and codigo_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero_ident = data_sheet.cell(row=row, column=ident_idx + 1).value
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if numero_ident and codigo:
+                ident_normalized = str(numero_ident).strip()
+                codigo_normalized = str(codigo).strip()
+                if codigo_normalized == CODIGO_A_BUSCAR_890405_ESSC62:
+                    identificaciones_con_890405.add(ident_normalized)
+    
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
@@ -1632,7 +1661,7 @@ def _detect_centro_costo_urgencias(
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": ide_esperado,
                         "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
-                    })
+                    }                    )
                     logger.debug(
                         "Fila %s: Entidad Cobrar=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
                         row,
@@ -1643,7 +1672,103 @@ def _detect_centro_costo_urgencias(
                         tiene_insercion,
                     )
 
-        # ----- Regla 25: Entidad -> IDE Contrato (mapeo directo, sin importar código)
+        # ----- Regla 25: ESS062 + Código 861801 -> IDE Contrato debe ser 922
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_ESS062 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS062:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_ESS062:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_ESS062,
+                    "nota": "ESS062 + Código 861801 -> IDE 922",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_ESS062,
+                )
+
+        # ----- Regla 26: ESS062 + Código 890405 -> IDE Contrato según inserción
+        # Si identificación tiene código 861801 -> IDE 921
+        # Si identificación NO tiene código 861801 -> IDE 922
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_ESS062 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS062:
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_ESS062 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_ESS062
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": "ESS062 + 890405 -> IDE 921 (con 861801)" if tiene_insercion else "ESS062 + 890405 -> IDE 922 (sin 861801)",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
+                )
+
+        # ----- Regla 27: ESSC62 + Código 861801 -> IDE Contrato debe ser 863
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_ESSC62 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC62:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_ESSC62:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_ESSC62,
+                    "nota": "ESSC62 + Código 861801 -> IDE 863",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_ESSC62,
+                )
+
+        # ----- Regla 28: ESSC62 + Código 890405 -> IDE Contrato según si tiene 890405
+        # Si identificación tiene código 890405 en otro procedimiento -> IDE 862
+        # Si identificación NO tiene código 890405 -> IDE 863
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_ESSC62 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC62:
+            tiene_890405 = ident_str in identificaciones_con_890405
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_ESSC62 if tiene_890405 else IDE_CONTRATO_SIN_INSERCION_890405_ESSC62
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": "ESSC62 + 890405 -> IDE 862 (con 890405)" if tiene_890405 else "ESSC62 + 890405 -> IDE 863 (sin 890405)",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Tiene 890405: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_890405,
+                )
+
+        # ----- Regla 29: Entidad -> IDE Contrato (mapeo directo, sin importar código)
         # Valida que cada entidad tenga su contrato específico
         if codigo_entidad_str and codigo_entidad_str in URGENCIA_ENTIDAD_CONTRATO:
             ide_contrato_requerido = URGENCIA_ENTIDAD_CONTRATO[codigo_entidad_str]
