@@ -185,10 +185,11 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<div class="mb-lg">';
             html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
             
-            // Determinar columnas según el tipo de error
-            const esCentrosCostos = error.tipo.includes('centros_de_costos') || error.tipo.includes('Centros de Costos');
-            const esIdeContrato = error.tipo.includes('ide_contrato') || error.tipo.includes('IDE Contrato');
-            const esVerificarDerechos = error.tipo.includes('Verificar Derechos');
+            // Determinar columnas según el tipo de error (case-insensitive)
+            const tipoLower = error.tipo.toLowerCase();
+            const esCentrosCostos = tipoLower.includes('centros_de_costos') || tipoLower.includes('centros de costos');
+            const esIdeContrato = tipoLower.includes('ide_contrato') || tipoLower.includes('ide contrato');
+            const esVerificarDerechos = tipoLower.includes('verificar derechos');
             
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
@@ -253,28 +254,39 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esIdeContrato) {
-              // IDE Contrato: 3 columnas
+              // IDE Contrato: 6 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>IDE Actual</th><th>IDE Debería</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th></tr></thead>';
               html += '<tbody>';
               
               function renderIdeContrato(items) {
                 let html = '';
                 items.slice(0, 50).forEach(function(item) {
                   let factura = '';
+                  let procedimiento = '';
+                  let codigo = '';
+                  let entidad = '';
                   let ideActual = '';
                   let ideDeberia = '';
+                  let nota = '';
                   
                   if (typeof item === 'object' && item !== null) {
                     factura = item.factura || '';
+                    procedimiento = item.procedimiento || '-';
+                    codigo = item.codigo || '-';
+                    entidad = item.entidad || '-';
                     ideActual = item.ide_contrato_actual || '';
                     ideDeberia = item.ide_contrato_deberia || '';
+                    nota = item.nota || '';
                   }
                   
                   html += '<tr>';
                   html += '<td>' + factura + '</td>';
+                  html += '<td>' + procedimiento + '</td>';
+                  html += '<td>' + codigo + '</td>';
+                  html += '<td>' + entidad + '</td>';
                   html += '<td>' + ideActual + '</td>';
-                  html += '<td>' + ideDeberia + '</td>';
+                  html += '<td>' + ideDeberia + (nota ? ' (' + nota + ')' : '') + '</td>';
                   html += '</tr>';
                 });
                 return html;
@@ -283,7 +295,7 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderIdeContrato(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';

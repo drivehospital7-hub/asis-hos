@@ -78,48 +78,86 @@ def export_urgencias():
     # Cleanup archivo temporal
     cleanup_temp_excel(temp_path)
 
+    # Debug: logging de la estructura completa
+    logger.info("Export result keys: %s", list(export_result.keys()))
+    if export_result.get("status") == "success":
+        problemas_data = export_result["data"].get("problemas", {})
+        logger.info("problemas_data keys: %s", list(problemas_data.keys()))
+        logger.info("problemas_data content: %s", problemas_data)
+        
+        # Extraer info de problemas - la estructura de detect_all_problems es:
+        # { "area": "...", "problemas": { "centros_de_costos": [...], "ide_contrato": [...] }, "totales": {...} }
+        problemas_dict = problemas_data.get("problemas", {})
+        centros = problemas_dict.get("centros_de_costos", [])
+        ide_contrato = problemas_dict.get("ide_contrato", [])
+        
+        logger.info("DATOS FINALES - centros_de_costos: %d, ide_contrato: %d", len(centros), len(ide_contrato))
+
     if export_result["status"] == "success":
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]
         
-        # Extraer info de problemas del nuevo campo "problemas"
+        # Extraer info de problemas - la estructura de detect_all_problems es:
+        # { "area": "...", "problemas": { "centros_de_costos": [...], "ide_contrato": [...] }, "totales": {...} }
         problemas_data = export_result["data"].get("problemas", {})
-        problemas = problemas_data.get("problemas", {})
+        problemas_dict = problemas_data.get("problemas", {})
         
         # Armar lista de errores para mostrar
         errores = []
-        for tipo, items in problemas.items():
-            if items:
-                facturas = []
-                for item in items[:50]:
-                    # Para urgencias: formato dict con factura, centro_actual, centro_deberia
-                    # o ide_contrato_actual, ide_contrato_deberia
-                    if isinstance(item, dict):
-                        factura_error = {"factura": item.get("factura", "")}
-                        
-                        # Agregar campos de centro de costo si existen
-                        if "centro_actual" in item and "centro_deberia" in item:
-                            factura_error["centro_actual"] = item.get("centro_actual", "")
-                            factura_error["centro_deberia"] = item.get("centro_deberia", "")
-                        # Agregar campos de IDE Contrato si existen
-                        if "ide_contrato_actual" in item and "ide_contrato_deberia" in item:
-                            factura_error["ide_contrato_actual"] = item.get("ide_contrato_actual", "")
-                            factura_error["ide_contrato_deberia"] = item.get("ide_contrato_deberia", "")
-                        
-                        facturas.append(factura_error)
-                    else:
-                        # Formato string
-                        facturas.append({
-                            "factura": item,
-                            "centro_actual": "",
-                            "centro_deberia": "",
-                        })
-                
-                errores.append({
-                    "tipo": tipo,
-                    "cantidad": len(items),
-                    "facturas": facturas,
+        
+        # Centros de costos
+        centros = problemas_dict.get("centros_de_costos", [])
+        if centros:
+            facturas_centros = []
+            for item in centros[:50]:
+                facturas_centros.append({
+                    "factura": item.get("factura", ""),
+                    "centro_actual": item.get("centro_actual", ""),
+                    "centro_deberia": item.get("centro_deberia", ""),
                 })
+                # Log por cada factura con error de centro de costo
+                logger.info("FACTURA CentroCosto: %s - Actual: '%s' -> Debería: '%s'",
+                           item.get("factura", ""),
+                           item.get("centro_actual", ""),
+                           item.get("centro_deberia", ""))
+            
+            errores.append({
+                "tipo": "No se encuentra coincidencia con los siguientes centros de costos",
+                "cantidad": len(centros),
+                "facturas": facturas_centros,
+            })
+        
+        # IDE Contrato
+        ide_contrato = problemas_dict.get("ide_contrato", [])
+        if ide_contrato:
+            facturas_ide = []
+            for item in ide_contrato[:50]:
+                factura_error = {
+                    "factura": item.get("factura", ""),
+                    "ide_contrato_actual": item.get("ide_contrato_actual", ""),
+                    "ide_contrato_deberia": item.get("ide_contrato_deberia", ""),
+                    "procedimiento": item.get("procedimiento", ""),
+                    "codigo": item.get("codigo", ""),
+                    "entidad": item.get("entidad", ""),
+                    "nota": item.get("nota", ""),
+                }
+                facturas_ide.append(factura_error)
+                # Log por cada factura con error de IDE Contrato
+                logger.info("FACTURA IDEContrato: %s - Código: %s, Entidad: %s - IDE Actual: '%s' -> Debería: '%s'",
+                           item.get("factura", ""),
+                           item.get("codigo", ""),
+                           item.get("entidad", ""),
+                           item.get("ide_contrato_actual", ""),
+                           item.get("ide_contrato_deberia", ""))
+            
+            errores.append({
+                "tipo": "Problemas de IDE Contrato",
+                "cantidad": len(ide_contrato),
+                "facturas": facturas_ide,
+            })
+        
+        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato)",
+                   len(errores), len(centros), len(ide_contrato))
         
         return jsonify({
             "status": "success",

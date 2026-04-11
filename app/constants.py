@@ -339,6 +339,19 @@ CODIGO_IDE_CONTRATO_906340 = "906340"
 ENTIDAD_IDE_CONTRATO_906340 = "ESS118"
 IDE_CONTRATO_REQUERIDO_906340 = "839"
 
+# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=861801 -> IDE Contrato debe ser 974
+# Urgencias y Contratos
+CODIGO_IDE_CONTRATO_861801 = "861801"
+ENTIDAD_IDE_CONTRATO_861801 = "ESS118"
+IDE_CONTRATO_REQUERIDO_861801 = "974"
+
+# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=890405 -> IDE Contrato debe ser 977 o 973 según inserción
+# Urgencias y Contratos - con lógica de inserción
+CODIGO_IDE_CONTRATO_890405 = "890405"
+ENTIDAD_IDE_CONTRATO_890405 = "ESS118"
+IDE_CONTRATO_SIN_INSERCION_890405 = "977"  # Si NO tiene código 861801
+IDE_CONTRATO_CON_INSERCION_890405 = "973"   # Si SÍ tiene código 861801
+
 # =============================================================================
 # EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar
 # =============================================================================

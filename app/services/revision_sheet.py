@@ -82,6 +82,15 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_906340,
     ENTIDAD_IDE_CONTRATO_906340,
     IDE_CONTRATO_REQUERIDO_906340,
+    # Nueva regla ESS118 + Código 861801 -> IDE Contrato debe ser 974
+    CODIGO_IDE_CONTRATO_861801,
+    ENTIDAD_IDE_CONTRATO_861801,
+    IDE_CONTRATO_REQUERIDO_861801,
+    # Nueva regla ESS118 + Código 890405 -> IDE Contrato 977 o 973 según inserción
+    CODIGO_IDE_CONTRATO_890405,
+    ENTIDAD_IDE_CONTRATO_890405,
+    IDE_CONTRATO_SIN_INSERCION_890405,
+    IDE_CONTRATO_CON_INSERCION_890405,
     # Equipos Básicos - Reglas independientes
     EQUIPOS_BASICOS_TARGET_PROCEDURES,
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
@@ -134,14 +143,15 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         "cantidad": None,
         "laboratorio": None,
         "centro_costo": None,
-        "codigo_entidad_cobrar": None,
+        "codigo_entidad_cobrar": None,  # Código de la entidad (para reglas)
+        "entidad_cobrar": None,         # Nombre de la entidad (para mostrar en HTML)
         "tipo_factura_descripcion": None,
         "ide_contrato": None,
         "tipo_identificacion": None,
         "fec_nacimiento": None,
         "fec_factura": None,
-        "profesional_identificacion": None,  # Nueva columna
-        "profesional_atiende": None,           # Nueva columna
+        "profesional_identificacion": None,
+        "profesional_atiende": None,
     }
     
     header_mapping = {
@@ -151,13 +161,38 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
         ("código tipo procedimiento", "codigo tipo procedimiento"): "codigo_tipo_procedimiento",
         ("tipo procedimiento",): "tipo_procedimiento",
         ("código",): "codigo",
-        ("procedimiento",): "procedimiento",
+        ("procedimiento", "procedimientos"): "procedimiento",
         ("nº identificación", "numero identificacion"): "identificacion",
         ("convenio facturado",): "convenio_facturado",
         ("cantidad",): "cantidad",
         ("laboratorio",): "laboratorio",
-        ("centro costo",): "centro_costo",
-        ("cód entidad cobrar",): "codigo_entidad_cobrar",
+        ("centro costo", "centro de costo"): "centro_costo",
+        ("cód entidad cobrar", "cod entidad cobrar"): "codigo_entidad_cobrar",  # Solo código
+        ("entidad cobrar",): "entidad_cobrar",  # Solo nombre
+        ("tipo factura descripción",): "tipo_factura_descripcion",
+        ("ide contrato",): "ide_contrato",
+        ("tipo identificación", "tipo identificacion"): "tipo_identificacion",
+        ("fec. nacimiento", "fecha nacimiento"): "fec_nacimiento",
+        ("fec. factura", "fecha factura", "fec factura", "fecha"): "fec_factura",
+        ("identificación profesional", "id profesional", "identificacion profesional", "profesional identificación", "identificacion prof"): "profesional_identificacion",
+        ("profesional atiende", "profesional"): "profesional_atiende",
+    }
+    
+    header_mapping = {
+        ("número factura", "numero factura"): "numero_factura",
+        ("vlr. subsidiado",): "vlr_subsidiado",
+        ("vlr. procedimiento",): "vlr_procedimiento",
+        ("código tipo procedimiento", "codigo tipo procedimiento"): "codigo_tipo_procedimiento",
+        ("tipo procedimiento",): "tipo_procedimiento",
+        ("código",): "codigo",  # Con tilde - no usar "codigo" sin tilde
+        ("procedimiento", "procedimientos"): "procedimiento",
+        ("nº identificación", "numero identificacion"): "identificacion",
+        ("convenio facturado",): "convenio_facturado",
+        ("cantidad",): "cantidad",
+        ("laboratorio",): "laboratorio",
+        ("centro costo", "centro de costo"): "centro_costo",
+        ("cód entidad cobrar", "cod entidad cobrar"): "codigo_entidad_cobrar",  # Código
+        ("entidad cobrar",): "entidad_cobrar",  # Nombre
         ("tipo factura descripción",): "tipo_factura_descripcion",
         ("ide contrato",): "ide_contrato",
         ("tipo identificación", "tipo identificacion"): "tipo_identificacion",
@@ -173,6 +208,12 @@ def _get_column_indices(headers: list[Any]) -> dict[str, int | None]:
             if normalized in variants:
                 indices[key] = i
                 break
+    
+    # Log de todos los índices detectados (útil para debug)
+    none_keys = [k for k, v in indices.items() if v is None]
+    if none_keys:
+        logger.warning("Columnas NO encontradas (None): %s", none_keys)
+    logger.info("Indices detectados: %s", {k: v for k, v in indices.items() if v is not None})
     
     return indices
 
@@ -947,12 +988,10 @@ def _detect_centro_costo_urgencias(
         ENTIDAD_IDE_CONTRATO_890405,
         IDE_CONTRATO_CON_INSERCION_890405,
         IDE_CONTRATO_SIN_INSERCION_890405,
-        CODIGO_INSERCION_BUSCAR,
-        # Nueva regla ESS118 + Código 735301
-        CODIGO_IDE_CONTRATO_735301,
-        ENTIDAD_IDE_CONTRATO_735301,
-        IDE_CONTRATO_REQUERIDO_735301,
     )
+    
+    # Debug: mostrar los índices detectados
+    logger.info("Indices detectados para urgencias: %s", indices)
     
     num_fact_idx = indices["numero_factura"]
     ident_idx = indices.get("identificacion")
@@ -963,6 +1002,10 @@ def _detect_centro_costo_urgencias(
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
     tipo_factura_descripcion_idx = indices.get("tipo_factura_descripcion")
     ide_contrato_idx = indices.get("ide_contrato")
+    proc_idx = indices.get("procedimiento")
+    
+    logger.info("Índices relevantes - codigo_tipo_proc: %s, codigo: %s, laboratorio: %s, centro_costo: %s, ide_contrato: %s, codigo_entidad: %s",
+                codigo_tipo_proc_idx, codigo_idx, laboratorio_idx, centro_costo_idx, ide_contrato_idx, codigo_entidad_cobrar_idx)
     
     if num_fact_idx is None:
         return []
@@ -1029,7 +1072,11 @@ def _detect_centro_costo_urgencias(
         if ident_idx is not None:
             numero_identificacion = data_sheet.cell(row=row, column=ident_idx + 1).value
         
-        # Normalizar strings
+        procedimiento = None
+        if proc_idx is not None:
+            procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        
+        # Normalizar strings (definir ANTES de usar)
         codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
         codigo_excluir = str(codigo).strip() if codigo else ""
         laboratorio_str = str(laboratorio).strip() if laboratorio else ""
@@ -1038,6 +1085,12 @@ def _detect_centro_costo_urgencias(
         tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         ide_contrato_str = str(ide_contrato).strip() if ide_contrato else ""
         ident_str = str(numero_identificacion).strip() if numero_identificacion else ""
+        proc_str = str(procedimiento).strip() if procedimiento else ""
+        
+        # Debug: log de las primeras filas para ver qué valores vienen
+        if row <= 5:
+            logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
+                       row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
         
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
         # (Independiente - con excepciones propias: no aplica a ciertos códigos)
@@ -1054,10 +1107,11 @@ def _detect_centro_costo_urgencias(
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
             })
             facturas_ya_procesadas_centros.add(factura_str)
-            logger.debug(
-                "Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s')",
+            logger.info(
+                "REGLA1: Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s', CódigoProc: '%s')",
                 row,
                 centro_costo,
+                codigo_excluir,
             )
         
         # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS
@@ -1070,8 +1124,8 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
                 })
                 facturas_ya_procesadas_centros.add(factura_str)
-                logger.debug(
-                    "Fila %s: Código=14, Centrodistinto a TRASLADOS",
+                logger.info(
+                    "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
                 )
         
@@ -1085,8 +1139,8 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
                 })
                 facturas_ya_procesadas_centros.add(factura_str)
-                logger.debug(
-                    "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
+                logger.info(
+                    "REGLA3: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
                     row,
                     codigo_excluir,
                     centro_costo_str,
@@ -1102,8 +1156,8 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
                 })
                 facturas_ya_procesadas_centros.add(factura_str)
-                logger.debug(
-                    "Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
+                logger.info(
+                    "REGLA4: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
                     row,
                     codigo_excluir,
                     centro_costo_str,
@@ -1124,8 +1178,8 @@ def _detect_centro_costo_urgencias(
                         "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
                     })
                     facturas_ya_procesadas_centros.add(factura_str)
-                    logger.debug(
-                        "Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
+                    logger.info(
+                        "REGLA5: Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
                         row,
                         codigo_excluir,
                         centro_costo_str,
@@ -1137,11 +1191,14 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_URGENCIAS:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_URGENCIAS,
                 })
-                logger.debug(
-                    "Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (IDE: '%s')",
+                logger.info(
+                    "REGLA6: Fila %s: Código=%s, Entidad=%s, IDE Contrato incorrecto (IDE: '%s')",
                     row,
                     codigo_excluir,
                     codigo_entidad_str,
@@ -1154,6 +1211,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801,
                 })
@@ -1168,6 +1228,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != ide_esperado:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": ide_esperado,
                     "tiene_insercion": ident_str in identificaciones_con_insercion,
@@ -1187,6 +1250,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_EPSIC5:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_EPSIC5,
                 })
@@ -1208,6 +1274,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != ide_esperado:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": ide_esperado,
                     "tiene_insercion": ident_str in identificaciones_con_insercion,
@@ -1227,6 +1296,9 @@ def _detect_centro_costo_urgencias(
                 if ide_contrato_str == IDE_CONTRATO_PROHIBIDO_ESS118:
                     problemas_ide_contrato.append({
                         "factura": factura_str,
+                        "procedimiento": proc_str,
+                        "codigo": codigo_excluir,
+                        "entidad": codigo_entidad_str,
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": "cualquiera EXCEPTO 969",
                     })
@@ -1243,6 +1315,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_735301:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_735301,
                 })
@@ -1262,6 +1337,9 @@ def _detect_centro_costo_urgencias(
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
                     "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_906340,
                 })
@@ -1274,7 +1352,107 @@ def _detect_centro_costo_urgencias(
                     IDE_CONTRATO_REQUERIDO_906340,
                 )
 
+        # ----- Regla 14: Cód Entidad Cobrar=ESS118 + Código=861801 -> IDE Contrato debe ser 974
+        # Urgencias y Contratos
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_861801:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801,
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801,
+                )
+
+        # ----- Regla 15: Cód Entidad Cobrar=ESS118 + Código=890405 -> IDE Contrato 977 o 973 según inserción
+        # Urgencias y Contratos - si la identificación tiene código 861801 en otra fila
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405:
+            # Determinar IDE esperado según si tiene inserción
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
+                )
+
     return problemas_centros, problemas_ide_contrato
+
+
+def _log_resumen_ide_contrato(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> None:
+    """
+    Log de resumen de valores únicos de código y entidad para debug de reglas IDE Contrato.
+    """
+    codigo_idx = indices.get("codigo")
+    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+    ide_contrato_idx = indices.get("ide_contrato")
+    
+    if codigo_idx is None or codigo_entidad_idx is None:
+        logger.warning("No hay índices de código o entidad para resumir")
+        return
+    
+    codigos_set = set()
+    entidades_set = set()
+    ide_contratos_set = set()
+    
+    for row in range(2, min(data_sheet.max_row + 1, 500)):  # Limitado a primeras 500 filas
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
+        
+        if codigo:
+            codigos_set.add(str(codigo).strip())
+        if entidad:
+            entidades_set.add(str(entidad).strip())
+        
+        if ide_contrato_idx is not None:
+            ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+            if ide:
+                ide_contratos_set.add(str(ide).strip())
+    
+    # Mostrar las primeras 10 filas de datos crudos
+    logger.warning("=== PRIMERAS FILAS DATOS IDE CONTRATO ===")
+    for row in range(2, min(data_sheet.max_row + 1, 12)):
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value if codigo_entidad_idx is not None else None
+        ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value if ide_contrato_idx is not None else None
+        factura = data_sheet.cell(row=row, column=indices.get("numero_factura", 0) + 1).value if indices.get("numero_factura") is not None else None
+        
+        logger.warning("Fila %d: Factura=%s, Código=%s, CódEntidad=%s, IDE=%s",
+                       row, factura, codigo, codigo_entidad, ide)
+    logger.warning("==========================================")
+    
+    logger.warning("=== RESUMEN DATOS EXCEL PARA REGLAS IDE CONTRATO ===")
+    logger.warning("Códigos únicos encontrados (%d): %s", len(codigos_set), sorted(codigos_set))
+    logger.warning("Códigos Entidad únicos encontrados (%d): %s", len(entidades_set), sorted(entidades_set))
+    logger.warning("IDE Contrato únicos encontrados (%d): %s", len(ide_contratos_set), sorted(ide_contratos_set))
+    logger.warning("=========================================================")
 
 
 def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: int = 2) -> None:
@@ -1334,6 +1512,7 @@ def create_revision_sheet(
     # Detectar problemas según el área
     if area == AREA_URGENCIAS:
         # Urgencias: enlistar facturas con problemas de centro de costo y IDE Contrato
+        _log_resumen_ide_contrato(data_sheet, indices)
         problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
         # Formatear para Excel: "FACTURA CENTRO_ACTUAL -> CENTRO_DEBERIA"
@@ -1342,9 +1521,9 @@ def create_revision_sheet(
             for item in problemas_centros
         ]
         
-        # Formatear IDE Contrato: TODO en un solo bloque
+        # Formatear IDE Contrato: incluir todos los datos
         ide_contrato_str = [
-            f"{item['factura']} {item['ide_contrato_actual']} -> {item['ide_contrato_deberia']}"
+            f"{item['factura']}|{item.get('procedimiento', '-')}|{item.get('codigo', '-')}|{item.get('entidad', '-')}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
             for item in problemas_ide_contrato
         ]
         
@@ -1352,16 +1531,13 @@ def create_revision_sheet(
         _write_column(sheet, 1, centros_costo_str, start_row=3)
         _write_column(sheet, 2, ide_contrato_str, start_row=3)
         
-        # ParaJSON: un solo bloque para IDE Contrato
+        # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
                 f"{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
                 for item in problemas_centros
             ],
-            "Problemas de IDE Contrato": [
-                f"{item['factura']}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
-                for item in problemas_ide_contrato
-            ],
+            "Problemas de IDE Contrato": problemas_ide_contrato,
         }
     else:
         # Odontología: todas las validaciones existentes
@@ -1486,8 +1662,13 @@ def detect_all_problems(
     
     if area == AREA_URGENCIAS:
         # Urgencias: detectar centros de costo y IDE Contrato
+        _log_resumen_ide_contrato(data_sheet, indices)
         problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
         
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d",
+                   len(problemas_centros), len(problemas_ide_contrato))
+        
+        # Incluir TODOS los campos en el resultado
         return {
             "area": area,
             "problemas": {
@@ -1504,6 +1685,11 @@ def detect_all_problems(
                         "factura": item["factura"],
                         "ide_contrato_actual": item["ide_contrato_actual"],
                         "ide_contrato_deberia": item["ide_contrato_deberia"],
+                        # Incluir campos adicionales si existen
+                        "procedimiento": item.get("procedimiento", ""),
+                        "codigo": item.get("codigo", ""),
+                        "entidad": item.get("entidad", ""),
+                        "nota": item.get("nota", ""),
                     }
                     for item in problemas_ide_contrato
                 ],
