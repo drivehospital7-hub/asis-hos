@@ -229,7 +229,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "vlr_procedimiento": "Vlr. Procedimiento",
         "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
         "tipo_procedimiento": "Tipo Procedimiento",
-        "codigo": "Código",
+        "codigo": "Cód. Equivalente CUPS",
         "procedimiento": "Procedimiento",
         "identificacion": "Nº Identificación",
         "convenio_facturado": "Convenio Facturado",
@@ -248,23 +248,23 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "profesional_atiende": "Profesional Atiende",
     }
     
-    # Normalizar headers del Excel para comparación exacta
+# Normalizar headers del Excel para comparación EXACTA (sin strip para mantener espacios)
     excel_headers_normalized: dict[str, int] = {}
     for i, header in enumerate(headers):
         if header is not None:
-            # Normalizar:strip y lowercase, pero guardamos el original para сравнение
+            # Usar el header tal cual viene del Excel
             normalized = str(header).strip()
             excel_headers_normalized[normalized] = i
     
     # Buscar coincidencia EXACTA para cada columna requerida
     missing_columns: list[str] = []
     for key, required_name in required_headers.items():
+        # Buscar con el nombre exacto
         if required_name in excel_headers_normalized:
             indices[key] = excel_headers_normalized[required_name]
         else:
-            # NO infiere - reporta como faltante
+            # NO encontrado - reportar como faltante
             missing_columns.append(required_name)
-            logger.warning("Columna NO encontrada (coincidencia exacta requerida): '%s'", required_name)
     
     # Log de结果
     found_columns = [k for k, v in indices.items() if v is not None]
@@ -1006,9 +1006,68 @@ def _detect_centro_costo_odontologia(
     return problemas
 
 
+def _get_codigos_no_en_db_ess118(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> set[str]:
+    """
+    Retorna set de códigos CUPS para ESS118 que NO están en la DB.
+    
+    Returns:
+        Set de códigos que no se encontraron en procedimientos.db
+    """
+    from app.services.procedimientos_db import get_procedimiento
+    
+    EPS_DB = "EMSSANAR_CAPITA"
+    
+    codigo_idx = indices.get("codigo")
+    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+    entidad_cobrar_idx = indices.get("entidad_cobrar")
+    
+    if codigo_idx is None:
+        return set()
+    
+    # Collect códigos únicos para ESS118
+    codigos_ess118 = set()
+    
+    for row in range(2, data_sheet.max_row + 1):
+        es_ess118 = False
+        
+        if codigo_entidad_idx is not None:
+            codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
+            if codigo_entidad:
+                entidad_normalizada = str(codigo_entidad).strip().upper()
+                if "ESS118" in entidad_normalizada:
+                    es_ess118 = True
+        
+        if not es_ess118 and entidad_cobrar_idx is not None:
+            entidad = data_sheet.cell(row=row, column=entidad_cobrar_idx + 1).value
+            if entidad:
+                entidad_normalizada = str(entidad).strip().upper()
+                if "ESS118" in entidad_normalizada:
+                    es_ess118 = True
+        
+        if not es_ess118:
+            continue
+        
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        if codigo:
+            codigos_ess118.add(str(codigo).strip())
+    
+    # Filtrar los que no están en la DB
+    codigos_no_en_db = set()
+    for codigo in codigos_ess118:
+        proc = get_procedimiento(EPS_DB, codigo)
+        if not proc:
+            codigos_no_en_db.add(codigo)
+    
+    return codigos_no_en_db
+
+
 def _detect_centro_costo_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    codigos_no_en_db: set[str] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """
     Detecta facturas con problemas de centro de costo y advertencias de derechos:
@@ -1017,7 +1076,12 @@ def _detect_centro_costo_urgencias(
     -Regla 3: Código en (990211, 890205, 890405, 861801) Y Centro != PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN
     -Regla 4: Código en (735301, 90DS02) Y Centro != QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO
     -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
-    -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
+    -Regla nueva: Si código NO está en DB Y Entidad=ESS118 Y IDE=969 -> ERROR
+    
+    Args:
+        data_sheet: Hoja de datos
+        indices: Índices de columnas
+        codigos_no_en_db: Set de códigos que no están en la DB (para regla 969)
     
     Returns:
         Tuple de dos listas:
@@ -1822,7 +1886,103 @@ def _detect_centro_costo_urgencias(
                     contratos_validos,
                 )
 
+    # ----- NUEVA REGLA: Código NO está en DB + Entidad=ESS118 + IDE=969 -> ERROR
+    # Si el código no existe en la base de datos de procedimientos, no puede tener IDE 969
+    if codigos_no_en_db and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118:
+        if codigo_excluir in codigos_no_en_db:
+            if ide_contrato_str == IDE_CONTRATO_PROHIBIDO_ESS118:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": "cualquiera EXCEPTO 969",
+                    "nota": "Código NO encontrado en DB de procedimientos",
+                })
+                logger.info(
+                    "REGLA DB: Fila %s: Código '%s' NO está en DB + IDE 969 -> ERROR",
+                    row,
+                    codigo_excluir,
+                )
+
     return problemas_centros, problemas_ide_contrato
+
+
+def _log_verificacion_codigos_ess118(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """
+    Verifica códigos CUPS de ESS118 contra la base de datos de procedimientos.
+    
+    Muestra en el log todos los códigos que NO se encuentran en la DB (EMSSANAR_CAPITA).
+    
+    Returns:
+        Lista de códigos no encontrados en la DB
+    """
+    from app.services.procedimientos_db import get_procedimiento
+    
+    EPS_DB = "EMSSANAR_CAPITA"
+    
+    # Usar nombres exactos de columnas
+    codigo_idx = indices.get("Cód. Equivalente CUPS")
+    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+    entidad_cobrar_idx = indices.get("entidad_cobrar")
+    codigo_tipo_proc_idx = indices.get("Código Tipo Procedimiento")
+    
+    if codigo_idx is None:
+        logger.warning("No hay índice de Cód. Equivalente CUPS")
+        return set()
+    
+    # Collect códigos únicos para ESS118
+    codigos_ess118 = set()
+    
+    for row in range(2, data_sheet.max_row + 1):
+        # Detectar si es ESS118 (por código entidad o nombre)
+        es_ess118 = False
+        
+        if codigo_entidad_idx is not None:
+            codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
+            if codigo_entidad:
+                entidad_normalizada = str(codigo_entidad).strip().upper()
+                if "ESS118" in entidad_normalizada:
+                    es_ess118 = True
+        
+        if not es_ess118 and entidad_cobrar_idx is not None:
+            entidad = data_sheet.cell(row=row, column=entidad_cobrar_idx + 1).value
+            if entidad:
+                entidad_normalizada = str(entidad).strip().upper()
+                if "ESS118" in entidad_normalizada:
+                    es_ess118 = True
+        
+        if not es_ess118:
+            continue
+        
+        # Verificar例外ión: Código Tipo Procedimiento = 09, 12, 13 → no incluir
+        codigo_tipo = None
+        if codigo_tipo_proc_idx:
+            codigo_tipo = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+        
+        if codigo_tipo and str(codigo_tipo).strip() in ["09", "12", "13"]:
+            continue
+        
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        if codigo:
+            codigos_ess118.add(str(codigo).strip())
+    
+    if not codigos_ess118:
+        return set()
+    
+    # Verificar cada código contra la DB
+    codigos_no_encontrados = set()
+    
+    for codigo in codigos_ess118:
+        proc = get_procedimiento(EPS_DB, codigo)
+        if not proc:
+            codigos_no_encontrados.add(codigo)
+    
+    return codigos_no_encontrados
 
 
 def _log_resumen_ide_contrato(
@@ -1935,11 +2095,19 @@ def create_revision_sheet(
         cell.border = header_style["border"]
         cell.alignment = header_style["alignment"]
     
-    # Detectar problemas según el área
+# Detectar problemas según el área
     if area == AREA_URGENCIAS:
-        # Urgencias: enlistar facturas con problemas de centro de costo y IDE Contrato
-        _log_resumen_ide_contrato(data_sheet, indices)
-        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
+        # Urgencias: detectar códigos NO en DB para ESS118
+        logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
+        codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
+        if codigos_no_en_db:
+            logger.warning("Códigos NO encontrados en DB para ESS118 (%d): %s",
+                        len(codigos_no_en_db), sorted(codigos_no_en_db))
+        else:
+            logger.warning("Todos los códigos de ESS118 están en DB")
+        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencies(
+            data_sheet, indices, codigos_no_en_db
+        )
         
         # Formatear para Excel: "FACTURA CENTRO_ACTUAL -> CENTRO_DEBERIA"
         centros_costo_str = [
@@ -2093,9 +2261,79 @@ def detect_all_problems(
         logger.error("Columnas faltantes en el Excel: %s", missing_columns)
     
     if area == AREA_URGENCIAS:
-        # Urgencias: detectar centros de costo, IDE Contrato y reglas transversales
-        _log_resumen_ide_contrato(data_sheet, indices)
-        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(data_sheet, indices)
+        # Urgencias: detectar códigos NO en DB con IDE=969
+        # Excluir Código Tipo Procedimiento = 09, 12, 13
+        
+        # Debug: mostrar índices encontrados en el dict 'indices'
+        logger.warning("=== DEBUG: Indices del dict para ESS118 ===")
+        logger.warning(f"  Cód. Equivalente CUPS: {indices.get('codigo')}")
+        logger.warning(f"  Código Tipo Procedimiento: {indices.get('codigo_tipo_procedimiento')}")
+        logger.warning(f"  Codigo_Entidad: {indices.get('codigo_entidad_cobrar')}")
+        logger.warning(f"  IDE Contrato: {indices.get('ide_contrato')}")
+        
+        logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
+        codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
+        
+        # Debug: mostrar valores de las primeras filas ESS118
+        logger.warning("=== DEBUG: 5 primeras filas ESS118 ===")
+        codigo_equiv_idx = indices.get("codigo")
+        codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
+        codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+        ide_idx = indices.get("ide_contrato")
+        
+        count = 0
+        for row in range(2, data_sheet.max_row + 1):
+            entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value if codigo_entidad_idx is not None else None
+            if entidad and "ESS118" in str(entidad).upper():
+                cod_equiv = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value if codigo_equiv_idx is not None else None
+                cod_tipo = data_sheet.cell(row=row, column=codigo_tipo_idx + 1).value if codigo_tipo_idx is not None else None
+                ide = data_sheet.cell(row=row, column=ide_idx + 1).value if ide_idx is not None else None
+                logger.warning(f"  Fila {row}: equiv={cod_equiv}, tipo={cod_tipo}, IDE={ide}")
+                count += 1
+                if count >= 5:
+                    break
+        
+        # Buscar los que tienen IDE=969
+        if codigos_no_en_db:
+            ide_contrato_idx = indices.get("ide_contrato")
+            codigo_equiv_idx = indices.get("codigo")
+            codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+            codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
+            
+            codigos_no_en_db_con_969 = set()
+            
+            if ide_contrato_idx and codigo_equiv_idx and codigo_entidad_idx:
+                for row in range(2, data_sheet.max_row + 1):
+                    codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
+                    if codigo_entidad and "ESS118" in str(codigo_entidad).upper():
+                        codigo = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
+                        ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+                        
+                        # Verificar excepción: Código Tipo Procedimiento
+                        codigo_tipo = None
+                        if codigo_tipo_idx:
+                            codigo_tipo = data_sheet.cell(row=row, column=codigo_tipo_idx + 1).value
+                        
+                        # Si es 09, 12, o 13 → no es error
+                        if codigo_tipo and str(codigo_tipo).strip() in ["09", "12", "13"]:
+                            continue
+                        
+                        if codigo and ide:
+                            codigo_str = str(codigo).strip()
+                            ide_str = str(ide).strip()
+                            
+                            if codigo_str in codigos_no_en_db and ide_str == "969":
+                                codigos_no_en_db_con_969.add(codigo_str)
+            
+            if codigos_no_en_db_con_969:
+                logger.warning("Códigos NO en DB + IDE=969 (%d): %s",
+                            len(codigos_no_en_db_con_969), sorted(codigos_no_en_db_con_969))
+            else:
+                logger.warning("No hay códigos sin DB con IDE=969")
+        
+        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(
+            data_sheet, indices, codigos_no_en_db
+        )
         
         # reglas transversales
         decimales = detect_decimales(data_sheet, indices)
