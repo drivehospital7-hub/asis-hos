@@ -2105,7 +2105,7 @@ def create_revision_sheet(
                         len(codigos_no_en_db), sorted(codigos_no_en_db))
         else:
             logger.warning("Todos los códigos de ESS118 están en DB")
-        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencies(
+        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(
             data_sheet, indices, codigos_no_en_db
         )
         
@@ -2274,33 +2274,14 @@ def detect_all_problems(
         logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
         codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
         
-        # Debug: mostrar valores de las primeras filas ESS118
-        logger.warning("=== DEBUG: 5 primeras filas ESS118 ===")
-        codigo_equiv_idx = indices.get("codigo")
-        codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
-        codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
-        ide_idx = indices.get("ide_contrato")
+        # Buscar los códigos sin DB que tienen IDE=969
+        codigos_no_en_db_con_969 = set()
         
-        count = 0
-        for row in range(2, data_sheet.max_row + 1):
-            entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value if codigo_entidad_idx is not None else None
-            if entidad and "ESS118" in str(entidad).upper():
-                cod_equiv = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value if codigo_equiv_idx is not None else None
-                cod_tipo = data_sheet.cell(row=row, column=codigo_tipo_idx + 1).value if codigo_tipo_idx is not None else None
-                ide = data_sheet.cell(row=row, column=ide_idx + 1).value if ide_idx is not None else None
-                logger.warning(f"  Fila {row}: equiv={cod_equiv}, tipo={cod_tipo}, IDE={ide}")
-                count += 1
-                if count >= 5:
-                    break
-        
-        # Buscar los que tienen IDE=969
         if codigos_no_en_db:
             ide_contrato_idx = indices.get("ide_contrato")
             codigo_equiv_idx = indices.get("codigo")
             codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
             codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
-            
-            codigos_no_en_db_con_969 = set()
             
             if ide_contrato_idx and codigo_equiv_idx and codigo_entidad_idx:
                 for row in range(2, data_sheet.max_row + 1):
@@ -2331,9 +2312,74 @@ def detect_all_problems(
             else:
                 logger.warning("No hay códigos sin DB con IDE=969")
         
+        # Debug: mostrar valores de las primeras filas ESS118
+        logger.warning("=== DEBUG: 5 primeras filas ESS118 ===")
+        codigo_equiv_idx = indices.get("codigo")
+        codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
+        codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
+        ide_idx = indices.get("ide_contrato")
+        
+        count = 0
+        for row in range(2, data_sheet.max_row + 1):
+            entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value if codigo_entidad_idx is not None else None
+            if entidad and "ESS118" in str(entidad).upper():
+                cod_equiv = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value if codigo_equiv_idx is not None else None
+                cod_tipo = data_sheet.cell(row=row, column=codigo_tipo_idx + 1).value if codigo_tipo_idx is not None else None
+                ide = data_sheet.cell(row=row, column=ide_idx + 1).value if ide_idx is not None else None
+                logger.warning(f"  Fila {row}: equiv={cod_equiv}, tipo={cod_tipo}, IDE={ide}")
+                count += 1
+                if count >= 5:
+                    break
+        
         problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(
             data_sheet, indices, codigos_no_en_db
         )
+        
+        # Agregar códigos sin DB a la lista de ide_contrato directamente
+        # Estos tienen IDE=969 y código no está en la DB
+        if codigos_no_en_db_con_969:
+            # Buscar las facturas que tienen estos códigos y crear entradas de error
+            codigo_equiv_idx = indices.get("codigo")
+            ide_contrato_idx = indices.get("ide_contrato")
+            num_fact_idx = indices.get("numero_factura")
+            procedimiento_idx = indices.get("procedimiento")
+            entidad_idx = indices.get("codigo_entidad_cobrar") or indices.get("entidad_cobrar")
+            
+            if codigo_equiv_idx and ide_contrato_idx and num_fact_idx:
+                for row in range(2, data_sheet.max_row + 1):
+                    codigo = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
+                    ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+                    
+                    if codigo and ide:
+                        codigo_str = str(codigo).strip()
+                        ide_str = str(ide).strip()
+                        
+                        # Si el código no está en DB y tiene IDE=969, agregarlo a ide_contrato
+                        if codigo_str in codigos_no_en_db_con_969 and ide_str == "969":
+                            factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value or ""
+                            
+                            # Obtener procedimiento
+                            procedimiento = ""
+                            if procedimiento_idx is not None:
+                                procedimiento = data_sheet.cell(row=row, column=procedimiento_idx + 1).value or ""
+                            
+                            # Obtener entidad
+                            entidad = ""
+                            if entidad_idx is not None:
+                                entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value or ""
+                            
+                            # Agregar como problema de ide_contrato con nota especial
+                            problemas_ide_contrato.append({
+                                "factura": str(factura),
+                                "ide_contrato_actual": ide_str,
+                                "ide_contrato_deberia": "SIN CONTRATO",
+                                "procedimiento": str(procedimiento),
+                                "codigo": codigo_str,
+                                "entidad": str(entidad),
+                                "nota": "Código NO está en Base de Datos",
+                            })
+                
+                logger.info("Agregados %d códigos sin DB a problemas_ide_contrato", len(codigos_no_en_db_con_969))
         
         # reglas transversales
         decimales = detect_decimales(data_sheet, indices)
@@ -2384,6 +2430,7 @@ def detect_all_problems(
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "codigos_sin_db_ide_969": sorted(codigos_no_en_db_con_969) if codigos_no_en_db_con_969 else [],
         }
     elif area == AREA_EQUIPOS_BASICOS:
         # Equipos Básicos: usar reglas independientes configurables

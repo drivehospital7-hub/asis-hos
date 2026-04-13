@@ -178,6 +178,21 @@ document.addEventListener('DOMContentLoaded', function() {
         const errores = result.data.errores || [];
         const totalErrores = result.data.total_errores || 0;
         
+        // Debug: mostrar todos los tipos de errores
+        console.log('=== ERRORES ===');
+        errores.forEach(function(e) {
+          console.log('Tipo:', e.tipo, '- Cantidad:', e.cantidad, '- Key:', e.tipo_key, '- Facturas:', JSON.stringify(e.facturas).substring(0, 100));
+        });
+        
+        // Buscar específicamente la categoría de códigos sin DB
+        console.log('>>> TODOS los errores:');
+        errores.forEach(function(e, i) {
+          console.log('  [' + i + '] tipo_key:', e.tipo_key, ', tipo:', e.tipo, ', cantidad:', e.cantidad);
+        });
+        
+        const codigosSinDB = errores.find(function(e) { return e.tipo_key === 'codigos_sin_db_ide_969'; });
+        console.log('>>> Códigos sin DB encontrado:', codigosSinDB);
+        
         if (errores.length > 0) {
           let html = '<p class="mb-md"><strong>Total errores: ' + totalErrores + '</strong></p>';
           
@@ -185,15 +200,16 @@ document.addEventListener('DOMContentLoaded', function() {
             html += '<div class="mb-lg">';
             html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
             
-            // Determinar columnas según el tipo de error (case-insensitive)
-            const tipoLower = error.tipo.toLowerCase();
-            const esCentrosCostos = tipoLower.includes('centros_de_costos') || tipoLower.includes('centros de costos');
-            const esIdeContrato = tipoLower.includes('ide_contrato') || tipoLower.includes('ide contrato');
-            const esVerificarDerechos = tipoLower.includes('verificar derechos');
-            const esDecimales = tipoLower.includes('decimales') || error.tipo_key === 'decimales';
-            const esTipoIdentificacion = tipoLower.includes('tipo identificación') || error.tipo_key === 'tipo_identificacion_edad';
-            const esCodigoEntidadVsAfiliacion = error.tipo_key === 'codigo_entidad_vs_afiliacion' || tipoLower.includes('entidad cobrar vs afiliación');
-            
+// Determinar columnas según el tipo de error (prioridad por tipo_key exacto)
+            const tipoKey = error.tipo_key || '';
+            const esCodigosSinDB = tipoKey === 'codigos_sin_db_ide_969';
+            const esIdeContrato = tipoKey === 'ide_contrato';
+            const esCentrosCostos = tipoKey === 'centros_de_costos' || error.tipo.toLowerCase().includes('centros de costos');
+            const esVerificarDerechos = tipoKey === 'verificar_derechos';
+            const esDecimales = tipoKey === 'decimales';
+            const esTipoIdentificacion = tipoKey === 'tipo_identificacion_edad';
+const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
+              
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
               html += '<table class="table">';
@@ -256,8 +272,10 @@ document.addEventListener('DOMContentLoaded', function() {
               }
               
               html += '</tbody></table>';
-            } else if (esIdeContrato) {
-              // IDE Contrato: 6 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería)
+            }
+            
+            // IDE Contrato: 6 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería)
+            if (esIdeContrato) {
               html += '<table class="table">';
               html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th></tr></thead>';
               html += '<tbody>';
@@ -353,6 +371,27 @@ document.addEventListener('DOMContentLoaded', function() {
               
               if (error.facturas.length > 50) {
                 html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esCodigosSinDB) {
+              // Códigos sin DB con IDE 969: solo 1 columna (código)
+              html += '<table class="table">';
+              html += '<thead><tr><th>Código</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let codigo = '';
+                if (typeof item === 'object' && item !== null) {
+                  codigo = item.codigo || '';
+                } else {
+                  codigo = item || '';
+                }
+                html += '<tr><td>' + codigo + '</td></tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="1"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';

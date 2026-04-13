@@ -140,6 +140,7 @@ def export_urgencias():
             
             errores.append({
                 "tipo": "No se encuentra coincidencia con los siguientes centros de costos",
+                "tipo_key": "centro_costo",
                 "cantidad": len(centros),
                 "facturas": facturas_centros,
             })
@@ -169,6 +170,7 @@ def export_urgencias():
             
             errores.append({
                 "tipo": "Problemas de IDE Contrato",
+                "tipo_key": "ide_contrato",
                 "cantidad": len(ide_contrato),
                 "facturas": facturas_ide,
             })
@@ -219,6 +221,9 @@ def export_urgencias():
                 "cantidad": len(entidad_afiliacion),
                 "facturas": facturas_entidad,
             })
+        
+        # Los códigos sin DB ya están incluídos en ide_contrato con ide_contrato_deberia = "SIN CONTRATO"
+        # No necesitamos crear un grupo de error separado
         
         logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad, %d entidad_afiliacion)",
                    len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad), len(entidad_afiliacion))
