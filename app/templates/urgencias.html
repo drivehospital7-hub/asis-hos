@@ -208,7 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const esVerificarDerechos = tipoKey === 'verificar_derechos';
             const esDecimales = tipoKey === 'decimales';
             const esTipoIdentificacion = tipoKey === 'tipo_identificacion_edad';
-const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
+            const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
               
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
@@ -321,7 +321,7 @@ const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
               
               html += '</tbody></table>';
             } else if (esDecimales) {
-              // Decimales: solo 1 columna (factura)
+              // Decimales: solo 1 columna (factura) - se deduplica por factura
               console.log('Renderizando decimales:', error.facturas);
               html += '<table class="table">';
               html += '<thead><tr><th>Factura</th></tr></thead>';

@@ -122,9 +122,10 @@ def export_urgencias():
         # Armar lista de errores para mostrar
         errores = []
         
-        # Centros de costos
+        # Centros de costos - MOSTRAR TODOS los errores (sin deduplicar por factura)
         centros = problemas_dict.get("centros_de_costos", [])
         if centros:
+            # No deduplicamos - mostramos todos los errores de cada factura
             facturas_centros = []
             for item in centros[:50]:
                 facturas_centros.append({
@@ -132,7 +133,6 @@ def export_urgencias():
                     "centro_actual": item.get("centro_actual", ""),
                     "centro_deberia": item.get("centro_deberia", ""),
                 })
-                # Log por cada factura con error de centro de costo
                 logger.info("FACTURA CentroCosto: %s - Actual: '%s' -> Debería: '%s'",
                            item.get("factura", ""),
                            item.get("centro_actual", ""),
@@ -140,7 +140,7 @@ def export_urgencias():
             
             errores.append({
                 "tipo": "No se encuentra coincidencia con los siguientes centros de costos",
-                "tipo_key": "centro_costo",
+                "tipo_key": "centros_de_costos",
                 "cantidad": len(centros),
                 "facturas": facturas_centros,
             })
@@ -178,11 +178,12 @@ def export_urgencias():
         # Reglas transversales: Decimales
         decimales = problemas_dict.get("decimales", [])
         if decimales:
+            # Ahora cada fila con decimales se incluye (no deduplicar por factura)
             errores.append({
                 "tipo": "Decimales",
                 "tipo_key": "decimales",
                 "cantidad": len(decimales),
-                "facturas": [{"factura": f} for f in decimales[:50]],
+                "facturas": decimales[:50],  # Ya es lista de dicts con "factura" y "valores"
             })
         
         # Reglas transversales: Tipo Identificación vs Edad
