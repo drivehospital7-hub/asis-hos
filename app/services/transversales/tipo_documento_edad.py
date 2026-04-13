@@ -105,7 +105,7 @@ def detect_tipo_documento_edad(
             row, edad, tipo_id_str, tipo_correcto
         )
         
-        # Si hay error, registrar
+        # Si hay error, registrar ( deduplicar por factura)
         if tipo_correcto and tipo_id_str != tipo_correcto:
             problemas.append({
                 "factura": factura_str,

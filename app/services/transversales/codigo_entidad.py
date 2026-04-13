@@ -109,7 +109,7 @@ def detect_codigo_entidad_vs_entidad_afiliacion(
         # VALIDACIÓN: Comparar Cód Entidad Cobrar vs código extraído de Entidad Afiliación
         # Solo validamos si se pudo extraer código de la afiliación
         if codigo_extraido and codigo_str.upper() != codigo_extraido.upper():
-            # Los códigos no coinciden - registrar como problema (si no está repetido)
+            # Los códigos no coinciden - registrar como problema ( deduplicar por factura)
             if numero_factura and numero_factura in facturas_ya_procesadas:
                 continue  # Ya procesamos esta factura
             
@@ -123,15 +123,16 @@ def detect_codigo_entidad_vs_entidad_afiliacion(
                 "codigo_extraido_afiliacion": codigo_extraido,
                 "problema": "Cód Entidad Cobrar no coincide con código en Entidad Afiliación",
             })
-            # Loguear error (todas las no-coincidencias)
-            logger.warning(
-                "VALIDACIÓN FALSA - Fila %s (Factura: %s): Cód Entidad Cobrar='%s' vs Código Extraído='%s' | Entidad Afiliación: '%s'",
-                row,
-                numero_factura,
-                codigo_str,
-                codigo_extraido,
-                entidad_str,
-            )
+            # Loguear error (solo las 5 primeras - limit para no spam)
+            if row <= 6:
+                logger.warning(
+                    "VALIDACIÓN FALSA - Fila %s (Factura: %s): Cód Entidad Cobrar='%s' vs Código Extraído='%s' | Entidad Afiliación: '%s'",
+                    row,
+                    numero_factura,
+                    codigo_str,
+                    codigo_extraido,
+                    entidad_str,
+                )
         elif logged_count < limit_log:
             # Solo loggear las primeras N filas que coinciden (o no tienen código extraído)
             logger.info(

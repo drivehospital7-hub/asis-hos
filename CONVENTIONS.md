@@ -1,6 +1,6 @@
 # Convenciones de Negocio — Control System
 
-> **Versión**: 2.2.0  
+> **Versión**: 2.3.0  
 > **Propósito**: Reglas de DOMINIO — validaciones, procedimientos, formatos específicos del negocio.  
 > Para reglas técnicas (arquitectura, código) ver `AGENTS.md`.
 
@@ -10,69 +10,31 @@
 
 **Sistema de Control de Facturación Médica** para EPS indígena MALLAMAS.
 
-Área principal: **Odontología**
+Áreas del sistema:
+- **Odontología** — área principal
+- **Urgencias** — códigos de urgencia con IDE Contrato
+- **Equipos Básicos** — extensión de Odontología
 
 ---
 
-## Validaciones de Facturación
+## Reglas Transversales
 
-### Reglas de Detección de Problemas
+> Aplican a **TODAS las áreas** (Odontología, Urgencias, Equipos Básicos)
 
-| Validación | Condición | Columna afectada |
-|------------|-----------|------------------|
-| **Decimales** | `Vlr. Subsidiado` o `Vlr. Procedimiento` tiene decimales | Número Factura |
-| **Doble tipo** | Factura con >1 tipo de procedimiento | Número Factura |
-| **Ruta duplicada** | Paciente con ≥3 facturas en convenio PyP | Nº Identificación |
-| **Convenio incorrecto** | Procedimiento PyP en convenio Asistencial (o viceversa) | Número Factura |
-| **Cantidades anómalas** | Consultas ≥2, cantidad >10, PyP ≥3 | Número Factura |
-
-### Detalle de Cantidades
-
-| Condición | Se marca como anómalo |
-|-----------|----------------------|
-| Tipo Procedimiento = "Consultas" AND Cantidad ≥ 2 | ✅ |
-| Cantidad > 10 (cualquier tipo) | ✅ |
-| Convenio = "Promoción y Prevención" AND Cantidad ≥ 3 | ✅ |
-
----
-
-## Procedimientos PyP (Promoción y Prevención)
-
-Estos procedimientos DEBEN estar en convenio "Promoción y Prevención":
-
-```
-- Control de Placa Bacteriana
-- Aplicación de Sellantes
-- Detartraje Supragingival
-- Topicacion de Fluor en Barniz
-- Consulta de Primera vez por Odontologia General
-```
-
-### Regla de Convenio Incorrecto
-
-| Convenio | Procedimiento | Resultado |
-|----------|---------------|-----------|
-| Asistencial | Procedimiento PyP (lista arriba) | ❌ Error |
-| Promoción y Prevención | Procedimiento NO en lista PyP | ❌ Error |
-| Asistencial | Procedimiento NO PyP | ✅ Ok |
-| Promoción y Prevención | Procedimiento PyP | ✅ Ok |
-
----
-
-## Tipo de Identificación vs Edad
+### 1. Tipo de Identificación vs Edad
 
 | Edad del paciente | Tipo esperado | Si no coincide |
 |-------------------|---------------|----------------|
-| **< 7 años** | **RC** (Registro Civil) | 🔴 Rojo |
-| **7 - 17 años** | **TI** (Tarjeta de Identidad) | 🔴 Rojo |
-| **≥ 18 años** | **CC** (Cédula de Ciudadanía) | 🔴 Rojo |
-| **< 2 meses** | **CN** (Certificado de Nacimiento) | 🔴 Rojo |
+| **< 7 años** | **RC** (Registro Civil) | 🔴 Error |
+| **7 - 17 años** | **TI** (Tarjeta de Identidad) | 🔴 Error |
+| **≥ 18 años** | **CC** (Cédula de Ciudadanía) | 🔴 Error |
+| **< 2 meses** | **CN** (Certificado de Nacimiento) | 🔴 Error |
 
 Casos especiales (menores sin registro):
 - < 18 años sin RC/TI → **MS** (Menor sin Identificación)
 - ≥ 18 años sin CC → **AS** (Adulto sin Identificación)
 
-### Tipos de Documento No Válidos
+#### Tipos de Documento No Válidos
 
 Los siguientes tipos de documento NO están permitidos y deben marcarse como error:
 
@@ -86,9 +48,102 @@ Los siguientes tipos de documento NO están permitidos y deben marcarse como err
 | **PE** | Permiso Especial — no válido |
 | **SC** | Salvoconducto — no válido |
 
-> **Nota**: Cualquier tipo de documento que no sea RC, TI, CC, MS, AS, o CN (con la restricción de edad) debe marcarse como error.
-
 > **Nota**: Esta validación está implementada en el formato condicional (color rojo en la hoja de datos) pero NO se escribe en la hoja Revision.
+
+### 2. Decimales
+
+| Condición | Columna afectada |
+|-----------|------------------|
+| `Vlr. Subsidiado` o `Vlr. Procedimiento` tiene decimales | Número Factura |
+
+### 3. Entidad Cobrar vs Entidad Afiliación
+
+Compara `Cód Entidad Cobrar` vs código extraído de `Entidad Afiliación` (formato: `... - {CODIGO} ...`).
+
+| Condición | Resultado |
+|-----------|-----------|
+| Código en `Cód Entidad Cobrar` ≠ código en `Entidad Afiliación` | 🔴 Error |
+
+---
+
+## Reglas por Área
+
+### 🦷 Odontología
+
+| Validación | Condición | Columna afectada |
+|------------|-----------|------------------|
+| **Doble tipo** | Factura con >1 tipo de procedimiento | Número Factura |
+| **Ruta duplicada** | Paciente con ≥3 facturas en convenio PyP | Nº Identificación |
+| **Convenio incorrecto** | Procedimiento PyP en convenio Asistencial (o viceversa) | Número Factura |
+| **Cantidades anómalas** | Consultas ≥2, cantidad >10, PyP ≥3 | Número Factura |
+
+#### Detalle de Cantidades
+
+| Condición | Se marca como anómalo |
+|-----------|----------------------|
+| Tipo Procedimiento = "Consultas" AND Cantidad ≥ 2 | ✅ |
+| Cantidad > 10 (cualquier tipo) | ✅ |
+| Convenio = "Promoción y Prevención" AND Cantidad ≥ 3 | ✅ |
+
+#### Procedimientos PyP (Promoción y Prevención)
+
+Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
+
+```
+- Control de Placa Bacteriana
+- Aplicación de Sellantes
+- Detartraje Supragingival
+- Topicacion de Fluor en Barniz
+- Consulta de Primera vez por Odontologia General
+```
+
+##### Regla de Convenio Incorrecto
+
+| Convenio | Procedimiento | Resultado |
+|----------|---------------|-----------|
+| Asistencial | Procedimiento PyP (lista arriba) | ❌ Error |
+| Promoción y Prevención | Procedimiento NO en lista PyP | ❌ Error |
+| Asistencial | Procedimiento NO PyP | ✅ Ok |
+| Promoción y Prevención | Procedimiento PyP | ✅ Ok |
+
+---
+
+### 🚨 Urgencias
+
+| Validación | Descripción |
+|------------|-------------|
+| **Centros de costo** | Detecta códigos NO encontrados en DB para ESS118 |
+| **IDE Contrato** | Por código + entidad (EPSI05, EPSIC5, ESS118, ESSC18, EPS037, EPSS41) |
+
+#### IDE Contrato — Urgencias
+
+| Código | Entidad | Condición | IDE Contrato esperado |
+|--------|---------|----------|------------------------|
+| **906340** | EPSI05 | siempre | **986** |
+| **861801** | EPSI05 | siempre | **977** |
+| **890405** | EPSI05 | si tiene código 861801 en identificación | **976** |
+| **890405** | EPSI05 | si NO tiene código 861801 | **977** |
+| **861801** | EPSIC5 | siempre | **979** |
+| **890405** | EPSIC5 | si tiene código 861801 en identificación | **967** |
+| **890405** | EPSIC5 | si NO tiene código 861801 | **979** |
+
+##### ESS118 (Centro de Costo)
+
+| Código | Entidad | Condición | IDE Contrato esperado |
+|--------|---------|----------|------------------------|
+| 110001, 110001AUX, 861101, 890403, 890406, 890408, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
+
+> **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
+
+---
+
+### 🔧 Equipos Básicos
+
+Comparte las validaciones de Odontología:
+- Doble tipo procedimiento
+- Ruta duplicada (≥3 facturas PyP)
+- Convenio incorrecto
+- Cantidades anómalas
 
 ---
 
@@ -109,7 +164,7 @@ Los siguientes tipos de documento NO están permitidos y deben marcarse como err
 | D | Facturas Pendientes | Amarillo | `FFC000` |
 | F | PDFs de Facturas | Rojo | `FF0000` |
 
-### Hoja Revision
+### Hoja Revision — Odontología
 
 Columnas sin color, solo listado de facturas problemáticas:
 
@@ -120,6 +175,13 @@ Columnas sin color, solo listado de facturas problemáticas:
 | C | Ruta Duplicada |
 | D | Convenio de procedimiento |
 | E | Cantidades |
+
+### Hoja Revision — Urgencias
+
+| Columna | Contenido |
+|---------|-----------|
+| A | Centros de Costos |
+| B | IDE Contrato |
 
 ---
 
@@ -168,6 +230,8 @@ Centro Costo
 | `Fec. Nacimiento` | Cálculo de edad |
 | `Fec. Factura` | Cálculo de edad al momento de factura |
 | `Cantidad` | Cantidades anómalas |
+| `Cód Entidad Cobrar` | Entidad Cobrar vs Entidad Afiliación |
+| `Entidad Afiliación` | Entidad Cobrar vs Entidad Afiliación |
 
 ---
 
@@ -191,28 +255,6 @@ Centro Costo
 
 ---
 
-## IDE Contrato — Urgencias
-
-| Código | Entidad | Condición | IDE Contrato esperado |
-|--------|--------|----------|------------------------|
-| **906340** | EPSI05 | siempre | **986** |
-| **861801** | EPSI05 | siempre | **977** |
-| **890405** | EPSI05 | si tiene código 861801 en identificación | **976** |
-| **890405** | EPSI05 | si NO tiene código 861801 | **977** |
-| **861801** | EPSIC5 | siempre | **979** |
-| **890405** | EPSIC5 | si tiene código 861801 en identificación | **967** |
-| **890405** | EPSIC5 | si NO tiene código 861801 | **979** |
-
-### ESS118 (Centro de Costo)
-
-| Código | Entidad | Condición | IDE Contrato esperado |
-|--------|--------|----------|------------------------|
-| 110001, 110001AUX, 861101, 890403, 890406, 890408, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
-
-> **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
-
----
-
 ## Glosario
 
 | Término | Significado |
@@ -227,4 +269,4 @@ Centro Costo
 
 ---
 
-*Última actualización: 2026-04-07*
+*Última actualización: 2026-04-13*

@@ -15,7 +15,7 @@ def detect_decimales(
     Detecta facturas con valores decimales en Vlr. Subsidiado o Vlr. Procedimiento.
     
     Returns:
-        Lista de números de factura con valores decimales.
+        Lista de números de factura con valores decimales ( deduplicada por factura).
     """
     num_fact_idx = indices.get("numero_factura")
     vlr_sub_idx = indices.get("vlr_subsidiado")
