@@ -133,6 +133,17 @@ Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
 |--------|---------|----------|------------------------|
 | 110001, 110001AUX, 861101, 890403, 890406, 890408, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
 
+##### ESS118 (Código NO en DB)
+
+| Campo | Condición | Acción |
+|-------|-----------|--------|
+| Entidad | = ESS118 | ✓ Requerido |
+| IDE Contrato | = 969 | ✓ Requerido |
+| Código CUPS | NO existe en `procedimientos.db` | → **ERROR** |
+| Código Tipo Procedimiento | IN (09, 12, 13) | → **EXCLUIR** (no reportar) |
+
+> **Ejemplo de error**: Factura con entidad ESS118, IDE=969, código CUPS "890403" que no existe en la DB → Reportar como error "CÓDIGO NO EN DB"
+
 > **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
 
 ---
