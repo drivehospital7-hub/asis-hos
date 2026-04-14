@@ -490,14 +490,34 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Determinar headers según el tipo de error
             let headersHtml = '';
-            if (error.tipo_key === 'tipo_identificacion_edad') {
+            let colspan = 1;
+            
+            if (error.tipo_key === 'decimales') {
+              headersHtml = '<th>Factura</th><th>Valores con decimal</th>';
+              colspan = 2;
+            } else if (error.tipo_key === 'doble_tipo_procedimiento') {
+              headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th>';
+              colspan = 2;
+            } else if (error.tipo_key === 'ruta_duplicada') {
+              headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th>';
+              colspan = 3;
+            } else if (error.tipo_key === 'convenio_procedimiento') {
+              headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
+              colspan = 4;
+            } else if (error.tipo_key === 'cantidades_anomalas') {
+              headersHtml = '<th>Factura</th><th>Tipo</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
+              colspan = 5;
+            } else if (error.tipo_key === 'tipo_identificacion_edad') {
               headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+              colspan = 4;
             } else if (error.tipo_key === 'centro_costo') {
               headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+              colspan = 5;
             } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
               headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
+              colspan = 5;
             } else {
-              headersHtml = '<th>Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+              headersHtml = '<th>Factura</th>';
             }
             
             // Tabla con columnas dinámicas
@@ -508,10 +528,6 @@ document.addEventListener('DOMContentLoaded', function() {
             // Mostrar hasta 50 facturas
             const LIMITE_INICIAL = 50;
             const facturasAMostrar = error.facturas.slice(0, LIMITE_INICIAL);
-            let colspan = 3;
-            if (error.tipo_key === 'tipo_identificacion_edad') colspan = 4;
-            if (error.tipo_key === 'centro_costo') colspan = 5;
-            if (error.tipo_key === 'codigo_entidad_vs_afiliacion') colspan = 5;
             
             // Si hay más de 50, agregar botón para ver más
             if (error.facturas.length > LIMITE_INICIAL) {
@@ -521,28 +537,48 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Renderizar las facturas
             facturasAMostrar.forEach(function(item) {
-              let factura = item.factura || '';
-              
               html += '<tr>';
-              html += '<td>' + factura + '</td>';
               
-              if (error.tipo_key === 'tipo_identificacion_edad') {
+              if (error.tipo_key === 'decimales') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.valores || '') + '</td>';
+              } else if (error.tipo_key === 'doble_tipo_procedimiento') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.tipos || '') + '</td>';
+              } else if (error.tipo_key === 'ruta_duplicada') {
+                html += '<td>' + (item.identificacion || '') + '</td>';
+                html += '<td>' + (item.facturas || '') + '</td>';
+                html += '<td>' + (item.cantidad || '') + '</td>';
+              } else if (error.tipo_key === 'convenio_procedimiento') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.convenio || '') + '</td>';
+                html += '<td>' + (item.procedimiento || '') + '</td>';
+                html += '<td>' + (item.problema || '') + '</td>';
+              } else if (error.tipo_key === 'cantidades_anomalas') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.tipo_procedimiento || '') + '</td>';
+                html += '<td>' + (item.cantidad || '') + '</td>';
+                html += '<td>' + (item.convenio || '') + '</td>';
+                html += '<td>' + (item.problema || '') + '</td>';
+              } else if (error.tipo_key === 'tipo_identificacion_edad') {
+                html += '<td>' + (item.factura || '') + '</td>';
                 html += '<td>' + (item.tipo_actual || '') + '</td>';
                 html += '<td>' + (item.tipo_deberia || '') + '</td>';
                 html += '<td>' + (item.edad || '') + '</td>';
               } else if (error.tipo_key === 'centro_costo') {
+                html += '<td>' + (item.factura || '') + '</td>';
                 html += '<td>' + (item.profesional || '') + '</td>';
                 html += '<td>' + (item.fec_factura || '') + '</td>';
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
               } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
+                html += '<td>' + (item.factura || '') + '</td>';
                 html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
                 html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
                 html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
                 html += '<td>' + (item.problema || '') + '</td>';
               } else {
-                html += '<td>' + (item.centro_actual || '') + '</td>';
-                html += '<td>' + (item.centro_deberia || '') + '</td>';
+                html += '<td>' + (item.factura || '') + '</td>';
               }
               
               html += '</tr>';
@@ -613,40 +649,77 @@ function mostrarMas(btn, errorData) {
   const tbody = table.querySelector('tbody');
   
   // Actualizar headers según el tipo
-  if (errorData.tipo_key === 'centro_costo') {
-    thead.innerHTML = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+  let headersHtml = '';
+  if (errorData.tipo_key === 'decimales') {
+    headersHtml = '<th>Factura</th><th>Valores con decimal</th>';
+  } else if (errorData.tipo_key === 'doble_tipo_procedimiento') {
+    headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th>';
+  } else if (errorData.tipo_key === 'ruta_duplicada') {
+    headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th>';
+  } else if (errorData.tipo_key === 'convenio_procedimiento') {
+    headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
+  } else if (errorData.tipo_key === 'cantidades_anomalas') {
+    headersHtml = '<th>Factura</th><th>Tipo</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
   } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
-    thead.innerHTML = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+    headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+  } else if (errorData.tipo_key === 'centro_costo') {
+    headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
   } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
-    thead.innerHTML = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
+  } else {
+    headersHtml = '<th>Factura</th>';
   }
+  
+  thead.innerHTML = headersHtml;
   
   // Limpiar tabla y mostrar todos
   tbody.innerHTML = '';
   
   errorData.facturas.forEach(function(item) {
-    let factura = item.factura || '';
     let html = '<tr>';
-    html += '<td>' + factura + '</td>';
     
-    if (errorData.tipo_key === 'tipo_identificacion_edad') {
+    if (errorData.tipo_key === 'decimales') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.valores || '') + '</td>';
+    } else if (errorData.tipo_key === 'doble_tipo_procedimiento') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.tipos || '') + '</td>';
+    } else if (errorData.tipo_key === 'ruta_duplicada') {
+      html += '<td>' + (item.identificacion || '') + '</td>';
+      html += '<td>' + (item.facturas || '') + '</td>';
+      html += '<td>' + (item.cantidad || '') + '</td>';
+    } else if (errorData.tipo_key === 'convenio_procedimiento') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.convenio || '') + '</td>';
+      html += '<td>' + (item.procedimiento || '') + '</td>';
+      html += '<td>' + (item.problema || '') + '</td>';
+    } else if (errorData.tipo_key === 'cantidades_anomalas') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.tipo_procedimiento || '') + '</td>';
+      html += '<td>' + (item.cantidad || '') + '</td>';
+      html += '<td>' + (item.convenio || '') + '</td>';
+      html += '<td>' + (item.problema || '') + '</td>';
+    } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
+      html += '<td>' + (item.factura || '') + '</td>';
       html += '<td>' + (item.tipo_actual || '') + '</td>';
       html += '<td>' + (item.tipo_deberia || '') + '</td>';
       html += '<td>' + (item.edad || '') + '</td>';
     } else if (errorData.tipo_key === 'centro_costo') {
+      html += '<td>' + (item.factura || '') + '</td>';
       html += '<td>' + (item.profesional || '') + '</td>';
       html += '<td>' + (item.fec_factura || '') + '</td>';
       html += '<td>' + (item.centro_actual || '') + '</td>';
       html += '<td>' + (item.centro_deberia || '') + '</td>';
     } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
+      html += '<td>' + (item.factura || '') + '</td>';
       html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
       html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
       html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
       html += '<td>' + (item.problema || '') + '</td>';
     } else {
-      html += '<td>' + (item.centro_actual || '') + '</td>';
-      html += '<td>' + (item.centro_deberia || '') + '</td>';
+      html += '<td>' + (item.factura || '') + '</td>';
     }
+    
     html += '</tr>';
     tbody.innerHTML += html;
   });

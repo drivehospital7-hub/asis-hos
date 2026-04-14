@@ -138,27 +138,51 @@ def export_cruce_facturas():
         errores = []
         for tipo, items in problemas.items():
             if items:
+                # Extraer campos según el tipo de error
                 facturas = []
                 for item in items[:50]:
-                    # centro_costo viene como dict, tipo_identificacion_edad también
                     if isinstance(item, dict):
-                        facturas.append({
+                        base = {
                             "factura": item.get("factura", ""),
-                            "tipo_actual": item.get("tipo_actual", ""),
-                            "tipo_deberia": item.get("tipo_deberia", ""),
-                            "edad": item.get("edad", ""),
-                            "centro_actual": item.get("centro_actual", ""),
-                            "centro_deberia": item.get("centro_deberia", ""),
-                            "profesional": item.get("profesional", ""),
-                            "fec_factura": item.get("fec_factura", ""),
-                        })
+                        }
+                        
+                        # Agregar campos según el tipo de error
+                        if tipo == "decimales":
+                            base["valores"] = item.get("valores", "")
+                        elif tipo == "doble_tipo_procedimiento":
+                            base["tipos"] = item.get("tipos", "")
+                        elif tipo == "ruta_duplicada":
+                            base["identificacion"] = item.get("identificacion", "")
+                            base["facturas"] = item.get("facturas", "")
+                            base["cantidad"] = item.get("cantidad", "")
+                        elif tipo == "convenio_procedimiento":
+                            base["convenio"] = item.get("convenio", "")
+                            base["procedimiento"] = item.get("procedimiento", "")
+                            base["problema"] = item.get("problema", "")
+                        elif tipo == "cantidades_anomalas":
+                            base["tipo_procedimiento"] = item.get("tipo_procedimiento", "")
+                            base["cantidad"] = item.get("cantidad", "")
+                            base["convenio"] = item.get("convenio", "")
+                            base["problema"] = item.get("problema", "")
+                        elif tipo == "tipo_identificacion_edad":
+                            base["tipo_actual"] = item.get("tipo_actual", "")
+                            base["tipo_deberia"] = item.get("tipo_deberia", "")
+                            base["edad"] = item.get("edad", "")
+                        elif tipo == "centro_costo":
+                            base["profesional"] = item.get("profesional", "")
+                            base["fec_factura"] = item.get("fec_factura", "")
+                            base["centro_actual"] = item.get("centro_actual", "")
+                            base["centro_deberia"] = item.get("centro_deberia", "")
+                        elif tipo == "codigo_entidad_vs_afiliacion":
+                            base["codigo_entidad_cobrar"] = item.get("codigo_entidad_cobrar", "")
+                            base["entidad_afiliacion"] = item.get("entidad_afiliacion", "")
+                            base["codigo_extraido_afiliacion"] = item.get("codigo_extraido_afiliacion", "")
+                            base["problema"] = item.get("problema", "")
+                        
+                        facturas.append(base)
                     else:
                         facturas.append({
                             "factura": item,
-                            "centro_actual": "",
-                            "centro_deberia": "",
-                            "profesional": "",
-                            "fec_factura": "",
                         })
                 
                 # Nombre más legible para mostrar
@@ -177,39 +201,6 @@ def export_cruce_facturas():
                     tipo_display = "Centro Costo"
                 elif tipo == "codigo_entidad_vs_afiliacion":
                     tipo_display = "Entidad Cobrar vs Afiliación"
-                
-                # Extraer campos adicionales para el nuevo tipo de error
-                facturas = []
-                for item in items[:50]:
-                    # centro_costo viene como dict, tipo_identificacion_edad también
-                    if isinstance(item, dict):
-                        facturas.append({
-                            "factura": item.get("factura", ""),
-                            "tipo_actual": item.get("tipo_actual", ""),
-                            "tipo_deberia": item.get("tipo_deberia", ""),
-                            "edad": item.get("edad", ""),
-                            "centro_actual": item.get("centro_actual", ""),
-                            "centro_deberia": item.get("centro_deberia", ""),
-                            "profesional": item.get("profesional", ""),
-                            "fec_factura": item.get("fec_factura", ""),
-                            # Nuevos campos para codigo_entidad_vs_afiliacion
-                            "codigo_entidad_cobrar": item.get("codigo_entidad_cobrar", ""),
-                            "entidad_afiliacion": item.get("entidad_afiliacion", ""),
-                            "codigo_extraido_afiliacion": item.get("codigo_extraido_afiliacion", ""),
-                            "problema": item.get("problema", ""),
-                        })
-                    else:
-                        facturas.append({
-                            "factura": item,
-                            "centro_actual": "",
-                            "centro_deberia": "",
-                            "profesional": "",
-                            "fec_factura": "",
-                            "codigo_entidad_cobrar": "",
-                            "entidad_afiliacion": "",
-                            "codigo_extraido_afiliacion": "",
-                            "problema": "",
-                        })
                 
                 errores.append({
                     "tipo": tipo_display,

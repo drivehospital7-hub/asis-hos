@@ -276,7 +276,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
 def _detect_decimals(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta facturas con valores decimales."""
     decimal_invoices = []
     
@@ -294,19 +294,25 @@ def _detect_decimals(
             continue
         
         has_decimals = False
+        valores_con_decimal = []
         
         if vlr_sub_idx is not None:
             vlr = data_sheet.cell(row=row, column=vlr_sub_idx + 1).value
             if isinstance(vlr, float) and vlr % 1 != 0:
                 has_decimals = True
+                valores_con_decimal.append(f"Vlr. Subsidiado: {vlr}")
         
         if not has_decimals and vlr_proc_idx is not None:
             vlr = data_sheet.cell(row=row, column=vlr_proc_idx + 1).value
             if isinstance(vlr, float) and vlr % 1 != 0:
                 has_decimals = True
+                valores_con_decimal.append(f"Vlr. Procedimiento: {vlr}")
         
-        if has_decimals and factura_str not in decimal_invoices:
-            decimal_invoices.append(factura_str)
+        if has_decimals and factura_str not in [d.get("factura") for d in decimal_invoices]:
+            decimal_invoices.append({
+                "factura": factura_str,
+                "valores": ", ".join(valores_con_decimal),
+            })
             logger.debug("Factura %s con decimales detectada", factura_str)
     
     return decimal_invoices
@@ -315,7 +321,7 @@ def _detect_decimals(
 def _detect_doble_tipo_procedimiento(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta facturas con más de un tipo de procedimiento."""
     num_fact_idx = indices["numero_factura"]
     tipo_proc_idx = indices["tipo_procedimiento"]
@@ -337,13 +343,20 @@ def _detect_doble_tipo_procedimiento(
             if tipo_str:
                 tipo_por_factura.setdefault(factura_str, set()).add(tipo_str)
     
-    return [fact for fact, tipos in tipo_por_factura.items() if len(tipos) > 1]
+    result = []
+    for fact, tipos in tipo_por_factura.items():
+        if len(tipos) > 1:
+            result.append({
+                "factura": fact,
+                "tipos": ", ".join(sorted(tipos)),
+            })
+    return result
 
 
 def _detect_ruta_duplicada(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta pacientes con múltiples facturas en PyP."""
     num_fact_idx = indices["numero_factura"]
     ident_idx = indices["identificacion"]
@@ -368,16 +381,21 @@ def _detect_ruta_duplicada(
             if ident_str and factura_str:
                 conteo_ident[ident_str].add(factura_str)
     
-    return [
-        ident for ident, facturas in conteo_ident.items()
-        if len(facturas) >= RUTA_DUPLICADA_THRESHOLD
-    ]
+    result = []
+    for ident, facturas in conteo_ident.items():
+        if len(facturas) >= RUTA_DUPLICADA_THRESHOLD:
+            result.append({
+                "identificacion": ident,
+                "facturas": ", ".join(sorted(facturas)),
+                "cantidad": len(facturas),
+            })
+    return result
 
 
 def _detect_ruta_duplicada_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta pacientes con múltiples facturas en PyP (Equipos Básicos - reglas independientes)."""
     num_fact_idx = indices["numero_factura"]
     ident_idx = indices["identificacion"]
@@ -402,17 +420,21 @@ def _detect_ruta_duplicada_equipos_basicos(
             if ident_str and factura_str:
                 conteo_ident[ident_str].add(factura_str)
     
-    # Usar umbral configurable de Equipos Básicos
-    return [
-        ident for ident, facturas in conteo_ident.items()
-        if len(facturas) >= EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
-    ]
+    result = []
+    for ident, facturas in conteo_ident.items():
+        if len(facturas) >= EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD:
+            result.append({
+                "identificacion": ident,
+                "facturas": ", ".join(sorted(facturas)),
+                "cantidad": len(facturas),
+            })
+    return result
 
 
 def _detect_convenio_procedimiento(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta facturas con procedimientos que no corresponden al convenio."""
     num_fact_idx = indices["numero_factura"]
     convenio_idx = indices["convenio_facturado"]
@@ -437,27 +459,35 @@ def _detect_convenio_procedimiento(
         
         proc_str = str(procedimiento).strip()
         should_add = False
+        problema_tipo = ""
         
         # Caso 1: Convenio Asistencial con procedimientos PyP
         if convenio == CONVENIO_ASISTENCIAL and proc_str in TARGET_PROCEDURES:
             should_add = True
+            problema_tipo = "Asistencial con procedimiento PyP"
             logger.debug(
                 "Fila %s: Asistencial con procedimiento PyP: %s",
                 row,
                 proc_str,
             )
         
-# Caso 2: Convenio PyP con procedimientos NO PyP
+        # Caso 2: Convenio PyP con procedimientos NO PyP
         elif convenio == CONVENIO_PYP and proc_str not in TARGET_PROCEDURES:
             should_add = True
+            problema_tipo = "PyP con procedimiento no PyP"
             logger.debug(
                 "Fila %s: PyP con procedimiento diferente: %s",
                 row,
                 proc_str,
             )
         
-        if should_add and factura_str not in problemas:
-            problemas.append(factura_str)
+        if should_add and factura_str not in [p.get("factura") for p in problemas]:
+            problemas.append({
+                "factura": factura_str,
+                "convenio": str(convenio) if convenio else "",
+                "procedimiento": proc_str,
+                "problema": problema_tipo,
+            })
     
     return problemas
 
@@ -465,13 +495,13 @@ def _detect_convenio_procedimiento(
 def _detect_convenio_procedimiento_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos - reglas independientes)."""
     num_fact_idx = indices["numero_factura"]
     convenio_idx = indices["convenio_facturado"]
     proc_idx = indices["procedimiento"]
     
-    if None in (num_fact_idx, convenio_idx, proc_idx):
+    if None in (num_fact_idx, conveniente_idx, proc_idx):
         return []
     
     problemas = []
@@ -482,7 +512,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
         if not factura_str:
             continue
         
-        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
+        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
         procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
         
         if procedimiento is None:
@@ -490,27 +520,35 @@ def _detect_convenio_procedimiento_equipos_basicos(
         
         proc_str = str(procedimiento).strip()
         should_add = False
+        problema_tipo = ""
         
-        # Caso 1: Convencio Asistencial con procedimientos PyP (Equipos Básicos)
-        if convenio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        # Caso 1: Convenio Asistencial con procedimientos PyP (Equipos Básicos)
+        if convencio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
             should_add = True
+            problema_tipo = "Asistencial con procedimiento PyP"
             logger.debug(
                 "Fila %s: Asistencial con procedimiento PyP (Equipos Básicos): %s",
                 row,
                 proc_str,
             )
         
-        # Caso 2: Convencio PyP con procedimientos NO PyP (Equipos Básicos)
-        elif convenio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        # Caso 2: Convenio PyP con procedimientos NO PyP (Equipos Básicos)
+        elif convencio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
             should_add = True
+            problema_tipo = "PyP con procedimiento no PyP"
             logger.debug(
                 "Fila %s: PyP con procedimiento diferente (Equipos Básicos): %s",
                 row,
                 proc_str,
             )
         
-        if should_add and factura_str not in problemas:
-            problemas.append(factura_str)
+        if should_add and factura_str not in [p.get("factura") for p in problemas]:
+            problemas.append({
+                "factura": factura_str,
+                "convenio": str(convencio) if convencio else "",
+                "procedimiento": proc_str,
+                "problema": problema_tipo,
+            })
     
     return problemas
 
@@ -518,13 +556,14 @@ def _detect_convenio_procedimiento_equipos_basicos(
 def _detect_cantidades_anomalas(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
-    """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos - reglas independientes)."""
+) -> list[dict]:
+    """Detecta facturas con cantidades anómalas."""
     num_fact_idx = indices["numero_factura"]
-    convenio_idx = indices["convenio_facturado"]
-    proc_idx = indices["procedimiento"]
+    tipo_proc_idx = indices["tipo_procedimiento"]
+    cantidad_idx = indices["cantidad"]
+    conveniencia_idx = indices["convenio_facturado"]
     
-    if None in (num_fact_idx, convenio_idx, proc_idx):
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, conveniencia_idx):
         return []
     
     problemas = []
@@ -535,35 +574,47 @@ def _detect_cantidades_anomalas(
         if not factura_str:
             continue
         
-        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
-        procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        conveniencia = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
         
-        if procedimiento is None:
+        if not isinstance(cantidad, (int, float)):
             continue
         
-        proc_str = str(procedimiento).strip()
-        should_add = False
+        # Determinar tipo de problema
+        problema_tipo = ""
+        if tipo_value == "Consultas" and cantidad >= CANTIDAD_CONSULTAS_MIN:
+            problema_tipo = f"Consultas con cantidad {cantidad} (mín. {CANTIDAD_CONSULTAS_MIN})"
+        elif cantidad > CANTIDAD_MAX:
+            problema_tipo = f"Cantidad {cantidad} > máximo {CANTIDAD_MAX}"
+        elif conveniencia == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN:
+            problema_tipo = f"PyP con cantidad {cantidad} (mín. {CANTIDAD_PYP_MIN})"
         
-        # Caso 1: Convencio Asistencial con procedimientos PyP (Equipos Básicos)
-        if convenio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
-            should_add = True
+        # Reglas de cantidad anómala
+        is_anomaly = (
+            # Consultas >= 2
+            (tipo_value == "Consultas" and cantidad >= CANTIDAD_CONSULTAS_MIN)
+            # Cualquier cantidad > 10
+            or cantidad > CANTIDAD_MAX
+            # PyP >= 3
+            or (conveniencia == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN)
+        )
+        
+        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
+            problemas.append({
+                "factura": factura_str,
+                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
+                "cantidad": cantidad,
+                "convenio": str(conveniencia) if conveniencia else "",
+                "problema": problema_tipo,
+            })
             logger.debug(
-                "Fila %s: Asistencial con procedimiento PyP (Equipos Básicos): %s",
+                "Fila %s: Cantidad anómala (Tipo: %s, Convenio: %s, Cant: %s)",
                 row,
-                proc_str,
+                tipo_value,
+                conveniencia,
+                cantidad,
             )
-        
-        # Caso 2: Convencio PyP con procedimientos NO PyP (Equipos Básicos)
-        elif convenio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
-            should_add = True
-            logger.debug(
-                "Fila %s: PyP con procedimiento diferente (Equipos Básicos): %s",
-                row,
-                proc_str,
-            )
-        
-        if should_add and factura_str not in problemas:
-            problemas.append(factura_str)
     
     return problemas
 
@@ -622,14 +673,14 @@ def _detect_cantidades_anomalas(
 def _detect_cantidades_anomalas_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> list[str]:
+) -> list[dict]:
     """Detecta facturas con cantidades anómalas (Equipos Básicos - reglas independientes)."""
     num_fact_idx = indices["numero_factura"]
     tipo_proc_idx = indices["tipo_procedimiento"]
     cantidad_idx = indices["cantidad"]
-    convenio_idx = indices["convenio_facturado"]
+    conveniencia_idx = indices["convenio_facturado"]
     
-    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, convenio_idx):
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, conveniencia_idx):
         return []
     
     problemas = []
@@ -642,10 +693,19 @@ def _detect_cantidades_anomalas_equipos_basicos(
         
         tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
         cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
-        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
+        convencio = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
         
         if not isinstance(cantidad, (int, float)):
             continue
+        
+        # Determinar tipo de problema
+        problema_tipo = ""
+        if tipo_value == "Consultas" and cantidad >= EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN:
+            problema_tipo = f"Consultas con cantidad {cantidad} (mín. {EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN})"
+        elif cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX:
+            problema_tipo = f"Cantidad {cantidad} > máximo {EQUIPOS_BASICOS_CANTIDAD_MAX}"
+        elif convencio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN:
+            problema_tipo = f"PyP con cantidad {cantidad} (mín. {EQUIPOS_BASICOS_CANTIDAD_PYP_MIN})"
         
         # Reglas de cantidad anómala (Equipos Básicos - configurables)
         is_anomaly = (
@@ -654,16 +714,22 @@ def _detect_cantidades_anomalas_equipos_basicos(
             # Cualquier cantidad > máximo configurable
             or cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX
             # PyP >= umbral configurable
-            or (convenio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
+            or (convencio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
         )
         
-        if is_anomaly and factura_str not in problemas:
-            problemas.append(factura_str)
+        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
+            problemas.append({
+                "factura": factura_str,
+                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
+                "cantidad": cantidad,
+                "convenio": str(convencio) if convencio else "",
+                "problema": problema_tipo,
+            })
             logger.debug(
                 "Fila %s: Cantidad anómala Equipos Básicos (Tipo: %s, Convenios: %s, Cant: %s)",
                 row,
                 tipo_value,
-                convenio,
+                convencio,
                 cantidad,
             )
     
