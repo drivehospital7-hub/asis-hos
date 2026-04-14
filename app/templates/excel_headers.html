@@ -505,8 +505,8 @@ document.addEventListener('DOMContentLoaded', function() {
               headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
               colspan = 4;
             } else if (error.tipo_key === 'cantidades_anomalas') {
-              headersHtml = '<th>Factura</th><th>Tipo</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
-              colspan = 5;
+              headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
+              colspan = 6;
             } else if (error.tipo_key === 'tipo_identificacion_edad') {
               headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
               colspan = 4;
@@ -557,6 +557,7 @@ document.addEventListener('DOMContentLoaded', function() {
               } else if (error.tipo_key === 'cantidades_anomalas') {
                 html += '<td>' + (item.factura || '') + '</td>';
                 html += '<td>' + (item.tipo_procedimiento || '') + '</td>';
+                html += '<td>' + (item.procedimiento || '') + '</td>';
                 html += '<td>' + (item.cantidad || '') + '</td>';
                 html += '<td>' + (item.convenio || '') + '</td>';
                 html += '<td>' + (item.problema || '') + '</td>';
@@ -659,7 +660,7 @@ function mostrarMas(btn, errorData) {
   } else if (errorData.tipo_key === 'convenio_procedimiento') {
     headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
   } else if (errorData.tipo_key === 'cantidades_anomalas') {
-    headersHtml = '<th>Factura</th><th>Tipo</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
   } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
     headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
   } else if (errorData.tipo_key === 'centro_costo') {
@@ -696,6 +697,7 @@ function mostrarMas(btn, errorData) {
     } else if (errorData.tipo_key === 'cantidades_anomalas') {
       html += '<td>' + (item.factura || '') + '</td>';
       html += '<td>' + (item.tipo_procedimiento || '') + '</td>';
+      html += '<td>' + (item.procedimiento || '') + '</td>';
       html += '<td>' + (item.cantidad || '') + '</td>';
       html += '<td>' + (item.convenio || '') + '</td>';
       html += '<td>' + (item.problema || '') + '</td>';

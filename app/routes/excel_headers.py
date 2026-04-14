@@ -161,6 +161,7 @@ def export_cruce_facturas():
                             base["problema"] = item.get("problema", "")
                         elif tipo == "cantidades_anomalas":
                             base["tipo_procedimiento"] = item.get("tipo_procedimiento", "")
+                            base["procedimiento"] = item.get("procedimiento", "")
                             base["cantidad"] = item.get("cantidad", "")
                             base["convenio"] = item.get("convenio", "")
                             base["problema"] = item.get("problema", "")
