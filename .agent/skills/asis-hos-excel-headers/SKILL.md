@@ -220,6 +220,60 @@ Usar esta skill cuando:
 
 ## Critical Patterns
 
+### ⚠️ PATRÓN DE LECTURA: Required Headers → Índices → Valores
+
+Este es el flujo ESTÁNDAR para leer datos del Excel:
+
+```python
+# 1. Definir los headers requeridos (diccionario: nombre_interno → nombre_exacto)
+required_headers: dict[str, str] = {
+    "numero_factura": "Número Factura",
+    "vlr_subsidiado": "Vlr. Subsidiado",
+    "vlr_procedimiento": "Vlr. Procedimiento",
+    "identificacion": "Nº Identificación",
+    "convenio_facturado": "Convenio Facturado",
+    # ... agregar solo las necesarias para esta regla
+}
+
+# 2. Obtener índices (posición de cada columna en el Excel)
+def _get_column_indices(headers: list[str]) -> tuple[dict[str, int | None], list[str]]:
+    """Retorna (dict con índice, lista de faltantes)."""
+    indices: dict[str, int | None] = {k: None for k in required_headers}
+    excel_headers_normalized: dict[str, int] = {}
+    
+    for i, header in enumerate(headers):
+        if header is not None:
+            excel_headers_normalized[str(header).strip()] = i
+    
+    missing_columns: list[str] = []
+    for key, required_name in required_headers.items():
+        if required_name in excel_headers_normalized:
+            indices[key] = excel_headers_normalized[required_name]
+        else:
+            missing_columns.append(required_name)
+    
+    return indices, missing_columns
+
+# 3. Leer valores usando índices (+1 porque openpyxl es 1-based)
+def _mi_regla(data_sheet, indices):
+    num_fact_idx = indices["numero_factura"]
+    if num_fact_idx is None:
+        return []
+    
+    resultados = []
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        # procesar...
+    
+    return resultados
+```
+
+**Puntos clave**:
+- **Coincidencia EXACTA** - no infiere nombres similares
+- **Reporta faltantes** - si no encuentra una columna, la agrega a `missing_columns`
+- **Usa índices, no nombres** - más rápido que buscar por nombre en cada fila
+- **Solo +1 para openpyxl** - porque es 1-based, no 0-based
+
 ### ⚠️ REGLA DE ORO: Nombres únicos y no ambiguos
 
 **PROBLEMA**: "Código" es ambiguo — puede significar:

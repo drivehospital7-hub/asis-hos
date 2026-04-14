@@ -36,9 +36,10 @@ if __name__ == "__main__":
     critical_handler.setFormatter(formatter)
     critical_handler.addFilter(LevelFilter(logging.CRITICAL))
     
-    # StreamHandler para consola
+    # StreamHandler para consola - solo mostrar lo importante (WARNING+)
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(formatter)
+    stream_handler.setLevel(logging.WARNING)
     
     logger.addHandler(debug_handler)
     logger.addHandler(info_handler)
