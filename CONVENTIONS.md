@@ -120,6 +120,8 @@ Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
 | Código CUPS | Tipo Factura | Centro de costo esperado |
 |-------------|--------------|-------------------------|
 | **890601** | Hospitalización | **HOSPITALIZACIÓN - ESTANCIA GENERAL** |
+| **890408** | Cualquiera | **URGENCIAS** |
+| **861101** | Cualquiera | **URGENCIAS** |
 
 #### Cups equivalentes urgencias
 
