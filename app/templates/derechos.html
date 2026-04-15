@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Derechos — EPS MALLAMAS{% endblock %}
+
+{% block head_extra %}
+<style>
+  .derechos-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 2rem;
+  }
+
+  .derechos-header {
+    margin-bottom: 2rem;
+  }
+
+  .derechos-header h1 {
+    font-size: 1.75rem;
+    color: #1a1a1a;
+    margin-bottom: 0.5rem;
+  }
+
+  .derechos-header p {
+    color: #606060;
+  }
+
+  .form-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .form-label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: 0.5rem;
+    color: #1a1a1a;
+  }
+
+  .form-input {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .form-input:focus {
+    outline: none;
+    border-color: #4a6fa5;
+    box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
+  }
+
+  .input-group {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .input-group .form-input {
+    flex: 1;
+  }
+
+  .form-hint {
+    font-size: 0.875rem;
+    color: #606060;
+    margin-top: 0.25rem;
+  }
+
+  .result-box {
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border-radius: 8px;
+    display: none;
+  }
+
+  .result-box--success {
+    background-color: #d1fae5;
+    border: 1px solid #10b981;
+    color: #065f46;
+  }
+
+  .result-box--error {
+    background-color: #fee2e2;
+    border: 1px solid #ef4444;
+    color: #991b1b;
+  }
+
+  .result-box.visible {
+    display: block;
+  }
+
+  .estructura-archivos {
+    margin-top: 1rem;
+  }
+
+  .carpeta-item {
+    margin-bottom: 1rem;
+  }
+
+  .carpeta-titulo {
+    font-weight: 600;
+    color: #1a1a1a;
+    padding: 0.5rem;
+    background-color: #f0f0f0;
+    border-radius: 4px;
+    margin-bottom: 0.5rem;
+  }
+
+  .archivo-lista {
+    list-style: none;
+    padding-left: 1.5rem;
+  }
+
+  .archivo-item {
+    padding: 0.25rem 0;
+    color: #4a6fa5;
+  }
+
+  .resumen {
+    padding: 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="derechos-container">
+  <header class="derechos-header">
+    <h1>Modulo Derechos</h1>
+    <p>Ingresa la ruta de la carpeta que contiene los archivos a procesar</p>
+  </header>
+
+  <form id="derechosForm">
+    <div class="form-group">
+      <label for="rutaInput" class="form-label">Ruta de la carpeta</label>
+      <div class="input-group">
+        <input 
+          type="text" 
+          id="rutaInput" 
+          name="ruta" 
+          class="form-input"
+          placeholder="C:\Users\Documents\Carpetas\..."
+          required
+        >
+        <input 
+          type="file" 
+          id="folderInput" 
+          webkitdirectory 
+          directory 
+          style="display: none;"
+        >
+        <button type="button" class="btn btn--secondary" id="btnExplorar">
+          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+          </svg>
+          Explorar
+        </button>
+      </div>
+      <p class="form-hint">Escribe la ruta o haz clic en "Explorar" para buscar la carpeta</p>
+    </div>
+
+    <button type="submit" class="btn btn--primary" id="submitBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      Procesar
+    </button>
+  </form>
+
+  <div id="resultBox" class="result-box"></div>
+</div>
+
+<script>
+  const form = document.getElementById('derechosForm');
+  const folderInput = document.getElementById('folderInput');
+  const rutaInput = document.getElementById('rutaInput');
+  const resultBox = document.getElementById('resultBox');
+  const submitBtn = document.getElementById('submitBtn');
+  const btnExplorar = document.getElementById('btnExplorar');
+
+  // Botón explorar - abre selector de carpetas
+  btnExplorar.addEventListener('click', () => {
+    folderInput.click();
+  });
+
+  // Cuando se selecciona una carpeta
+  folderInput.addEventListener('change', (e) => {
+    const files = e.target.files;
+    if (files.length > 0) {
+      // webkitdirectory devuelve la ruta del primer archivo
+      const folderPath = files[0].webkitRelativePath || files[0].path;
+      const basePath = folderPath.split('/')[0];
+      rutaInput.value = basePath || files[0].name;
+    }
+  });
+
+  // Función para renderizar la estructura de archivos
+  function renderizarEstructura(estructura, totalArchivos, totalCarpetas) {
+    let html = `<div class="resumen">📁 ${totalCarpetas} carpetas | 📄 ${totalArchivos} archivos PDF</div>`;
+    html += '<div class="estructura-archivos">';
+
+    for (const [carpeta, archivos] of Object.entries(estructura)) {
+      html += `
+        <div class="carpeta-item">
+          <div class="carpeta-titulo">${carpeta}</div>
+          <ul class="archivo-lista">
+            ${archivos.map(a => `<li class="archivo-item">📄 ${a}</li>`).join('')}
+          </ul>
+        </div>
+      `;
+    }
+
+    html += '</div>';
+    return html;
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const ruta = document.getElementById('rutaInput').value;
+
+    submitBtn.disabled = true;
+    submitBtn.textContent = 'Buscando...';
+    resultBox.classList.remove('visible', 'result-box--success', 'result-box--error');
+
+    try {
+      const response = await fetch('/derechos/procesar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ruta })
+      });
+
+      const result = await response.json();
+
+      if (result.status === 'success') {
+        const data = result.data;
+        
+        if (data.estructura && Object.keys(data.estructura).length > 0) {
+          const contenido = renderizarEstructura(data.estructura, data.total_archivos, data.total_carpetas);
+          resultBox.innerHTML = `<strong>✅ ${data.mensaje}</strong>${contenido}`;
+        } else {
+          resultBox.textContent = `⚠️ ${data.mensaje}`;
+        }
+        
+        resultBox.classList.add('result-box--success', 'visible');
+      } else {
+        resultBox.innerHTML = '<strong>Error:</strong><br>' + result.errors.join('<br>');
+        resultBox.classList.add('result-box--error', 'visible');
+      }
+    } catch (err) {
+      resultBox.innerHTML = '<strong>Error de conexión:</strong> ' + err.message;
+      resultBox.classList.add('result-box--error', 'visible');
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="5 3 19 12 5 21 5 3"/>
+        </svg>
+        Procesar
+      `;
+    }
+  });
+</script>
+{% endblock %}

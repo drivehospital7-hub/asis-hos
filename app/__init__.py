@@ -12,6 +12,9 @@ def create_app(config=None):
     from app.routes.urgencias import urgencias_bp
     from app.routes.procedimientos import procedimientos_bp
     from app.routes.ordenado_facturado import ordenado_facturado_bp
+    from app.routes.notas_api import api_bp
+    from app.routes.import_csv import import_csv_bp
+    from app.routes.derechos import derechos_bp
     
     # Home debe ser la raíz
     app.register_blueprint(home_bp)
@@ -19,5 +22,8 @@ def create_app(config=None):
     app.register_blueprint(urgencias_bp, url_prefix="/urgencias")
     app.register_blueprint(procedimientos_bp)
     app.register_blueprint(ordenado_facturado_bp, url_prefix="/ordenado-facturado")
+    app.register_blueprint(api_bp)
+    app.register_blueprint(import_csv_bp)
+    app.register_blueprint(derechos_bp, url_prefix="/derechos")
     
     return app

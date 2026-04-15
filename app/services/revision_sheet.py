@@ -1244,10 +1244,11 @@ def _detect_centro_costo_urgencias(
         ENTIDAD_IDE_CONTRATO_890405_EPSI05,
         IDE_CONTRATO_CON_INSERCION_890405_EPSI05,
         IDE_CONTRATO_SIN_INSERCION_890405_EPSI05,
-        CODIGO_CUPS_HOSPITALIZACION,
+CODIGO_CUPS_HOSPITALIZACION,
         CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
-        CODIGO_CUPS_REEMPLAZABLE,
-        CODIGO_CUPS_SUSTITUTO,
+        CODIGO_CUPS_URGENCIAS,
+        CENTRO_COSTO_URGENCIAS,
+        CODIGO_CUPS_URGENCIAS_861101,
     )
     
     # Debug: mostrar los índices detectados
@@ -1478,6 +1479,38 @@ def _detect_centro_costo_urgencias(
                     tipo_factura_str,
                     centro_costo_str,
                     CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                )
+        
+        # ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
+        if codigo_excluir == CODIGO_CUPS_URGENCIAS:
+            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                })
+                logger.info(
+                    "REGLA (890408): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                    CENTRO_COSTO_URGENCIAS,
+                )
+        
+        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
+        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
+            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                })
+                logger.info(
+                    "REGLA (861101): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                    CENTRO_COSTO_URGENCIAS,
                 )
 
         # ----- Grupo: Cups equivalentes urgencias
