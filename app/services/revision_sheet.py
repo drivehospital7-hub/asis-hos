@@ -1389,6 +1389,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                 "factura": factura_str,
                 "centro_actual": centro_costo_str,
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
             })
             logger.info(
                 "REGLA1: Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s', CódigoProc: '%s')",
@@ -1405,6 +1407,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
@@ -1419,6 +1423,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA3: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
@@ -1435,6 +1441,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA4: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
@@ -1456,6 +1464,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                         "factura": factura_str,
                         "centro_actual": centro_costo_str,
                         "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                        "codigo": codigo_excluir,
+                        "procedimiento": proc_str,
                     })
                     logger.info(
                         "REGLA5: Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
@@ -1471,15 +1481,9 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
-                logger.info(
-                    "REGLA (890601+Hospitalización): Fila %s: Código=%s, Tipo=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
-                    row,
-                    codigo_excluir,
-                    tipo_factura_str,
-                    centro_costo_str,
-                    CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
-                )
         
         # ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
         if codigo_excluir == CODIGO_CUPS_URGENCIAS:
@@ -1488,14 +1492,9 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
-                logger.info(
-                    "REGLA (890408): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
-                    row,
-                    codigo_excluir,
-                    centro_costo_str,
-                    CENTRO_COSTO_URGENCIAS,
-                )
         
         # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
         if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
@@ -1504,6 +1503,8 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "factura": factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA (861101): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
@@ -2280,9 +2281,9 @@ def create_revision_sheet(
             data_sheet, indices, problemas_codigos_no_en_db
         )
         
-        # Formatear para Excel: "FACTURA CENTRO_ACTUAL -> CENTRO_DEBERIA"
+        # Formatear para Excel: "FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
-            f"{item['factura']} {item['centro_actual']} -> {item['centro_deberia']}"
+            f"{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
             for item in problemas_centros
         ]
         
@@ -2518,6 +2519,8 @@ def detect_all_problems(
                 "centros_de_costos": [
                     {
                         "factura": item["factura"],
+                        "codigo": item.get("codigo", ""),
+                        "procedimiento": item.get("procedimiento", ""),
                         "centro_actual": item["centro_actual"],
                         "centro_deberia": item["centro_deberia"],
                     }

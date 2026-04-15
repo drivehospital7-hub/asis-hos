@@ -189,21 +189,25 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCentrosCostos) {
-              // Centros de Costos: 3 columnas
+              // Centros de Costos: 5 columnas
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
               html += '<tbody>';
               
-              // Función para renderizar facturas con 3 columnas
+              // Función para renderizar facturas con 5 columnas
               function renderFacturas(items) {
                 let html = '';
                 items.slice(0, 50).forEach(function(item) {
                   let factura = '';
+                  let codigo = '';
+                  let procedimiento = '';
                   let centroActual = '';
                   let centroDeberia = '';
                   
                   if (typeof item === 'object' && item !== null) {
                     factura = item.factura || '';
+                    codigo = item.codigo || '';
+                    procedimiento = item.procedimiento || '';
                     centroActual = item.centro_actual || '';
                     centroDeberia = item.centro_deberia || '';
                   } else if (typeof item === 'string' && item.includes('|')) {
@@ -215,6 +219,8 @@ document.addEventListener('DOMContentLoaded', function() {
                   
                   html += '<tr>';
                   html += '<td>' + factura + '</td>';
+                  html += '<td>' + codigo + '</td>';
+                  html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + centroActual + '</td>';
                   html += '<td>' + centroDeberia + '</td>';
                   html += '</tr>';
@@ -225,7 +231,7 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderFacturas(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
