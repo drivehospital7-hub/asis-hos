@@ -112,8 +112,20 @@ Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
 
 | Validación | Descripción |
 |------------|-------------|
-| **Centros de costo** | Detecta códigos NO encontrados en DB para ESS118 |
+| **Centros de costo** | Detecta códigos NO encontrados en DB para ESS118 + Regla 890601H |
 | **IDE Contrato** | Por código + entidad (EPSI05, EPSIC5, ESS118, ESSC18, EPS037, EPSS41) |
+
+#### Centro de Costo — Urgencias
+
+| Código CUPS | Tipo Factura | Centro de costo esperado |
+|-------------|--------------|-------------------------|
+| **890601** | Hospitalización | **HOSPITALIZACIÓN - ESTANCIA GENERAL** |
+
+#### Cups equivalentes urgencias
+
+| Código | Cód. Equivalente CUPS | Acción |
+|--------|----------------------|--------|
+| **890201** | **890201** | ERROR - Debe usarse **890701** |
 
 #### IDE Contrato — Urgencias
 

@@ -171,6 +171,7 @@ REVISION_HEADERS: dict[int, str] = {
 URGENCIA_REVISION_HEADERS: dict[int, str] = {
     1: "Centros de Costos",
     2: "IDE Contrato",
+    3: "Cups Equivalentes",
 }
 
 # =============================================================================
@@ -474,3 +475,11 @@ EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD = 3
 EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN = 2
 EQUIPOS_BASICOS_CANTIDAD_MAX = 10
 EQUIPOS_BASICOS_CANTIDAD_PYP_MIN = 3
+
+# ----- Nueva Regla: Código CUPS 890601 + Tipo Factura=Hospitalización -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+CODIGO_CUPS_HOSPITALIZACION = "890601"
+CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+
+# ----- Nueva Regla: Servicios CUPS reemplazable - Código 890201 o 12333 debe ser 890701
+CODIGO_CUPS_REEMPLAZABLE = "890201"
+CODIGO_CUPS_SUSTITUTO = "890701"

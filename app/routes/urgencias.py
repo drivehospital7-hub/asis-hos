@@ -107,8 +107,9 @@ def export_urgencias():
         problemas_dict = problemas_data.get("problemas", {})
         centros = problemas_dict.get("centros_de_costos", [])
         ide_contrato = problemas_dict.get("ide_contrato", [])
+        cups_equivalentes = problemas_dict.get("cups_equivalentes", [])
         
-        logger.info("DATOS FINALES - centros_de_costos: %d, ide_contrato: %d", len(centros), len(ide_contrato))
+        logger.info("DATOS FINALES - centros_de_costos: %d, ide_contrato: %d, cups_equivalentes: %d", len(centros), len(ide_contrato), len(cups_equivalentes))
 
     if export_result["status"] == "success":
         output_path = export_result["data"]["output_path"]
@@ -173,6 +174,31 @@ def export_urgencias():
                 "tipo_key": "ide_contrato",
                 "cantidad": len(ide_contrato),
                 "facturas": facturas_ide,
+            })
+        
+        # Cups equivalentes
+        cups_equiv = problemas_dict.get("cups_equivalentes", [])
+        if cups_equiv:
+            facturas_cups = []
+            for item in cups_equiv[:50]:
+                factura_error = {
+                    "factura": item.get("factura", ""),
+                    "codigo": item.get("codigo", ""),
+                    "codigo_equiv": item.get("codigo_equiv", ""),
+                    "accion": item.get("accion", ""),
+                }
+                facturas_cups.append(factura_error)
+                logger.info("FACTURA CupsEquiv: %s - Código: %s, Código Equiv: %s - Acción: %s",
+                           item.get("factura", ""),
+                           item.get("codigo", ""),
+                           item.get("codigo_equiv", ""),
+                           item.get("accion", ""))
+            
+            errores.append({
+                "tipo": "Cups Equivalentes",
+                "tipo_key": "cups_equivalentes",
+                "cantidad": len(cups_equiv),
+                "facturas": facturas_cups,
             })
         
         # Reglas transversales: Decimales

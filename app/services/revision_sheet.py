@@ -200,6 +200,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "codigo_tipo_procedimiento": None,
         "tipo_procedimiento": None,
         "codigo": None,
+        "codigo_equiv": None,
         "procedimiento": None,
         "identificacion": None,
         "convenio_facturado": None,
@@ -227,6 +228,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
         "tipo_procedimiento": "Tipo Procedimiento",
         "codigo": "Cód. Equivalente CUPS",
+        "codigo_equiv": "Código",
         "procedimiento": "Procedimiento",
         "identificacion": "Nº Identificación",
         "convenio_facturado": "Convenio Facturado",
@@ -501,7 +503,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
     convenio_idx = indices["convenio_facturado"]
     proc_idx = indices["procedimiento"]
     
-    if None in (num_fact_idx, conveniente_idx, proc_idx):
+    if None in (num_fact_idx, convenio_idx, proc_idx):
         return []
     
     problemas = []
@@ -512,7 +514,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
         if not factura_str:
             continue
         
-        convencio = data_sheet.cell(row=row, column=convencio_idx + 1).value
+        convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
         procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
         
         if procedimiento is None:
@@ -523,7 +525,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
         problema_tipo = ""
         
         # Caso 1: Convenio Asistencial con procedimientos PyP (Equipos Básicos)
-        if convencio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        if convenio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
             should_add = True
             problema_tipo = "Asistencial con procedimiento PyP"
             logger.debug(
@@ -533,7 +535,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
             )
         
         # Caso 2: Convenio PyP con procedimientos NO PyP (Equipos Básicos)
-        elif convencio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        elif convenio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
             should_add = True
             problema_tipo = "PyP con procedimiento no PyP"
             logger.debug(
@@ -545,7 +547,7 @@ def _detect_convenio_procedimiento_equipos_basicos(
         if should_add and factura_str not in [p.get("factura") for p in problemas]:
             problemas.append({
                 "factura": factura_str,
-                "convenio": str(convencio) if convencio else "",
+                "convenio": str(convenio) if convenio else "",
                 "procedimiento": proc_str,
                 "problema": problema_tipo,
             })
@@ -713,7 +715,7 @@ def _detect_cantidades_anomalas_equipos_basicos(
         tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
         cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
         procedimiento = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-        convencio = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
+        convenio = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
         
         if not isinstance(cantidad, (int, float)):
             continue
@@ -724,7 +726,7 @@ def _detect_cantidades_anomalas_equipos_basicos(
             problema_tipo = f"Consultas con cantidad {cantidad} (mín. {EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN})"
         elif cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX:
             problema_tipo = f"Cantidad {cantidad} > máximo {EQUIPOS_BASICOS_CANTIDAD_MAX}"
-        elif convencio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN:
+        elif convenio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN:
             problema_tipo = f"PyP con cantidad {cantidad} (mín. {EQUIPOS_BASICOS_CANTIDAD_PYP_MIN})"
         
         # Reglas de cantidad anómala (Equipos Básicos - configurables)
@@ -734,7 +736,7 @@ def _detect_cantidades_anomalas_equipos_basicos(
             # Cualquier cantidad > máximo configurable
             or cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX
             # PyP >= umbral configurable
-            or (convencio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
+            or (convenio == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
         )
         
         if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
@@ -743,7 +745,7 @@ def _detect_cantidades_anomalas_equipos_basicos(
                 "tipo_procedimiento": str(tipo_value) if tipo_value else "",
                 "procedimiento": str(procedimiento).strip() if procedimiento else "",
                 "cantidad": cantidad,
-                "convenio": str(convencio) if convencio else "",
+                "convenio": str(convenio) if convenio else "",
                 "problema": problema_tipo,
             })
             logger.debug(
@@ -1194,15 +1196,16 @@ def _detect_centro_costo_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
     problemas_codigos_no_en_db: list[dict[str, str]] | None = None,
-) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+) -> tuple[list[dict[str, str]], list[dict[str, str]], list[dict[str, str]]]:
     """
-    Detecta facturas con problemas de centro de costo y advertencias de derechos:
+    Detecta facturas con problemas de centro de costo, IDE contrato y cups equivalentes:
     -Regla 1: Código=02 Y Laboratorio=No Y Centro != APOYO DIAGNOSTICO-IMAGENOLOGIA
     -Regla 2: Código=14 Y Centro == TRASLADOS
     -Regla 3: Código en (990211, 890205, 890405, 861801) Y Centro != PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN
     -Regla 4: Código en (735301, 90DS02) Y Centro != QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO
     -Regla 5: Código en lista laboratorio Y Entidad=ESS118 Y Tipo=Intramural Y Centro != LABORATORIO CLINICO
     -Regla nueva: Si código NO está en DB Y Entidad=ESS118 Y IDE=969 -> ERROR
+    -Cups equivalentes: Código=890201 Y Cód. Equivalente CUPS=890201 -> ERROR
     
     Args:
         data_sheet: Hoja de datos
@@ -1210,9 +1213,10 @@ def _detect_centro_costo_urgencias(
         problemas_codigos_no_en_db: Lista de problemas de códigos no en la DB (para regla 969)
     
     Returns:
-        Tuple de dos listas:
+        Tuple de tres listas:
         - problemas_centros: lista de dicts con keys: "factura", "centro_actual", "centro_deberia"
         - problemas_ide_contrato: lista de dicts con keys: "factura", "ide_contrato_actual", "ide_contrato_deberia"
+        - problemas_cups_equivalentes: lista de dicts con keys: "factura", "codigo", "codigo_equiv"
     """
     # Crear set de códigos para búsquedas rápidas
     codigos_no_en_db_set = set()
@@ -1240,6 +1244,10 @@ def _detect_centro_costo_urgencias(
         ENTIDAD_IDE_CONTRATO_890405_EPSI05,
         IDE_CONTRATO_CON_INSERCION_890405_EPSI05,
         IDE_CONTRATO_SIN_INSERCION_890405_EPSI05,
+        CODIGO_CUPS_HOSPITALIZACION,
+        CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+        CODIGO_CUPS_REEMPLAZABLE,
+        CODIGO_CUPS_SUSTITUTO,
     )
     
     # Debug: mostrar los índices detectados
@@ -1249,6 +1257,7 @@ def _detect_centro_costo_urgencias(
     ident_idx = indices.get("identificacion")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
     codigo_idx = indices.get("codigo")
+    codigo_equiv_idx = indices.get("codigo_equiv")
     laboratorio_idx = indices.get("laboratorio")
     centro_costo_idx = indices.get("centro_costo")
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
@@ -1257,8 +1266,8 @@ def _detect_centro_costo_urgencias(
     ide_contrato_idx = indices.get("ide_contrato")
     proc_idx = indices.get("procedimiento")
     
-    logger.info("Índices relevantes - codigo_tipo_proc: %s, codigo: %s, laboratorio: %s, centro_costo: %s, ide_contrato: %s, codigo_entidad: %s",
-                codigo_tipo_proc_idx, codigo_idx, laboratorio_idx, centro_costo_idx, ide_contrato_idx, codigo_entidad_cobrar_idx)
+    logger.info("Índices relevantes - codigo_tipo_proc: %s, codigo: %s, codigo_equiv: %s, laboratorio: %s, centro_costo: %s, ide_contrato: %s, codigo_entidad: %s",
+                codigo_tipo_proc_idx, codigo_idx, codigo_equiv_idx, laboratorio_idx, centro_costo_idx, ide_contrato_idx, codigo_entidad_cobrar_idx)
     
     if num_fact_idx is None:
         return []
@@ -1266,10 +1275,11 @@ def _detect_centro_costo_urgencias(
     # Si no tenemos las columnas necesarias, no podemos validar
     if codigo_tipo_proc_idx is None and laboratorio_idx is None and centro_costo_idx is None:
         logger.warning("No se encontraron columnas necesarias para validación de urgencias")
-        return [], []
+        return [], [], []
     
     problemas_centros = []
     problemas_ide_contrato = []
+    problemas_cups_equivalentes = []
     # NO usamos set para centros de costos - cada fila con error se incluye (permite múltiples errores por factura en diferentes procedimientos)
     
     # ----- Pre-recorrido:收集 identificaciones con código 861801
@@ -1311,6 +1321,10 @@ def _detect_centro_costo_urgencias(
         if codigo_idx is not None:
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         
+        codigo_equiv = None
+        if codigo_equiv_idx is not None:
+            codigo_equiv = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
+        
         laboratorio = None
         if laboratorio_idx is not None:
             laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
@@ -1346,6 +1360,7 @@ def _detect_centro_costo_urgencias(
         # Normalizar strings (definir ANTES de usar)
         codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
         codigo_excluir = str(codigo).strip() if codigo else ""
+        codigo_equiv_str = str(codigo_equiv).strip() if codigo_equiv else ""
         laboratorio_str = str(laboratorio).strip() if laboratorio else ""
         centro_costo_str = str(centro_costo).strip() if centro_costo else ""
         codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
@@ -1447,6 +1462,41 @@ def _detect_centro_costo_urgencias(
                         codigo_excluir,
                         centro_costo_str,
                     )
+        
+        # ----- Regla nueva: Tipo Factura=Hospitalización + Código CUPS 890601 -> Centro de costo debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION and tipo_factura_str == "Hospitalización":
+            if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                })
+                logger.info(
+                    "REGLA (890601+Hospitalización): Fila %s: Código=%s, Tipo=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
+                    row,
+                    codigo_excluir,
+                    tipo_factura_str,
+                    centro_costo_str,
+                    CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                )
+
+        # ----- Grupo: Cups equivalentes urgencias
+        # ----- Regla: Si Código = 890201 Y Cód. Equivalente CUPS = 890201 → ERROR (debe usarse 890701)
+        logger.info("DEBUG CUPS: codigo_excluir='%s', codigo_equiv_str='%s'", codigo_excluir, codigo_equiv_str)
+        if codigo_excluir == "890201" and codigo_equiv_str == "890201":
+            logger.warning("DETECTADO cups equiv error: factura=%s, codigo=%s, equiv=%s", factura_str, codigo_excluir, codigo_equiv_str)
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": codigo_excluir,
+                "codigo_equiv": codigo_equiv_str,
+                "accion": "Usar 890701",
+            })
+            logger.info(
+                "REGLA (Cups equivalentes): Fila %s: Código=%s + Cód. Equivalente CUPS=%s -> debe usarse 890701",
+                row,
+                codigo_excluir,
+                codigo_equiv_str,
+            )
         
         # ----- Regla 6: Código=906340 + Cód Entidad Cobrar=EPSI05 -> IDE Contrato debe ser 986
         # (Independiente - NO depende de otras reglas)
@@ -1990,7 +2040,7 @@ def _detect_centro_costo_urgencias(
                     contratos_validos,
                 )
 
-    return problemas_centros, problemas_ide_contrato
+    return problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes
 
 
 def _log_verificacion_codigos_ess118(
@@ -2193,7 +2243,7 @@ def create_revision_sheet(
                         len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set))
         else:
             logger.warning("Todos los códigos de ESS118 están en DB")
-        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(
+        problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = _detect_centro_costo_urgencias(
             data_sheet, indices, problemas_codigos_no_en_db
         )
         
@@ -2209,9 +2259,16 @@ def create_revision_sheet(
             for item in problemas_ide_contrato
         ]
         
+        # Formatear Cups equivalentes: "FACTURA|CODIGO|CODIGO_EQUIV|ACCION"
+        cups_equiv_str = [
+            f"{item['factura']}|{item['codigo']}|{item['codigo_equiv']}|{item['accion']}"
+            for item in problemas_cups_equivalentes
+        ]
+        
         # Escribir en Excel: fila 3+
         _write_column(sheet, 1, centros_costo_str, start_row=3)
         _write_column(sheet, 2, ide_contrato_str, start_row=3)
+        _write_column(sheet, 3, cups_equiv_str, start_row=3)
         
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
@@ -2220,6 +2277,7 @@ def create_revision_sheet(
                 for item in problemas_centros
             ],
             "Problemas de IDE Contrato": problemas_ide_contrato,
+            "Cups equivalentes urgencias": problemas_cups_equivalentes,
         }
     else:
         # Odontología: todas las validaciones existentes
@@ -2272,8 +2330,9 @@ def create_revision_sheet(
     # Logging según el área
     if area == AREA_URGENCIAS:
         logger.info(
-            "Hoja Revision Urgencias creada - Centros de Costos: %d",
+            "Hoja Revision Urgencias creada - Centros de Costos: %d, Cups Equivalentes: %d",
             len(problemas_centros),
+            len(problemas_cups_equivalentes),
         )
     else:
         logger.info(
@@ -2390,7 +2449,7 @@ def detect_all_problems(
                 if count >= 5:
                     break
         
-        problemas_centros, problemas_ide_contrato = _detect_centro_costo_urgencias(
+        problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = _detect_centro_costo_urgencias(
             data_sheet, indices, problemas_codigos_no_en_db
         )
         
@@ -2444,6 +2503,15 @@ def detect_all_problems(
                     }
                     for item in problemas_ide_contrato
                 ],
+                "cups_equivalentes": [
+                    {
+                        "factura": item["factura"],
+                        "codigo": item["codigo"],
+                        "codigo_equiv": item["codigo_equiv"],
+                        "accion": item["accion"],
+                    }
+                    for item in problemas_cups_equivalentes
+                ],
                 # reglas transversales
                 "decimales": decimales,
                 "tipo_identificacion_edad": tipo_identificacion_edad,
@@ -2452,6 +2520,7 @@ def detect_all_problems(
             "totales": {
                 "centros_de_costos": len(problemas_centros),
                 "ide_contrato": len(problemas_ide_contrato),
+                "cups_equivalentes": len(problemas_cups_equivalentes),
                 "decimales": len(decimales),
                 "tipo_identificacion_edad": len(tipo_identificacion_edad),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
