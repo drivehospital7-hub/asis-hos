@@ -227,8 +227,8 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "vlr_procedimiento": "Vlr. Procedimiento",
         "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
         "tipo_procedimiento": "Tipo Procedimiento",
-        "codigo": "Cód. Equivalente CUPS",
-        "codigo_equiv": "Código",
+        "codigo": "Código",
+        "codigo_equiv": "Cód. Equivalente CUPS",
         "procedimiento": "Procedimiento",
         "identificacion": "Nº Identificación",
         "convenio_facturado": "Convenio Facturado",
@@ -1515,21 +1515,19 @@ CODIGO_CUPS_HOSPITALIZACION,
                 )
 
         # ----- Grupo: Cups equivalentes urgencias
-        # ----- Regla: Si Código = 890201 Y Cód. Equivalente CUPS = 890201 → ERROR (debe usarse 890701)
-        logger.info("DEBUG CUPS: codigo_excluir='%s', codigo_equiv_str='%s'", codigo_excluir, codigo_equiv_str)
-        if codigo_excluir == "890201" and codigo_equiv_str == "890201":
-            logger.warning("DETECTADO cups equiv error: factura=%s, codigo=%s, equiv=%s", factura_str, codigo_excluir, codigo_equiv_str)
+        # ----- Regla: Si Código = 890201 → ERROR (debe usarse 890701)
+        if codigo_excluir == "890201":
+            logger.warning("DETECTADO cups equiv error: factura=%s, codigo=%s", factura_str, codigo_excluir)
             problemas_cups_equivalentes.append({
                 "factura": factura_str,
                 "codigo": codigo_excluir,
-                "codigo_equiv": codigo_equiv_str,
+                "codigo_equiv": "",
                 "accion": "Usar 890701",
             })
             logger.info(
-                "REGLA (Cups equivalentes): Fila %s: Código=%s + Cód. Equivalente CUPS=%s -> debe usarse 890701",
+                "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 890701",
                 row,
                 codigo_excluir,
-                codigo_equiv_str,
             )
         
         # ----- Regla 6: Código=906340 + Cód Entidad Cobrar=EPSI05 -> IDE Contrato debe ser 986
@@ -2093,14 +2091,14 @@ def _log_verificacion_codigos_ess118(
     
     EPS_DB = "EMSSANAR_CAPITA"
     
-    # Usar nombres exactos de columnas
-    codigo_idx = indices.get("Cód. Equivalente CUPS")
+    # Usar claves del diccionario indices
+    codigo_idx = indices.get("codigo")
     codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
     entidad_cobrar_idx = indices.get("entidad_cobrar")
-    codigo_tipo_proc_idx = indices.get("Código Tipo Procedimiento")
+    codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
     
     if codigo_idx is None:
-        logger.warning("No hay índice de Cód. Equivalente CUPS")
+        logger.warning("No hay índice de Código")
         return set()
     
     # Collect códigos únicos para ESS118
@@ -2447,7 +2445,8 @@ def detect_all_problems(
         
         # Debug: mostrar índices encontrados en el dict 'indices'
         logger.warning("=== DEBUG: Indices del dict para ESS118 ===")
-        logger.warning(f"  Cód. Equivalente CUPS: {indices.get('codigo')}")
+        logger.warning(f"  Código: {indices.get('codigo')}")
+        logger.warning(f"  Cód. Equivalente CUPS: {indices.get('codigo_equiv')}")
         logger.warning(f"  Código Tipo Procedimiento: {indices.get('codigo_tipo_procedimiento')}")
         logger.warning(f"  Codigo_Entidad: {indices.get('codigo_entidad_cobrar')}")
         logger.warning(f"  IDE Contrato: {indices.get('ide_contrato')}")
@@ -2466,7 +2465,7 @@ def detect_all_problems(
         
         # Debug: mostrar valores de las primeras filas ESS118
         logger.warning("=== DEBUG: 5 primeras filas ESS118 ===")
-        codigo_equiv_idx = indices.get("codigo")
+        codigo_equiv_idx = indices.get("codigo_equiv")
         codigo_tipo_idx = indices.get("codigo_tipo_procedimiento")
         codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
         ide_idx = indices.get("ide_contrato")
