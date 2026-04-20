@@ -63,7 +63,7 @@ EXPECTED_HEADERS_LIMPIO: set[str] = {
     "ID",
     "Alto Riesgo",
     "LASA",
-    "Cód. Equivalente CUPS",
+    "Código",
     "Cód. Equivalente CUPS",
     "CUM",
     "Procedimiento",
