@@ -1020,6 +1020,19 @@ def _detect_ide_contrato_odontologia(
     if count == 0:
         logger.warning("  NO se encontraron filas con las entidades de interés")
     
+    # Mostrar las entidades únicas que SÍ hay en el archivo
+    logger.warning("=== DEBUG: Entidades únicas en el archivo ===")
+    entidades_encontradas = set()
+    for row in range(2, min(data_sheet.max_row + 1, 500)):
+        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value if entidad_idx is not None else None
+        if entidad:
+            entidad_str = str(entidad).strip().upper()
+            if entidad_str:
+                entidades_encontradas.add(entidad_str)
+        if len(entidades_encontradas) >= 20:
+            break
+    logger.warning(f"  Entidades únicas encontradas: {sorted(entidades_encontradas)}")
+    
     if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
         logger.warning(
             "IDE Contrato - Columnas necesarias no encontradas: "
