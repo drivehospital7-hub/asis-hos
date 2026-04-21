@@ -1003,7 +1003,14 @@ def _detect_ide_contrato_odontologia(
     )
     
     if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
-        logger.warning("IDE Contrato - Columnas necesarias no encontradas (alguna es None)")
+        logger.warning(
+            "IDE Contrato - Columnas necesarias no encontradas: "
+            "num_factura=%s, entidad_cobrar=%s, codigo=%s, ide_contrato=%s",
+            num_fact_idx,
+            entidad_idx,
+            codigo_idx,
+            ide_contrato_idx,
+        )
         return []
     
     problemas = []
@@ -2624,7 +2631,10 @@ def create_revision_sheet(
         conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
         cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        
+        logger.info("create_revision_sheet - area=%s, Llamando _detect_ide_contrato_odontologia", area)
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
+        logger.info("create_revision_sheet - IDE Contrato encontrados: %d", len(ide_contrato))
         
         # Formatear para Excel: "FACTURA TIPO_ACTUAL -> TIPO_DEBERIA (Edad: X)"
         tipo_id_edad_str = [
@@ -2887,7 +2897,10 @@ def detect_all_problems(
         conveniente_proc = _detect_convenio_procedimiento_equipos_basicos(data_sheet, indices)
         cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        
+        logger.info("create_revision_sheet - Equipos Básicos, Llamando _detect_ide_contrato_odontologia")
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
+        logger.info("create_revision_sheet - Equipos Básicos, IDE Contrato encontrados: %d", len(ide_contrato))
         
         # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
         entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
