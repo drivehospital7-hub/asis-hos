@@ -1097,26 +1097,46 @@ def _get_codigos_no_en_db_ess118(
     indices: dict[str, int | None],
 ) -> list[dict[str, str]]:
     """
-    Retorna lista de problemas de códigos CUPS para ESS118 que NO están en la DB.
+    Retorna lista de problemas de códigos CUPS que NO están en la DB.
     
-    Regla: Entidad = ESS118 Y IDE = 969 Y código NO está en DB → ERROR
-    Excepción: Código Tipo Procedimiento = 09, 12, 13 → NO reportar
+    Regla: IDE Contrato = 969 Y Código Tipo Procedimiento no es 9,12,13 
+           Y código NO está en tabla procedimiento → ERROR
+    
+    Nota: Se consulta la tabla procedimiento de PostgreSQL (no la DB externa).
     
     Returns:
         Lista de dicts con keys: "factura", "codigo", "procedimiento", "entidad"
-        Un error por cada fila/procedimiento que no está en la DB Y tiene IDE=969.
     """
-    from app.services.procedimientos_db import get_procedimiento
+    # Cargar códigos válidos de la tabla procedimiento relacionados con nota_hoja = 3
+    from app.database import SessionLocal
+    from app.models import Procedimiento, NotasTecnicas
     
-    EPS_DB = "EMSSANAR_CAPITA"
+    db = SessionLocal()
+    try:
+        # Obtener cups de procedimiento relacionados con id_nota_hoja = 3
+        cups_validos = set(
+            row.cups 
+            for row in db.query(Procedimiento.cups)
+            .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
+            .filter(NotasTecnicas.id_nota_hoja == 3)
+            .distinct()
+            .all()
+        )
+    finally:
+        db.close()
+    
+    if not cups_validos:
+        logger.warning("No hay códigos en tabla procedimiento para nota_hoja=3")
+        return []
+    
+    logger.info("Códigos válidos (nota_hoja=3): %d", len(cups_validos))
     
     codigo_idx = indices.get("codigo")
-    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
-    entidad_cobrar_idx = indices.get("entidad_cobrar")
     ide_contrato_idx = indices.get("ide_contrato")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
     num_fact_idx = indices.get("numero_factura")
     proc_idx = indices.get("procedimiento")
+    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
     
     if codigo_idx is None:
         return []
@@ -1124,23 +1144,15 @@ def _get_codigos_no_en_db_ess118(
     problemas = []
     
     for row in range(2, data_sheet.max_row + 1):
-        es_ess118 = False
+        # Verificar IDE Contrato = 969
+        ide_contrato = None
+        if ide_contrato_idx is not None:
+            ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
         
-        if codigo_entidad_idx is not None:
-            codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
-            if codigo_entidad:
-                entidad_normalizada = str(codigo_entidad).strip().upper()
-                if "ESS118" in entidad_normalizada:
-                    es_ess118 = True
+        ide_str = str(ide_contrato).strip() if ide_contrato else ""
         
-        if not es_ess118 and entidad_cobrar_idx is not None:
-            entidad = data_sheet.cell(row=row, column=entidad_cobrar_idx + 1).value
-            if entidad:
-                entidad_normalizada = str(entidad).strip().upper()
-                if "ESS118" in entidad_normalizada:
-                    es_ess118 = True
-        
-        if not es_ess118:
+        # Solo procesar si IDE = 969
+        if ide_str != "969":
             continue
         
         # Excluir Código Tipo Procedimiento = 09, 12, 13
@@ -1149,26 +1161,14 @@ def _get_codigos_no_en_db_ess118(
             if codigo_tipo and str(codigo_tipo).strip() in ["09", "12", "13"]:
                 continue
         
-        # Verificar IDE=969
-        ide_contrato = None
-        if ide_contrato_idx is not None:
-            ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
-        
-        ide_str = str(ide_contrato).strip() if ide_contrato else ""
-        
-        # Solo reportar si IDE = 969
-        if ide_str != "969":
-            continue
-        
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         if not codigo:
             continue
         
         codigo_str = str(codigo).strip()
         
-        # Verificar si existe en la DB
-        proc = get_procedimiento(EPS_DB, codigo_str)
-        if not proc:
+        # Verificar si existe en la tabla procedimiento
+        if codigo_str not in cups_validos:
             # Agregar problema individual por cada fila
             factura = ""
             if num_fact_idx is not None:
@@ -2080,52 +2080,58 @@ def _log_verificacion_codigos_ess118(
     indices: dict[str, int | None],
 ) -> list[str]:
     """
-    Verifica códigos CUPS de ESS118 contra la base de datos de procedimientos.
+    Verifica códigos CUPS con IDE Contrato = 969 contra la tabla procedimiento.
     
-    Muestra en el log todos los códigos que NO se encuentran en la DB (EMSSANAR_CAPITA).
+    Muestra en el log todos los códigos que NO se encuentran en la tabla procedimiento.
     
     Returns:
         Lista de códigos no encontrados en la DB
     """
-    from app.services.procedimientos_db import get_procedimiento
+    # Cargar códigos válidos de la tabla procedimiento relacionados con nota_hoja = 3
+    from app.database import SessionLocal
+    from app.models import Procedimiento, NotasTecnicas
     
-    EPS_DB = "EMSSANAR_CAPITA"
+    db = SessionLocal()
+    try:
+        cups_validos = set(
+            row.cups 
+            for row in db.query(Procedimiento.cups)
+            .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
+            .filter(NotasTecnicas.id_nota_hoja == 3)
+            .distinct()
+            .all()
+        )
+    finally:
+        db.close()
+    
+    if not cups_validos:
+        logger.warning("No hay códigos en tabla procedimiento para nota_hoja=3")
+        return set()
     
     # Usar claves del diccionario indices
     codigo_idx = indices.get("codigo")
-    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
-    entidad_cobrar_idx = indices.get("entidad_cobrar")
+    ide_contrato_idx = indices.get("ide_contrato")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
     
     if codigo_idx is None:
         logger.warning("No hay índice de Código")
         return set()
     
-    # Collect códigos únicos para ESS118
-    codigos_ess118 = set()
+    # Collect códigos únicos con IDE = 969
+    codigos_ide_969 = set()
     
     for row in range(2, data_sheet.max_row + 1):
-        # Detectar si es ESS118 (por código entidad o nombre)
-        es_ess118 = False
+        # Verificar IDE = 969
+        ide_contrato = None
+        if ide_contrato_idx is not None:
+            ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
         
-        if codigo_entidad_idx is not None:
-            codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
-            if codigo_entidad:
-                entidad_normalizada = str(codigo_entidad).strip().upper()
-                if "ESS118" in entidad_normalizada:
-                    es_ess118 = True
+        ide_str = str(ide_contrato).strip() if ide_contrato else ""
         
-        if not es_ess118 and entidad_cobrar_idx is not None:
-            entidad = data_sheet.cell(row=row, column=entidad_cobrar_idx + 1).value
-            if entidad:
-                entidad_normalizada = str(entidad).strip().upper()
-                if "ESS118" in entidad_normalizada:
-                    es_ess118 = True
-        
-        if not es_ess118:
+        if ide_str != "969":
             continue
         
-        # Verificar例外ión: Código Tipo Procedimiento = 09, 12, 13 → no incluir
+        # Verificar excepción: Código Tipo Procedimiento = 09, 12, 13 → no incluir
         codigo_tipo = None
         if codigo_tipo_proc_idx:
             codigo_tipo = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
@@ -2135,17 +2141,16 @@ def _log_verificacion_codigos_ess118(
         
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         if codigo:
-            codigos_ess118.add(str(codigo).strip())
+            codigos_ide_969.add(str(codigo).strip())
     
-    if not codigos_ess118:
+    if not codigos_ide_969:
         return set()
     
-    # Verificar cada código contra la DB
+    # Verificar cada código contra la tabla procedimiento
     codigos_no_encontrados = set()
     
-    for codigo in codigos_ess118:
-        proc = get_procedimiento(EPS_DB, codigo)
-        if not proc:
+    for codigo in codigos_ide_969:
+        if codigo not in cups_validos:
             codigos_no_encontrados.add(codigo)
     
     return codigos_no_encontrados
