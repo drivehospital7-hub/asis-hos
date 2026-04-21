@@ -990,55 +990,24 @@ def _detect_ide_contrato_odontologia(
         Lista de dicts con keys: "factura", "codigo", "entidad", "ide_contrato_actual", "ide_contrato_deberia", "nota"
     """
     num_fact_idx = indices["numero_factura"]
-    entidad_idx = indices.get("entidad_cobrar")
+    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
     codigo_idx = indices.get("codigo")
     ide_contrato_idx = indices.get("ide_contrato")
     
     logger.info(
-        "IDE Contrato - Índices: numero_factura=%s, entidad_cobrar=%s, codigo=%s, ide_contrato=%s",
+        "IDE Contrato - Índices: numero_factura=%s, codigo_entidad=%s, codigo=%s, ide_contrato=%s",
         num_fact_idx,
-        entidad_idx,
+        codigo_entidad_idx,
         codigo_idx,
         ide_contrato_idx,
     )
     
-    # Debug: mostrar las primeras filas con entidades que nos interesan
-    logger.warning("=== DEBUG: Primeras filas con entidades ESS118, ESSC18, EPSS41, EPS037, EPSI05, EPSIC5, RES001, ESS062, ESSC62, 0001, EPSS005, EPSC005, 86, 86000 ===")
-    entidades_interes = {'ESS118', 'ESSC18', 'EPSS41', 'EPS037', 'EPSI05', 'EPSIC5', 'RES001', 'ESS062', 'ESSC62', '0001', 'EPSS005', 'EPSC005', '86', '86000'}
-    count = 0
-    for row in range(2, min(data_sheet.max_row + 1, 100)):
-        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value if entidad_idx is not None else None
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx is not None else None
-        ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value if ide_contrato_idx is not None else None
-        if entidad:
-            entidad_str = str(entidad).strip().upper()
-            if entidad_str in entidades_interes:
-                logger.warning(f"  Fila {row}: Entidad={entidad_str}, Código={codigo}, IDE={ide}")
-                count += 1
-                if count >= 10:
-                    break
-    if count == 0:
-        logger.warning("  NO se encontraron filas con las entidades de interés")
-    
-    # Mostrar las entidades únicas que SÍ hay en el archivo
-    logger.warning("=== DEBUG: Entidades únicas en el archivo ===")
-    entidades_encontradas = set()
-    for row in range(2, min(data_sheet.max_row + 1, 500)):
-        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value if entidad_idx is not None else None
-        if entidad:
-            entidad_str = str(entidad).strip().upper()
-            if entidad_str:
-                entidades_encontradas.add(entidad_str)
-        if len(entidades_encontradas) >= 20:
-            break
-    logger.warning(f"  Entidades únicas encontradas: {sorted(entidades_encontradas)}")
-    
-    if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
+    if None in (num_fact_idx, codigo_entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
         logger.warning(
             "IDE Contrato - Columnas necesarias no encontradas: "
-            "num_factura=%s, entidad_cobrar=%s, codigo=%s, ide_contrato=%s",
+            "num_factura=%s, codigo_entidad=%s, codigo=%s, ide_contrato=%s",
             num_fact_idx,
-            entidad_idx,
+            codigo_entidad_idx,
             codigo_idx,
             ide_contrato_idx,
         )
@@ -1052,14 +1021,14 @@ def _detect_ide_contrato_odontologia(
         if not factura_str:
             continue
         
-        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value
+        codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
         
-        if entidad is None or codigo is None or ide_contrato is None:
+        if codigo_entidad is None or codigo is None or ide_contrato is None:
             continue
         
-        entidad_str = str(entidad).strip().upper()
+        codigo_entidad_str = str(codigo_entidad).strip().upper()
         codigo_str = str(codigo).strip().upper()
         ide_str = str(ide_contrato).strip()
         
@@ -1067,7 +1036,7 @@ def _detect_ide_contrato_odontologia(
         ide_esperado = None
         nota = ""
         
-        if entidad_str == "ESS118":
+        if codigo_entidad_str == "ESS118":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_PYP
                 nota = "ESS118 + PyP"
@@ -1075,7 +1044,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP
                 nota = "ESS118 + NO PyP"
         
-        elif entidad_str == "ESSC18":
+        elif codigo_entidad_str == "ESSC18":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_PYP
                 nota = "ESSC18 + PyP"
@@ -1083,7 +1052,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_NO_PYP
                 nota = "ESSC18 + NO PyP"
         
-        elif entidad_str == "EPSS41":
+        elif codigo_entidad_str == "EPSS41":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_PYP
                 nota = "EPSS41 + PyP"
@@ -1091,7 +1060,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_NO_PYP
                 nota = "EPSS41 + NO PyP"
         
-        elif entidad_str == "EPS037":
+        elif codigo_entidad_str == "EPS037":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_PYP
                 nota = "EPS037 + PyP"
@@ -1099,7 +1068,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_NO_PYP
                 nota = "EPS037 + NO PyP"
         
-        elif entidad_str == "EPSI05":
+        elif codigo_entidad_str == "EPSI05":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_PYP
                 nota = "EPSI05 + PyP"
@@ -1107,7 +1076,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_NO_PYP
                 nota = "EPSI05 + NO PyP"
         
-        elif entidad_str == "EPSIC5":
+        elif codigo_entidad_str == "EPSIC5":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_PYP
                 nota = "EPSIC5 + PyP"
@@ -1115,7 +1084,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP
                 nota = "EPSIC5 + NO PyP"
         
-        elif entidad_str == "RES001":
+        elif codigo_entidad_str == "RES001":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_PYP
                 nota = "RES001 + PyP"
@@ -1123,7 +1092,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_NO_PYP
                 nota = "RES001 + NO PyP"
         
-        elif entidad_str == "ESS062":
+        elif codigo_entidad_str == "ESS062":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_PYP
                 nota = "ESS062 + PyP"
@@ -1131,7 +1100,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_NO_PYP
                 nota = "ESS062 + NO PyP"
         
-        elif entidad_str == "ESSC62":
+        elif codigo_entidad_str == "ESSC62":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_PYP
                 nota = "ESSC62 + PyP"
@@ -1139,7 +1108,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_NO_PYP
                 nota = "ESSC62 + NO PyP"
         
-        elif entidad_str == "0001":
+        elif codigo_entidad_str == "0001":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_PYP
                 nota = "0001 + PyP"
@@ -1147,7 +1116,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_NO_PYP
                 nota = "0001 + NO PyP"
         
-        elif entidad_str == "EPSS005":
+        elif codigo_entidad_str == "EPSS005":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_PYP
                 nota = "EPSS005 + PyP"
@@ -1155,7 +1124,7 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_NO_PYP
                 nota = "EPSS005 + NO PyP"
         
-        elif entidad_str == "EPSC005":
+        elif codigo_entidad_str == "EPSC005":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_PYP
                 nota = "EPSC005 + PyP"
@@ -1163,12 +1132,12 @@ def _detect_ide_contrato_odontologia(
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_NO_PYP
                 nota = "EPSC005 + NO PyP"
         
-        elif entidad_str == "86" and codigo_str not in PYP_CUPS_CODES:
+        elif codigo_entidad_str == "86" and codigo_str not in PYP_CUPS_CODES:
             # Solo aplica para NO PyP (PyP no tiene regla)
             ide_esperado_set = IDE_CONTRATO_MULTIPLE_86_NO_PYP
             nota = "86 + NO PyP"
         
-        elif entidad_str == "86000":
+        elif codigo_entidad_str == "86000":
             if codigo_str in PYP_CUPS_CODES:
                 ide_esperado_set = IDE_CONTRATO_MULTIPLE_86000_PYP
                 nota = "86000 + PyP"
@@ -1184,7 +1153,7 @@ def _detect_ide_contrato_odontologia(
             problemas.append({
                 "factura": factura_str,
                 "codigo": codigo_str,
-                "entidad": entidad_str,
+                "entidad": codigo_entidad_str,
                 "ide_contrato_actual": ide_str,
                 "ide_contrato_deberia": f"uno de: {ide_esperado_set}",
                 "nota": nota,
@@ -1192,7 +1161,7 @@ def _detect_ide_contrato_odontologia(
             logger.debug(
                 "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
                 row,
-                entidad_str,
+                codigo_entidad_str,
                 codigo_str,
                 ide_str,
                 ide_esperado_set,
