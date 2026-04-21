@@ -2951,6 +2951,10 @@ def detect_all_problems(
         cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
         
+        logger.info("detect_all_problems - Odontología, Llamando _detect_ide_contrato_odontologia")
+        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
+        logger.info("detect_all_problems - Odontología, IDE Contrato encontrados: %d", len(ide_contrato))
+        
         # Validación centro de costo Odontología
         centro_costo = _detect_centro_costo_odontologia(
             data_sheet, 
@@ -2974,6 +2978,7 @@ def detect_all_problems(
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
+                "ide_contrato": ide_contrato,
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             },
             "totales": {
@@ -2984,7 +2989,8 @@ def detect_all_problems(
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
+                "ide_contrato": len(ide_contrato),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
