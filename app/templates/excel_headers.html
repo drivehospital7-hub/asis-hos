@@ -516,6 +516,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
               headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
               colspan = 5;
+            } else if (error.tipo_key === 'ide_contrato') {
+              headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
+              colspan = 6;
             } else {
               headersHtml = '<th>Factura</th>';
             }
@@ -572,12 +575,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + (item.fec_factura || '') + '</td>';
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
-              } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
-                html += '<td>' + (item.factura || '') + '</td>';
+} else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
                 html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
                 html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
                 html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
                 html += '<td>' + (item.problema || '') + '</td>';
+              } else if (error.tipo_key === 'ide_contrato') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.codigo || '') + '</td>';
+                html += '<td>' + (item.cod_entidad || '') + '</td>';
+                html += '<td>' + (item.ide_actual || '') + '</td>';
+                html += '<td>' + (item.ide_deberia || '') + '</td>';
+                html += '<td>' + (item.nota || '') + '</td>';
               } else {
                 html += '<td>' + (item.factura || '') + '</td>';
               }
