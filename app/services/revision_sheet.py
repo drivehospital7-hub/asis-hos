@@ -1002,6 +1002,24 @@ def _detect_ide_contrato_odontologia(
         ide_contrato_idx,
     )
     
+    # Debug: mostrar las primeras filas con entidades que nos interesan
+    logger.warning("=== DEBUG: Primeras filas con entidades ESS118, ESSC18, EPSS41, EPS037, EPSI05, EPSIC5, RES001, ESS062, ESSC62, 0001, EPSS005, EPSC005, 86, 86000 ===")
+    entidades_interes = {'ESS118', 'ESSC18', 'EPSS41', 'EPS037', 'EPSI05', 'EPSIC5', 'RES001', 'ESS062', 'ESSC62', '0001', 'EPSS005', 'EPSC005', '86', '86000'}
+    count = 0
+    for row in range(2, min(data_sheet.max_row + 1, 100)):
+        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value if entidad_idx is not None else None
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx is not None else None
+        ide = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value if ide_contrato_idx is not None else None
+        if entidad:
+            entidad_str = str(entidad).strip().upper()
+            if entidad_str in entidades_interes:
+                logger.warning(f"  Fila {row}: Entidad={entidad_str}, Código={codigo}, IDE={ide}")
+                count += 1
+                if count >= 10:
+                    break
+    if count == 0:
+        logger.warning("  NO se encontraron filas con las entidades de interés")
+    
     if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
         logger.warning(
             "IDE Contrato - Columnas necesarias no encontradas: "
