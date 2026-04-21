@@ -1991,48 +1991,6 @@ CODIGO_CUPS_HOSPITALIZACION,
                     tiene_insercion,
                 )
 
-        # ----- Regla 16: ESS118 + Código PyP -> IDE Contrato debe ser 969 o 973
-        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118_PYP and codigo_excluir in PYP_CUPS_CODES:
-            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_PYP:
-                problemas_ide_contrato.append({
-                    "factura": factura_str,
-                    "procedimiento": proc_str,
-                    "codigo": codigo_excluir,
-                    "entidad": codigo_entidad_str,
-                    "ide_contrato_actual": ide_contrato_str,
-                    "ide_contrato_deberia": f"uno de: {IDE_CONTRATO_MULTIPLE_ESS118_PYP}",
-                    "nota": "ESS118 + Procedimiento PyP -> IDE 970 o 974",
-                })
-                logger.debug(
-                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
-                    row,
-                    codigo_entidad_str,
-                    codigo_excluir,
-                    ide_contrato_str,
-                    IDE_CONTRATO_MULTIPLE_ESS118_PYP,
-                )
-
-        # ----- Regla 17: ESS118 + Código NO PyP -> IDE Contrato debe ser 969 o 973
-        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118_PYP and codigo_excluir not in PYP_CUPS_CODES:
-            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP:
-                problemas_ide_contrato.append({
-                    "factura": factura_str,
-                    "procedimiento": proc_str,
-                    "codigo": codigo_excluir,
-                    "entidad": codigo_entidad_str,
-                    "ide_contrato_actual": ide_contrato_str,
-                    "ide_contrato_deberia": f"uno de: {IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP}",
-                    "nota": "ESS118 + Procedimiento NO PyP -> IDE 969 o 973",
-                })
-                logger.debug(
-                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
-                    row,
-                    codigo_entidad_str,
-                    codigo_excluir,
-                    ide_contrato_str,
-                    IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP,
-                )
-
         # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
         # Urgencias y Contratos
         if codigo_excluir == CODIGO_IDE_CONTRATO_906340_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
