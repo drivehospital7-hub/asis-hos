@@ -2614,11 +2614,18 @@ def create_revision_sheet(
         conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
         cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         
         # Formatear para Excel: "FACTURA TIPO_ACTUAL -> TIPO_DEBERIA (Edad: X)"
         tipo_id_edad_str = [
             f"{item['factura']} {item['tipo_actual']} -> {item['tipo_deberia']} (Edad: {item['edad']})"
             for item in tipo_id_edad
+        ]
+        
+        # Formatear IDE Contrato: "FACTURA|CÓDIGO|ENTIDAD|IDE_ACTUAL|IDE_DEBERIA"
+        ide_contrato_str = [
+            f"{item['factura']}|{item['codigo']}|{item['entidad']}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
+            for item in ide_contrato
         ]
         
         # Escribir resultados en fila 3+
@@ -2628,6 +2635,7 @@ def create_revision_sheet(
         _write_column(sheet, 4, conveniente_proc, start_row=3)
         _write_column(sheet, 5, cantidades, start_row=3)
         _write_column(sheet, 6, tipo_id_edad_str, start_row=3)
+        _write_column(sheet, 8, ide_contrato_str, start_row=3)
         
         problemas_encontrados = {
             "Decimales": decimales,
@@ -2636,6 +2644,7 @@ def create_revision_sheet(
             "Convenio de procedimiento": conveniente_proc,
             "Cantidades": cantidades,
             "Tipo Identificación": [item["factura"] for item in tipo_id_edad],
+            "IDE Contrato": ide_contrato,
         }
     
     # Aplicar estilo a filas de datos (fila 3+) según el área
@@ -2664,13 +2673,14 @@ def create_revision_sheet(
     else:
         logger.info(
             "Hoja Revision Odontología creada - Decimales: %d, Doble tipo: %d, "
-            "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d, Tipo ID: %d",
+            "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d, Tipo ID: %d, IDE Contrato: %d",
             len(decimales),
             len(doble_tipo),
             len(ruta_dup),
             len(conveniente_proc),
             len(cantidades),
             len(tipo_id_edad),
+            len(ide_contrato),
         )
     
     # Build resultado según el área
@@ -2697,9 +2707,10 @@ def create_revision_sheet(
             "convenio_de_procedimiento_found": len(conveniente_proc),
             "cantidades_found": len(cantidades),
             "tipo_identificacion_found": len(tipo_id_edad),
+            "ide_contrato_found": len(ide_contrato),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
 
 
@@ -2866,6 +2877,7 @@ def detect_all_problems(
         conveniente_proc = _detect_convenio_procedimiento_equipos_basicos(data_sheet, indices)
         cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         
         # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
         entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
@@ -2891,6 +2903,7 @@ def detect_all_problems(
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
+                "ide_contrato": ide_contrato,
             },
             "totales": {
                 "decimales": len(decimales),
@@ -2900,6 +2913,7 @@ def detect_all_problems(
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
+                "ide_contrato": len(ide_contrato),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "es_equipos_basicos": True,

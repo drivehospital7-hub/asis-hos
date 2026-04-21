@@ -261,6 +261,7 @@ REVISION_HEADERS: dict[int, str] = {
     5: "Cantidades",
     6: "Tipo Identificación",
     7: "Centro Costo",
+    8: "IDE Contrato",
 }
 
 # Headers para hoja Revision URGENCIAS (columna -> valor)
