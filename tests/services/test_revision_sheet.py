@@ -23,6 +23,7 @@ from app.constants import (
     CONVENIO_PYP,
     REVISION_SHEET,
     TARGET_PROCEDURES,
+    PYP_CUPS_CODES,
 )
 
 
@@ -33,12 +34,13 @@ def workbook_with_invoice_data() -> Workbook:
     ws = wb.active
     ws.title = "Datos"
     
-    # Headers
+    # Headers (incluye Código para validar convenio)
     headers = [
         "Número Factura",
         "Vlr. Subsidiado",
         "Vlr. Procedimiento",
         "Tipo Procedimiento",
+        "Código",
         "Procedimiento",
         "Nº Identificación",
         "Convenio Facturado",
@@ -57,6 +59,7 @@ def add_invoice_row(
     vlr_sub: float = 1000,
     vlr_proc: float = 500,
     tipo_proc: str = "Consultas",
+    codigo: str = "890101",
     procedimiento: str = "Consulta General",
     identificacion: str = "123456",
     convenio: str = CONVENIO_ASISTENCIAL,
@@ -67,10 +70,11 @@ def add_invoice_row(
     ws.cell(row=row, column=2, value=vlr_sub)
     ws.cell(row=row, column=3, value=vlr_proc)
     ws.cell(row=row, column=4, value=tipo_proc)
-    ws.cell(row=row, column=5, value=procedimiento)
-    ws.cell(row=row, column=6, value=identificacion)
-    ws.cell(row=row, column=7, value=convenio)
-    ws.cell(row=row, column=8, value=cantidad)
+    ws.cell(row=row, column=5, value=codigo)
+    ws.cell(row=row, column=6, value=procedimiento)
+    ws.cell(row=row, column=7, value=identificacion)
+    ws.cell(row=row, column=8, value=convenio)
+    ws.cell(row=row, column=9, value=cantidad)
 
 
 class TestNormalizeHeader:
@@ -161,7 +165,7 @@ class TestDetectDecimals:
         add_invoice_row(ws, 3, "FAC-002", vlr_sub=1000.00)  # Entero
         add_invoice_row(ws, 4, "FAC-003", vlr_proc=500.25)  # Decimal en vlr_proc
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_decimals(ws, indices)
@@ -177,7 +181,7 @@ class TestDetectDecimals:
         ws = workbook_with_invoice_data.active
         add_invoice_row(ws, 2, "FAC-001", vlr_sub=1000.50, vlr_proc=500.25)
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_decimals(ws, indices)
@@ -198,7 +202,7 @@ class TestDetectDobleTipoProcedimiento:
         add_invoice_row(ws, 4, "FAC-002", tipo_proc="Consultas")
         add_invoice_row(ws, 5, "FAC-002", tipo_proc="Consultas")  # Mismo tipo
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_doble_tipo_procedimiento(ws, indices)
@@ -223,7 +227,7 @@ class TestDetectRutaDuplicada:
         add_invoice_row(ws, 5, "FAC-004", identificacion="PAC-002", convenio=CONVENIO_PYP)
         add_invoice_row(ws, 6, "FAC-005", identificacion="PAC-002", convenio=CONVENIO_PYP)
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_ruta_duplicada(ws, indices)
@@ -241,7 +245,7 @@ class TestDetectRutaDuplicada:
         add_invoice_row(ws, 3, "FAC-002", identificacion="PAC-001", convenio=CONVENIO_ASISTENCIAL)
         add_invoice_row(ws, 4, "FAC-003", identificacion="PAC-001", convenio=CONVENIO_ASISTENCIAL)
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_ruta_duplicada(ws, indices)
@@ -250,21 +254,21 @@ class TestDetectRutaDuplicada:
 
 
 class TestDetectConvenioProcedimiento:
-    """Tests para _detect_convenio_procedimiento."""
+    """Tests para _detect_convenio_procedimiento (usa código CUPS)."""
 
     def test_detecta_asistencial_con_procedimiento_pyp(
         self, workbook_with_invoice_data: Workbook
     ) -> None:
-        """Debe detectar facturas Asistencial con procedimientos de PyP."""
+        """Debe detectar facturas Asistencial con códigos de PyP."""
         ws = workbook_with_invoice_data.active
-        proc_pyp = list(TARGET_PROCEDURES)[0]  # Un procedimiento PyP
+        codigo_pyp = list(PYP_CUPS_CODES)[0]  # Un código PyP: "890203"
         add_invoice_row(
             ws, 2, "FAC-001",
             convenio=CONVENIO_ASISTENCIAL,
-            procedimiento=proc_pyp,
+            codigo=codigo_pyp,
         )
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_convenio_procedimiento(ws, indices)
@@ -274,15 +278,15 @@ class TestDetectConvenioProcedimiento:
     def test_detecta_pyp_con_procedimiento_no_pyp(
         self, workbook_with_invoice_data: Workbook
     ) -> None:
-        """Debe detectar facturas PyP con procedimientos no PyP."""
+        """Debe detectar facturas PyP con códigos no PyP."""
         ws = workbook_with_invoice_data.active
         add_invoice_row(
             ws, 2, "FAC-002",
             convenio=CONVENIO_PYP,
-            procedimiento="Procedimiento NO PyP",
+            codigo="890101",  # Código NO PyP
         )
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_convenio_procedimiento(ws, indices)
@@ -292,16 +296,16 @@ class TestDetectConvenioProcedimiento:
     def test_no_detecta_combinacion_correcta(
         self, workbook_with_invoice_data: Workbook
     ) -> None:
-        """No debe detectar si convenio y procedimiento coinciden."""
+        """No debe detectar si convenio y código coinciden."""
         ws = workbook_with_invoice_data.active
-        proc_pyp = list(TARGET_PROCEDURES)[0]
+        codigo_pyp = list(PYP_CUPS_CODES)[0]
         add_invoice_row(
             ws, 2, "FAC-003",
             convenio=CONVENIO_PYP,
-            procedimiento=proc_pyp,  # PyP con proc PyP = OK
+            codigo=codigo_pyp,  # PyP con código PyP = OK
         )
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_convenio_procedimiento(ws, indices)
@@ -320,7 +324,7 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", tipo_proc="Consultas", cantidad=2)
         add_invoice_row(ws, 3, "FAC-002", tipo_proc="Consultas", cantidad=1)
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_cantidades_anomalas(ws, indices)
@@ -336,7 +340,7 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", tipo_proc="Otros", cantidad=11)
         add_invoice_row(ws, 3, "FAC-002", tipo_proc="Otros", cantidad=10)
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_cantidades_anomalas(ws, indices)
@@ -353,7 +357,7 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", convenio=CONVENIO_PYP, cantidad=3, tipo_proc="Procedimientos")
         add_invoice_row(ws, 3, "FAC-002", convenio=CONVENIO_PYP, cantidad=2, tipo_proc="Procedimientos")
         
-        headers = [ws.cell(row=1, column=c).value for c in range(1, 9)]
+        headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
         indices = _get_column_indices(headers)
         
         result = _detect_cantidades_anomalas(ws, indices)

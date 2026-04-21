@@ -85,26 +85,26 @@ Compara `Cód Entidad Cobrar` vs código extraído de `Entidad Afiliación` (for
 | Cantidad > 10 (cualquier tipo) | ✅ |
 | Convenio = "Promoción y Prevención" AND Cantidad ≥ 3 | ✅ |
 
-#### Procedimientos PyP (Promoción y Prevención)
+#### Procedimientos PyP (Promoción y Prevención) — CÓDIGOS CUPS
 
-Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
+La validación se hace por **código CUPS** (columna "Código"), NO por nombre de procedimiento.
 
-```
-- Control de Placa Bacteriana
-- Aplicación de Sellantes
-- Detartraje Supragingival
-- Topicacion de Fluor en Barniz
-- Consulta de Primera vez por Odontologia General
-```
+| Código CUPS | Procedimiento |
+|-----------|-------------|
+| **890203** | Consulta de Primera vez por Odontologia General |
+| **997002** | Control de Placa Bacteriana |
+| **997106** | Topicacion de Fluor en Barniz |
+| **997107** | Aplicación de Sellantes |
+| **997301** | Detartraje Supragingival |
 
 ##### Regla de Convenio Incorrecto
 
-| Convenio | Procedimiento | Resultado |
-|----------|---------------|-----------|
-| Asistencial | Procedimiento PyP (lista arriba) | ❌ Error |
-| Promoción y Prevención | Procedimiento NO en lista PyP | ❌ Error |
-| Asistencial | Procedimiento NO PyP | ✅ Ok |
-| Promoción y Prevención | Procedimiento PyP | ✅ Ok |
+| Convenio | Código CUPS | Resultado |
+|----------|-----------|-----------|
+| Asistencial | Código de la lista PyP | ❌ Error |
+| Promoción y Prevención | Código NO en lista PyP | ❌ Error |
+| Asistencial | Código NO PyP | ✅ Ok |
+| Promoción y Prevención | Código PyP | ✅ Ok |
 
 ---
 
@@ -159,6 +159,104 @@ Estos procedimientos DEBEN estar en Convenio "Promoción y Prevención":
 > **Ejemplo de error**: Factura con entidad ESS118, IDE=969, código CUPS "890403" que no existe en la DB → Reportar como error "CÓDIGO NO EN DB"
 
 > **Nota**: EPSIC5 es una entidad DIFERENTE de EPSI05. No confundir.
+
+##### ESS118 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| ESS118 | Código PyP (890203, 997002, 997106, 997107, 997301) | **970** o **974** |
+| ESS118 | Código NO PyP | **969** o **973** |
+
+##### ESSC18 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| ESSC18 | Código PyP (890203, 997002, 997106, 997107, 997301) | **975** |
+| ESSC18 | Código NO PyP | **968** |
+
+##### EPSS41 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPSS41 | Código PyP (890203, 997002, 997106, 997107, 997301) | **955** o **958** |
+| EPSS41 | Código NO PyP | **956** o **959** |
+
+##### EPS037 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPS037 | Código PyP (890203, 997002, 997106, 997107, 997301) | **961** |
+| EPS037 | Código NO PyP | **962** |
+
+##### EPSI05 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPSI05 | Código PyP (890203, 997002, 997106, 997107, 997301) | **977** |
+| EPSI05 | Código NO PyP | **976** o **978** |
+
+##### EPSIC5 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPSIC5 | Código PyP (890203, 997002, 997106, 997107, 997301) | **979** |
+| EPSIC5 | Código NO PyP | **967** |
+
+##### RES001 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| RES001 | Código PyP (890203, 997002, 997106, 997107, 997301) | **954** |
+| RES001 | Código NO PyP | **953** |
+
+##### ESS062 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| ESS062 | Código PyP (890203, 997002, 997106, 997107, 997301) | **922** |
+| ESS062 | Código NO PyP | **921** |
+
+##### ESSC62 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| ESSC62 | Código PyP (890203, 997002, 997106, 997107, 997301) | **863** |
+| ESSC62 | Código NO PyP | **862** |
+
+##### 0001 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| 0001 | Código PyP (890203, 997002, 997106, 997107, 997301) | **17** |
+| 0001 | Código NO PyP | **984** |
+
+##### EPSS005 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPSS005 | Código PyP (890203, 997002, 997106, 997107, 997301) | **933** |
+| EPSS005 | Código NO PyP | **934** |
+
+##### EPSC005 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| EPSC005 | Código PyP (890203, 997002, 997106, 997107, 997301) | **932** |
+| EPSC005 | Código NO PyP | **931** |
+
+##### 86 + Procedimientos NO PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| 86 | Código NO PyP | **911** |
+| 86 | Código PyP | No aplica |
+
+##### 86000 + Procedimientos PyP → IDE Contrato
+
+| Entidad | Código CUPS | IDE Contrato esperado |
+|--------|-----------|---------------------|
+| 86000 | Código PyP (890203, 997002, 997106, 997107, 997301) | **920** |
+| 86000 | Código NO PyP | **919** |
 
 ---
 

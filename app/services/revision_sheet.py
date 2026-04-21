@@ -28,6 +28,7 @@ from app.constants import (
     REVISION_HEADERS,
     URGENCIA_REVISION_HEADERS,
     TARGET_PROCEDURES,
+    PYP_CUPS_CODES,
     RUTA_DUPLICADA_THRESHOLD,
     CANTIDAD_CONSULTAS_MIN,
     CANTIDAD_MAX,
@@ -139,8 +140,62 @@ from app.constants import (
     # Urgencias - Entidad -> IDE Contrato
     URGENCIA_ENTIDAD_CONTRATO,
     URGENCIA_ENTIDAD_MULTIPLE_CONTRATO,
-    # Equipos Básicos - Reglas independientes
-    EQUIPOS_BASICOS_TARGET_PROCEDURES,
+    # ESS118 + Procedimientos PyP -> IDE Contrato 970 o 974
+    ENTIDAD_IDE_CONTRATO_ESS118_PYP,
+    IDE_CONTRATO_MULTIPLE_ESS118_PYP,
+    IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP,
+    # ESSC18 + Procedimientos PyP -> IDE Contrato 975
+    ENTIDAD_IDE_CONTRATO_ESSC18_PYP,
+    IDE_CONTRATO_MULTIPLE_ESSC18_PYP,
+    IDE_CONTRATO_MULTIPLE_ESSC18_NO_PYP,
+    # EPSS41 + Procedimientos PyP -> IDE Contrato 955 o 958
+    ENTIDAD_IDE_CONTRATO_EPSS41_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSS41_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSS41_NO_PYP,
+    # EPS037 + Procedimientos PyP -> IDE Contrato 961
+    ENTIDAD_IDE_CONTRATO_EPS037_PYP,
+    IDE_CONTRATO_MULTIPLE_EPS037_PYP,
+    IDE_CONTRATO_MULTIPLE_EPS037_NO_PYP,
+    # EPSI05 + Procedimientos PyP -> IDE Contrato 977
+    ENTIDAD_IDE_CONTRATO_EPSI05_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSI05_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSI05_NO_PYP,
+    # EPSIC5 + Procedimientos PyP -> IDE Contrato 979
+    ENTIDAD_IDE_CONTRATO_EPSIC5_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSIC5_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP,
+    # RES001 + Procedimientos PyP -> IDE Contrato 954
+    ENTIDAD_IDE_CONTRATO_RES001_PYP,
+    IDE_CONTRATO_MULTIPLE_RES001_PYP,
+    IDE_CONTRATO_MULTIPLE_RES001_NO_PYP,
+    # ESS062 + Procedimientos PyP -> IDE Contrato 922
+    ENTIDAD_IDE_CONTRATO_ESS062_PYP,
+    IDE_CONTRATO_MULTIPLE_ESS062_PYP,
+    IDE_CONTRATO_MULTIPLE_ESS062_NO_PYP,
+    # ESSC62 + Procedimientos PyP -> IDE Contrato 863
+    ENTIDAD_IDE_CONTRATO_ESSC62_PYP,
+    IDE_CONTRATO_MULTIPLE_ESSC62_PYP,
+    IDE_CONTRATO_MULTIPLE_ESSC62_NO_PYP,
+    # 0001 + Procedimientos PyP -> IDE Contrato 17
+    ENTIDAD_IDE_CONTRATO_0001_PYP,
+    IDE_CONTRATO_MULTIPLE_0001_PYP,
+    IDE_CONTRATO_MULTIPLE_0001_NO_PYP,
+    # EPSS005 + Procedimientos PyP -> IDE Contrato 933
+    ENTIDAD_IDE_CONTRATO_EPSS005_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSS005_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSS005_NO_PYP,
+    # EPSC005 + Procedimientos PyP -> IDE Contrato 932
+    ENTIDAD_IDE_CONTRATO_EPSC005_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSC005_PYP,
+    IDE_CONTRATO_MULTIPLE_EPSC005_NO_PYP,
+    # 86 + Procedimientos NO PyP -> IDE Contrato 911
+    ENTIDAD_IDE_CONTRATO_86_NO_PYP,
+    IDE_CONTRATO_MULTIPLE_86_NO_PYP,
+    # 86000 + Procedimientos PyP -> IDE Contrato 920
+    ENTIDAD_IDE_CONTRATO_86000_PYP,
+    IDE_CONTRATO_MULTIPLE_86000_PYP,
+    IDE_CONTRATO_MULTIPLE_86000_NO_PYP,
+    # Equipos Básicos - Reglas independientes (comparte PYP_CUPS_CODES con Odontología)
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
@@ -437,12 +492,15 @@ def _detect_convenio_procedimiento(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con procedimientos que no corresponden al convenio."""
+    """Detecta facturas con procedimientos que no corresponden al convenio.
+    
+    Usa el código CUPS (columna 'Código') para validar.
+    """
     num_fact_idx = indices["numero_factura"]
     convenio_idx = indices["convenio_facturado"]
-    proc_idx = indices["procedimiento"]
+    codigo_idx = indices.get("codigo")
     
-    if None in (num_fact_idx, convenio_idx, proc_idx):
+    if None in (num_fact_idx, convenio_idx) or codigo_idx is None:
         return []
     
     problemas = []
@@ -454,40 +512,41 @@ def _detect_convenio_procedimiento(
             continue
         
         convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
-        procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         
-        if procedimiento is None:
+        if codigo is None:
             continue
         
-        proc_str = str(procedimiento).strip()
+        # Normalizar código: quitar espacios, mayúsculas
+        codigo_str = str(codigo).strip().upper()
         should_add = False
         problema_tipo = ""
         
-        # Caso 1: Convenio Asistencial con procedimientos PyP
-        if convenio == CONVENIO_ASISTENCIAL and proc_str in TARGET_PROCEDURES:
+        # Caso 1: Convenio Asistencial con códigos PyP
+        if convenio == CONVENIO_ASISTENCIAL and codigo_str in PYP_CUPS_CODES:
             should_add = True
             problema_tipo = "Asistencial con procedimiento PyP"
             logger.debug(
-                "Fila %s: Asistencial con procedimiento PyP: %s",
+                "Fila %s: Asistencial con código PyP: %s",
                 row,
-                proc_str,
+                codigo_str,
             )
         
-        # Caso 2: Convenio PyP con procedimientos NO PyP
-        elif convenio == CONVENIO_PYP and proc_str not in TARGET_PROCEDURES:
+        # Caso 2: Convenio PyP con códigos NO PyP
+        elif convenio == CONVENIO_PYP and codigo_str not in PYP_CUPS_CODES:
             should_add = True
             problema_tipo = "PyP con procedimiento no PyP"
             logger.debug(
-                "Fila %s: PyP con procedimiento diferente: %s",
+                "Fila %s: PyP con código diferente: %s",
                 row,
-                proc_str,
+                codigo_str,
             )
         
         if should_add and factura_str not in [p.get("factura") for p in problemas]:
             problemas.append({
                 "factura": factura_str,
                 "convenio": str(convenio) if convenio else "",
-                "procedimiento": proc_str,
+                "codigo": codigo_str,
                 "problema": problema_tipo,
             })
     
@@ -498,12 +557,15 @@ def _detect_convenio_procedimiento_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos - reglas independientes)."""
+    """Detecta facturas con procedimientos que no corresponden al convenio (Equipos Básicos).
+    
+    Usa el código CUPS (columna 'Código') para validar.
+    """
     num_fact_idx = indices["numero_factura"]
     convenio_idx = indices["convenio_facturado"]
-    proc_idx = indices["procedimiento"]
+    codigo_idx = indices.get("codigo")
     
-    if None in (num_fact_idx, convenio_idx, proc_idx):
+    if None in (num_fact_idx, convenio_idx) or codigo_idx is None:
         return []
     
     problemas = []
@@ -515,40 +577,41 @@ def _detect_convenio_procedimiento_equipos_basicos(
             continue
         
         convenio = data_sheet.cell(row=row, column=convenio_idx + 1).value
-        procedimiento = data_sheet.cell(row=row, column=proc_idx + 1).value
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         
-        if procedimiento is None:
+        if codigo is None:
             continue
         
-        proc_str = str(procedimiento).strip()
+        # Normalizar código: quitar espacios, mayúsculas
+        codigo_str = str(codigo).strip().upper()
         should_add = False
         problema_tipo = ""
         
-        # Caso 1: Convenio Asistencial con procedimientos PyP (Equipos Básicos)
-        if convenio == CONVENIO_ASISTENCIAL and proc_str in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        # Caso 1: Convenio Asistencial con códigos PyP (Equipos Básicos)
+        if convenio == CONVENIO_ASISTENCIAL and codigo_str in PYP_CUPS_CODES:
             should_add = True
             problema_tipo = "Asistencial con procedimiento PyP"
             logger.debug(
-                "Fila %s: Asistencial con procedimiento PyP (Equipos Básicos): %s",
+                "Fila %s: Asistencial con código PyP (Equipos Básicos): %s",
                 row,
-                proc_str,
+                codigo_str,
             )
         
-        # Caso 2: Convenio PyP con procedimientos NO PyP (Equipos Básicos)
-        elif convenio == CONVENIO_PYP and proc_str not in EQUIPOS_BASICOS_TARGET_PROCEDURES:
+        # Caso 2: Convenio PyP con códigos NO PyP (Equipos Básicos)
+        elif convenio == CONVENIO_PYP and codigo_str not in PYP_CUPS_CODES:
             should_add = True
             problema_tipo = "PyP con procedimiento no PyP"
             logger.debug(
-                "Fila %s: PyP con procedimiento diferente (Equipos Básicos): %s",
+                "Fila %s: PyP con código diferente (Equipos Básicos): %s",
                 row,
-                proc_str,
+                codigo_str,
             )
         
         if should_add and factura_str not in [p.get("factura") for p in problemas]:
             problemas.append({
                 "factura": factura_str,
                 "convenio": str(convenio) if convenio else "",
-                "procedimiento": proc_str,
+                "codigo": codigo_str,
                 "problema": problema_tipo,
             })
     
@@ -901,6 +964,191 @@ def _detect_tipo_identificacion_edad(
                 edad,
                 tipo_id_str,
                 tipo_correcto,
+)
+
+    return problemas
+
+
+def _detect_ide_contrato_odontologia(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detenta facturas con problemas de IDE Contrato en Odontología.
+    
+    Reglas:
+    - ESS118 + Código PyP -> IDE debe ser 970 o 974
+    - ESS118 + Código NO PyP -> IDE debe ser 969 o 973
+    - ESSC18 + Código PyP -> IDE debe ser 975
+    - ESSC18 + Código NO PyP -> IDE debe ser 968
+    
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+    
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "entidad", "ide_contrato_actual", "ide_contrato_deberia", "nota"
+    """
+    num_fact_idx = indices["numero_factura"]
+    entidad_idx = indices.get("entidad_cobrar")
+    codigo_idx = indices.get("codigo")
+    ide_contrato_idx = indices.get("ide_contrato")
+    
+    if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        entidad = data_sheet.cell(row=row, column=entidad_idx + 1).value
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+        
+        if entidad is None or codigo is None or ide_contrato is None:
+            continue
+        
+        entidad_str = str(entidad).strip().upper()
+        codigo_str = str(codigo).strip().upper()
+        ide_str = str(ide_contrato).strip()
+        
+        # Determinar IDE esperado según entidad y código
+        ide_esperado = None
+        nota = ""
+        
+        if entidad_str == "ESS118":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_PYP
+                nota = "ESS118 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP
+                nota = "ESS118 + NO PyP"
+        
+        elif entidad_str == "ESSC18":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_PYP
+                nota = "ESSC18 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_NO_PYP
+                nota = "ESSC18 + NO PyP"
+        
+        elif entidad_str == "EPSS41":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_PYP
+                nota = "EPSS41 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_NO_PYP
+                nota = "EPSS41 + NO PyP"
+        
+        elif entidad_str == "EPS037":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_PYP
+                nota = "EPS037 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_NO_PYP
+                nota = "EPS037 + NO PyP"
+        
+        elif entidad_str == "EPSI05":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_PYP
+                nota = "EPSI05 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_NO_PYP
+                nota = "EPSI05 + NO PyP"
+        
+        elif entidad_str == "EPSIC5":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_PYP
+                nota = "EPSIC5 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP
+                nota = "EPSIC5 + NO PyP"
+        
+        elif entidad_str == "RES001":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_PYP
+                nota = "RES001 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_NO_PYP
+                nota = "RES001 + NO PyP"
+        
+        elif entidad_str == "ESS062":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_PYP
+                nota = "ESS062 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_NO_PYP
+                nota = "ESS062 + NO PyP"
+        
+        elif entidad_str == "ESSC62":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_PYP
+                nota = "ESSC62 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_NO_PYP
+                nota = "ESSC62 + NO PyP"
+        
+        elif entidad_str == "0001":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_PYP
+                nota = "0001 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_NO_PYP
+                nota = "0001 + NO PyP"
+        
+        elif entidad_str == "EPSS005":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_PYP
+                nota = "EPSS005 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_NO_PYP
+                nota = "EPSS005 + NO PyP"
+        
+        elif entidad_str == "EPSC005":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_PYP
+                nota = "EPSC005 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_NO_PYP
+                nota = "EPSC005 + NO PyP"
+        
+        elif entidad_str == "86" and codigo_str not in PYP_CUPS_CODES:
+            # Solo aplica para NO PyP (PyP no tiene regla)
+            ide_esperado_set = IDE_CONTRATO_MULTIPLE_86_NO_PYP
+            nota = "86 + NO PyP"
+        
+        elif entidad_str == "86000":
+            if codigo_str in PYP_CUPS_CODES:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_86000_PYP
+                nota = "86000 + PyP"
+            else:
+                ide_esperado_set = IDE_CONTRATO_MULTIPLE_86000_NO_PYP
+                nota = "86000 + NO PyP"
+        
+        else:
+            # Entidad no tiene regla específica, skip
+            continue
+        
+        if ide_str not in ide_esperado_set:
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "entidad": entidad_str,
+                "ide_contrato_actual": ide_str,
+                "ide_contrato_deberia": f"uno de: {ide_esperado_set}",
+                "nota": nota,
+            })
+            logger.debug(
+                "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
+                row,
+                entidad_str,
+                codigo_str,
+                ide_str,
+                ide_esperado_set,
             )
     
     return problemas
@@ -1726,7 +1974,49 @@ CODIGO_CUPS_HOSPITALIZACION,
                     tiene_insercion,
                 )
 
-        # ----- Regla 16: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
+        # ----- Regla 16: ESS118 + Código PyP -> IDE Contrato debe ser 969 o 973
+        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118_PYP and codigo_excluir in PYP_CUPS_CODES:
+            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_PYP:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": f"uno de: {IDE_CONTRATO_MULTIPLE_ESS118_PYP}",
+                    "nota": "ESS118 + Procedimiento PyP -> IDE 970 o 974",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_MULTIPLE_ESS118_PYP,
+                )
+
+        # ----- Regla 17: ESS118 + Código NO PyP -> IDE Contrato debe ser 969 o 973
+        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118_PYP and codigo_excluir not in PYP_CUPS_CODES:
+            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": f"uno de: {IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP}",
+                    "nota": "ESS118 + Procedimiento NO PyP -> IDE 969 o 973",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP,
+                )
+
+        # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
         # Urgencias y Contratos
         if codigo_excluir == CODIGO_IDE_CONTRATO_906340_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
             if ide_contrato_str != IDE_CONTRATO_REQUERIDO_906340_ESSC18:

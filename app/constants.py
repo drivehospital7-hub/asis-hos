@@ -80,9 +80,105 @@ URGENCIA_COLUMNS_TO_KEEP = frozenset({
 })
 
 # =============================================================================
-# PROCEDURES - Procedimientos PyP (Promoción y Prevención)
+# PROCEDURES - Códigos CUPS PyP (Promoción y Prevención)
 # =============================================================================
 
+# Códigos CUPS para procedimientos de Promoción y Prevención
+# Estos códigos DEBEN estar en el convenio "Promoción y Prevención"
+# NOTA: No se verifica por nombre de procedimiento, solo por código CUPS
+PYP_CUPS_CODES = frozenset({
+    "890203",  # Consulta de Primera vez por Odontologia General
+    "997002",  # Control de Placa Bacteriana
+    "997106",  # Topicacion de Fluor en Barniz
+    "997107",  # Aplicación de Sellantes
+    "997301",  # Detartraje Supragingival
+})
+
+# =============================================================================
+# IDE CONTRATO - ESS118 con códigos PyP
+# =============================================================================
+
+ENTIDAD_IDE_CONTRATO_ESS118_PYP = "ESS118"
+IDE_CONTRATO_MULTIPLE_ESS118_PYP = frozenset({"970", "974"})
+IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP = frozenset({"969", "973"})
+
+# ESSC18 + Procedimientos PyP -> IDE Contrato 975
+ENTIDAD_IDE_CONTRATO_ESSC18_PYP = "ESSC18"
+IDE_CONTRATO_MULTIPLE_ESSC18_PYP = frozenset({"975"})
+# ESSC18 + Procedimientos NO PyP -> IDE Contrato 968
+IDE_CONTRATO_MULTIPLE_ESSC18_NO_PYP = frozenset({"968"})
+
+# EPSS41 + Procedimientos PyP -> IDE Contrato 955 o 958
+ENTIDAD_IDE_CONTRATO_EPSS41_PYP = "EPSS41"
+IDE_CONTRATO_MULTIPLE_EPSS41_PYP = frozenset({"955", "958"})
+# EPSS41 + Procedimientos NO PyP -> IDE Contrato 956 o 959
+IDE_CONTRATO_MULTIPLE_EPSS41_NO_PYP = frozenset({"956", "959"})
+
+# EPS037 + Procedimientos PyP -> IDE Contrato 961
+ENTIDAD_IDE_CONTRATO_EPS037_PYP = "EPS037"
+IDE_CONTRATO_MULTIPLE_EPS037_PYP = frozenset({"961"})
+# EPS037 + Procedimientos NO PyP -> IDE Contrato 962
+IDE_CONTRATO_MULTIPLE_EPS037_NO_PYP = frozenset({"962"})
+
+# EPSI05 + Procedimientos PyP -> IDE Contrato 977
+ENTIDAD_IDE_CONTRATO_EPSI05_PYP = "EPSI05"
+IDE_CONTRATO_MULTIPLE_EPSI05_PYP = frozenset({"977"})
+# EPSI05 + Procedimientos NO PyP -> IDE Contrato 976 o 978
+IDE_CONTRATO_MULTIPLE_EPSI05_NO_PYP = frozenset({"976", "978"})
+
+# EPSIC5 + Procedimientos PyP -> IDE Contrato 979
+ENTIDAD_IDE_CONTRATO_EPSIC5_PYP = "EPSIC5"
+IDE_CONTRATO_MULTIPLE_EPSIC5_PYP = frozenset({"979"})
+# EPSIC5 + Procedimientos NO PyP -> IDE Contrato 967
+IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP = frozenset({"967"})
+
+# RES001 + Procedimientos PyP -> IDE Contrato 954
+ENTIDAD_IDE_CONTRATO_RES001_PYP = "RES001"
+IDE_CONTRATO_MULTIPLE_RES001_PYP = frozenset({"954"})
+# RES001 + Procedimientos NO PyP -> IDE Contrato 953
+IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"953"})
+
+# ESS062 + Procedimientos PyP -> IDE Contrato 922
+ENTIDAD_IDE_CONTRATO_ESS062_PYP = "ESS062"
+IDE_CONTRATO_MULTIPLE_ESS062_PYP = frozenset({"922"})
+# ESS062 + Procedimientos NO PyP -> IDE Contrato 921
+IDE_CONTRATO_MULTIPLE_ESS062_NO_PYP = frozenset({"921"})
+
+# ESSC62 + Procedimientos PyP -> IDE Contrato 863
+ENTIDAD_IDE_CONTRATO_ESSC62_PYP = "ESSC62"
+IDE_CONTRATO_MULTIPLE_ESSC62_PYP = frozenset({"863"})
+# ESSC62 + Procedimientos NO PyP -> IDE Contrato 862
+IDE_CONTRATO_MULTIPLE_ESSC62_NO_PYP = frozenset({"862"})
+
+# 0001 + Procedimientos PyP -> IDE Contrato 17
+ENTIDAD_IDE_CONTRATO_0001_PYP = "0001"
+IDE_CONTRATO_MULTIPLE_0001_PYP = frozenset({"17"})
+# 0001 + Procedimientos NO PyP -> IDE Contrato 984
+IDE_CONTRATO_MULTIPLE_0001_NO_PYP = frozenset({"984"})
+
+# EPSS005 + Procedimientos PyP -> IDE Contrato 933
+ENTIDAD_IDE_CONTRATO_EPSS005_PYP = "EPSS005"
+IDE_CONTRATO_MULTIPLE_EPSS005_PYP = frozenset({"933"})
+# EPSS005 + Procedimientos NO PyP -> IDE Contrato 934
+IDE_CONTRATO_MULTIPLE_EPSS005_NO_PYP = frozenset({"934"})
+
+# EPSC005 + Procedimientos PyP -> IDE Contrato 932
+ENTIDAD_IDE_CONTRATO_EPSC005_PYP = "EPSC005"
+IDE_CONTRATO_MULTIPLE_EPSC005_PYP = frozenset({"932"})
+# EPSC005 + Procedimientos NO PyP -> IDE Contrato 931
+IDE_CONTRATO_MULTIPLE_EPSC005_NO_PYP = frozenset({"931"})
+
+# 86 + Procedimientos NO PyP -> IDE Contrato 911
+ENTIDAD_IDE_CONTRATO_86_NO_PYP = "86"
+IDE_CONTRATO_MULTIPLE_86_NO_PYP = frozenset({"911"})
+
+# 86000 + Procedimientos PyP -> IDE Contrato 920
+ENTIDAD_IDE_CONTRATO_86000_PYP = "86000"
+IDE_CONTRATO_MULTIPLE_86000_PYP = frozenset({"920"})
+# 86000 + Procedimientos NO PyP -> IDE Contrato 919
+IDE_CONTRATO_MULTIPLE_86000_NO_PYP = frozenset({"919"})
+
+# Mantenido por compatibilidad con tests existentes
 TARGET_PROCEDURES = frozenset({
     "Control de Placa Bacteriana",
     "Aplicación de Sellantes",
