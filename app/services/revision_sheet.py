@@ -1153,9 +1153,9 @@ def _detect_ide_contrato_odontologia(
             problemas.append({
                 "factura": factura_str,
                 "codigo": codigo_str,
-                "entidad": codigo_entidad_str,
-                "ide_contrato_actual": ide_str,
-                "ide_contrato_deberia": f"uno de: {ide_esperado_set}",
+                "cod_entidad": codigo_entidad_str,
+                "ide_actual": ide_str,
+                "ide_deberia": " o ".join(sorted(ide_esperado_set)),
                 "nota": nota,
             })
             logger.debug(
