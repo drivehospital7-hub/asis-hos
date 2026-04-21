@@ -994,7 +994,16 @@ def _detect_ide_contrato_odontologia(
     codigo_idx = indices.get("codigo")
     ide_contrato_idx = indices.get("ide_contrato")
     
+    logger.info(
+        "IDE Contrato - Índices: numero_factura=%s, entidad_cobrar=%s, codigo=%s, ide_contrato=%s",
+        num_fact_idx,
+        entidad_idx,
+        codigo_idx,
+        ide_contrato_idx,
+    )
+    
     if None in (num_fact_idx, entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
+        logger.warning("IDE Contrato - Columnas necesarias no encontradas (alguna es None)")
         return []
     
     problemas = []
@@ -1142,15 +1151,16 @@ def _detect_ide_contrato_odontologia(
                 "ide_contrato_deberia": f"uno de: {ide_esperado_set}",
                 "nota": nota,
             })
-            logger.debug(
-                "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
-                row,
-                entidad_str,
-                codigo_str,
-                ide_str,
-                ide_esperado_set,
-            )
+logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
+                    row,
+                    entidad_str,
+                    codigo_str,
+                    ide_str,
+                    ide_esperado_set,
+                )
     
+    logger.info("IDE Contrato - Filas procesadas: %d, Problemas encontrados: %d", row - 1, len(problemas))
     return problemas
 
 
