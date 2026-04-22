@@ -430,13 +430,15 @@ document.addEventListener('DOMContentLoaded', function() {
       return;
     }
     
-    diasSeleccionados = [];
+diasSeleccionados = [];
     renderCalendar(diasSeleccionados);
     document.getElementById('dias_seleccionados').value = '';
     saveDiasProfesional(profesional, diasSeleccionados);
   });
-  
-    btnProcesar.addEventListener('click', async function() {
+
+  // Botón Procesar
+  btnProcesar.addEventListener('click', async function() {
+    console.log('Botón procesar clickeado!');
     const fileInput = document.getElementById('file_upload');
     if (!fileInput.files.length) {
       alert('Debes seleccionar un archivo');
@@ -458,12 +460,15 @@ document.addEventListener('DOMContentLoaded', function() {
     downloadUrl = null;
 
     try {
+      console.log('Enviando formulario...');
       const formData = new FormData(form);
+      console.log('FormData listo, campos:', formData.get('file_upload')?.name);
       
       const response = await fetch('{{ url_for("excel_headers.export_cruce_facturas") }}', {
         method: 'POST',
         body: formData,
       });
+      console.log('Response status:', response.status);
       
       const result = await response.json();
       
@@ -519,6 +524,9 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (error.tipo_key === 'ide_contrato') {
               headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
               colspan = 6;
+            } else if (error.tipo_key === 'profesionales') {
+              headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th>';
+              colspan = 5;
             } else {
               headersHtml = '<th>Factura</th>';
             }
@@ -575,7 +583,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + (item.fec_factura || '') + '</td>';
                 html += '<td>' + (item.centro_actual || '') + '</td>';
                 html += '<td>' + (item.centro_deberia || '') + '</td>';
-} else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
+              } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
                 html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
                 html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
                 html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
@@ -587,6 +595,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + (item.ide_actual || '') + '</td>';
                 html += '<td>' + (item.ide_deberia || '') + '</td>';
                 html += '<td>' + (item.nota || '') + '</td>';
+              } else if (error.tipo_key === 'profesionales') {
+                html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.codigo_profesional || '') + '</td>';
+                html += '<td>' + (item.nombre || '') + '</td>';
+                html += '<td>' + (item.tipo || '') + '</td>';
+                html += '<td>' + (item.problema || '') + '</td>';
               } else {
                 html += '<td>' + (item.factura || '') + '</td>';
               }
@@ -676,11 +690,13 @@ function mostrarMas(btn, errorData) {
     headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
   } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
     headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
+  } else if (errorData.tipo_key === 'ide_contrato') {
+    headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
+  } else if (errorData.tipo_key === 'profesionales') {
+    headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th>';
   } else {
-    headersHtml = '<th>Factura</th>';
+    thead.innerHTML = headersHtml;
   }
-  
-  thead.innerHTML = headersHtml;
   
   // Limpiar tabla y mostrar todos
   tbody.innerHTML = '';
@@ -722,10 +738,22 @@ function mostrarMas(btn, errorData) {
       html += '<td>' + (item.centro_actual || '') + '</td>';
       html += '<td>' + (item.centro_deberia || '') + '</td>';
     } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
-      html += '<td>' + (item.factura || '') + '</td>';
       html += '<td>' + (item.codigo_entidad_cobrar || '') + '</td>';
       html += '<td>' + (item.entidad_afiliacion || '') + '</td>';
       html += '<td>' + (item.codigo_extraido_afiliacion || '') + '</td>';
+      html += '<td>' + (item.problema || '') + '</td>';
+    } else if (errorData.tipo_key === 'ide_contrato') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.codigo || '') + '</td>';
+      html += '<td>' + (item.cod_entidad || '') + '</td>';
+      html += '<td>' + (item.ide_actual || '') + '</td>';
+      html += '<td>' + (item.ide_deberia || '') + '</td>';
+      html += '<td>' + (item.nota || '') + '</td>';
+    } else if (errorData.tipo_key === 'profesionales') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.codigo_profesional || '') + '</td>';
+      html += '<td>' + (item.nombre || '') + '</td>';
+      html += '<td>' + (item.tipo || '') + '</td>';
       html += '<td>' + (item.problema || '') + '</td>';
     } else {
       html += '<td>' + (item.factura || '') + '</td>';
