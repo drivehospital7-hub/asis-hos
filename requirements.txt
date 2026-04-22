@@ -6,6 +6,9 @@ python-dotenv==1.2.2
 polars[excel]==1.39.3
 openpyxl==3.1.5
 
+# PDF processing
+pypdf==5.2.0
+
 # Production server
 waitress==3.0.2
 

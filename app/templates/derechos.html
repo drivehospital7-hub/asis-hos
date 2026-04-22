@@ -122,6 +122,54 @@
     margin-bottom: 1rem;
     font-size: 0.9rem;
   }
+
+  /* Estados de validación */
+  .carpeta-titulo--ok {
+    background-color: #d1fae5;
+    border-left: 4px solid #10b981;
+  }
+
+  .carpeta-titulo--error {
+    background-color: #fee2e2;
+    border-left: 4px solid #ef4444;
+  }
+
+  .datos-pdf {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background-color: #f9fafb;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-left: 1rem;
+  }
+
+  .datos-afiliado {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.25rem;
+  }
+
+  .datos-afiliado div {
+    word-break: break-word;
+  }
+
+  .validacion-error {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #fee2e2;
+    border-radius: 4px;
+    color: #991b1b;
+    font-size: 0.8rem;
+  }
+
+  .validacion-warning {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    background-color: #fef3c7;
+    border-radius: 4px;
+    color: #92400e;
+    font-size: 0.8rem;
+  }
 </style>
 {% endblock %}
 
@@ -190,26 +238,91 @@
     const files = e.target.files;
     if (files.length > 0) {
       // webkitdirectory devuelve la ruta del primer archivo
-      const folderPath = files[0].webkitRelativePath || files[0].path;
-      const basePath = folderPath.split('/')[0];
-      rutaInput.value = basePath || files[0].name;
+      // Usar toda la ruta, no solo el primer segmento
+      const folderPath = files[0].webkitRelativePath || files[0].path || files[0].name;
+      
+      // Extraer la ruta de la carpeta base (antes del primer nombre de archivo)
+      if (folderPath.includes('/')) {
+        const pathParts = folderPath.split('/');
+        pathParts.pop(); // Quitar el archivo
+        rutaInput.value = pathParts.join('/');
+      } else {
+        rutaInput.value = folderPath;
+      }
     }
   });
 
-  // Función para renderizar la estructura de archivos
+  // Función para renderizar la estructura de archivos con datos extraídos
   function renderizarEstructura(estructura, totalArchivos, totalCarpetas) {
     let html = `<div class="resumen">📁 ${totalCarpetas} carpetas | 📄 ${totalArchivos} archivos PDF</div>`;
     html += '<div class="estructura-archivos">';
 
-    for (const [carpeta, archivos] of Object.entries(estructura)) {
-      html += `
-        <div class="carpeta-item">
-          <div class="carpeta-titulo">${carpeta}</div>
-          <ul class="archivo-lista">
-            ${archivos.map(a => `<li class="archivo-item">📄 ${a}</li>`).join('')}
-          </ul>
-        </div>
-      `;
+    for (const [carpeta, info] of Object.entries(estructura)) {
+      const archivos = info.archivos || [];
+      const datos = info.datos;
+      
+      let estadoClass = 'carpeta-titulo';
+      let estadoIcon = '📁';
+      
+      // Si hay datos extraídos, mostrar estado de validación
+      if (datos && datos.pdfs && datos.pdfs.length > 0) {
+        const pdf = datos.pdfs[0];
+        const validacion = pdf.validacion || {};
+        
+        if (validacion.es_valido === true) {
+          estadoClass = 'carpeta-titulo carpeta-titulo--ok';
+          estadoIcon = '✅';
+        } else if (validacion.es_valido === false) {
+          estadoClass = 'carpeta-titulo carpeta-titulo--error';
+          estadoIcon = '❌';
+        }
+      }
+      
+      html += `<div class="carpeta-item">`;
+      html += `<div class="${estadoClass}">${estadoIcon} ${carpeta}</div>`;
+      
+      // Mostrar archivos
+      if (archivos.length > 0) {
+        html += `<ul class="archivo-lista">`;
+        html += archivos.map(a => `<li class="archivo-item">📄 ${a}</li>`).join('');
+        html += `</ul>`;
+      }
+      
+      // Mostrar datos extraídos si existen
+      if (datos && datos.pdfs) {
+        for (const pdf of datos.pdfs) {
+          const pdfDatos = pdf.datos || {};
+          const validacion = pdf.validacion || {};
+          
+          html += `<div class="datos-pdf">`;
+          
+          // Datos del afiliado (nuevo formato)
+          if (pdfDatos.documento || pdfDatos.nombre || pdfDatos.vigencia || pdfDatos.regimen) {
+            html += `<div class="datos-afiliado">`;
+            if (pdfDatos.documento) html += `<div><strong>Documento:</strong> ${pdfDatos.documento}</div>`;
+            if (pdfDatos.nombre) html += `<div><strong>Nombre:</strong> ${pdfDatos.nombre}</div>`;
+            if (pdfDatos.regimen) html += `<div><strong>Régimen:</strong> ${pdfDatos.regimen}</div>`;
+            if (pdfDatos.vigencia) html += `<div><strong>Vigencia:</strong> ${pdfDatos.vigencia}</div>`;
+            if (pdfDatos.ips) html += `<div><strong>IPS:</strong> ${pdfDatos.ips}</div>`;
+            if (pdfDatos.servicios && pdfDatos.servicios.length > 0) {
+              html += `<div><strong>Servicios:</strong> ${pdfDatos.servicios.join(', ')}</div>`;
+            }
+            html += `</div>`;
+          }
+          
+          // Errores o advertencias
+          if (validacion.errores && validacion.errores.length > 0) {
+            html += `<div class="validacion-error">❌ ${validacion.errores.join(', ')}</div>`;
+          }
+          if (validacion.warnings && validacion.warnings.length > 0) {
+            html += `<div class="validacion-warning">⚠️ ${validacion.warnings.join(', ')}</div>`;
+          }
+          
+          html += `</div>`;
+        }
+      }
+      
+      html += `</div>`;
     }
 
     html += '</div>';
@@ -236,6 +349,7 @@
 
       if (result.status === 'success') {
         const data = result.data;
+        console.log("Respuesta del servidor:", data);
         
         if (data.estructura && Object.keys(data.estructura).length > 0) {
           const contenido = renderizarEstructura(data.estructura, data.total_archivos, data.total_carpetas);
