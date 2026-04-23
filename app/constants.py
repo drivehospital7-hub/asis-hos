@@ -297,7 +297,7 @@ AREA_URGENCIAS = "urgencias"
 AREA_EQUIPOS_BASICOS = "equipos_basicos"
 
 # =============================================================================
-# PROFESIONALES - Listado de profesionales de Odontología
+# PROFESIONALES - Listado de profesionales de Odontología (para frontend)
 # =============================================================================
 
 PROFESIONALES_ODONTOLOGIA: dict[str, dict[str, str]] = {
@@ -324,6 +324,37 @@ PROFESIONALES_ODONTOLOGIA: dict[str, dict[str, str]] = {
     "006": {
         "nombre": "QUINTERO QUIROZ NOBEIRA DORANI",
         "identificacion": "1006848745",
+    },
+}
+
+# =============================================================================
+# PROFESIONALES - Listado de profesionales de Odontología (validación)
+# =============================================================================
+
+PROFESIONALES_ODONTOLOGIA_VALIDACION: dict[str, dict[str, str]] = {
+    "03424": {
+        "nombre": "ARIAS MOREANO LAURA MELISSA",
+        "tipo": "ODONTOLOGO",
+    },
+    "03007": {
+        "nombre": "OSPINA MARTINEZ LIZETH",
+        "tipo": "ODONTOLOGO",
+    },
+    "01329": {
+        "nombre": "CASTILLO DUQUE NOHORA ELENA",
+        "tipo": "HIGIENISTA",
+    },
+    "01251": {
+        "nombre": "MOSQUERA LOZANO YENIA YADIRIS",
+        "tipo": "ODONTOLOGO",
+    },
+    "01330": {
+        "nombre": "PANTOJA MONTIEL LEIDY PAOLA",
+        "tipo": "HIGIENISTA",
+    },
+    "03698": {
+        "nombre": "QUINTERO QUIROZ NOBEIRA DORANI",
+        "tipo": "HIGIENISTA",
     },
 }
 

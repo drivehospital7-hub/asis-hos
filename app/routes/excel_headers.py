@@ -216,7 +216,7 @@ def export_cruce_facturas():
                 elif tipo == "ide_contrato":
                     tipo_display = "Entidades y contratos"
                 elif tipo == "profesionales":
-                    tipo_display = "Profesionales Equipos Básicos"
+                    tipo_display = "Profesionales"
                 
                 errores.append({
                     "tipo": tipo_display,
