@@ -51,6 +51,7 @@ from app.constants import (
     CENTRO_COSTO_EXTRAMURAL,
     CENTRO_COSTO_EQUIPOS_BASICOS,
     PROFESIONALES_ODONTOLOGIA,
+    PROFESIONALES_EQUIPOS_BASICOS,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -200,6 +201,8 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
+    PYP_CODES_ONLY_ODONTOLOGO,
+    PYP_CODES_HIGIENISTA,
 )
 
 from app.utils.formatting import (
@@ -272,6 +275,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "fec_factura": None,
         "profesional_identificacion": None,
         "profesional_atiende": None,
+        "codigo_profesional": None,
     }
     
     # Nombres EXACTOS requeridos - uno solo por columna, sin variantes
@@ -300,6 +304,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "fec_factura": "Fec. Factura",
         "profesional_identificacion": "Identificación Profesional",
         "profesional_atiende": "Profesional Atiende",
+        "codigo_profesional": "Código Profesional",
     }
     
 # Normalizar headers del Excel para comparación EXACTA (sin strip para mantener espacios)
@@ -965,6 +970,89 @@ def _detect_tipo_identificacion_edad(
                 tipo_id_str,
                 tipo_correcto,
 )
+
+    return problemas
+
+
+def _detect_profesionales_equipos_basicos(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con profesionales no válidos o procedimientos no permitidos.
+
+    Reglas (Equipos Básicos):
+    - "Código Profesional" DEBE estar en PROFESIONALES_EQUIPOS_BASICOS
+    - HIGIENISTA: Solo puede usar códigos PYP (excepto 890203)
+    - ODONTOLOGO: Puede usar cualquier código EXCEPTO los PYP (excepto 890203)
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "problema"
+    """
+    num_fact_idx = indices["numero_factura"]
+    cod_prof_idx = indices["codigo_profesional"]
+    codigo_idx = indices["codigo"]
+
+    if None in (num_fact_idx, cod_prof_idx) or codigo_idx is None:
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
+
+        if not cod_profesional_str:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip() if codigo else ""
+
+        # Buscar profesional en el diccionario
+        profesional_info = PROFESIONALES_EQUIPOS_BASICOS.get(cod_profesional_str)
+
+        if profesional_info is None:
+            problemas.append({
+                "factura": factura_str,
+                "codigo_profesional": cod_profesional_str,
+                "nombre": "",
+                "tipo": "",
+                "problema": "Profesional no existe en el listado de Equipos Básicos",
+            })
+            facturas_procesadas.add(factura_str)
+        elif profesional_info.get("tipo") == "HIGIENISTA":
+            # Higienista: solo puede usar códigos de PYP_CODES_HIGIENISTA
+            if codigo_str and codigo_str not in PYP_CODES_HIGIENISTA:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "HIGIENISTA",
+                    "problema": f"Higienista con código no permitido ({codigo_str})",
+                })
+                facturas_procesadas.add(factura_str)
+        elif profesional_info.get("tipo") == "ODONTOLOGO":
+            # Odontólogo: no puede usar códigos de PYP_CODES_HIGIENISTA
+            # (pero SÍ puede usar 890203)
+            if codigo_str and codigo_str in PYP_CODES_HIGIENISTA:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "ODONTOLOGO",
+                    "problema": f"Odontólogo con código PYP no permitido ({codigo_str})",
+                })
+                facturas_procesadas.add(factura_str)
 
     return problemas
 
@@ -2860,6 +2948,10 @@ def detect_all_problems(
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         logger.info("create_revision_sheet - Equipos Básicos, IDE Contrato encontrados: %d", len(ide_contrato))
         
+        # Validación profesionales (solo Equipos Básicos)
+        profesionales = _detect_profesionales_equipos_basicos(data_sheet, indices)
+        logger.info("create_revision_sheet - Equipos Básicos, Profesionales encontrados: %d", len(profesionales))
+        
         # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
         entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
             data_sheet, indices, limit_log=5
@@ -2885,6 +2977,7 @@ def detect_all_problems(
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
                 "ide_contrato": ide_contrato,
+                "profesionales": profesionales,
             },
             "totales": {
                 "decimales": len(decimales),
@@ -2895,6 +2988,7 @@ def detect_all_problems(
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
                 "ide_contrato": len(ide_contrato),
+                "profesionales": len(profesionales),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "es_equipos_basicos": True,
