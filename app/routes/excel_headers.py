@@ -185,6 +185,11 @@ def export_cruce_facturas():
                             base["ide_actual"] = item.get("ide_actual", "")
                             base["ide_deberia"] = item.get("ide_deberia", "")
                             base["nota"] = item.get("nota", "")
+                        elif tipo == "profesionales":
+                            base["codigo_profesional"] = item.get("codigo_profesional", "")
+                            base["nombre"] = item.get("nombre", "")
+                            base["tipo"] = item.get("tipo", "")
+                            base["problema"] = item.get("problema", "")
                         
                         facturas.append(base)
                     else:
@@ -210,6 +215,8 @@ def export_cruce_facturas():
                     tipo_display = "Entidad Cobrar vs Afiliación"
                 elif tipo == "ide_contrato":
                     tipo_display = "Entidades y contratos"
+                elif tipo == "profesionales":
+                    tipo_display = "Profesionales Equipos Básicos"
                 
                 errores.append({
                     "tipo": tipo_display,

@@ -83,13 +83,30 @@ URGENCIA_COLUMNS_TO_KEEP = frozenset({
 # PROCEDURES - Códigos CUPS PyP (Promoción y Prevención)
 # =============================================================================
 
+# =============================================================================
+# PROCEDIMIENTOS PYP - Equipos Básicos
+# =============================================================================
+
 # Códigos CUPS para procedimientos de Promoción y Prevención
 # Estos códigos DEBEN estar en el convenio "Promoción y Prevención"
 # NOTA: No se verifica por nombre de procedimiento, solo por código CUPS
 PYP_CUPS_CODES = frozenset({
     "890203",  # Consulta de Primera vez por Odontologia General
     "997002",  # Control de Placa Bacteriana
-    "997106",  # Topicacion de Fluor en Barniz
+    "997106",  # Topización de Fluor en Barniz
+    "997107",  # Aplicación de Sellantes
+    "997301",  # Detartraje Supragingival
+})
+
+# Códigos PYP que SOLO pueden usar ODONTOLOGOS (890203 sí puede hygienista)
+PYP_CODES_ONLY_ODONTOLOGO = frozenset({
+    "890203",  # Consulta de Primera vez por Odontologia General
+})
+
+# Códigos PYP que pueden usar HIGIENISTAS (excepto 890203)
+PYP_CODES_HIGIENISTA = frozenset({
+    "997002",  # Control de Placa Bacteriana
+    "997106",  # Topización de Fluor en Barniz
     "997107",  # Aplicación de Sellantes
     "997301",  # Detartraje Supragingival
 })
@@ -307,6 +324,57 @@ PROFESIONALES_ODONTOLOGIA: dict[str, dict[str, str]] = {
     "006": {
         "nombre": "QUINTERO QUIROZ NOBEIRA DORANI",
         "identificacion": "1006848745",
+    },
+}
+
+# =============================================================================
+# PROFESIONALES - Listado de profesionales de Equipos Básicos
+# =============================================================================
+
+PROFESIONALES_EQUIPOS_BASICOS: dict[str, dict[str, str]] = {
+    "03764": {
+        "nombre": "JARAMILLO HERNANDEZ YAMILE LORENA",
+        "tipo": "ODONTOLOGO",
+    },
+    "03762": {
+        "nombre": "CHAVES GONZALEZ NURY ADRIANA",
+        "tipo": "HIGIENISTA",
+    },
+    "03808": {
+        "nombre": "PANTOJA VARGAS MERLY ORFELINA",
+        "tipo": "HIGIENISTA",
+    },
+    "02981": {
+        "nombre": "MARTINEZ MUÑOZ MARIA FERNANDA",
+        "tipo": "HIGIENISTA",
+    },
+    "03761": {
+        "nombre": "NEQUIRUCAMA NEQUIRUCAMA DARWIN HERNEY",
+        "tipo": "HIGIENISTA",
+    },
+    "03766": {
+        "nombre": "NARVAEZ DELGADO ADRIAN ALONSO",
+        "tipo": "ODONTOLOGO",
+    },
+    "03739": {
+        "nombre": "ESCOBAR PALACIOS CARLOS ANDRES",
+        "tipo": "ODONTOLOGO",
+    },
+    "03763": {
+        "nombre": "MESTRE RUIZ DAYRON",
+        "tipo": "ODONTOLOGO",
+    },
+    "02084": {
+        "nombre": "RUALES ALVARADO LUZ MERY",
+        "tipo": "HIGIENISTA",
+    },
+    "03825": {
+        "nombre": "GARCIA MONTENEGRO MARGARITA",
+        "tipo": "HIGIENISTA",
+    },
+    "03831": {
+        "nombre": "CHICO ACOSTA JUAN ANDRES",
+        "tipo": "ODONTOLOGO",
     },
 }
 
