@@ -1082,11 +1082,12 @@ def _detect_profesionales_urgencias(
         indices: Índices de columnas
 
     Returns:
-        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "problema"
+        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "profesional_area", "procedimiento", "regla", "problema"
     """
     num_fact_idx = indices["numero_factura"]
     cod_prof_idx = indices["codigo_profesional"]
     codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
 
     if None in (num_fact_idx, cod_prof_idx):
         return []

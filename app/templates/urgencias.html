@@ -427,23 +427,27 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esProfesionales) {
-              // Profesionales: 5 columnas
+              // Profesionales: 7 columnas (agregado Procedimiento y Regla)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
                 let codigoProfesional = '';
                 let nombre = '';
-                let tipo = '';
+                let area = '';
+                let procedimiento = '';
+                let regla = '';
                 let problema = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   codigoProfesional = item.codigo_profesional || '';
                   nombre = item.nombre || '';
-                  tipo = item.tipo || '';
+                  area = item.tipo || item.profesional_area || '';
+                  procedimiento = item.procedimiento || '';
+                  regla = item.regla || '';
                   problema = item.problema || '';
                 }
                 
@@ -451,13 +455,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigoProfesional + '</td>';
                 html += '<td>' + nombre + '</td>';
-                html += '<td>' + tipo + '</td>';
+                html += '<td>' + area + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + regla + '</td>';
                 html += '<td>' + problema + '</td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
