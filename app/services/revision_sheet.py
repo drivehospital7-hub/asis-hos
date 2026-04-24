@@ -58,6 +58,7 @@ from app.constants import (
     CODIGO_PSICOLOGA,
     CODIGO_NUTRICIONISTA,
     CODIGO_FISIOTERAPEUTA,
+    CODIGOS_JEFE_ENFERMERIA,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1177,6 +1178,21 @@ def _detect_profesionales_urgencias(
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "FISIOTERAPEUTA",
                     "problema": f"FISIOTERAPEUTA con código no permitido ({codigo_str}). Debería usar {CODIGO_FISIOTERAPEUTA}",
+                })
+                facturas_procesadas.add(factura_str)
+        
+        # Si es JEFE ENFERMERIA, validar códigos 861801, 890205, 890405, 990211
+        if tipo_profesional == "JEFE ENFERMERIA" and codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_str = str(codigo).strip() if codigo else ""
+            
+            if codigo_str and codigo_str not in CODIGOS_JEFE_ENFERMERIA:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "JEFE ENFERMERIA",
+                    "problema": f"JEFE ENFERMERIA con código no permitido ({codigo_str}). Debería usar {', '.join(sorted(CODIGOS_JEFE_ENFERMERIA))}",
                 })
                 facturas_procesadas.add(factura_str)
 
