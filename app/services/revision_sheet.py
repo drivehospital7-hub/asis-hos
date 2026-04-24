@@ -1118,11 +1118,15 @@ def _detect_profesionales_urgencias(
         profesional_info = PROFESIONALES_URGENCIAS.get(cod_profesional_str)
 
         if profesional_info is None:
+            logger.warning("Profesional no encontrado en lista: %s", cod_profesional_str)
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
                 "nombre": "",
                 "tipo": "",
+                "profesional_area": "",
+                "procedimiento": "",
+                "regla": "Profesional debe estar en listado",
                 "problema": "Profesional no existe en el listado de Urgencias",
             })
             facturas_procesadas.add(factura_str)
