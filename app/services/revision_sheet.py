@@ -1084,12 +1084,19 @@ def _detect_profesionales_urgencias(
     Returns:
         Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "profesional_area", "procedimiento", "regla", "problema"
     """
-    num_fact_idx = indices["numero_factura"]
-    cod_prof_idx = indices["codigo_profesional"]
+    logger.info("=== _detect_profesionales_urgencias ===")
+    logger.info("Indices encontrados: %s", indices)
+    
+    num_fact_idx = indices.get("numero_factura")
+    cod_prof_idx = indices.get("codigo_profesional")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
-
-    if None in (num_fact_idx, cod_prof_idx):
+    
+    logger.info("numero_factura idx: %s, codigo_profesional idx: %s, codigo idx: %s, procedimiento idx: %s",
+              num_fact_idx, cod_prof_idx, codigo_idx, procedimiento_idx)
+    
+    if num_fact_idx is None or cod_prof_idx is None:
+        logger.warning("NO se encontró número_factura o codigo_profesional en los índices")
         return []
 
     problemas = []
@@ -1349,6 +1356,13 @@ def _detect_profesionales_urgencias(
                 })
                 facturas_procesadas.add(factura_str)
 
+    logger.info("=== _detect_profesionales_urgencias RESULTADO ===")
+    logger.info("Total errores encontrados: %d", len(problemas))
+    for i, p in enumerate(problemas[:5]):  # Log first 5
+        logger.info("Error %d: factura=%s, profesional=%s, tipo=%s, procedimiento=%s, regla=%s, problema=%s",
+                 i+1, p.get("factura"), p.get("codigo_profesional"), p.get("tipo"),
+                 p.get("procedimiento"), p.get("regla"), p.get("problema"))
+    
     return problemas
 
 
