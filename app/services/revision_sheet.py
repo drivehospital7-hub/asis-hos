@@ -521,23 +521,6 @@ return []
     facturas_procesadas: set[str] = set()
     
     # Log de las primeras 5 filas para debug
-    logger.warning("=== MUESTREO 5 PRIMERAS FILAS PROFESIONALES ===")
-    for row in range(2, min(7, data_sheet.max_row + 1)):
-        num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        cod_prof = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
-        codigo_val = ""
-        proc_val = ""
-        if codigo_idx is not None:
-            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-            codigo_val = str(codigo_val).strip() if codigo_val else ""
-        if procedimiento_idx is not None:
-            proc_val = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-            proc_val = str(proc_val).strip()[:30] if proc_val else ""
-        
-        logger.warning("Fila %d: factura=%s, cod_prof=%s, codigo=%s, procedimiento=%s",
-                    row, num_fact, cod_prof, codigo_val, proc_val)
-    
-    # Log de las primeras 5 filas para debug
     logger.warning("=== MUESTREO 5 PRIMERAS FILAS ===")
     for row in range(2, min(7, data_sheet.max_row + 1)):
         num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -643,6 +626,23 @@ def _detect_profesionales_urgencias(
 
     problemas = []
     facturas_procesadas: set[str] = set()
+    
+    # Log de las primeras 5 filas para debug
+    logger.warning("=== MUESTREO 5 PRIMERAS FILAS PROFESIONALES ===")
+    for row in range(2, min(7, data_sheet.max_row + 1)):
+        num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        cod_prof = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        codigo_val = ""
+        proc_val = ""
+        if codigo_idx is not None:
+            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_val = str(codigo_val).strip() if codigo_val else ""
+        if procedimiento_idx is not None:
+            proc_val = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+            proc_val = str(proc_val).strip()[:30] if proc_val else ""
+        
+        logger.warning("Fila %d: factura=%s, cod_prof=%s, codigo=%s, proc=%s",
+                    row, num_fact, cod_prof, codigo_val, proc_val)
 
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -1379,13 +1379,6 @@ def _detect_centro_costo_odontologia(
                 centro_correcto,
                 dia_factura,
             )
-    
-    # Logging de resultado de profesionales
-    logger.warning("=== RESULTADO PROFESIONALES URGENCIAS === Total errores: %d", len(problemas))
-    for i, p in enumerate(problemas[:5]):
-        logger.warning("Error %d: factura=%s, profesional=%s, area=%s, regla=%s, problema=%s",
-                    i+1, p.get("factura"), p.get("codigo_profesional"),
-                    p.get("profesional_area"), p.get("regla"), p.get("problema"))
     
     return problemas
 
