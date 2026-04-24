@@ -53,6 +53,7 @@ from app.constants import (
     PROFESIONALES_ODONTOLOGIA,
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
     PROFESIONALES_EQUIPOS_BASICOS,
+    PROFESIONALES_URGENCIAS,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1054,6 +1055,60 @@ def _detect_profesionales_odontologia(
                     "problema": f"Odontólogo con código PYP no permitido ({codigo_str})",
                 })
                 facturas_procesadas.add(factura_str)
+
+    return problemas
+
+
+def _detect_profesionales_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con profesionales no válidos en Urgencias.
+
+    Reglas (Urgencias):
+    - "Código Profesional" DEBE estar en PROFESIONALES_URGENCIAS
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "problema"
+    """
+    num_fact_idx = indices["numero_factura"]
+    cod_prof_idx = indices["codigo_profesional"]
+
+    if None in (num_fact_idx, cod_prof_idx):
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
+
+        if not cod_profesional_str:
+            continue
+
+        # Buscar profesional en el diccionario de Urgencias
+        profesional_info = PROFESIONALES_URGENCIAS.get(cod_profesional_str)
+
+        if profesional_info is None:
+            problemas.append({
+                "factura": factura_str,
+                "codigo_profesional": cod_profesional_str,
+                "nombre": "",
+                "tipo": "",
+                "problema": "Profesional no existe en el listado de Urgencias",
+            })
+            facturas_procesadas.add(factura_str)
 
     return problemas
 
@@ -2964,8 +3019,12 @@ def detect_all_problems(
             data_sheet, indices, limit_log=5
         )
         
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d",
-                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison))
+        # Validación profesionales (solo Urgencias)
+        profesionales = _detect_profesionales_urgencias(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Profesionales encontrados: %d", len(profesionales))
+        
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d",
+                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales))
         
         # Incluir TODOS los campos en el resultado
         return {
@@ -3007,6 +3066,7 @@ def detect_all_problems(
                 "decimales": decimales,
                 "tipo_identificacion_edad": tipo_identificacion_edad,
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
+                "profesionales": profesionales,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -3015,6 +3075,7 @@ def detect_all_problems(
                 "decimales": len(decimales),
                 "tipo_identificacion_edad": len(tipo_identificacion_edad),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
+                "profesionales": len(profesionales),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],

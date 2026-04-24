@@ -410,6 +410,101 @@ PROFESIONALES_EQUIPOS_BASICOS: dict[str, dict[str, str]] = {
 }
 
 # =============================================================================
+# PROFESIONALES - Listado de profesionales de Urgencias
+# =============================================================================
+
+PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
+    "03568": {
+        "nombre": "RIVADENEIRA CABEZAS RENY MARGARITA",
+        "tipo": "TRABAJADORA SOCIAL",
+    },
+    "01235": {
+        "nombre": "BURBANO NARVAEZ LISEDT FERNANDA",
+        "tipo": "TRABAJADORA SOCIAL",
+    },
+    "01960": {
+        "nombre": "CASTRO LINARES YESSICA PATRICIA",
+        "tipo": "PSICOLOGA",
+    },
+    "03493": {
+        "nombre": "MOMPOTES PANTOJA EMELIN BRISBANY",
+        "tipo": "PSICOLOGA",
+    },
+    "03822": {
+        "nombre": "APRAEZ RODRIGUEZ JENIFER PAOLA",
+        "tipo": "NUTRICIONISTA",
+    },
+    "01293": {
+        "nombre": "RODRIGUEZ MORALES JAMEZ ARLEY",
+        "tipo": "MEDICO",
+    },
+    "02249": {
+        "nombre": "PALACIOS PALACIOS FRANCISCO DARWIN",
+        "tipo": "MEDICO",
+    },
+    "03799": {
+        "nombre": "YANDAR PANTOJA LUIS FELIPE",
+        "tipo": "MEDICO",
+    },
+    "03222": {
+        "nombre": "CHILAMA HERNANDEZ SAMIR AMILCAR",
+        "tipo": "MEDICO",
+    },
+    "03384": {
+        "nombre": "ROSERO QUINTERO DARWIN DARIO",
+        "tipo": "MEDICO",
+    },
+    "03154": {
+        "nombre": "BASANTE RUANO VIVIANA JERALDINE",
+        "tipo": "MEDICO",
+    },
+    "01289": {
+        "nombre": "DELGADO CARVAJAL YASMANI",
+        "tipo": "MEDICO",
+    },
+    "03628": {
+        "nombre": "LUNA DIAZ RICHARD ALEXANDER",
+        "tipo": "MEDICO",
+    },
+    "03710": {
+        "nombre": "MORA JACANAMEJOY YENNY NATALIA",
+        "tipo": "JEFE ENFERMERIA",
+    },
+    "01868": {
+        "nombre": "VALLEJOS TORO ELCY JACKELINE",
+        "tipo": "JEFE ENFERMERIA",
+    },
+    "03742": {
+        "nombre": "ROSERO LUNA JENIFER LIZBETH",
+        "tipo": "JEFE ENFERMERIA",
+    },
+    "03365": {
+        "nombre": "HUERTAS OCAMPO DIANA PATRICIA",
+        "tipo": "FISIOTERAPEUTA",
+    },
+    "03730": {
+        "nombre": "PABON GARCIA ALEJANDRA",
+        "tipo": "BACTERIOLOGA",
+    },
+    "03375": {
+        "nombre": "PEÑA PEÑA LISBETH PAOLA",
+        "tipo": "BACTERIOLOGA",
+    },
+    "02217": {
+        "nombre": "MADROÑERO BURBANO KAREN LIZETH",
+        "tipo": "BACTERIOLOGA",
+    },
+    "03374": {
+        "nombre": "MOLINA ALVAREZ KAROL DAYANNA",
+        "tipo": "BACTERIOLOGA",
+    },
+    "03255": {
+        "nombre": "MARIN ZULUAGA VALENTINA",
+        "tipo": "BACTERIOLOGA",
+    },
+}
+
+# =============================================================================
 # URGENCIAS - Reglas específicas de Urgencias
 # =============================================================================
 

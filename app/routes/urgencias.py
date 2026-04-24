@@ -12,7 +12,7 @@ from flask import (
 from app.services.excel_headers_page import build_excel_headers_form_context
 from app.services.exporter import export_excel_with_cruce_facturas
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
-from app.constants import AREA_URGENCIAS
+from app.constants import AREA_URGENCIAS, PROFESIONALES_URGENCIAS
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,7 @@ def urgencias_page():
         sheet_id_raw=request.args.get("sheet_id"),
         header_row_raw=request.args.get("header_row"),
     )
+    ctx["profesionales"] = PROFESIONALES_URGENCIAS
     return render_template("urgencias.html", **ctx)
 
 
@@ -44,6 +45,7 @@ def export_urgencias():
             header_row_raw=request.form.get("header_row"),
         )
         ctx["upload_error"] = "Debes seleccionar un archivo"
+        ctx["profesionales"] = PROFESIONALES_URGENCIAS
         return render_template("urgencias.html", **ctx)
     
     temp_path, error = save_temp_excel(uploaded_file)
@@ -55,6 +57,7 @@ def export_urgencias():
             header_row_raw=request.form.get("header_row"),
         )
         ctx["upload_error"] = error
+        ctx["profesionales"] = PROFESIONALES_URGENCIAS
         return render_template("urgencias.html", **ctx)
     
     filename = str(temp_path)
@@ -67,6 +70,7 @@ def export_urgencias():
         sheet_id_raw=request.form.get("sheet_id"),
         header_row_raw=request.form.get("header_row"),
     )
+    ctx["profesionales"] = PROFESIONALES_URGENCIAS
 
     export_result = export_excel_with_cruce_facturas(
         filename=filename,
@@ -253,11 +257,36 @@ def export_urgencias():
                 "facturas": facturas_entidad,
             })
         
+        # Profesionales (Urgencias)
+        profesionales = problemas_dict.get("profesionales", [])
+        if profesionales:
+            facturas_profesionales = []
+            for item in profesionales[:50]:
+                factura_error = {
+                    "factura": item.get("factura", ""),
+                    "codigo_profesional": item.get("codigo_profesional", ""),
+                    "nombre": item.get("nombre", ""),
+                    "tipo": item.get("tipo", ""),
+                    "problema": item.get("problema", ""),
+                }
+                facturas_profesionales.append(factura_error)
+                logger.info("FACTURA Profesionales: %s - Código: %s, Problema: %s",
+                           item.get("factura", ""),
+                           item.get("codigo_profesional", ""),
+                           item.get("problema", ""))
+            
+            errores.append({
+                "tipo": "Profesionales",
+                "tipo_key": "profesionales",
+                "cantidad": len(profesionales),
+                "facturas": facturas_profesionales,
+            })
+        
         # Los códigos sin DB ya están incluídos en ide_contrato con ide_contrato_deberia = "SIN CONTRATO"
         # No necesitamos crear un grupo de error separado
         
-        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad, %d entidad_afiliacion)",
-                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad), len(entidad_afiliacion))
+        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad, %d entidad_afiliacion, %d profesionales)",
+                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad), len(entidad_afiliacion), len(profesionales))
         
         return jsonify({
             "status": "success",
