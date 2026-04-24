@@ -59,6 +59,7 @@ from app.constants import (
     CODIGO_NUTRICIONISTA,
     CODIGO_FISIOTERAPEUTA,
     CODIGOS_JEFE_ENFERMERIA,
+    CODIGOS_EXCLUIDOS_MEDICO,
     LABORATORIO_NO,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
@@ -1225,6 +1226,52 @@ def _detect_profesionales_urgencias(
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "BACTERIOLOGA",
                     "problema": "LABORATORIO NO IDENTIFICADO: BACTERIOLOGA requiere Código Tipo Procedimiento=02/05 y Laboratorio=Si",
+                })
+                facturas_procesadas.add(factura_str)
+        
+        # Si es MEDICO, NO puede usar códigos de otros profesionales ni regla de laboratorio
+        if tipo_profesional == "MEDICO" and codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_str = str(codigo).strip() if codigo else ""
+            
+            # Verificar si usa código excluido
+            if codigo_str and codigo_str in CODIGOS_EXCLUIDOS_MEDICO:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "MEDICO",
+                    "problema": f"MEDICO con código no permitido ({codigo_str}). Código reservado para otro tipo de profesional",
+                })
+                facturas_procesadas.add(factura_str)
+                continue
+            
+            # Verificar si cumple regla de laboratorio (que es de BACTERIOLOGA)
+            codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
+            laboratorio_idx = indices.get("laboratorio")
+            
+            codigo_tipo = ""
+            laboratorio = ""
+            
+            if codigo_tipo_proc_idx is not None:
+                codigo_tipo = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+                codigo_tipo = str(codigo_tipo).strip() if codigo_tipo else ""
+            
+            if laboratorio_idx is not None:
+                laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
+                laboratorio = str(laboratorio).strip().upper() if laboratorio else ""
+            
+            # Si tiene código normal pero cumple regla de laboratorio = error
+            es_tipo_lab = codigo_tipo in ("02", "05", CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO)
+            es_lab_si = laboratorio == "SI"
+            
+            if codigo_str and es_tipo_lab and es_lab_si:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "MEDICO",
+                    "problema": "MEDICO no puede usar código de Laboratorio (Tipo 02/05 + Lab=Si). Reserved for BACTERIOLOGA",
                 })
                 facturas_procesadas.add(factura_str)
 
