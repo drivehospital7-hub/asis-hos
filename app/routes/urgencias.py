@@ -267,12 +267,17 @@ def export_urgencias():
                     "codigo_profesional": item.get("codigo_profesional", ""),
                     "nombre": item.get("nombre", ""),
                     "tipo": item.get("tipo", ""),
+                    "profesional_area": item.get("profesional_area", ""),
+                    "procedimiento": item.get("procedimiento", ""),
+                    "regla": item.get("regla", ""),
                     "problema": item.get("problema", ""),
                 }
                 facturas_profesionales.append(factura_error)
-                logger.info("FACTURA Profesionales: %s - Código: %s, Problema: %s",
+                logger.info("FACTURA Profesionales: %s - Área: %s, Procedimiento: %s, Regla: %s, Problema: %s",
                            item.get("factura", ""),
-                           item.get("codigo_profesional", ""),
+                           item.get("profesional_area", ""),
+                           item.get("procedimiento", ""),
+                           item.get("regla", ""),
                            item.get("problema", ""))
             
             errores.append({
