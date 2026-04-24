@@ -56,6 +56,7 @@ from app.constants import (
     PROFESIONALES_URGENCIAS,
     CODIGO_TRABAJADORA_SOCIAL,
     CODIGO_PSICOLOGA,
+    CODIGO_NUTRICIONISTA,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1145,6 +1146,21 @@ def _detect_profesionales_urgencias(
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "PSICOLOGA",
                     "problema": f"PSICOLOGA con código no permitido ({codigo_str}). Debería usar {CODIGO_PSICOLOGA}",
+                })
+                facturas_procesadas.add(factura_str)
+        
+        # Si es NUTRICIONISTA, validar código 890406
+        if tipo_profesional == "NUTRICIONISTA" and codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_str = str(codigo).strip() if codigo else ""
+            
+            if codigo_str and codigo_str != CODIGO_NUTRICIONISTA:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "NUTRICIONISTA",
+                    "problema": f"NUTRICIONISTA con código no permitido ({codigo_str}). Debería usar {CODIGO_NUTRICIONISTA}",
                 })
                 facturas_procesadas.add(factura_str)
 
