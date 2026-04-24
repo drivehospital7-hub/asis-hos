@@ -59,6 +59,7 @@ from app.constants import (
     CODIGO_NUTRICIONISTA,
     CODIGO_FISIOTERAPEUTA,
     CODIGOS_JEFE_ENFERMERIA,
+    LABORATORIO_NO,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1193,6 +1194,37 @@ def _detect_profesionales_urgencias(
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "JEFE ENFERMERIA",
                     "problema": f"JEFE ENFERMERIA con código no permitido ({codigo_str}). Debería usar {', '.join(sorted(CODIGOS_JEFE_ENFERMERIA))}",
+                })
+                facturas_procesadas.add(factura_str)
+        
+        # Si es BACTERIOLOGA, validar Código Tipo Procedimiento = 02 o 05 y Laboratorio = "Si"
+        if tipo_profesional == "BACTERIOLOGA":
+            codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
+            laboratorio_idx = indices.get("laboratorio")
+            
+            # Obtener valores
+            codigo_tipo = ""
+            laboratorio = ""
+            
+            if codigo_tipo_proc_idx is not None:
+                codigo_tipo = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+                codigo_tipo = str(codigo_tipo).strip() if codigo_tipo else ""
+            
+            if laboratorio_idx is not None:
+                laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
+                laboratorio = str(laboratorio).strip().upper() if laboratorio else ""
+            
+            # Validar: Código Tipo Procedimiento debe ser 02 o 05 Y Laboratorio debe ser "Si"
+            es_tipo_valido = codigo_tipo in ("02", "05", CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO)
+            es_laboratorio_si = laboratorio == "SI"
+            
+            if not (es_tipo_valido and es_laboratorio_si):
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "BACTERIOLOGA",
+                    "problema": "LABORATORIO NO IDENTIFICADO: BACTERIOLOGA requiere Código Tipo Procedimiento=02/05 y Laboratorio=Si",
                 })
                 facturas_procesadas.add(factura_str)
 
