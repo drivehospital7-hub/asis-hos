@@ -1129,12 +1129,21 @@ def _detect_profesionales_urgencias(
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             if codigo_str and codigo_str != CODIGO_TRABAJADORA_SOCIAL:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "TRABAJADORA SOCIAL",
+                    "profesional_area": "TRABAJADORA SOCIAL",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {CODIGO_TRABAJADORA_SOCIAL}",
                     "problema": f"TRABAJADORA SOCIAL con código no permitido ({codigo_str}). Debería usar {CODIGO_TRABAJADORA_SOCIAL}",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1144,12 +1153,21 @@ def _detect_profesionales_urgencias(
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             if codigo_str and codigo_str != CODIGO_PSICOLOGA:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "PSICOLOGA",
+                    "profesional_area": "PSICOLOGA",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {CODIGO_PSICOLOGA}",
                     "problema": f"PSICOLOGA con código no permitido ({codigo_str}). Debería usar {CODIGO_PSICOLOGA}",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1159,12 +1177,21 @@ def _detect_profesionales_urgencias(
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             if codigo_str and codigo_str != CODIGO_NUTRICIONISTA:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "NUTRICIONISTA",
+                    "profesional_area": "NUTRICIONISTA",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {CODIGO_NUTRICIONISTA}",
                     "problema": f"NUTRICIONISTA con código no permitido ({codigo_str}). Debería usar {CODIGO_NUTRICIONISTA}",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1174,12 +1201,21 @@ def _detect_profesionales_urgencias(
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             if codigo_str and codigo_str != CODIGO_FISIOTERAPEUTA:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "FISIOTERAPEUTA",
+                    "profesional_area": "FISIOTERAPEUTA",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {CODIGO_FISIOTERAPEUTA}",
                     "problema": f"FISIOTERAPEUTA con código no permitido ({codigo_str}). Debería usar {CODIGO_FISIOTERAPEUTA}",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1189,13 +1225,23 @@ def _detect_profesionales_urgencias(
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
+            codigos_validos = ", ".join(sorted(CODIGOS_JEFE_ENFERMERIA))
             if codigo_str and codigo_str not in CODIGOS_JEFE_ENFERMERIA:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "JEFE ENFERMERIA",
-                    "problema": f"JEFE ENFERMERIA con código no permitido ({codigo_str}). Debería usar {', '.join(sorted(CODIGOS_JEFE_ENFERMERIA))}",
+                    "profesional_area": "JEFE ENFERMERIA",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {codigos_validos}",
+                    "problema": f"JEFE ENFERMERIA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
                 facturas_procesadas.add(factura_str)
         
@@ -1220,12 +1266,21 @@ def _detect_profesionales_urgencias(
             es_tipo_valido = codigo_tipo in ("02", "05", CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO)
             es_laboratorio_si = laboratorio == "SI"
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             if not (es_tipo_valido and es_laboratorio_si):
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "BACTERIOLOGA",
+                    "profesional_area": "BACTERIOLOGA",
+                    "procedimiento": procedimiento,
+                    "regla": "Código Tipo=02/05 + Laboratorio=Si",
                     "problema": "LABORATORIO NO IDENTIFICADO: BACTERIOLOGA requiere Código Tipo Procedimiento=02/05 y Laboratorio=Si",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1237,11 +1292,20 @@ def _detect_profesionales_urgencias(
             
             # Verificar si usa código excluido
             if codigo_str and codigo_str in CODIGOS_EXCLUIDOS_MEDICO:
+                # Obtener procedimiento
+                procedimiento = ""
+                if procedimiento_idx is not None:
+                    proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                    procedimiento = str(proc).strip() if proc else ""
+                
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "MEDICO",
+                    "profesional_area": "MEDICO",
+                    "procedimiento": procedimiento,
+                    "regla": f"No usar: {', '.join(sorted(CODIGOS_EXCLUIDOS_MEDICO))}",
                     "problema": f"MEDICO con código no permitido ({codigo_str}). Código reservado para otro tipo de profesional",
                 })
                 facturas_procesadas.add(factura_str)
@@ -1262,6 +1326,12 @@ def _detect_profesionales_urgencias(
                 laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
                 laboratorio = str(laboratorio).strip().upper() if laboratorio else ""
             
+            # Obtener procedimiento
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             # Si tiene código normal pero cumple regla de laboratorio = error
             es_tipo_lab = codigo_tipo in ("02", "05", CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO)
             es_lab_si = laboratorio == "SI"
@@ -1272,6 +1342,9 @@ def _detect_profesionales_urgencias(
                     "codigo_profesional": cod_profesional_str,
                     "nombre": profesional_info.get("nombre", ""),
                     "tipo": "MEDICO",
+                    "profesional_area": "MEDICO",
+                    "procedimiento": procedimiento,
+                    "regla": "No usar Tipo=02/05 + Lab=Si (reservado BACTERIOLOGA)",
                     "problema": "MEDICO no puede usar código de Laboratorio (Tipo 02/05 + Lab=Si). Reserved for BACTERIOLOGA",
                 })
                 facturas_procesadas.add(factura_str)
