@@ -166,6 +166,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const esTipoIdentificacion = tipoKey === 'tipo_identificacion_edad';
             const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
             const esCupsEquivalentes = tipoKey === 'cups_equivalentes';
+            const esProfesionales = tipoKey === 'profesionales';
               
             if (esVerificarDerechos) {
               // Verificar Derechos: solo 1 columna (factura)
@@ -416,6 +417,41 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + codigoEntidadCobrar + '</td>';
                 html += '<td>' + entidadAfiliacion + '</td>';
                 html += '<td>' + codigoExtraido + '</td>';
+                html += '<td>' + problema + '</td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esProfesionales) {
+              // Profesionales: 5 columnas
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigoProfesional = '';
+                let nombre = '';
+                let tipo = '';
+                let problema = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigoProfesional = item.codigo_profesional || '';
+                  nombre = item.nombre || '';
+                  tipo = item.tipo || '';
+                  problema = item.problema || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigoProfesional + '</td>';
+                html += '<td>' + nombre + '</td>';
+                html += '<td>' + tipo + '</td>';
                 html += '<td>' + problema + '</td>';
                 html += '</tr>';
               });

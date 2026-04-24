@@ -2,7 +2,7 @@
 
 import logging
 from datetime import datetime
-from typing import TypedDict
+from typing import FrozenSet, TypedDict
 
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -148,6 +148,9 @@ def _parse_date(date_value) -> datetime | None:
     return None
 
 
+# Tipos válidos adicionales (no requieren verificación por edad)
+TIPOS_ADICIONALES_VALIDOS = frozenset({"NIP", "NIT", "PAS", "PE", "SC"})
+
 def _determinar_tipo_correcto(
     tipo_id_str: str,
     edad: int,
@@ -155,6 +158,10 @@ def _determinar_tipo_correcto(
 ) -> str | None:
     """Determina el tipo de documento correcto según la edad."""
     tipo_correcto: str | None = None
+    
+    # Tipos adicionales válidos (solo verificar que existan, sin validar edad)
+    if tipo_id_str in TIPOS_ADICIONALES_VALIDOS:
+        return tipo_id_str  # Aceptar tal cual
     
     if tipo_id_str in ("RC", "TI", "CC"):
         if edad < 7:
@@ -176,8 +183,5 @@ def _determinar_tipo_correcto(
         # CE solo válido si edad > 7 años
         if edad <= 7:
             tipo_correcto = "ERROR"  # CE no válido para <= 7 años
-    # Tipos no válidos siempre son error
-    elif tipo_id_str in ("NIP", "NIT", "PAS", "PE", "SC"):
-        tipo_correcto = "ERROR"  # Tipos no permitidos
     
     return tipo_correcto
