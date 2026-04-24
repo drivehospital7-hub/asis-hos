@@ -54,6 +54,7 @@ from app.constants import (
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
     PROFESIONALES_EQUIPOS_BASICOS,
     PROFESIONALES_URGENCIAS,
+    CODIGO_TRABAJADORA_SOCIAL,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
     ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1068,6 +1069,7 @@ def _detect_profesionales_urgencias(
 
     Reglas (Urgencias):
     - "Código Profesional" DEBE estar en PROFESIONALES_URGENCIAS
+    - TRABAJADORA SOCIAL: solo puede usar código 890409
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -1078,6 +1080,7 @@ def _detect_profesionales_urgencias(
     """
     num_fact_idx = indices["numero_factura"]
     cod_prof_idx = indices["codigo_profesional"]
+    codigo_idx = indices.get("codigo")
 
     if None in (num_fact_idx, cod_prof_idx):
         return []
@@ -1109,6 +1112,25 @@ def _detect_profesionales_urgencias(
                 "problema": "Profesional no existe en el listado de Urgencias",
             })
             facturas_procesadas.add(factura_str)
+            continue
+
+        # Validación por tipo de profesional
+        tipo_profesional = profesional_info.get("tipo", "")
+        
+        # Si es TRABAJADORA SOCIAL, validar código 890409
+        if tipo_profesional == "TRABAJADORA SOCIAL" and codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_str = str(codigo).strip() if codigo else ""
+            
+            if codigo_str and codigo_str != CODIGO_TRABAJADORA_SOCIAL:
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "TRABAJADORA SOCIAL",
+                    "problema": f"TRABAJADORA SOCIAL con código no permitido ({codigo_str}). Debería usar {CODIGO_TRABAJADORA_SOCIAL}",
+                })
+                facturas_procesadas.add(factura_str)
 
     return problemas
 
