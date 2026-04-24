@@ -516,6 +516,7 @@ CENTRO_COSTO_TRASLADOS = "TRASLADOS"
 
 # Códigos permitidos por tipo de profesional en Urgencias
 CODIGO_TRABAJADORA_SOCIAL = "890409"
+CODIGO_PSICOLOGA = "890408"
 
 # Códigos exceptuados (no listar aunque tenga Código=02 y Lab=No)
 CODIGOS_EXCEPTUADOS = frozenset({
