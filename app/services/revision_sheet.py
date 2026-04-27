@@ -503,6 +503,112 @@ def _detect_ruta_duplicada_equipos_basicos(
     return result
 
 
+def _detect_tipo_identificacion_edad(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas donde el tipo de identificación no coincide con la edad.
+    
+    Reglas:
+    - < 7 años: RC (Registro Civil)
+    - 7-17 años: TI (Tarjeta de Identidad)
+    - >= 18 años: CC (Cédula de Ciudadanía)
+    - Extranjeros < 18 años: MS
+    - Extranjeros >= 18 años: AS
+    - CN (Certificado de Nacimiento): solo válido si edad < 2 meses
+    - CE (Cédula Extranjería): solo válido si edad > 7 años
+    
+    Returns:
+        Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
+    """
+    from datetime import datetime
+    
+    tipo_id_idx = indices["tipo_identificacion"]
+    fec_nac_idx = indices["fec_nacimiento"]
+    fec_fact_idx = indices["fec_factura"]
+    num_fact_idx = indices["numero_factura"]
+    
+    if None in (tipo_id_idx, fec_nac_idx, fec_fact_idx, num_fact_idx):
+        logger.warning(
+            "No se pueden detectar errores de tipo identificación: "
+            "columnas requeridas no encontradas."
+        )
+        return []
+    
+    problemas = []
+    facturas_ya_procesadas = set()
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_ya_procesadas:
+            continue
+        
+        tipo_id = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
+        fec_nac = data_sheet.cell(row=row, column=fec_nac_idx + 1).value
+        fec_fact = data_sheet.cell(row=row, column=fec_fact_idx + 1).value
+        
+        if not tipo_id or not fec_nac or not fec_fact:
+            continue
+        
+        tipo_id_str = str(tipo_id).strip().upper()
+        
+        # Calcular edad
+        try:
+            fec_nac_str = str(fec_nac).strip()
+            fec_fact_str = str(fec_fact).strip()
+            try:
+                fecha_nac = datetime.strptime(fec_nac_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                fecha_nac = datetime.strptime(fec_nac_str, "%Y-%m-%d")
+            
+            try:
+                fecha_fact = datetime.strptime(fec_fact_str, "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                fecha_fact = datetime.strptime(fec_fact_str, "%Y-%m-%d")
+            
+            edad = fecha_fact.year - fecha_nac.year
+            if (fecha_fact.month, fecha_fact.day) < (fecha_nac.month, fecha_nac.day):
+                edad -= 1
+            
+            edad_meses = (fecha_fact.year - fecha_nac.year) * 12 + (fecha_fact.month - fecha_nac.month)
+        except (ValueError, TypeError):
+            continue
+        
+        # Determinar tipo correcto según edad
+        tipo_correcto = None
+        if tipo_id_str in ("RC", "TI", "CC"):
+            if edad < 7:
+                tipo_correcto = "RC"
+            elif edad < 18:
+                tipo_correcto = "TI"
+            else:
+                tipo_correcto = "CC"
+        elif tipo_id_str in ("MS", "AS"):
+            if edad < 18:
+                tipo_correcto = "MS"
+            else:
+                tipo_correcto = "AS"
+        elif tipo_id_str == "CN" and edad_meses >= 2:
+            tipo_correcto = "ERROR"
+        elif tipo_id_str == "CE" and edad <= 7:
+            tipo_correcto = "ERROR"
+        elif tipo_id_str in ("NIP", "NIT", "PAS", "PE", "SC"):
+            tipo_correcto = "ERROR"
+        
+        if tipo_correcto and tipo_id_str != tipo_correcto:
+            problemas.append({
+                "factura": factura_str,
+                "tipo_actual": tipo_id_str,
+                "tipo_deberia": tipo_correcto,
+                "edad": str(edad),
+            })
+            facturas_ya_procesadas.add(factura_str)
+    
+    return problemas
+
+
 def _detect_convenio_procedimiento(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -512,10 +618,10 @@ def _detect_convenio_procedimiento(
     Usa el código CUPS (columna 'Código') para validar.
     """
     num_fact_idx = indices["numero_factura"]
-    convenio_idx = indices["convenio_facturado"]
     codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
     
-    if None in (num_fact_idx, convenio_idx) or codigo_idx is None:
+    if None in (num_fact_idx,) or codigo_idx is None:
         return []
     
     problemas = []
@@ -525,18 +631,15 @@ def _detect_convenio_procedimiento(
     logger.warning("=== MUESTREO 5 PRIMERAS FILAS ===")
     for row in range(2, min(7, data_sheet.max_row + 1)):
         num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        cod_prof = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
-        codigo_val = ""
+        codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_val = str(codigo_val).strip() if codigo_val else ""
         proc_val = ""
-        if codigo_idx is not None:
-            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-            codigo_val = str(codigo_val).strip() if codigo_val else ""
         if procedimiento_idx is not None:
             proc_val = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-            proc_val = str(proc_val).strip()[:30] if proc_val else ""  # truncate a 30 chars
+            proc_val = str(proc_val).strip()[:30] if proc_val else ""
         
-        logger.warning("Fila %d: factura=%s, cod_prof=%s, codigo=%s, procedimiento=%s",
-                    row, num_fact, cod_prof, codigo_val, proc_val)
+        logger.warning("Fila %d: factura=%s, codigo=%s, procedimiento=%s",
+                    row, num_fact, codigo_val, proc_val)
 
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -544,7 +647,7 @@ def _detect_convenio_procedimiento(
         if not factura_str or factura_str in facturas_procesadas:
             continue
 
-        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
         cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
 
         if not cod_profesional_str:
@@ -592,6 +695,215 @@ def _detect_convenio_procedimiento(
     return problemas
 
 
+def _detect_cantidades_anomalas(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict]:
+    """Detecta facturas con cantidades anómalas."""
+    from app.constants import (
+        CANTIDAD_CONSULTAS_MIN,
+        CANTIDAD_MAX,
+        CANTIDAD_PYP_MIN,
+        CONVENIO_PYP,
+    )
+    
+    num_fact_idx = indices["numero_factura"]
+    tipo_proc_idx = indices["tipo_procedimiento"]
+    cantidad_idx = indices["cantidad"]
+    conveniencia_idx = indices["convenio_facturado"]
+    
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, conveniencia_idx):
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        conveniencia = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
+        
+        if not isinstance(cantidad, (int, float)):
+            continue
+        
+        # Reglas de cantidad anómala
+        is_anomaly = (
+            # Consultas >= 2
+            (tipo_value == "Consultas" and cantidad >= CANTIDAD_CONSULTAS_MIN)
+            # Cualquier cantidad > 10
+            or cantidad > CANTIDAD_MAX
+            # PyP >= 3
+            or (conveniencia == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN)
+        )
+        
+        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
+            problema_tipo = f"Consultas con cantidad {cantidad}" if tipo_value == "Consultas" else f"Cantidad {cantidad}"
+            problemas.append({
+                "factura": factura_str,
+                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
+                "cantidad": cantidad,
+                "convenio": str(conveniencia) if conveniencia else "",
+                "problema": problema_tipo,
+            })
+    
+    return problemas
+
+
+def _detect_cantidades_anomalas_equipos_basicos(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict]:
+    """Detecta facturas con cantidades anómalas (Equipos Básicos - reglas independientes)."""
+    from app.constants import (
+        EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
+        EQUIPOS_BASICOS_CANTIDAD_MAX,
+        EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
+        CONVENIO_PYP,
+    )
+    
+    num_fact_idx = indices["numero_factura"]
+    tipo_proc_idx = indices["tipo_procedimiento"]
+    cantidad_idx = indices["cantidad"]
+    procedimiento_idx = indices["procedimiento"]
+    conveniencia_idx = indices["convenio_facturado"]
+    
+    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, procedimiento_idx, conveniencia_idx):
+        return []
+    
+    problemas = []
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+        
+        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        procedimiento = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+        conveniencia = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
+        
+        if not isinstance(cantidad, (int, float)):
+            continue
+        
+        # Reglas de cantidad anómala (Equipos Básicos - configurables)
+        is_anomaly = (
+            tipo_value == "Consultas" and cantidad >= EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN
+            or cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX
+            or (conveniencia == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
+        )
+        
+        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
+            problema_tipo = f"Consultas con cantidad {cantidad}" if tipo_value == "Consultas" else f"Cantidad {cantidad}"
+            problemas.append({
+                "factura": factura_str,
+                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
+                "cantidad": cantidad,
+                "convenio": str(conveniencia) if conveniencia else "",
+                "problema": problema_tipo,
+            })
+    
+    return problemas
+
+
+def _detect_profesionales_odontologia(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con profesionales no válidos en Odontología.
+
+    Reglas (Odontología):
+    - "Código Profesional" DEBE estar en PROFESIONALES_ODONTOLOGIA_VALIDACION
+    - HIGIENISTA: Solo puede usar códigos PYP
+    - ODONTOLOGO: Puede usar cualquier código EXCEPTO los PYP
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "profesional_area", "procedimiento", "regla", "problema"
+    """
+    num_fact_idx = indices.get("numero_factura")
+    cod_prof_idx = indices.get("codigo_profesional")
+    codigo_idx = indices.get("codigo")
+    
+    if num_fact_idx is None or cod_prof_idx is None:
+        return []
+    
+    problemas = []
+    facturas_procesadas: set[str] = set()
+    
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
+
+        if not cod_profesional_str:
+            continue
+
+        # Buscar profesional en el diccionario
+        profesional_info = PROFESIONALES_ODONTOLOGIA_VALIDACION.get(cod_profesional_str)
+
+        if profesional_info is None:
+            problemas.append({
+                "factura": factura_str,
+                "codigo_profesional": cod_profesional_str,
+                "nombre": "",
+                "tipo": "",
+                "profesional_area": "",
+                "procedimiento": "",
+                "regla": "Profesional debe estar en listado",
+                "problema": "Profesional no existe en el listado de Odontología",
+            })
+            facturas_procesadas.add(factura_str)
+            continue
+
+        # Obtener código del procedimiento
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        codigo_str = str(codigo).strip() if codigo else ""
+        
+        tipo_profesional = profesional_info.get("tipo", "")
+        
+        # Validar según tipo de profesional
+        if tipo_profesional == "HIGIENISTA" and codigo_str not in PYP_CUPS_CODES:
+            problemas.append({
+                "factura": factura_str,
+                "codigo_profesional": cod_profesional_str,
+                "nombre": profesional_info.get("nombre", ""),
+                "tipo": "HIGIENISTA",
+                "profesional_area": "HIGIENISTA",
+                "procedimiento": codigo_str,
+                "regla": "Solo códigos PYP",
+                "problema": "HIGIENISTA no puede usar código no PYP",
+            })
+            facturas_procesadas.add(factura_str)
+        
+        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CUPS_CODES:
+            problemas.append({
+                "factura": factura_str,
+                "codigo_profesional": cod_profesional_str,
+                "nombre": profesional_info.get("nombre", ""),
+                "tipo": "ODONTOLOGO",
+                "profesional_area": "ODONTOLOGO",
+                "procedimiento": codigo_str,
+                "regla": "No códigos PYP",
+                "problema": "ODONTOLOGO no puede usar código PYP",
+            })
+            facturas_procesadas.add(factura_str)
+    
+    return problemas
+
+
 def _detect_profesionales_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -632,7 +944,7 @@ def _detect_profesionales_urgencias(
     logger.warning("=== MUESTREO 5 PRIMERAS FILAS PROFESIONALES ===")
     for row in range(2, min(7, data_sheet.max_row + 1)):
         num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        cod_prof = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_prof = data_sheet.cell(row=row, column=codigo_idx + 1).value
         codigo_val = ""
         proc_val = ""
         if codigo_idx is not None:
@@ -651,7 +963,7 @@ def _detect_profesionales_urgencias(
         if not factura_str or factura_str in facturas_procesadas:
             continue
 
-        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
         cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
 
         if not cod_profesional_str:
@@ -959,7 +1271,7 @@ def _detect_profesionales_equipos_basicos(
         if not factura_str or factura_str in facturas_procesadas:
             continue
 
-        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
+        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
         cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
 
         if not cod_profesional_str:
@@ -2620,13 +2932,18 @@ def create_revision_sheet(
             "Cups equivalentes urgencias": problemas_cups_equivalentes,
         }
     else:
-        # Odontología: todas las validaciones existentes
+# Odontología: todas las validaciones
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
-        conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
-        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
+        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
+        centro_costo = _detect_centro_costo_odontologia(data_sheet, indices)
+        
+        # Funciones no disponibles
+        conveniente_proc = []
+        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         
         logger.info("create_revision_sheet - area=%s, Llamando _detect_ide_contrato_odontologia", area)
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
@@ -2951,20 +3268,25 @@ def detect_all_problems(
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
     else:
-        # Odontología estándar: todas las validaciones
+# Odontología estándar: todas las validaciones
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
-        conveniente_proc = _detect_convenio_procedimiento(data_sheet, indices)
-        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
+        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
+        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
+        centro_costo = _detect_centro_costo_odontologia(data_sheet, indices)
+        
+        # Funciones no disponibles
+        conveniente_proc = []
+        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         
         logger.info("detect_all_problems - Odontología, Llamando _detect_ide_contrato_odontologia")
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         logger.info("detect_all_problems - Odontología, IDE Contrato encontrados: %d", len(ide_contrato))
         
         # Validación profesionales (solo Odontología)
-        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
+        profesionales = []
         logger.info("detect_all_problems - Odontología, Profesionales encontrados: %d", len(profesionales))
         
         # Validación centro de costo Odontología

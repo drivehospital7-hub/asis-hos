@@ -1,9 +1,75 @@
 """Modelos SQLAlchemy para notas técnicas."""
 
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+class User(Base):
+    """Usuarios del sistema."""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(256), nullable=False)
+    rol = Column(String(20), nullable=False, default="usuario")  # admin o usuario
+    
+    # Relationships
+    areas = relationship("UserArea", back_populates="user", cascade="all, delete-orphan")
+    
+    # Métodos requeridos por Flask-Login
+    @property
+    def is_authenticated(self):
+        return True
+    
+    @property
+    def is_active(self):
+        return True
+    
+    @property
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return str(self.id)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "rol": self.rol,
+            "areas": [ua.area for ua in self.areas]
+        }
+
+
+class UserArea(Base):
+    """Relación muchos a muchos entre usuarios y áreas."""
+    __tablename__ = "user_areas"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    area = Column(String(50), nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="areas")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "area": self.area
+        }
+
+
+# Áreas válidas del sistema
+AREAS_VALIDAS = [
+    "odontologia",
+    "urgencias", 
+    "equipos_basicos",
+    "cruce_facturas",
+    "derechos"
+]
 
 
 class EpsContratado(Base):
