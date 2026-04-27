@@ -1,7 +1,14 @@
 @echo off
-title Flask DEV Server
-cd /d %~dp0..
-echo Starting Development Server...
-echo Environment: DEVELOPMENT
-echo URL: http://127.0.0.1:5000
-python run_dev.py
+title Asis-HOS Development Server
+color 0A
+
+echo ========================================
+echo   Asis-HOS - Modo Desarrollo
+echo ========================================
+echo.
+
+cd /d %~dp0
+
+wsl -e bash -c "cd /home/papsivi/asis-hos && source venv/bin/activate && python run_dev.py"
+
+pause

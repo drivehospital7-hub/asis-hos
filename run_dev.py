@@ -1,4 +1,11 @@
+import os
 import logging
+
+# Agregar path de librerías linuxbrew para psycopg2
+linuxbrew_lib = "/home/linuxbrew/.linuxbrew/lib"
+if linuxbrew_lib not in os.environ.get("LD_LIBRARY_PATH", ""):
+    os.environ["LD_LIBRARY_PATH"] = linuxbrew_lib + ":" + os.environ.get("LD_LIBRARY_PATH", "")
+
 from app import create_app
 from config.dev import DevConfig
 
