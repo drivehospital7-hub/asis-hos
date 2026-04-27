@@ -60,6 +60,7 @@ from app.constants import (
     CODIGO_FISIOTERAPEUTA,
     CODIGOS_JEFE_ENFERMERIA,
     CODIGOS_EXCLUIDOS_MEDICO,
+    EXCEPCIONES_BACTERIOLOGA,
     LABORATORIO_NO,
     # IDE Contrato Urgencias
     CODIGO_IDE_CONTRATO_URGENCIAS,
@@ -800,6 +801,17 @@ def _detect_profesionales_urgencias(
         
         # Si es BACTERIOLOGA, validar Código Tipo Procedimiento = 02 o 05 y Laboratorio = "Si"
         if tipo_profesional == "BACTERIOLOGA":
+            # Obtener código de procedimiento para verificar excepciones
+            codigo_proc = ""
+            if codigo_idx is not None:
+                codigo_proc = data_sheet.cell(row=row, column=codigo_idx + 1).value
+                codigo_proc = str(codigo_proc).strip() if codigo_proc else ""
+            
+            # Si es excepción -> skip validación, no dar error
+            if codigo_proc in EXCEPCIONES_BACTERIOLOGA:
+                facturas_procesadas.add(factura_str)
+                continue
+            
             codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
             laboratorio_idx = indices.get("laboratorio")
             
