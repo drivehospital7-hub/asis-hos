@@ -898,7 +898,7 @@ def _detect_profesionales_odontologia(
                 "procedimiento": codigo_str,
                 "regla": "No códigos PYP",
                 "problema": "ODONTOLOGO no puede usar código PYP",
-            })
+})
             facturas_procesadas.add(factura_str)
     
     return problemas
@@ -944,7 +944,7 @@ def _detect_profesionales_urgencias(
     logger.warning("=== MUESTREO 5 PRIMERAS FILAS PROFESIONALES ===")
     for row in range(2, min(7, data_sheet.max_row + 1)):
         num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        cod_prof = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        cod_prof = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
         codigo_val = ""
         proc_val = ""
         if codigo_idx is not None:
@@ -963,7 +963,7 @@ def _detect_profesionales_urgencias(
         if not factura_str or factura_str in facturas_procesadas:
             continue
 
-        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
         cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
 
         if not cod_profesional_str:
@@ -974,13 +974,19 @@ def _detect_profesionales_urgencias(
 
         if profesional_info is None:
             logger.warning("Profesional no encontrado en lista: %s", cod_profesional_str)
+            # Obtener procedimiento para mostrar en el error
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+            
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
                 "nombre": "",
                 "tipo": "",
                 "profesional_area": "",
-                "procedimiento": "",
+                "procedimiento": procedimiento,
                 "regla": "Profesional debe estar en listado",
                 "problema": "Profesional no existe en el listado de Urgencias",
             })
@@ -2895,9 +2901,17 @@ def create_revision_sheet(
                         len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set))
         else:
             logger.warning("Todos los códigos de ESS118 están en DB")
-        problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = _detect_centro_costo_urgencias(
-            data_sheet, indices, problemas_codigos_no_en_db
-        )
+        # Llamar función de detección con manejo defensivo
+        try:
+            result = _detect_centro_costo_urgencias(data_sheet, indices, problemas_codigos_no_en_db)
+            if isinstance(result, tuple) and len(result) == 3:
+                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = result
+            else:
+                logger.error("Función retornó formato inesperado: %s", type(result))
+                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
+        except Exception as exc:
+            logger.exception("Error en _detect_centro_costo_urgencias: %s", exc)
+            problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
         
         # Formatear para Excel: "FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
@@ -3121,9 +3135,17 @@ def detect_all_problems(
                 if count >= 5:
                     break
         
-        problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = _detect_centro_costo_urgencias(
-            data_sheet, indices, problemas_codigos_no_en_db
-        )
+        # Llamar función de detección con manejo de errores defensivo
+        try:
+            result = _detect_centro_costo_urgencias(data_sheet, indices, problemas_codigos_no_en_db)
+            if isinstance(result, tuple) and len(result) == 3:
+                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = result
+            else:
+                logger.error("Función _detect_centro_costo_urgencias retornó formato inesperado: %s", type(result))
+                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
+        except Exception as exc:
+            logger.exception("Error en _detect_centro_costo_urgencias: %s", exc)
+            problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
         
         # Agregar TODOS los procedimientos no encontrados en DB (no solo IDE=969)
         # como errores separados en ide_contrato
