@@ -189,6 +189,7 @@ def export_cruce_facturas():
                             base["codigo_profesional"] = item.get("codigo_profesional", "")
                             base["nombre"] = item.get("nombre", "")
                             base["tipo"] = item.get("tipo", "")
+                            base["procedimiento"] = item.get("procedimiento", "")
                             base["problema"] = item.get("problema", "")
                         
                         facturas.append(base)
