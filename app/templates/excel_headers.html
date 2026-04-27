@@ -525,8 +525,8 @@ diasSeleccionados = [];
               headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
               colspan = 6;
             } else if (error.tipo_key === 'profesionales') {
-              headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th>';
-              colspan = 5;
+              headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th>';
+              colspan = 6;
             } else {
               headersHtml = '<th>Factura</th>';
             }
@@ -692,8 +692,15 @@ function mostrarMas(btn, errorData) {
     headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
   } else if (errorData.tipo_key === 'ide_contrato') {
     headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
-  } else if (errorData.tipo_key === 'profesionales') {
-    headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Problema</th>';
+} else if (errorData.tipo_key === 'profesionales') {
+      html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.codigo_profesional || '') + '</td>';
+      html += '<td>' + (item.nombre || '') + '</td>';
+      html += '<td>' + (item.tipo || '') + '</td>';
+      html += '<td>' + (item.procedimiento || '') + '</td>';
+      html += '<td>' + (item.problema || '') + '</td>';
+    } else if (errorData.tipo_key === 'convenio_procedimiento') {
+      headersHtml = '<th>Factura</th><th>Convenio</th><th>Código</th><th>Problema</th>';
   } else {
     thead.innerHTML = headersHtml;
   }

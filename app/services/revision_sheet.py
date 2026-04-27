@@ -609,92 +609,6 @@ def _detect_tipo_identificacion_edad(
     return problemas
 
 
-def _detect_convenio_procedimiento(
-    data_sheet: Worksheet,
-    indices: dict[str, int | None],
-) -> list[dict]:
-    """Detecta facturas con procedimientos que no corresponden al convenio.
-    
-    Usa el código CUPS (columna 'Código') para validar.
-    """
-    num_fact_idx = indices["numero_factura"]
-    codigo_idx = indices.get("codigo")
-    procedimiento_idx = indices.get("procedimiento")
-    
-    if None in (num_fact_idx,) or codigo_idx is None:
-        return []
-    
-    problemas = []
-    facturas_procesadas: set[str] = set()
-    
-    # Log de las primeras 5 filas para debug
-    logger.warning("=== MUESTREO 5 PRIMERAS FILAS ===")
-    for row in range(2, min(7, data_sheet.max_row + 1)):
-        num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        codigo_val = str(codigo_val).strip() if codigo_val else ""
-        proc_val = ""
-        if procedimiento_idx is not None:
-            proc_val = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-            proc_val = str(proc_val).strip()[:30] if proc_val else ""
-        
-        logger.warning("Fila %d: factura=%s, codigo=%s, procedimiento=%s",
-                    row, num_fact, codigo_val, proc_val)
-
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_procesadas:
-            continue
-
-        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
-
-        if not cod_profesional_str:
-            continue
-
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        codigo_str = str(codigo).strip() if codigo else ""
-
-        # Buscar profesional en el diccionario
-        profesional_info = PROFESIONALES_ODONTOLOGIA_VALIDACION.get(cod_profesional_str)
-
-        if profesional_info is None:
-            problemas.append({
-                "factura": factura_str,
-                "codigo_profesional": cod_profesional_str,
-                "nombre": "",
-                "tipo": "",
-                "problema": "Profesional no existe en el listado de Odontología",
-            })
-            facturas_procesadas.add(factura_str)
-        elif profesional_info.get("tipo") == "HIGIENISTA":
-            # Higienista: solo puede usar códigos de PYP_CODES_HIGIENISTA
-            if codigo_str and codigo_str not in PYP_CODES_HIGIENISTA:
-                problemas.append({
-                    "factura": factura_str,
-                    "codigo_profesional": cod_profesional_str,
-                    "nombre": profesional_info.get("nombre", ""),
-                    "tipo": "HIGIENISTA",
-                    "problema": f"Higienista con código no permitido ({codigo_str})",
-                })
-                facturas_procesadas.add(factura_str)
-        elif profesional_info.get("tipo") == "ODONTOLOGO":
-            # Odontólogo: no puede usar códigos de PYP_CODES_HIGIENISTA
-            # (pero SÍ puede usar 890203)
-            if codigo_str and codigo_str in PYP_CODES_HIGIENISTA:
-                problemas.append({
-                    "factura": factura_str,
-                    "codigo_profesional": cod_profesional_str,
-                    "nombre": profesional_info.get("nombre", ""),
-                    "tipo": "ODONTOLOGO",
-                    "problema": f"Odontólogo con código PYP no permitido ({codigo_str})",
-                })
-                facturas_procesadas.add(factura_str)
-
-    return problemas
-
-
 def _detect_cantidades_anomalas(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -888,7 +802,7 @@ def _detect_profesionales_odontologia(
             })
             facturas_procesadas.add(factura_str)
         
-        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CUPS_CODES:
+        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA:
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
@@ -896,7 +810,7 @@ def _detect_profesionales_odontologia(
                 "tipo": "ODONTOLOGO",
                 "profesional_area": "ODONTOLOGO",
                 "procedimiento": codigo_str,
-                "regla": "No códigos PYP",
+                "regla": "No códigos PYP (excepto 890203)",
                 "problema": "ODONTOLOGO no puede usar código PYP",
 })
             facturas_procesadas.add(factura_str)
@@ -1277,7 +1191,7 @@ def _detect_profesionales_equipos_basicos(
         if not factura_str or factura_str in facturas_procesadas:
             continue
 
-        cod_profesional = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
         cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
 
         if not cod_profesional_str:
@@ -3235,7 +3149,7 @@ def detect_all_problems(
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada_equipos_basicos(data_sheet, indices)
-        conveniente_proc = _detect_convenio_procedimiento_equipos_basicos(data_sheet, indices)
+        # Nota: La validación de "convenio incorrecto" ya está incluida en _detect_profesionales_equipos_basicos
         cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
         
@@ -3267,7 +3181,6 @@ def detect_all_problems(
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,
-                "convenio_procedimiento": conveniente_proc,
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
@@ -3278,7 +3191,6 @@ def detect_all_problems(
                 "decimales": len(decimales),
                 "doble_tipo_procedimiento": len(doble_tipo),
                 "ruta_duplicada": len(ruta_dup),
-                "convenio_procedimiento": len(conveniente_proc),
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
@@ -3295,59 +3207,52 @@ def detect_all_problems(
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
-        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
-        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
-        centro_costo = _detect_centro_costo_odontologia(data_sheet, indices)
-        
-        # Funciones no disponibles
-        conveniente_proc = []
         cantidades = _detect_cantidades_anomalas(data_sheet, indices)
-        
+
         logger.info("detect_all_problems - Odontología, Llamando _detect_ide_contrato_odontologia")
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         logger.info("detect_all_problems - Odontología, IDE Contrato encontrados: %d", len(ide_contrato))
-        
-        # Validación profesionales (solo Odontología)
-        profesionales = []
+
+        # Validación profesionales (solo Odontología) - Esta función incluye la validación de convenio/procedimiento
+        logger.info("detect_all_problems - Odontología, Llamando _detect_profesionales_odontologia")
+        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
         logger.info("detect_all_problems - Odontología, Profesionales encontrados: %d", len(profesionales))
-        
+
         # Validación centro de costo Odontología
         centro_costo = _detect_centro_costo_odontologia(
-            data_sheet, 
-            indices, 
+            data_sheet,
+            indices,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
-        
+
         # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
         entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
             data_sheet, indices, limit_log=5
         )
-        
+
         return {
             "area": area,
             "problemas": {
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,
-                "convenio_procedimiento": conveniente_proc,
+                "profesionales": profesionales,
                 "cantidades_anomalas": cantidades,
                 "tipo_identificacion_edad": tipo_id_edad,
                 "centro_costo": centro_costo,
                 "ide_contrato": ide_contrato,
-                "profesionales": profesionales,
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             },
             "totales": {
                 "decimales": len(decimales),
                 "doble_tipo_procedimiento": len(doble_tipo),
                 "ruta_duplicada": len(ruta_dup),
-                "convenio_procedimiento": len(conveniente_proc),
+                "profesionales": len(profesionales),
                 "cantidades_anomalas": len(cantidades),
                 "tipo_identificacion_edad": len(tipo_id_edad),
                 "centro_costo": len(centro_costo),
                 "ide_contrato": len(ide_contrato),
-                "profesionales": len(profesionales),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "missing_columns": missing_columns,
