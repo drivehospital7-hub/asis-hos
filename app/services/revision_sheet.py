@@ -515,7 +515,7 @@ def _detect_convenio_procedimiento(
     codigo_idx = indices.get("codigo")
     
     if None in (num_fact_idx, convenio_idx) or codigo_idx is None:
-return []
+        return []
     
     problemas = []
     facturas_procesadas: set[str] = set()
@@ -902,13 +902,13 @@ def _detect_profesionales_urgencias(
                 })
                 facturas_procesadas.add(factura_str)
 
-    logger.warning("=== _detect_profesionales_urgencias RESULTADO ===")
-    logger.warning("Total errores encontrados: %d", len(problemas))
-    for i, p in enumerate(problemas[:5]):  # Log first 5
-        logger.warning("Error %d: factura=%s, profesional=%s, tipo=%s, procedimiento=%s, regla=%s, problema=%s",
-                 i+1, p.get("factura"), p.get("codigo_profesional"), p.get("tipo"),
-                 p.get("procedimiento"), p.get("regla"), p.get("problema"))
-    
+    if problemas:
+        logger.warning("=== ERRORES PROFESIONALES URGENCIAS: %d ===", len(problemas))
+        for p in problemas:
+            logger.warning("- Factura: %s, Profesional: %s (%s), Área: %s, Código: %s, Problema: %s",
+                p.get("factura"), p.get("codigo_profesional"), p.get("nombre"),
+                p.get("profesional_area"), p.get("procedimiento"), p.get("problema"))
+
     return problemas
 
 
