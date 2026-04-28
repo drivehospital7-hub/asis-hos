@@ -819,3 +819,79 @@ CODIGO_CUPS_URGENCIAS_861101 = "861101"
 # ----- Nueva Regla: Servicios CUPS reemplazable - Código 890201 o 12333 debe ser 890701
 CODIGO_CUPS_REEMPLAZABLE = "890201"
 CODIGO_CUPS_SUSTITUTO = "890701"
+
+# =============================================================================
+# URGENCIAS - Códigos CUPS Capita (ESS118)
+# =============================================================================
+
+# Códigos CUPS válidos para Urgencias ESS118 (EMSSANAR_CAPITA)
+# Estos códigos DEBEN estar en el convenio de Urgencias Capita
+URGENCIAS_CAPITA_CUPS_CODES = frozenset({
+    "890701",  # Consulta de Urgencias por Medicina General
+    "890601",  # Manejo Intrahospitalario por Medicina General
+    "5DSB01",  # Sala de Observacion (Urgencias) de Complejidad Baja SOD
+    "907106",  # Uroanálisis
+    "906914",  # Proteína C Reactiva Manual o Semiautomatizado
+    "903841",  # Glucosa en Suero, LCR u otro Fluido Diferente a Orina
+    "903856",  # Nitrógeno Ureico [BUN]
+    "903895",  # Creatinina en Suero u otros Fluidos
+    "873210",  # Radiografía de Mano
+    "05DSB01",  # Derechos de Sala de Observación en Urgencias Complejidad Baja (Mayor a 6 Horas)
+    "871121",  # Radiografía de Tórax (P.a. o A.P. y Lateral, Decúbito Lateral, Oblicuas o Lateral)
+    "903883",  # Glucosa Semiautomatizada [Glucometría]
+    "895101",  # Electrocardiograma de Ritmo o de Superficie
+    "904508",  # Gonadotropina Coriónica, Subunidad Beta Cualitativa [BHCG] Prueba de Embarazo en Orina o Suero
+    "901107",  # Coloración Gram y Lectura para Cualquier Muestra
+    "907002",  # Coprológico
+    "873206",  # Radiografía de Muñeca
+    "935301",  # Aplicación o Cambio de Yeso para Inmovilización en Miembro Superior (Excepto Mano)
+    "5DS004",  # Derecho Sala de Yesos
+    "12333",  # Consulta Prioritaria
+    "865101",  # Sutura de Herida Única, en Área General
+    "5DS003",  # Sala de Pequeña Cirugía (Suturas)
+    "907202",  # Moco Cervical Análisis (Prueba de Helecho)
+    "897011",  # Monitoría Fetal Anteparto
+    "901304",  # Examen Directo Fresco de Cualquier Muestra
+    "902214",  # Hemoparasitos Extendido de Gota Gruesa
+    "906249PR",  # VIH - Prueba Rápida
+    "906039",  # Treponema Pallidum Anticuerpos (Prueba Treponémica) Manual o Semiautomatizada o Automatizada
+    "1906317",  # Hepatitis B, Antígeno de Superficie (Rápida)
+    "990211",  # Consejojería VIH
+    "903809",  # Bilirrubinas Total y Directa
+    "872002",  # Radiografía de Abdomen Simple
+    "5DS002",  # Derechos de Sala de Curaciones o Procedimientos
+    "869501",  # Curación de Lesión en Piel o Tejido Celular Subcutáneo SOD
+    "890601H",  # Valoración Inicial Intrahospitalaria por el Médico General Tratante del Paciente Ingresado para Tratamiento no Quirúrgico u Obstétrico
+    "129B02",  # Internación Adultos Complejidad Baja Habitación Múltiple
+    "873411",  # Radiografía de Cadera o Articulación Coxo-Femoral (AP, Lateral)
+    "873312",  # Radiografía de Fémur AP y Lateral
+    "939402",  # Nebulización
+    "870001",  # Radiografía de Cráneo Simple
+    "965101",  # Irrigación y Lavado del Ojo SOD
+    "9062081",  # Dengue, Anticuerpos IG M Prueba Rápida IG G - IG M
+    "90DS02",  # Derechos de Sala de Parto Complejidad Baja
+    "911016",  # Hemoclasificación (Grupo Sanguíneo y Factor Rh)
+    "735301",  # Asistencia del Parto con o sin Episiorrafia o Perineorrafia
+    "873121",  # Radiografía de Húmero
+    "873122",  # Radiografía del Antebrazo
+    "579401",  # Inserción de Dispositivo Urinario (Vesical)
+    "873204",  # Radiografía de Hombro
+    "873420",  # Radiografía de Rodilla AP Lateral u Oblicua
+    "871040",  # Radiografía de Columna Lumbosacra
+    "961601",  # Inserción de Dispositivo en Uretra
+    "890205",  # Consulta de Primera vez por Enfermería
+    "963901",  # Irrigación o Enema Transanal SOD
+    "907008",  # Sangre Oculta en Materia Fecal [Guayaco o Equivalente]
+    "906915",  # Prueba no Treponémica Manual
+    "870101",  # Radiografía de Cara
+    "873205",  # Radiografía de Codo
+    "871112",  # Radiografía de Esternón
+    "873333",  # Radiografía de Pie AP y Lateral y Oblicua
+    "890703",  # Consulta de Urgencias por Odontología General
+    "232201",  # Obturación Temporal por Diente
+    "873431",  # Radiografía de Tobillo AP Lateral y Rotación Interna
+    "903805",  # Amilasa
+    "897012",  # Monitoría Fetal Intraparto
+    "935304",  # Aplicación o Cambio de Yeso para Inmovilización en Miembro Inferior (Muslo, Pierna o Tobillo)
+    "873313",  # Radiografía de Pierna AP y Lateral
+})
