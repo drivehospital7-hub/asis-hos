@@ -155,6 +155,13 @@ IDE_CONTRATO_MULTIPLE_RES001_PYP = frozenset({"954"})
 # RES001 + Procedimientos NO PyP -> IDE Contrato 953
 IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"953"})
 
+# =============================================================================
+# MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
+# =============================================================================
+
+CODIGOS_MAL_CAPITADO = frozenset({"G03XB01", "A02BB01"})
+PREFIJO_FACTURA_MAL_CAPITADO = "FEV"
+
 # ESS062 + Procedimientos PyP -> IDE Contrato 922
 ENTIDAD_IDE_CONTRATO_ESS062_PYP = "ESS062"
 IDE_CONTRATO_MULTIPLE_ESS062_PYP = frozenset({"922"})
@@ -286,6 +293,7 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
     1: "Centros de Costos",
     2: "IDE Contrato",
     3: "Cups Equivalentes",
+    4: "MAL CAPITADO",
 }
 
 # =============================================================================

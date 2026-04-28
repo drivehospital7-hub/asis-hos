@@ -191,6 +191,10 @@ def export_cruce_facturas():
                             base["tipo"] = item.get("tipo", "")
                             base["procedimiento"] = item.get("procedimiento", "")
                             base["problema"] = item.get("problema", "")
+                        elif tipo == "mal_capitado":
+                            base["codigo"] = item.get("codigo", "")
+                            base["procedimiento"] = item.get("procedimiento", "")
+                            base["observacion"] = item.get("observacion", "")
                         
                         facturas.append(base)
                     else:
@@ -218,6 +222,8 @@ def export_cruce_facturas():
                     tipo_display = "Entidades y contratos"
                 elif tipo == "profesionales":
                     tipo_display = "Profesionales"
+                elif tipo == "mal_capitado":
+                    tipo_display = "MAL CAPITADO"
                 
                 errores.append({
                     "tipo": tipo_display,

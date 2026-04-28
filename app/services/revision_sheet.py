@@ -236,6 +236,9 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
     PYP_CODES_ONLY_ODONTOLOGO,
     PYP_CODES_HIGIENISTA,
+    # MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
+    CODIGOS_MAL_CAPITADO,
+    PREFIJO_FACTURA_MAL_CAPITADO,
 )
 
 from app.utils.formatting import (
@@ -832,12 +835,90 @@ def _detect_profesionales_odontologia(
                 "nombre": profesional_info.get("nombre", ""),
                 "tipo": "ODONTOLOGO",
                 "profesional_area": "ODONTOLOGO",
-                "procedimiento": codigo_str,
+"procedimiento": codigo_str,
                 "regla": "No códigos PYP (excepto 890203)",
                 "problema": "ODONTOLOGO no puede usar código PYP",
-})
+            })
             facturas_procesadas.add(factura_str)
     
+    return problemas
+
+
+def _detect_mal_capitado(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta facturas con códigos G03XB01 o A02BB01 que NO tienen prefijo FEV en Número Factura.
+
+    Reglas:
+    - Códigos G03XB01 y A02BB01 DEBEN tener Número Factura con prefijo "FEV"
+    - Ejemplos válidos: FEV12345, FEV-001
+    - Ejemplos inválidos: CAP12345, EV12345, 12345
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion"
+    """
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+
+    if num_fact_idx is None or codigo_idx is None:
+        logger.warning("MAL CAPITADO - Columnas necesarias no encontradas: numero_factura=%s, codigo=%s",
+                      num_fact_idx, codigo_idx)
+        return []
+
+    # Loguear las primeras 5 filas para debug
+    logger.warning("=== DEBUG MAL CAPITADO - Primeras 5 filas ===")
+    for row in range(2, min(7, data_sheet.max_row + 1)):
+        num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value if procedimiento_idx else None
+        logger.warning(f"  Fila {row}: Numero Factura='{num_fact}', Codigo='{codigo}', Procedimiento='{proc}'")
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Solo verificar si el código es uno de los MAL CAPITADO
+        if codigo_str not in CODIGOS_MAL_CAPITADO:
+            continue
+
+        # Verificar prefijo FEV
+        tiene_prefijo_fev = factura_str.upper().startswith(PREFIJO_FACTURA_MAL_CAPITADO)
+
+        if not tiene_prefijo_fev:
+            # Obtener procedimiento para la observación
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc_value).strip() if proc_value else ""
+
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "observacion": f"Número Factura debe tener prefijo FEV (ej: FEV12345)",
+            })
+            facturas_procesadas.add(factura_str)
+
+    if problemas:
+        logger.info("MAL CAPITADO - Problemas encontrados: %d", len(problemas))
+        for p in problemas:
+            logger.warning(f"  ERROR: Factura='{p['factura']}', Codigo='{p['codigo']}', Procedimiento='{p['procedimiento']}', Observacion='{p['observacion']}'")
+
     return problemas
 
 
@@ -2957,6 +3038,9 @@ def create_revision_sheet(
             logger.exception("Error en _detect_centro_costo_urgencias: %s", exc)
             problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
         
+        # Validación MAL CAPITADO para Urgencias
+        mal_capitado = _detect_mal_capitado(data_sheet, indices)
+        
         # Formatear para Excel: "FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
             f"{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
@@ -2980,6 +3064,13 @@ def create_revision_sheet(
         _write_column(sheet, 2, ide_contrato_str, start_row=3)
         _write_column(sheet, 3, cups_equiv_str, start_row=3)
         
+        # Formatear MAL CAPITADO: "FACTURA|CÓDIGO|PROCEDIMIENTO|OBSERVACIÓN"
+        mal_capitado_str = [
+            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['observacion']}"
+            for item in mal_capitado
+        ]
+        _write_column(sheet, 4, mal_capitado_str, start_row=3)
+        
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
@@ -2988,6 +3079,7 @@ def create_revision_sheet(
             ],
             "Problemas de IDE Contrato": problemas_ide_contrato,
             "Cups equivalentes urgencias": problemas_cups_equivalentes,
+            "MAL CAPITADO": mal_capitado,
         }
     else:
 # Odontología: todas las validaciones
@@ -3082,6 +3174,7 @@ def create_revision_sheet(
             "area": area,
             "headers": list(URGENCIA_REVISION_HEADERS.values()),
             "centros_de_costos_found": len(problemas_centros),
+            "mal_capitado_found": len(mal_capitado),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
@@ -3216,9 +3309,13 @@ def detect_all_problems(
         # Validación profesionales (solo Urgencias)
         profesionales = _detect_profesionales_urgencias(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, Profesionales encontrados: %d", len(profesionales))
-        
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d",
-                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales))
+
+        # Validación MAL CAPITADO
+        mal_capitado = _detect_mal_capitado(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, MAL CAPITADO encontrados: %d", len(mal_capitado))
+
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d",
+                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado))
         
         # Incluir TODOS los campos en el resultado
         return {
@@ -3261,6 +3358,7 @@ def detect_all_problems(
                 "tipo_identificacion_edad": tipo_identificacion_edad,
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
                 "profesionales": profesionales,
+                "mal_capitado": mal_capitado,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -3270,6 +3368,7 @@ def detect_all_problems(
                 "tipo_identificacion_edad": len(tipo_identificacion_edad),
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
                 "profesionales": len(profesionales),
+                "mal_capitado": len(mal_capitado),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
