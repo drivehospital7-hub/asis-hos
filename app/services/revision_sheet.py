@@ -94,11 +94,12 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_861801_ESS118,
     ENTIDAD_IDE_CONTRATO_861801_ESS118,
     IDE_CONTRATO_REQUERIDO_861801_ESS118,
-    # Nueva regla ESS118 + Código 890405 -> IDE Contrato 977 o 973 según inserción
-    CODIGO_IDE_CONTRATO_890405_ESS118,
-    ENTIDAD_IDE_CONTRATO_890405_ESS118,
-    IDE_CONTRATO_SIN_INSERCION_890405_ESS118,
-    IDE_CONTRATO_CON_INSERCION_890405_ESS118,
+    # Nueva regla ESS118 + Código 890205/861801/735301 -> IDE Contrato puede ser 970 o 974
+    CODIGO_IDE_CONTRATO_890205_ESS118,
+    CODIGO_IDE_CONTRATO_861801_ESS118,
+    CODIGO_IDE_CONTRATO_735301_ESS118,
+    ENTIDAD_IDE_CONTRATO_890205_ESS118,
+    IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS,
     # Nueva regla ESSC18 + Código 906340 -> IDE Contrato debe ser 842
     CODIGO_IDE_CONTRATO_906340_ESSC18,
     ENTIDAD_IDE_CONTRATO_ESSC18,
@@ -106,10 +107,10 @@ from app.constants import (
     # Nueva regla ESSC18 + Código 861801 -> IDE Contrato debe ser 975
     CODIGO_IDE_CONTRATO_861801_ESSC18,
     IDE_CONTRATO_REQUERIDO_861801_ESSC18,
-    # Nueva regla ESSC18 + Código 890405 -> IDE Contrato según inserción
-    CODIGO_IDE_CONTRATO_890405_ESSC18,
-    IDE_CONTRATO_CON_INSERCION_890405_ESSC18,
-    IDE_CONTRATO_SIN_INSERCION_890405_ESSC18,
+    # Nueva regla ESSC18 + Código 890205 -> IDE Contrato según inserción
+    CODIGO_IDE_CONTRATO_890205_ESSC18,
+    IDE_CONTRATO_CON_INSERCION_890205_ESSC18,
+    IDE_CONTRATO_SIN_INSERCION_890205_ESSC18,
     # Nueva regla EPS037 + Código 906340 -> IDE Contrato debe ser 962
     CODIGO_IDE_CONTRATO_906340_EPS037,
     ENTIDAD_IDE_CONTRATO_EPS037,
@@ -151,6 +152,26 @@ from app.constants import (
     # Urgencias - Entidad -> IDE Contrato
     URGENCIA_ENTIDAD_CONTRATO,
     URGENCIA_ENTIDAD_MULTIPLE_CONTRATO,
+    # Urgencias 86000 + Código 861801 -> IDE Contrato debe ser 920
+    CODIGO_IDE_CONTRATO_861801_86000,
+    ENTIDAD_IDE_CONTRATO_861801_86000,
+    IDE_CONTRATO_REQUERIDO_861801_86000,
+    # Urgencias 86000 + Código 890405 -> IDE Contrato 919 (con 861801) o 920 (sin 861801)
+    CODIGO_IDE_CONTRATO_890405_86000,
+    ENTIDAD_IDE_CONTRATO_890405_86000,
+    IDE_CONTRATO_CON_INSERCION_890405_86000,
+    IDE_CONTRATO_SIN_INSERCION_890405_86000,
+    # Urgencias RES004 + Código 861801 -> IDE Contrato debe ser 908
+    # Urgencias RES004 + Código 861801 -> IDE Contrato debe ser 908
+    CODIGO_IDE_CONTRATO_861801_RES004,
+    ENTIDAD_IDE_CONTRATO_861801_RES004,
+    IDE_CONTRATO_REQUERIDO_861801_RES004,
+    # Urgencias RES004 + Código 890405 -> IDE Contrato 908 (con 861801) o 909 (sin 861801)
+    CODIGO_IDE_CONTRATO_890405_RES004,
+    ENTIDAD_IDE_CONTRATO_890405_RES004,
+    IDE_CONTRATO_CON_INSERCION_890405_RES004,
+    IDE_CONTRATO_SIN_INSERCION_890405_RES004,
+    CODIGO_INSERCION_BUSCAR_RES004,
     # ESS118 + Procedimientos PyP -> IDE Contrato 970 o 974
     ENTIDAD_IDE_CONTRATO_ESS118_PYP,
     IDE_CONTRATO_MULTIPLE_ESS118_PYP,
@@ -2234,31 +2255,31 @@ CODIGO_CUPS_HOSPITALIZACION,
                     IDE_CONTRATO_REQUERIDO_861801_ESS118,
                 )
 
-        # ----- Regla 15: Cód Entidad Cobrar=ESS118 + Código=890405 -> IDE Contrato 977 o 973 según inserción
-        # Urgencias y Contratos - si la identificación tiene código 861801 en otra fila
-        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_ESS118 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405_ESS118:
-            # Determinar IDE esperado según si tiene inserción
-            tiene_insercion = ident_str in identificaciones_con_insercion
-            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_ESS118 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_ESS118
-            
-            if ide_contrato_str != ide_esperado:
+        # ----- Regla 15: Cód Entidad Cobrar=ESS118 + Código=890205/861801/735301 -> IDE Contrato puede ser 970 o 974
+        # Urgencias y Contratos - cualquiera de los dos está bien
+        if codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890205_ESS118 and codigo_excluir in (
+            CODIGO_IDE_CONTRATO_890205_ESS118,
+            CODIGO_IDE_CONTRATO_861801_ESS118,
+            CODIGO_IDE_CONTRATO_735301_ESS118,
+        ):
+            # Verificar si el IDE contrato está en los valores válidos
+            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
                     "procedimiento": proc_str,
                     "codigo": codigo_excluir,
                     "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
-                    "ide_contrato_deberia": ide_esperado,
-                    "nota": "Tiene inserción 861801" if tiene_insercion else "Sin inserción 861801",
+                    "ide_contrato_deberia": f"uno de: {IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS}",
+                    "nota": "ESS118 + nuevo código -> IDE 970 o 974",
                 })
                 logger.debug(
-                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s, Inserción: %s)",
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
                     row,
                     codigo_entidad_str,
                     codigo_excluir,
                     ide_contrato_str,
-                    ide_esperado,
-                    tiene_insercion,
+                    IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS,
                 )
 
         # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
@@ -2302,10 +2323,10 @@ CODIGO_CUPS_HOSPITALIZACION,
                     IDE_CONTRATO_REQUERIDO_861801_ESSC18,
                 )
 
-        # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=890405 -> IDE Contrato según inserción
-        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
+        # ----- Regla 18: Cód Entidad Cobrar=ESSC18 + Código=890205 -> IDE Contrato según inserción
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890205_ESSC18 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESSC18:
             tiene_insercion = ident_str in identificaciones_con_insercion
-            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_ESSC18 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_ESSC18
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890205_ESSC18 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890205_ESSC18
             
             if ide_contrato_str != ide_esperado:
                 problemas_ide_contrato.append({
@@ -2562,8 +2583,23 @@ CODIGO_CUPS_HOSPITALIZACION,
         # ----- Regla 29: Entidad -> IDE Contrato (mapeo directo, sin importar código)
         # Valida que cada entidad tenga su contrato específico
         # EXCLUYE entidades con múltiples contratos válidos (Regla 30)
+        # EXCLUYE caso especial 86000 + 861801 (Regla 31)
+        # EXCLUYE caso especial RES004 + 861801 (Regla 32)
+        # EXCLUYE caso especial RES004 + 890405 (Regla 33)
         if codigo_entidad_str and codigo_entidad_str in URGENCIA_ENTIDAD_CONTRATO:
-            if codigo_entidad_str in URGENCIA_ENTIDAD_MULTIPLE_CONTRATO:
+            # Excluir caso especial: 86000 + 861801 se maneja en Regla 31 -> IDE 920
+            if codigo_entidad_str == "86000" and codigo_excluir == "861801":
+                pass  # Skip: se valida en Regla 31
+            # Excluir caso especial: 86000 + 890405 se maneja en Regla 34 -> IDE 919 o 920
+            elif codigo_entidad_str == "86000" and codigo_excluir == "890405":
+                pass  # Skip: se valida en Regla 34
+            # Excluir caso especial: RES004 + 861801 se maneja en Regla 32 -> IDE 908
+            elif codigo_entidad_str == "RES004" and codigo_excluir == "861801":
+                pass  # Skip: se valida en Regla 32
+            # Excluir caso especial: RES004 + 890405 se maneja en Regla 33 -> IDE 908 o 909
+            elif codigo_entidad_str == "RES004" and codigo_excluir == "890405":
+                pass  # Skip: se valida en Regla 33
+            elif codigo_entidad_str in URGENCIA_ENTIDAD_MULTIPLE_CONTRATO:
                 # Esta entidad se maneja en la regla de múltiples contratos, skip
                 pass
             else:
@@ -2605,6 +2641,100 @@ CODIGO_CUPS_HOSPITALIZACION,
                     codigo_entidad_str,
                     ide_contrato_str,
                     contratos_validos,
+                )
+
+        # ----- Regla 31: Urgencias - Cód Entidad Cobrar=86000 + Código=861801 -> IDE Contrato debe ser 920
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_86000 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_861801_86000:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_86000:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_86000,
+                    "nota": "86000 + 861801 -> IDE 920",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_86000,
+                )
+
+        # ----- Regla 34: Urgencias - Cód Entidad Cobrar=86000 + Código=890405 -> IDE Contrato 919 o 920 según inserción
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_86000 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405_86000:
+            # Determinar IDE esperado según si tiene inserción
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_86000 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_86000
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": f"86000 + 890405 -> IDE {ide_esperado} ({'con 861801' if tiene_insercion else 'sin 861801'})",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: '%s, Tiene 861801: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
+                )
+
+        # ----- Regla 32: Urgencias - Cód Entidad Cobrar=RES004 + Código=861801 -> IDE Contrato debe ser 908
+        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_RES004 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_861801_RES004:
+            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_RES004:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_RES004,
+                    "nota": "RES004 + 861801 -> IDE 908",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    IDE_CONTRATO_REQUERIDO_861801_RES004,
+                )
+
+        # ----- Regla 33: Urgencias - Cód Entidad Cobrar=RES004 + Código=890405 -> IDE Contrato 908 o 909 según inserción
+        if codigo_excluir == CODIGO_IDE_CONTRATO_890405_RES004 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_890405_RES004:
+            # Determinar IDE esperado según si tiene inserción
+            tiene_insercion = ident_str in identificaciones_con_insercion
+            ide_esperado = IDE_CONTRATO_CON_INSERCION_890405_RES004 if tiene_insercion else IDE_CONTRATO_SIN_INSERCION_890405_RES004
+            
+            if ide_contrato_str != ide_esperado:
+                problemas_ide_contrato.append({
+                    "factura": factura_str,
+                    "procedimiento": proc_str,
+                    "codigo": codigo_excluir,
+                    "entidad": codigo_entidad_str,
+                    "ide_contrato_actual": ide_contrato_str,
+                    "ide_contrato_deberia": ide_esperado,
+                    "nota": f"RES004 + 890405 -> IDE {ide_esperado} ({'con 861801' if tiene_insercion else 'sin 861801'})",
+                })
+                logger.debug(
+                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: '%s, Tiene 861801: %s)",
+                    row,
+                    codigo_entidad_str,
+                    codigo_excluir,
+                    ide_contrato_str,
+                    ide_esperado,
+                    tiene_insercion,
                 )
 
     return problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes
