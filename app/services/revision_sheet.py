@@ -227,6 +227,8 @@ from app.constants import (
     ENTIDAD_IDE_CONTRATO_86000_PYP,
     IDE_CONTRATO_MULTIPLE_86000_PYP,
     IDE_CONTRATO_MULTIPLE_86000_NO_PYP,
+    # Urgencias Capita - Listado de códigos CUPS válidos
+    URGENCIAS_CAPITA_CUPS_CODES,
     # Equipos Básicos - Reglas independientes (comparte PYP_CUPS_CODES con Odontología)
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
@@ -2745,33 +2747,22 @@ def _log_verificacion_codigos_ess118(
     indices: dict[str, int | None],
 ) -> list[str]:
     """
-    Verifica códigos CUPS con IDE Contrato = 969 contra la tabla procedimiento.
+    Verifica códigos CUPS con IDE Contrato = 969 contra URGENCIAS_CAPITA_CUPS_CODES.
     
-    Muestra en el log todos los códigos que NO se encuentran en la tabla procedimiento.
+    Compara cada código que tiene IDE=969 contra el listado de códigos válidos
+    de Urgencias Capita (definido en constants.py).
     
     Returns:
-        Lista de códigos no encontrados en la DB
+        Lista de códigos no encontrados en URGENCIAS_CAPITA_CUPS_CODES
     """
-    # Cargar códigos válidos de la tabla procedimiento relacionados con nota_hoja = 3
-    from app.database import SessionLocal
-    from app.models import Procedimiento, NotasTecnicas
-    
-    db = SessionLocal()
-    try:
-        cups_validos = set(
-            row.cups 
-            for row in db.query(Procedimiento.cups)
-            .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
-            .filter(NotasTecnicas.id_nota_hoja == 3)
-            .distinct()
-            .all()
-        )
-    finally:
-        db.close()
+    # Usar el listado hardcodedo de urgencias capita
+    cups_validos = URGENCIAS_CAPITA_CUPS_CODES
     
     if not cups_validos:
-        logger.warning("No hay códigos en tabla procedimiento para nota_hoja=3")
+        logger.warning("No hay códigos en URGENCIAS_CAPITA_CUPS_CODES")
         return set()
+    
+    logger.info("Verificando códigos IDE=969 contra URGENCIAS_CAPITA_CUPS_CODES (%d códigos válidos)", len(cups_validos))
     
     # Usar claves del diccionario indices
     codigo_idx = indices.get("codigo")
@@ -2809,14 +2800,23 @@ def _log_verificacion_codigos_ess118(
             codigos_ide_969.add(str(codigo).strip())
     
     if not codigos_ide_969:
+        logger.info("No hay códigos con IDE=969")
         return set()
     
-    # Verificar cada código contra la tabla procedimiento
+    logger.info("Códigos únicos con IDE=969: %d", len(codigos_ide_969))
+    
+    # Verificar cada código contra URGENCIAS_CAPITA_CUPS_CODES
     codigos_no_encontrados = set()
     
     for codigo in codigos_ide_969:
         if codigo not in cups_validos:
             codigos_no_encontrados.add(codigo)
+    
+    if codigos_no_encontrados:
+        logger.warning("Códigos NO en URGENCIAS_CAPITA_CUPS_CODES (%d): %s",
+                     len(codigos_no_encontrados), sorted(codigos_no_encontrados))
+    else:
+        logger.info("Todos los códigos con IDE=969 están en URGENCIAS_CAPITA_CUPS_CODES")
     
     return codigos_no_encontrados
 
