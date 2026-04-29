@@ -762,6 +762,17 @@ CODIGO_IDE_CONTRATO_861801_86000 = "861801"
 ENTIDAD_IDE_CONTRATO_861801_86000 = "86000"
 IDE_CONTRATO_REQUERIDO_861801_86000 = "920"
 
+# =============================================================================
+# URGENCIAS - Cups Equivalentes (codigo con equivalente obligatorio)
+# =============================================================================
+
+# Código CUPS 890205 -> 890405 es su equivalente
+# SOLO se permite 890205 cuando Entidad Cobrar es ESS118 o ESSC18
+# Para cualquier otra entidad -> error: usar 890405
+CODIGO_CUPS_EQUIVALENTE_890205 = "890205"
+CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405 = "890405"
+ENTIDADES_PERMITIDAS_890205 = frozenset({"ESS118", "ESSC18"})
+
 # ----- Nueva Regla: Código=890405 + Entidad=86000 -> IDE Contrato según si tiene 861801
 CODIGO_IDE_CONTRATO_890405_86000 = "890405"
 ENTIDAD_IDE_CONTRATO_890405_86000 = "86000"

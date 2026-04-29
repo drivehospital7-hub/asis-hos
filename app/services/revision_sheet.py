@@ -239,6 +239,10 @@ from app.constants import (
     # MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
     CODIGOS_MAL_CAPITADO,
     PREFIJO_FACTURA_MAL_CAPITADO,
+    # Urgencias - Cups Equivalentes (890205 -> 890405)
+    CODIGO_CUPS_EQUIVALENTE_890205,
+    CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405,
+    ENTIDADES_PERMITIDAS_890205,
 )
 
 from app.utils.formatting import (
@@ -2243,7 +2247,31 @@ def _detect_centro_costo_urgencias(
                 row,
                 codigo_excluir,
             )
-        
+
+        # ----- Regla: Código=890205 + Entidaddistinta de ESS118/ESSC18 -> ERROR (debe usarse 890405)
+        # Solo se permite 890205 cuando la entidad es ESS118 o ESSC18
+        if codigo_excluir == CODIGO_CUPS_EQUIVALENTE_890205:
+            if codigo_entidad_str not in ENTIDADES_PERMITIDAS_890205:
+                logger.warning(
+                    "DETECTADO cups equiv error: factura=%s, codigo=%s, entidad=%s",
+                    factura_str,
+                    codigo_excluir,
+                    codigo_entidad_str,
+                )
+                problemas_cups_equivalentes.append({
+                    "factura": factura_str,
+                    "codigo": codigo_excluir,
+                    "codigo_equiv": "",
+                    "accion": f"Usar {CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405}",
+                })
+                logger.info(
+                    "REGLA (Cups equivalentes): Fila %s: Código=%s, Entidad=%s -> debe usarse %s",
+                    row,
+                    codigo_excluir,
+                    codigo_entidad_str,
+                    CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405,
+                )
+
         # ----- Regla 6: Código=906340 + Cód Entidad Cobrar=EPSI05 -> IDE Contrato debe ser 986
         # (Independiente - NO depende de otras reglas)
         if codigo_excluir == CODIGO_IDE_CONTRATO_URGENCIAS and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_URGENCIAS:
