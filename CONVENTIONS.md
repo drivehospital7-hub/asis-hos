@@ -127,6 +127,7 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 | Código | Cód. Equivalente CUPS | Acción |
 |--------|----------------------|--------|
 | **890201** | **890201** | ERROR - Debe usarse **890701** |
+| **129B01** | **129B02** | ERROR - Debe usarse **129B02** |
 
 #### IDE Contrato — Urgencias
 

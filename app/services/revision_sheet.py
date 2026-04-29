@@ -2209,6 +2209,21 @@ CODIGO_CUPS_HOSPITALIZACION,
                 codigo_excluir,
             )
         
+        # ----- Regla: Si Código = 129B01 → ERROR (debe usarse 129B02)
+        if codigo_excluir == "129B01":
+            logger.warning("DETECTADO cups equiv error: factura=%s, codigo=%s", factura_str, codigo_excluir)
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": codigo_excluir,
+                "codigo_equiv": "",
+                "accion": "Usar 129B02",
+            })
+            logger.info(
+                "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 129B02",
+                row,
+                codigo_excluir,
+            )
+        
         # ----- Regla 6: Código=906340 + Cód Entidad Cobrar=EPSI05 -> IDE Contrato debe ser 986
         # (Independiente - NO depende de otras reglas)
         if codigo_excluir == CODIGO_IDE_CONTRATO_URGENCIAS and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_URGENCIAS:

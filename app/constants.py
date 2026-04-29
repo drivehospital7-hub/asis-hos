@@ -826,9 +826,13 @@ CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
 CODIGO_CUPS_URGENCIAS_861101 = "861101"
 CENTRO_COSTO_URGENCIAS = "URGENCIAS"
 
-# ----- Nueva Regla: Servicios CUPS reemplazable - Código 890201 o 12333 debe ser 890701
-CODIGO_CUPS_REEMPLAZABLE = "890201"
-CODIGO_CUPS_SUSTITUTO = "890701"
+# ----- Nueva Regla: Servicios CUPS reemplazable
+CODIGOS_CUPS_REEMPLAZABLES = frozenset({
+    "890201",  # -> 890701
+    "129B01",  # -> 129B02
+})
+CODIGO_CUPS_SUSTITUTO_890701 = "890701"
+CODIGO_CUPS_SUSTITUTO_129B02 = "129B02"
 
 # =============================================================================
 # URGENCIAS - Códigos CUPS Capita (ESS118)
