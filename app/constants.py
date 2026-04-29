@@ -884,7 +884,6 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "873411",  # Radiografía de Cadera o Articulación Coxo-Femoral (AP, Lateral)
     "873312",  # Radiografía de Fémur AP y Lateral
     "939402",  # Nebulización
-    "9062081",  # Dengue, Anticuerpos IG M Prueba Rápida IG G - IG M
     "870001",  # Radiografía de Cráneo Simple
     "965101",  # Irrigación y Lavado del Ojo SOD
     "90DS02",  # Derechos de Sala de Parto Complejidad Baja
