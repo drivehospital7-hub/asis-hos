@@ -3083,7 +3083,7 @@ def create_revision_sheet(
         
         # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
-            f"{item.get('tipo_factura', '-')}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
+            f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
             for item in problemas_centros
         ]
         
@@ -3114,7 +3114,7 @@ def create_revision_sheet(
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
-                f"{item.get('tipo_factura', '-')}|{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
+                f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
                 for item in problemas_centros
             ],
             "Problemas de IDE Contrato": problemas_ide_contrato,
