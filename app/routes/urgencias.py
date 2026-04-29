@@ -134,14 +134,16 @@ def export_urgencias():
             facturas_centros = []
             for item in centros[:50]:
                 facturas_centros.append({
+                    "tipo_factura": item.get("tipo_factura", ""),
                     "factura": item.get("factura", ""),
                     "codigo": item.get("codigo", ""),
                     "procedimiento": item.get("procedimiento", ""),
                     "centro_actual": item.get("centro_actual", ""),
                     "centro_deberia": item.get("centro_deberia", ""),
                 })
-                logger.info("FACTURA CentroCosto: %s - Código: %s, Procedimiento: %s - Actual: '%s' -> Debería: '%s'",
+                logger.info("FACTURA CentroCosto: %s - Tipo: %s, Código: %s, Procedimiento: %s - Actual: '%s' -> Debería: '%s'",
                            item.get("factura", ""),
+                           item.get("tipo_factura", ""),
                            item.get("codigo", ""),
                            item.get("procedimiento", ""),
                            item.get("centro_actual", ""),

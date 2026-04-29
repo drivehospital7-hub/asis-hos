@@ -3363,6 +3363,7 @@ def detect_all_problems(
             "problemas": {
                 "centros_de_costos": [
                     {
+                        "tipo_factura": item.get("tipo_factura") or "-",
                         "factura": item["factura"],
                         "codigo": item.get("codigo", ""),
                         "procedimiento": item.get("procedimiento", ""),
