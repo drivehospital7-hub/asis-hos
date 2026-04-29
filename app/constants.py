@@ -826,6 +826,10 @@ CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
 CODIGO_CUPS_URGENCIAS_861101 = "861101"
 CENTRO_COSTO_URGENCIAS = "URGENCIAS"
 
+# ----- Nueva Regla: Código CUPS 939402 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
+CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO = "939402"
+ERROR_HOSPITALIZACION_NO_PERMITIDO = "No se debe facturar en Hospitalización, incluido en internación"
+
 # ----- Nueva Regla: Servicios CUPS reemplazable
 CODIGOS_CUPS_REEMPLAZABLES = frozenset({
     "890201",  # -> 890701
@@ -880,9 +884,9 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "873411",  # Radiografía de Cadera o Articulación Coxo-Femoral (AP, Lateral)
     "873312",  # Radiografía de Fémur AP y Lateral
     "939402",  # Nebulización
+    "9062081",  # Dengue, Anticuerpos IG M Prueba Rápida IG G - IG M
     "870001",  # Radiografía de Cráneo Simple
     "965101",  # Irrigación y Lavado del Ojo SOD
-    "9062081",  # Dengue, Anticuerpos IG M Prueba Rápida IG G - IG M
     "90DS02",  # Derechos de Sala de Parto Complejidad Baja
     "911016",  # Hemoclasificación (Grupo Sanguíneo y Factor Rh)
     "735301",  # Asistencia del Parto con o sin Episiorrafia o Perineorrafia

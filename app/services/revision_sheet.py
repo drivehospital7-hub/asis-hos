@@ -1883,10 +1883,12 @@ def _detect_centro_costo_urgencias(
         ENTIDAD_IDE_CONTRATO_890405_EPSI05,
         IDE_CONTRATO_CON_INSERCION_890405_EPSI05,
         IDE_CONTRATO_SIN_INSERCION_890405_EPSI05,
-CODIGO_CUPS_HOSPITALIZACION,
+        CODIGO_CUPS_HOSPITALIZACION,
         CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
         CENTRO_COSTO_URGENCIAS,
         CODIGO_CUPS_URGENCIAS_861101,
+        CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO,
+        ERROR_HOSPITALIZACION_NO_PERMITIDO,
     )
     
     # Debug: mostrar los índices detectados
@@ -2192,6 +2194,24 @@ CODIGO_CUPS_HOSPITALIZACION,
                     centro_costo_str,
                     CENTRO_COSTO_URGENCIAS,
                 )
+
+        # ----- Nueva Regla: Código CUPS 939402 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
+        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO and tipo_factura_str == "Hospitalización":
+            problemas_centros.append({
+                "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": ERROR_HOSPITALIZACION_NO_PERMITIDO,
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
+                "prioridad": 1,  # Regla específica
+            })
+            logger.info(
+                "REGLA (939402-Hospitalización): Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
+                row,
+                codigo_excluir,
+                ERROR_HOSPITALIZACION_NO_PERMITIDO,
+            )
 
         # ----- Grupo: Cups equivalentes urgencias
         # ----- Regla: Si Código = 890201 → ERROR (debe usarse 890701)
