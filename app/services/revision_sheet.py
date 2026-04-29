@@ -1906,7 +1906,7 @@ CODIGO_CUPS_HOSPITALIZACION,
     ide_contrato_idx = indices.get("ide_contrato")
     proc_idx = indices.get("procedimiento")
     
-    logger.info("Índices relevantes - codigo_tipo_proc: %s, codigo: %s, codigo_equiv: %s, laboratorio: %s, centro_costo: %s, ide_contrato: %s, codigo_entidad: %s, tipo_factura: %s",
+    logger.warning("Índices relevantes - codigo_tipo_proc: %s, codigo: %s, codigo_equiv: %s, laboratorio: %s, centro_costo: %s, ide_contrato: %s, codigo_entidad: %s, tipo_factura: %s",
                 codigo_tipo_proc_idx, codigo_idx, codigo_equiv_idx, laboratorio_idx, centro_costo_idx, ide_contrato_idx, codigo_entidad_cobrar_idx, tipo_factura_descripcion_idx)
     
     if num_fact_idx is None:
@@ -1987,8 +1987,8 @@ CODIGO_CUPS_HOSPITALIZACION,
         
         # Debug: log del tipo_factura_descripcion en las primeras filas
         if row <= 3:
-            logger.info("DEBUG tipo_factura: Fila %s - tipo_factura_descripcion=%s (tipo: %s)", 
-                       row, repr(tipo_factura_descripcion), type(tipo_factura_descripcion))
+            logger.warning(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
+            print(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
         
         ide_contrato = None
         if ide_contrato_idx is not None:
