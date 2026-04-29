@@ -2026,6 +2026,7 @@ CODIGO_CUPS_HOSPITALIZACION,
         if regla_1_activa and not es_exceptuado and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
             problemas_centros.append({
                 "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
                 "centro_actual": centro_costo_str,
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
                 "codigo": codigo_excluir,
@@ -2044,6 +2045,7 @@ CODIGO_CUPS_HOSPITALIZACION,
             if centro_costo_str != CENTRO_COSTO_TRASLADOS:
                 problemas_centros.append({
                     "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
                     "codigo": codigo_excluir,
@@ -2054,23 +2056,18 @@ CODIGO_CUPS_HOSPITALIZACION,
                     row,
                 )
         
-        # ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
+# ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
         # (Independiente)
         if codigo_excluir in CODIGOS_PYP_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
                 problemas_centros.append({
                     "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
                 })
-                logger.info(
-                    "REGLA3: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
-                    row,
-                    codigo_excluir,
-                    centro_costo_str,
-                )
         
         # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS
         # (Independiente)
@@ -2078,6 +2075,7 @@ CODIGO_CUPS_HOSPITALIZACION,
             if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
                 problemas_centros.append({
                     "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
                     "codigo": codigo_excluir,
@@ -2101,6 +2099,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                 if not centro_valido:
                     problemas_centros.append({
                         "factura": factura_str,
+                        "tipo_factura": tipo_factura_str,
                         "centro_actual": centro_costo_str,
                         "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
                         "codigo": codigo_excluir,
@@ -2147,11 +2146,24 @@ CODIGO_CUPS_HOSPITALIZACION,
                 "procedimiento": proc_str,
             })
 
-        # ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
+# ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
         if codigo_excluir == CODIGO_CUPS_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_URGENCIAS:
                 problemas_centros.append({
                     "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                })
+        
+        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
+        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
+            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_URGENCIAS,
                     "codigo": codigo_excluir,
