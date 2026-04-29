@@ -2118,16 +2118,18 @@ CODIGO_CUPS_HOSPITALIZACION,
             if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
                 problemas_centros.append({
                     "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
                     "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
                 })
 
-        # ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
+# ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
         if tipo_factura_str == "Hospitalización" and centro_costo_str == CENTRO_COSTO_URGENCIAS:
             problemas_centros.append({
                 "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
                 "centro_actual": centro_costo_str,
                 "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                 "codigo": codigo_excluir,
@@ -2138,6 +2140,7 @@ CODIGO_CUPS_HOSPITALIZACION,
         if tipo_factura_str == "Urgencias" and centro_costo_str == CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
             problemas_centros.append({
                 "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
                 "centro_actual": centro_costo_str,
                 "centro_deberia": CENTRO_COSTO_URGENCIAS,
                 "codigo": codigo_excluir,
@@ -3061,9 +3064,9 @@ def create_revision_sheet(
         # Validación MAL CAPITADO para Urgencias
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
         
-        # Formatear para Excel: "FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
+        # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
-            f"{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
+            f"{item.get('tipo_factura', '-')}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
             for item in problemas_centros
         ]
         
@@ -3079,10 +3082,10 @@ def create_revision_sheet(
             for item in problemas_cups_equivalentes
         ]
         
-        # Escribir en Excel: fila 3+
-        _write_column(sheet, 1, centros_costo_str, start_row=3)
-        _write_column(sheet, 2, ide_contrato_str, start_row=3)
-        _write_column(sheet, 3, cups_equiv_str, start_row=3)
+        # Escribir en Excel: fila 3+ (ahora con Tipo Factura en columna 1)
+        _write_column(sheet, 1, centros_costo_str, start_row=3)  # Columna 1: Tipo Factura
+        _write_column(sheet, 2, ide_contrato_str, start_row=3)  # Columna 2: IDE Contrato
+        _write_column(sheet, 3, cups_equiv_str, start_row=3)  # Columna 3: Cups Equivalentes
         
         # Formatear MAL CAPITADO: "FACTURA|CÓDIGO|PROCEDIMIENTO|OBSERVACIÓN"
         mal_capitado_str = [
@@ -3094,7 +3097,7 @@ def create_revision_sheet(
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
-                f"{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
+                f"{item.get('tipo_factura', '-')}|{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
                 for item in problemas_centros
             ],
             "Problemas de IDE Contrato": problemas_ide_contrato,
