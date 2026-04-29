@@ -1885,7 +1885,6 @@ def _detect_centro_costo_urgencias(
         IDE_CONTRATO_SIN_INSERCION_890405_EPSI05,
 CODIGO_CUPS_HOSPITALIZACION,
         CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
-        CODIGO_CUPS_URGENCIAS,
         CENTRO_COSTO_URGENCIAS,
         CODIGO_CUPS_URGENCIAS_861101,
     )
@@ -2036,6 +2035,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
+                "prioridad": 1,  # Regla específica
             })
             logger.info(
                 "REGLA1: Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s', CódigoProc: '%s')",
@@ -2055,6 +2055,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
                 logger.info(
                     "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
@@ -2072,6 +2073,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
         
         # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS
@@ -2085,6 +2087,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_QUIROFANO_URGENCIAS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
                 logger.info(
                     "REGLA4: Fila %s: Código=%s, Centro incorrecto (Centro: '%s')",
@@ -2109,6 +2112,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                         "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
                         "codigo": codigo_excluir,
                         "procedimiento": proc_str,
+                        "prioridad": 1,  # Regla específica
                     })
                     logger.info(
                         "REGLA5: Fila %s: Código=%s, ESS118+Intramural, Centro incorrecto (Centro: '%s')",
@@ -2127,9 +2131,11 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
 
 # ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
+        # Es regla GENERAL (prioridad 2) - se aplica solo si no hay regla específica para el mismo código
         if tipo_factura_str == "Hospitalización" and centro_costo_str == CENTRO_COSTO_URGENCIAS:
             problemas_centros.append({
                 "factura": factura_str,
@@ -2138,9 +2144,11 @@ CODIGO_CUPS_HOSPITALIZACION,
                 "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
+                "prioridad": 2,  # Regla general
             })
 
         # ----- Nueva Regla: Tipo Factura=Urgencias + Centro Costo=HOSPITALIZACIÓN - ESTANCIA GENERAL -> Error (debe ser "URGENCIAS")
+        # Es regla GENERAL (prioridad 2) - se aplica solo si no hay regla específica para el mismo código
         if tipo_factura_str == "Urgencias" and centro_costo_str == CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
             problemas_centros.append({
                 "factura": factura_str,
@@ -2149,10 +2157,11 @@ CODIGO_CUPS_HOSPITALIZACION,
                 "centro_deberia": CENTRO_COSTO_URGENCIAS,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
+                "prioridad": 2,  # Regla general
             })
 
-# ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS:
+        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
+        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
             if centro_costo_str != CENTRO_COSTO_URGENCIAS:
                 problemas_centros.append({
                     "factura": factura_str,
@@ -2161,6 +2170,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_URGENCIAS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
         
         # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
@@ -2173,17 +2183,7 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "centro_deberia": CENTRO_COSTO_URGENCIAS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
-                })
-        
-        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
-            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
-                problemas_centros.append({
-                    "factura": factura_str,
-                    "centro_actual": centro_costo_str,
-                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
-                    "codigo": codigo_excluir,
-                    "procedimiento": proc_str,
+                    "prioridad": 1,  # Regla específica
                 })
                 logger.info(
                     "REGLA (861101): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
@@ -3355,7 +3355,34 @@ def detect_all_problems(
         logger.info("detect_all_problems - Urgencias, MAL CAPITADO encontrados: %d", len(mal_capitado))
 
         logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d",
-                   len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado))
+len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado))
+        
+        # Filtrar errores: si la misma factura+código tiene prioridad 1 y prioridad 2, mostrar solo prioridad 1
+        # Agrupar por factura+código
+        errores_por_factura_codigo = {}
+        for item in problemas_centros:
+            key = (item.get("factura", ""), item.get("codigo", ""))
+            prioridad = item.get("prioridad", 1)
+            if key not in errores_por_factura_codigo:
+                errores_por_factura_codigo[key] = []
+            errores_por_factura_codigo[key].append((item, prioridad))
+        
+        # Filtrar: quedarse con prioridad 1 si coexiste con prioridad 2
+        problemas_centros_filtrados = []
+        for key, items in errores_por_factura_codigo.items():
+            prioridades = [p for _, p in items]
+            if 1 in prioridades:
+                # Hay prioridad 1, filtrar solo esos
+                for item, p in items:
+                    if p == 1:
+                        problemas_centros_filtrados.append(item)
+            else:
+                # Solo hay prioridad 2, incluir todos
+                for item, _ in items:
+                    problemas_centros_filtrados.append(item)
+        
+        logger.info("FILTRO centros_de_costos: %d -> %d (eliminados %d errores de prioridad 2 porque hay prioridad 1 para misma factura+código)",
+                 len(problemas_centros), len(problemas_centros_filtrados), len(problemas_centros) - len(problemas_centros_filtrados))
         
         # Incluir TODOS los campos en el resultado
         return {
@@ -3369,8 +3396,9 @@ def detect_all_problems(
                         "procedimiento": item.get("procedimiento", ""),
                         "centro_actual": item["centro_actual"],
                         "centro_deberia": item["centro_deberia"],
+                        "prioridad": item.get("prioridad", 1),  # Default prioridad 1 si no existe
                     }
-                    for item in problemas_centros
+                    for item in problemas_centros_filtrados
                 ],
                 "ide_contrato": [
                     {

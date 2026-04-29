@@ -120,7 +120,6 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 | Código CUPS | Tipo Factura | Centro de costo esperado |
 |-------------|--------------|-------------------------|
 | **890601** | Hospitalización | **HOSPITALIZACIÓN - ESTANCIA GENERAL** |
-| **890408** | Cualquiera | **URGENCIAS** |
 | **861101** | Cualquiera | **URGENCIAS** |
 
 #### Cups equivalentes urgencias
@@ -145,7 +144,7 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 
 | Código | Entidad | Condición | IDE Contrato esperado |
 |--------|---------|----------|------------------------|
-| 110001, 110001AUX, 861101, 890403, 890406, 890408, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
+| 110001, 110001AUX, 861101, 890403, 890406, 890409, 890412, 939403 | ESS118 | siempre | Cualquiera **EXCEPTO 969** |
 
 ##### ESS118 (Código NO en DB)
 
