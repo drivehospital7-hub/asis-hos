@@ -193,13 +193,14 @@ document.addEventListener('DOMContentLoaded', function() {
             } else if (esCentrosCostos) {
               // Centros de Costos: 5 columnas
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
+              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
               html += '<tbody>';
               
-              // Función para renderizar facturas con 5 columnas
+              // Función para renderizar facturas con 6 columnas
               function renderFacturas(items) {
                 let html = '';
                 items.slice(0, 50).forEach(function(item) {
+                  let tipoFactura = '';
                   let factura = '';
                   let codigo = '';
                   let procedimiento = '';
@@ -207,6 +208,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   let centroDeberia = '';
                   
                   if (typeof item === 'object' && item !== null) {
+                    tipoFactura = item.tipo_factura || '-';
                     factura = item.factura || '';
                     codigo = item.codigo || '';
                     procedimiento = item.procedimiento || '';
@@ -214,12 +216,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     centroDeberia = item.centro_deberia || '';
                   } else if (typeof item === 'string' && item.includes('|')) {
                     const parts = item.split('|');
-                    factura = parts[0] || '';
-                    centroActual = parts[1] || '';
-                    centroDeberia = parts[2] || '';
+                    tipoFactura = parts[0] || '-';
+                    factura = parts[1] || '';
+                    codigo = parts[2] || '';
+                    procedimiento = parts[3] || '';
+                    centroActual = parts[4] || '';
+                    centroDeberia = parts[5] || '';
                   }
                   
                   html += '<tr>';
+                  html += '<td>' + tipoFactura + '</td>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + codigo + '</td>';
                   html += '<td>' + procedimiento + '</td>';
@@ -233,7 +239,7 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderFacturas(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
