@@ -415,6 +415,10 @@ PROFESIONALES_EQUIPOS_BASICOS: dict[str, dict[str, str]] = {
         "nombre": "CHICO ACOSTA JUAN ANDRES",
         "tipo": "ODONTOLOGO",
     },
+    "03851": {
+        "nombre": "HERRERA CANO ALEXANDER",
+        "tipo": "ODONTOLOGO",
+    },
 }
 
 # =============================================================================

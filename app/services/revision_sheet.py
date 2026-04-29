@@ -2123,7 +2123,27 @@ CODIGO_CUPS_HOSPITALIZACION,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
                 })
-        
+
+        # ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
+        if tipo_factura_str == "Hospitalización" and centro_costo_str == CENTRO_COSTO_URGENCIAS:
+            problemas_centros.append({
+                "factura": factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
+            })
+
+        # ----- Nueva Regla: Tipo Factura=Urgencias + Centro Costo=HOSPITALIZACIÓN - ESTANCIA GENERAL -> Error (debe ser "URGENCIAS")
+        if tipo_factura_str == "Urgencias" and centro_costo_str == CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
+            problemas_centros.append({
+                "factura": factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
+            })
+
         # ----- Regla nueva: Código CUPS 890408 -> Centro de costo debe ser "URGENCIAS"
         if codigo_excluir == CODIGO_CUPS_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_URGENCIAS:
