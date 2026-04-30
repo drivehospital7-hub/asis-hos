@@ -3,31 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extracción Nombres y Sexo</title>
+    <title>Verificar Sexo - Genderize</title>
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; }
+        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
+        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; }
         .drop-zone.dragover { border-color: #007bff; background: #f0f8ff; }
-        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        .drop-zone p { margin: 0; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; }
         button:disabled { background: #ccc; }
+        button.secondary { background: #28a745; }
         #result { margin-top: 20px; }
         .success { color: green; }
         .error { color: red; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        .stats-box { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .stats-box h3 { margin-top: 0; }
+        .stats-box .stat { display: inline-block; margin-right: 20px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f5f5f5; }
+        .warning-row { background: #fff3cd; }
     </style>
 </head>
 <body>
-    <h1>Extracción de Nombres y Sexo</h1>
-    <p>Sube el Excel de facturas para extraer: Numero Factura, Primer Nombre, Sexo</p>
+    <h1>Verificar Sexo con Genderize</h1>
+    <p>Sube el Excel de facturas para verificar el sexo contra la API Genderize</p>
     
     <form id="uploadForm" enctype="multipart/form-data">
         <div class="drop-zone" id="dropZone">
             <p>Arrastra el archivo Excel aquí o haz click para seleccionar</p>
             <input type="file" id="fileInput" name="file" accept=".xlsx,.xls" style="display:none">
         </div>
-        <button type="submit" id="submitBtn" disabled>Subir Excel</button>
+        <div>
+            <button type="button" id="statsBtn" disabled>Ver Estadísticas</button>
+            <button type="button" id="verifyBtn" class="secondary" disabled>Verificar y Comparar</button>
+        </div>
     </form>
     
     <div id="result"></div>
@@ -35,7 +44,8 @@
     <script>
         const dropZone = document.getElementById('dropZone');
         const fileInput = document.getElementById('fileInput');
-        const submitBtn = document.getElementById('submitBtn');
+        const statsBtn = document.getElementById('statsBtn');
+        const verifyBtn = document.getElementById('verifyBtn');
         const uploadForm = document.getElementById('uploadForm');
         const resultDiv = document.getElementById('result');
         
@@ -43,46 +53,42 @@
         
         dropZone.addEventListener('click', () => fileInput.click());
         
-        dropZone.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+            dropZone.addEventListener(evt, e => { e.preventDefault(); });
         });
         
-        dropZone.addEventListener('dragleave', () => {
-            dropZone.classList.remove('dragover');
-        });
+        dropZone.addEventListener('dragover', () => dropZone.classList.add('dragover'));
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
         
-        dropZone.addEventListener('drop', (e) => {
-            e.preventDefault();
+        dropZone.addEventListener('drop', e => {
             dropZone.classList.remove('dragover');
             if (e.dataTransfer.files.length) {
-                selectedFile = e.dataTransfer.files[0];
-                dropZone.querySelector('p').textContent = selectedFile.name;
-                submitBtn.disabled = false;
+                selectFile(e.dataTransfer.files[0]);
             }
         });
         
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length) {
-                selectedFile = e.target.files[0];
-                dropZone.querySelector('p').textContent = selectedFile.name;
-                submitBtn.disabled = false;
-            }
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) selectFile(e.target.files[0]);
         });
         
-        uploadForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
+        function selectFile(file) {
+            selectedFile = file;
+            dropZone.querySelector('p').textContent = file.name;
+            statsBtn.disabled = false;
+            verifyBtn.disabled = false;
+        }
+        
+        async function doRequest(endpoint, btn, btnText) {
             if (!selectedFile) return;
-            
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Procesando...';
+            btn.disabled = true;
+            btn.textContent = 'Procesando...';
             resultDiv.innerHTML = '<p>Cargando...</p>';
             
             const formData = new FormData();
             formData.append('file', selectedFile);
             
             try {
-                const response = await fetch('/api/import/facturas-nombres', {
+                const response = await fetch(endpoint, {
                     method: 'POST',
                     body: formData
                 });
@@ -90,20 +96,7 @@
                 const data = await response.json();
                 
                 if (data.status === 'success') {
-                    let html = `<p class="success">✓ Extraídos ${data.data.total} registros</p>`;
-                    html += '<table><tr><th>Numero Factura</th><th>Primer Nombre</th><th>Sexo</th></tr>';
-                    
-                    // Mostrar primeros 20
-                    data.data.registros.slice(0, 20).forEach(r => {
-                        html += `<tr><td>${r.numero_factura}</td><td>${r.primer_nombre}</td><td>${r.sexo}</td></tr>`;
-                    });
-                    
-                    if (data.data.total > 20) {
-                        html += `<tr><td colspan="3">... y ${data.data.total - 20} más</td></tr>`;
-                    }
-                    
-                    html += '</table>';
-                    resultDiv.innerHTML = html;
+                    showResult(data.data, endpoint.includes('stats'));
                 } else {
                     resultDiv.innerHTML = `<p class="error">✗ Error: ${data.errors.join(', ')}</p>`;
                 }
@@ -111,9 +104,49 @@
                 resultDiv.innerHTML = `<p class="error">✗ Error: ${err.message}</p>`;
             }
             
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'Subir Excel';
-        });
+            btn.disabled = false;
+            btn.textContent = btnText;
+        }
+        
+        function showResult(data, isStats) {
+            let html = '';
+            
+            if (data.stats || isStats) {
+                const stats = data.stats || data;
+                html += '<div class="stats-box">';
+                html += '<h3>Estadísticas</h3>';
+                html += `<div class="stat"><strong>Total Excel:</strong> ${stats.total_excel}</div>`;
+                html += `<div class="stat"><strong>Nombres únicos:</strong> ${stats.nombres_unicos}</div>`;
+                html += `<div class="stat"><strong>En cache:</strong> ${stats.cache_hits}</div>`;
+                html += `<div class="stat"><strong>API calls:</strong> ${stats.api_calls_necesarias}</div>`;
+                html += '</div>';
+            }
+            
+            if (data.discrepancies) {
+                html += `<p><strong>Discrepancias encontradas:</strong> ${data.total_discrepancies}</p>`;
+                
+                if (data.discrepancies.length > 0) {
+                    html += '<table>';
+                    html += '<tr><th>Número Factura</th><th>Primer Nombre</th><th>Sexo Excel</th><th>Sexo API</th></tr>';
+                    
+                    data.discrepancies.forEach(d => {
+                        html += `<tr class="warning-row">`;
+                        html += `<td>${d.numero_factura}</td>`;
+                        html += `<td>${d.primer_nombre}</td>`;
+                        html += `<td>${d.sexo_excel}</td>`;
+                        html += `<td>${d.sexo_api}</td>`;
+                        html += '</tr>';
+                    });
+                    
+                    html += '</table>';
+                }
+            }
+            
+            resultDiv.innerHTML = html;
+        }
+        
+        statsBtn.addEventListener('click', () => doRequest('/api/import/facturas-stats', statsBtn, 'Ver Estadísticas'));
+        verifyBtn.addEventListener('click', () => doRequest('/api/import/facturas-verify', verifyBtn, 'Verificar y Comparar'));
     </script>
 </body>
 </html>
