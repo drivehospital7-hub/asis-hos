@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracción Nombres y Sexo</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; }
+        .drop-zone.dragover { border-color: #007bff; background: #f0f8ff; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; }
+        button:disabled { background: #ccc; }
+        #result { margin-top: 20px; }
+        .success { color: green; }
+        .error { color: red; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f5f5f5; }
+    </style>
+</head>
+<body>
+    <h1>Extracción de Nombres y Sexo</h1>
+    <p>Sube el Excel de facturas para extraer: Numero Factura, Primer Nombre, Sexo</p>
+    
+    <form id="uploadForm" enctype="multipart/form-data">
+        <div class="drop-zone" id="dropZone">
+            <p>Arrastra el archivo Excel aquí o haz click para seleccionar</p>
+            <input type="file" id="fileInput" name="file" accept=".xlsx,.xls" style="display:none">
+        </div>
+        <button type="submit" id="submitBtn" disabled>Subir Excel</button>
+    </form>
+    
+    <div id="result"></div>
+    
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const submitBtn = document.getElementById('submitBtn');
+        const uploadForm = document.getElementById('uploadForm');
+        const resultDiv = document.getElementById('result');
+        
+        let selectedFile = null;
+        
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                selectedFile = e.dataTransfer.files[0];
+                dropZone.querySelector('p').textContent = selectedFile.name;
+                submitBtn.disabled = false;
+            }
+        });
+        
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) {
+                selectedFile = e.target.files[0];
+                dropZone.querySelector('p').textContent = selectedFile.name;
+                submitBtn.disabled = false;
+            }
+        });
+        
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            if (!selectedFile) return;
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Procesando...';
+            resultDiv.innerHTML = '<p>Cargando...</p>';
+            
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+            
+            try {
+                const response = await fetch('/api/import/facturas-nombres', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    let html = `<p class="success">✓ Extraídos ${data.data.total} registros</p>`;
+                    html += '<table><tr><th>Numero Factura</th><th>Primer Nombre</th><th>Sexo</th></tr>';
+                    
+                    // Mostrar primeros 20
+                    data.data.registros.slice(0, 20).forEach(r => {
+                        html += `<tr><td>${r.numero_factura}</td><td>${r.primer_nombre}</td><td>${r.sexo}</td></tr>`;
+                    });
+                    
+                    if (data.data.total > 20) {
+                        html += `<tr><td colspan="3">... y ${data.data.total - 20} más</td></tr>`;
+                    }
+                    
+                    html += '</table>';
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `<p class="error">✗ Error: ${data.errors.join(', ')}</p>`;
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p class="error">✗ Error: ${err.message}</p>`;
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Subir Excel';
+        });
+    </script>
+</body>
+</html>
