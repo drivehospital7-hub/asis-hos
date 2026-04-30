@@ -36,6 +36,7 @@ def create_app(config=None):
     from app.routes.auth import auth_bp
     from app.routes.genderize_api import genderize_bp
     from app.routes.import_facturas import import_facturas_bp
+    from app.routes.control_errores import control_errores_bp
 
     # Home debe ser la raíz
     app.register_blueprint(home_bp)
@@ -49,5 +50,6 @@ def create_app(config=None):
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
     app.register_blueprint(genderize_bp, url_prefix="/api/genderize")
     app.register_blueprint(import_facturas_bp)
+    app.register_blueprint(control_errores_bp)
 
     return app

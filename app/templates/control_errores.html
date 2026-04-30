@@ -1,0 +1,541 @@
+{% extends "base.html" %}
+
+{% block title %}Control de Errores — Urgencias{% endblock %}
+
+{% block head_extra %}
+<style>
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: var(--space-lg);
+  }
+
+  .page-title {
+    font-size: var(--font-size-2xl);
+    font-weight: 600;
+    margin: 0;
+  }
+
+  .filters {
+    display: flex;
+    gap: var(--space-md);
+    margin-bottom: var(--space-lg);
+    flex-wrap: wrap;
+  }
+
+  .filters__group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .filters__label {
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  .filters__select {
+    min-width: 180px;
+    padding: 0.5rem;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-md);
+    background-color: var(--color-surface);
+    font-size: var(--font-size-sm);
+  }
+
+  .table-actions {
+    display: flex;
+    gap: var(--space-xs);
+  }
+
+  .btn--small {
+    padding: 0.25rem 0.5rem;
+    font-size: var(--font-size-xs);
+  }
+
+  .btn--danger {
+    background-color: var(--color-error-bg);
+    border-color: var(--color-error-border);
+    color: var(--color-error-text);
+  }
+
+  .btn--danger:hover {
+    background-color: #fee2e2;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: var(--space-xl);
+    color: var(--color-text-muted);
+  }
+
+  /* Fila editable inline */
+  .inline-edit-row {
+    background-color: #f0f9ff;
+  }
+
+  .inline-edit-row td {
+    padding: 0.25rem 0.5rem;
+  }
+
+  .inline-input {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #94a3b8;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+  }
+
+  .inline-select {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #94a3b8;
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-sm);
+    background-color: var(--color-surface);
+  }
+
+  /* Celdas clickeables */
+  .clickable-cell {
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+
+  .clickable-cell:hover {
+    background-color: #f1f5f9;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 0.25rem 0.5rem;
+    border-radius: var(--radius-md);
+    font-size: var(--font-size-xs);
+    font-weight: 500;
+  }
+
+  .badge--pending {
+    background-color: #fef3c7;
+    color: #92400e;
+  }
+
+  .badge--resolved {
+    background-color: #d1fae5;
+    color: #065f46;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Control de Errores — Urgencias</h1>
+  <button class="btn btn--primary" onmousedown="addNewRow()">
+    + Agregar Error
+  </button>
+</div>
+
+<!-- Filtros -->
+<div class="filters">
+  <div class="filters__group">
+    <label class="filters__label">Tipo de Error</label>
+    <select id="filterTipo" class="filters__select" onchange="applyFilters()">
+      <option value="">Todos</option>
+    </select>
+  </div>
+
+  <div class="filters__group">
+    <label class="filters__label">Estado</label>
+    <select id="filterEstado" class="filters__select" onchange="applyFilters()">
+      <option value="">Todos</option>
+    </select>
+  </div>
+
+  <div class="filters__group">
+    <label class="filters__label">Responsable</label>
+    <select id="filterResponsable" class="filters__select" onchange="applyFilters()">
+      <option value="">Todos</option>
+    </select>
+  </div>
+</div>
+
+<!-- Tabla -->
+<div class="table-wrapper">
+  <table class="table" id="erroresTable">
+    <thead>
+      <tr>
+        <th>Tipo de Error</th>
+        <th>Factura</th>
+        <th>Observación</th>
+        <th>Estado</th>
+        <th>Responsable</th>
+        <th>Acciones</th>
+      </tr>
+    </thead>
+    <tbody id="erroresBody">
+      <tr>
+        <td colspan="6" class="empty-state">Cargando...</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let opciones = { tipos_error: [], estados: [], responsables: [] };
+  let cachedErrores = [];
+  let isAdding = false;
+  let editingId = null;
+  let isProcessingClick = false; // Flag para evitar múltiples clicks
+
+  // Cargar opciones al iniciar
+  async function loadOpciones() {
+    try {
+      const response = await fetch('/api/control-errores/opciones');
+      const result = await response.json();
+      if (result.status === 'success') {
+        opciones = result.data;
+        populateFilterSelects();
+      }
+    } catch (e) {
+      console.error('Error cargando opciones:', e);
+    }
+  }
+
+  function populateFilterSelects() {
+    const filterTipo = document.getElementById('filterTipo');
+    const filterEstado = document.getElementById('filterEstado');
+    const filterResponsable = document.getElementById('filterResponsable');
+
+    opciones.tipos_error.forEach(t => filterTipo.add(new Option(t, t)));
+    opciones.estados.forEach(e => filterEstado.add(new Option(e, e)));
+    opciones.responsables.forEach(r => filterResponsable.add(new Option(r, r)));
+  }
+
+  async function loadErrores() {
+    const tipoError = document.getElementById('filterTipo').value;
+    const estado = document.getElementById('filterEstado').value;
+    const responsable = document.getElementById('filterResponsable').value;
+
+    let url = '/api/control-errores?';
+    if (tipoError) url += `tipo_error=${encodeURIComponent(tipoError)}&`;
+    if (estado) url += `estado=${encodeURIComponent(estado)}&`;
+    if (responsable) url += `responsable=${encodeURIComponent(responsable)}&`;
+
+    try {
+      const response = await fetch(url);
+      const result = await response.json();
+      if (result.status === 'success') {
+        cachedErrores = result.data.errores;
+        renderTable();
+      }
+    } catch (e) {
+      console.error('Error cargando errores:', e);
+    }
+  }
+
+  function renderTable() {
+    const tbody = document.getElementById('erroresBody');
+    let html = '';
+
+    // Fila de nuevo registro
+    if (isAdding) {
+      html += `
+        <tr class="inline-edit-row" data-type="new">
+          <td>
+            <select id="newTipoError" class="inline-select" onkeydown="handleEnter(event, 'saveNew')">
+              ${opciones.tipos_error.map(t => `<option value="${escapeHtml(t)}" ${t === 'Contrato' ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+            </select>
+          </td>
+          <td><input type="text" id="newFactura" class="inline-input" placeholder="Número factura" autofocus onkeydown="handleEnter(event, 'saveNew')"></td>
+          <td><input type="text" id="newObservacion" class="inline-input" placeholder="Observación" onkeydown="handleEnter(event, 'saveNew')"></td>
+          <td>
+            <select id="newEstado" class="inline-select" onkeydown="handleEnter(event, 'saveNew')">
+              <option value="Pendiente" selected>Pendiente</option>
+              <option value="Subsanado">Subsanado</option>
+            </select>
+          </td>
+          <td>
+            <select id="newResponsable" class="inline-select" onkeydown="handleEnter(event, 'saveNew')">
+              <option value="">Seleccionar...</option>
+              ${opciones.responsables.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
+            </select>
+          </td>
+          <td class="table-actions">
+            <button class="btn btn--small btn--primary" onclick="saveNewRow()">Guardar</button>
+            <button class="btn btn--small" onclick="cancelNewRow()">Cancelar</button>
+          </td>
+        </tr>
+      `;
+    }
+
+    // Filas de errores
+    if (!cachedErrores || cachedErrores.length === 0) {
+      if (!isAdding) {
+        html += '<tr><td colspan="6" class="empty-state">No hay errores registrados</td></tr>';
+      }
+    } else {
+      html += cachedErrores.map(e => {
+        if (editingId === e.id) {
+          // Fila en modo edición
+          return `
+            <tr class="inline-edit-row" data-type="edit" data-id="${e.id}">
+              <td>
+                <select id="editTipoError" class="inline-select" onkeydown="handleEnter(event, 'saveEdit')">
+                  ${opciones.tipos_error.map(t => `<option value="${escapeHtml(t)}" ${e.tipo_error === t ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('')}
+                </select>
+              </td>
+              <td><input type="text" id="editFactura" class="inline-input" value="${escapeHtml(e.factura)}" onkeydown="handleEnter(event, 'saveEdit')"></td>
+              <td><input type="text" id="editObservacion" class="inline-input" value="${escapeHtml(e.observacion || '')}" onkeydown="handleEnter(event, 'saveEdit')"></td>
+              <td>
+                <select id="editEstado" class="inline-select" onkeydown="handleEnter(event, 'saveEdit')">
+                  <option value="Pendiente" ${e.estado === 'Pendiente' ? 'selected' : ''}>Pendiente</option>
+                  <option value="Subsanado" ${e.estado === 'Subsanado' ? 'selected' : ''}>Subsanado</option>
+                </select>
+              </td>
+              <td>
+                <select id="editResponsable" class="inline-select" onkeydown="handleEnter(event, 'saveEdit')">
+                  <option value="">Seleccionar...</option>
+                  ${opciones.responsables.map(r => `<option value="${escapeHtml(r)}" ${e.responsable === r ? 'selected' : ''}>${escapeHtml(r)}</option>`).join('')}
+                </select>
+              </td>
+              <td class="table-actions">
+                <button class="btn btn--small btn--primary" onclick="saveEditRow()">Guardar</button>
+                <button class="btn btn--small" onclick="cancelEditRow()">Cancelar</button>
+              </td>
+            </tr>
+          `;
+        } else {
+          // Fila normal - clickeable
+          return `
+            <tr class="clickable-row" onmousedown="startEditRow('${e.id}')">
+              <td>${escapeHtml(e.tipo_error)}</td>
+              <td>${escapeHtml(e.factura)}</td>
+              <td>${escapeHtml(e.observacion || '-')}</td>
+              <td><span class="badge ${e.estado === 'Pendiente' ? 'badge--pending' : 'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
+              <td>${escapeHtml(e.responsable)}</td>
+              <td class="table-actions">
+                <button class="btn btn--small btn--danger" onmousedown="event.stopPropagation(); deleteError('${e.id}')">Eliminar</button>
+              </td>
+            </tr>
+          `;
+        }
+      }).join('');
+    }
+
+    tbody.innerHTML = html;
+
+    // Focus en factura cuando se agrega fila
+    if (isAdding) {
+      setTimeout(() => {
+        const input = document.getElementById('newFactura');
+        if (input) input.focus();
+      }, 50);
+    }
+
+    // Focus en factura cuando se edita
+    if (editingId) {
+      setTimeout(() => {
+        const input = document.getElementById('editFactura');
+        if (input) input.focus();
+      }, 50);
+    }
+  }
+
+  // Enter = guardar, Escape = cancelar
+  function handleEnter(event, action) {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      if (action === 'saveNew') saveNewRow();
+      else if (action === 'saveEdit') saveEditRow();
+    } else if (event.key === 'Escape') {
+      if (action === 'saveNew') cancelNewRow();
+      else if (action === 'saveEdit') cancelEditRow();
+    }
+  }
+
+  // Click afuera = guardar (solo si no es click en la tabla o sus hijos)
+  document.addEventListener('click', function(e) {
+    const table = document.getElementById('erroresTable');
+    
+    // Si el click es DENTRO de la tabla, no hacer nada
+    // Solo guardar cuando se hace click AFUERA de la tabla
+    if (table.contains(e.target)) {
+      return;
+    }
+
+    // Click afuera de la tabla
+    if (isAdding) {
+      const factura = document.getElementById('newFactura');
+      if (factura && factura.value.trim()) {
+        saveNewRow();
+      } else {
+        cancelNewRow();
+      }
+    }
+    if (editingId) {
+      const input = document.getElementById('editFactura');
+      if (input && input.value.trim()) {
+        saveEditRow();
+      } else {
+        cancelEditRow();
+      }
+    }
+  });
+
+  // ======= NUEVO REGISTRO =======
+
+  function addNewRow() {
+    if (isProcessingClick) return;
+    if (isAdding || editingId) return;
+    
+    isProcessingClick = true;
+    setTimeout(() => { isProcessingClick = false; }, 100);
+    
+    isAdding = true;
+    renderTable();
+  }
+
+  function cancelNewRow() {
+    isAdding = false;
+    renderTable();
+  }
+
+  async function saveNewRow() {
+    const tipo_error = document.getElementById('newTipoError').value;
+    const factura = document.getElementById('newFactura').value.trim();
+    const observacion = document.getElementById('newObservacion').value.trim();
+    const estado = document.getElementById('newEstado').value;
+    const responsable = document.getElementById('newResponsable').value;
+
+    if (!factura) {
+      alert('El número de factura es requerido');
+      return;
+    }
+
+    if (!responsable) {
+      alert('El responsable es requerido');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/control-errores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo_error: tipo_error,
+          factura: factura,
+          observacion: observacion,
+          estado: estado,
+          responsable: responsable
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        isAdding = false;
+        loadErrores();
+      } else {
+        alert(result.errors.join(', '));
+      }
+    } catch (e) {
+      console.error('Error guardando:', e);
+    }
+  }
+
+  // ======= EDICIÓN =======
+
+  function startEditRow(id) {
+    if (isProcessingClick) return;
+    if (isAdding || editingId) return;
+    
+    isProcessingClick = true;
+    setTimeout(() => { isProcessingClick = false; }, 100);
+    
+    editingId = id;
+    renderTable();
+  }
+
+  function cancelEditRow() {
+    editingId = null;
+    renderTable();
+  }
+
+  async function saveEditRow() {
+    const tipo_error = document.getElementById('editTipoError').value;
+    const factura = document.getElementById('editFactura').value.trim();
+    const observacion = document.getElementById('editObservacion').value.trim();
+    const estado = document.getElementById('editEstado').value;
+    const responsable = document.getElementById('editResponsable').value;
+
+    if (!factura) {
+      alert('El número de factura es requerido');
+      return;
+    }
+
+    if (!responsable) {
+      alert('El responsable es requerido');
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/control-errores/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo_error: tipo_error,
+          factura: factura,
+          observacion: observacion,
+          estado: estado,
+          responsable: responsable
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        editingId = null;
+        loadErrores();
+      } else {
+        alert(result.errors.join(', '));
+      }
+    } catch (e) {
+      console.error('Error actualizando:', e);
+    }
+  }
+
+  // ======= ELIMINAR =======
+
+  async function deleteError(id) {
+    if (!confirm('¿Estás seguro de eliminar este error?')) return;
+
+    try {
+      const response = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' });
+      const result = await response.json();
+      if (result.status === 'success') {
+        loadErrores();
+      } else {
+        alert(result.errors.join(', '));
+      }
+    } catch (e) {
+      console.error('Error eliminando error:', e);
+    }
+  }
+
+  // ======= UTILIDADES =======
+
+  function applyFilters() {
+    loadErrores();
+  }
+
+  function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  // Iniciar
+  loadOpciones().then(loadErrores);
+</script>
+{% endblock %}

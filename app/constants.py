@@ -850,6 +850,28 @@ CODIGO_CUPS_SUSTITUTO_890701 = "890701"
 CODIGO_CUPS_SUSTITUTO_129B02 = "129B02"
 
 # =============================================================================
+# URGENCIAS - Control de Errores
+# =============================================================================
+
+ERROR_TIPO_URGENCIAS = [
+    "Contrato",
+    "Centro de costos",
+    "Código de servicio",
+    "Datos del paciente",
+    "Otro",
+]
+
+ERROR_ESTADO_URGENCIAS = [
+    "Pendiente",
+    "Subsanado",
+]
+
+ERROR_RESPONSABLE_URGENCIAS = [
+    "Meza Carlos",
+    "España Lorena",
+]
+
+# =============================================================================
 # URGENCIAS - Códigos CUPS Capita (ESS118)
 # =============================================================================
 
