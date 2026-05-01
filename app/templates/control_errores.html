@@ -818,7 +818,16 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('lightbox').classList.remove('open');
   }
 
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { closeImageModal(); closeLightbox(); } });
+  document.addEventListener('keydown', (e) => { 
+    if (e.key === 'Escape') { 
+      const lightbox = document.getElementById('lightbox');
+      if (lightbox.classList.contains('open')) {
+        closeLightbox();
+      } else {
+        closeImageModal();
+      }
+    } 
+  });
 
   loadOpciones().then(loadErrores);
 </script>
