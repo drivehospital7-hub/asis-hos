@@ -53,6 +53,9 @@ def listar_errores(
     if responsable:
         errores = [e for e in errores if e.get("responsable") == responsable]
 
+    # Ordenar por fecha de creación (más reciente primero)
+    errores = sorted(errores, key=lambda e: e.get("creado_en", ""), reverse=True)
+
     return errores
 
 

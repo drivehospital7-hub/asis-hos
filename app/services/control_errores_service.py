@@ -53,20 +53,11 @@ def get_errores(
 def add_error(data: dict[str, Any]) -> dict[str, Any]:
     """Crear un nuevo error."""
     try:
-        tipo_error = data.get("tipo_error", "").strip()
-        factura = data.get("factura", "").strip()
-        observacion = data.get("observacion", "").strip()
-        estado = data.get("estado", "").strip()
-        responsable = data.get("responsable", "").strip()
-
-        if not tipo_error:
-            return {"status": "error", "data": {}, "errors": ["Tipo de error es requerido"]}
-        if not factura:
-            return {"status": "error", "data": {}, "errors": ["Factura es requerida"]}
-        if not estado:
-            return {"status": "error", "data": {}, "errors": ["Estado es requerido"]}
-        if not responsable:
-            return {"status": "error", "data": {}, "errors": ["Responsable es requerido"]}
+        tipo_error = data.get("tipo_error", "").strip() or "Contrato"
+        factura = data.get("factura", "").strip() or ""
+        observacion = data.get("observacion", "").strip() or ""
+        estado = data.get("estado", "").strip() or "Pendiente"
+        responsable = data.get("responsable", "").strip() or ""
 
         nuevo = crear_error(tipo_error, factura, observacion, estado, responsable)
         logger.info("Error creado con ID: %s", nuevo["id"])
