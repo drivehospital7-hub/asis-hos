@@ -316,12 +316,12 @@
         } else {
           // Fila normal - clickeable
           return `
-            <tr class="clickable-row" onmousedown="startEditRow('${e.id}')">
-              <td>${escapeHtml(e.tipo_error)}</td>
-              <td>${escapeHtml(e.factura)}</td>
-              <td>${escapeHtml(e.observacion || '-')}</td>
-              <td><span class="badge ${e.estado === 'Pendiente' ? 'badge--pending' : 'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
-              <td>${escapeHtml(e.responsable)}</td>
+            <tr class="clickable-row" onmousedown="startEditRow(event, '${e.id}')">
+              <td onmousedown="event.stopPropagation(); startEditRow(event, '${e.id}', 'tipo_error')">${escapeHtml(e.tipo_error)}</td>
+              <td onmousedown="event.stopPropagation(); startEditRow(event, '${e.id}', 'factura')">${escapeHtml(e.factura)}</td>
+              <td onmousedown="event.stopPropagation(); startEditRow(event, '${e.id}', 'observacion')">${escapeHtml(e.observacion || '-')}</td>
+              <td onmousedown="event.stopPropagation(); startEditRow(event, '${e.id}', 'estado')"><span class="badge ${e.estado === 'Pendiente' ? 'badge--pending' : 'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
+              <td onmousedown="event.stopPropagation(); startEditRow(event, '${e.id}', 'responsable')">${escapeHtml(e.responsable)}</td>
               <td class="table-actions">
                 <button class="btn btn--small btn--danger" onmousedown="event.stopPropagation(); deleteError('${e.id}')">Eliminar</button>
               </td>
@@ -403,6 +403,12 @@
     
     isAdding = true;
     renderTable();
+    
+    // Enfocar factura por defecto
+    setTimeout(() => {
+      const input = document.getElementById('newFactura');
+      if (input) input.focus();
+    }, 60);
   }
 
   function cancelNewRow() {
@@ -455,7 +461,7 @@
 
   // ======= EDICIÓN =======
 
-  function startEditRow(id) {
+  function startEditRow(event, id, column = 'factura') {
     if (isProcessingClick) return;
     if (isAdding || editingId) return;
     
@@ -464,6 +470,29 @@
     
     editingId = id;
     renderTable();
+    
+    // Enfocar la columna específica
+    setTimeout(() => focusInput(column), 60);
+  }
+
+  function focusInput(column) {
+    const inputMap = {
+      'tipo_error': 'editTipoError',
+      'factura': 'editFactura',
+      'observacion': 'editObservacion',
+      'estado': 'editEstado',
+      'responsable': 'editResponsable'
+    };
+    const el = document.getElementById(inputMap[column]);
+    if (el) {
+      // Para selects, usar showPicker() si está disponible (modernos browsers)
+      if (el.tagName === 'SELECT' && el.showPicker) {
+        el.showPicker();
+      } else {
+        el.focus();
+      }
+      if (el.select) el.select();
+    }
   }
 
   function cancelEditRow() {
