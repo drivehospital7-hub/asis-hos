@@ -73,7 +73,7 @@
 
   /* Fila editable inline */
   .inline-edit-row {
-    background-color: #f0f9ff;
+    animation: fadeIn 0.15s ease-out;
   }
 
   .inline-edit-row td {
@@ -86,6 +86,7 @@
     border: 1px solid #94a3b8;
     border-radius: var(--radius-sm);
     font-size: var(--font-size-sm);
+    animation: fadeIn 0.1s ease-out;
   }
 
   .inline-select {
@@ -95,16 +96,22 @@
     border-radius: var(--radius-sm);
     font-size: var(--font-size-sm);
     background-color: var(--color-surface);
+    animation: fadeIn 0.1s ease-out;
   }
 
-  /* Celdas clickeables */
-  .clickable-cell {
-    cursor: pointer;
-    transition: background-color 0.15s;
+  /* Animación sutil */
+  @keyframes fadeIn {
+    from { opacity: 0.8; transform: translateY(-2px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
-  .clickable-cell:hover {
-    background-color: #f1f5f9;
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0.95; }
+  }
+
+  .saving {
+    animation: fadeOut 0.1s ease-out;
   }
 
   .badge {
@@ -130,7 +137,7 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">Control de Errores — Urgencias</h1>
-  <button class="btn btn--primary" onmousedown="addNewRow()">
+  <button class="btn btn--primary" onclick="addNewRow()">
     + Agregar Error
   </button>
 </div>
@@ -358,10 +365,11 @@
   // Click afuera = guardar (solo si no es click en la tabla o sus hijos)
   document.addEventListener('click', function(e) {
     const table = document.getElementById('erroresTable');
+    const addBtn = document.querySelector('.page-header .btn--primary');
     
     // Si el click es DENTRO de la tabla, no hacer nada
-    // Solo guardar cuando se hace click AFUERA de la tabla
-    if (table.contains(e.target)) {
+    // Si el click es en el botón de agregar, no hacer nada
+    if (table.contains(e.target) || addBtn?.contains(e.target)) {
       return;
     }
 
@@ -435,7 +443,8 @@
       const result = await response.json();
       if (result.status === 'success') {
         isAdding = false;
-        loadErrores();
+        document.getElementById('erroresBody').classList.add('saving');
+        setTimeout(() => loadErrores(), 80);
       } else {
         alert(result.errors.join(', '));
       }
@@ -495,7 +504,8 @@
       const result = await response.json();
       if (result.status === 'success') {
         editingId = null;
-        loadErrores();
+        document.getElementById('erroresBody').classList.add('saving');
+        setTimeout(() => loadErrores(), 80);
       } else {
         alert(result.errors.join(', '));
       }
@@ -513,7 +523,8 @@
       const response = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' });
       const result = await response.json();
       if (result.status === 'success') {
-        loadErrores();
+        document.getElementById('erroresBody').classList.add('saving');
+        setTimeout(() => loadErrores(), 80);
       } else {
         alert(result.errors.join(', '));
       }
