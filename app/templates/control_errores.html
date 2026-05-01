@@ -25,6 +25,10 @@
     white-space: nowrap;
     max-width: calc(100% - 24px);
   }
+  td.obs-cell {
+    position: relative;
+    text-align: center;
+  }
   .obs-img-text {
     position: absolute;
     right: 4px;
@@ -327,7 +331,7 @@
         html += `<tr>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">${escapeHtml(e.tipo_error)}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">${escapeHtml(e.factura)}</td>
-          <td class="editable-cell obs-cell" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)"><span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span><span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">SUBIR</span><span class="obs-img-icon" title="Agregar imagen" onclick="event.stopPropagation(); openImageModal('${e.id}')"></span></td>
+          <td class="editable-cell obs-cell" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)"><span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span><span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">SUBIR</span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)"><span class="badge ${e.estado==='Pendiente'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">${escapeHtml(e.responsable)}</td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
