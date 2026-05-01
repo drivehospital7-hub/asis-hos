@@ -426,27 +426,24 @@
         const trigger = editor.querySelector('.custom-select-trigger');
         const dropdown = editor.querySelector('.custom-select-dropdown');
         
-        trigger.onclick = () => {
+        trigger.onclick = (e) => {
+          e.stopPropagation(); // Evitar que el click llegue al document
           dropdown.classList.toggle('show');
         };
 
         editor.querySelectorAll('.custom-select-option').forEach(opt => {
-          opt.onclick = () => {
+          opt.onclick = (e) => {
+            e.stopPropagation();
             const value = opt.dataset.value;
             trigger.textContent = value;
             dropdown.classList.remove('show');
+            // Guardar y cerrar inmediatamente
+            saveFromEditor();
           };
         });
 
-        // Cerrar al hacer click fuera
-        document.addEventListener('click', function closeDropdown(e) {
-          if (!editor.contains(e.target)) {
-            dropdown.classList.remove('show');
-            document.removeEventListener('click', closeDropdown);
-          }
-        });
-
-        trigger.click();
+        // Abrir automáticamente el dropdown
+        dropdown.classList.add('show');
       }, 10);
     } else {
       editor.classList.remove('select-mode');
@@ -503,6 +500,13 @@
     
     // Si el click es en la tabla, en el botón de agregar, o en el editor, no hacer nada
     if (table.contains(e.target) || (btnAdd && btnAdd.contains(e.target)) || editor.contains(e.target)) {
+      return;
+    }
+    
+    // Si el click fue en una celda editable con tipo select, NO cerrar el editor
+    // (el handleCellClick se encarga de manejar eso)
+    const targetCell = e.target.closest('.editable-cell, .new-row-cell');
+    if (targetCell && targetCell.dataset.type === 'select') {
       return;
     }
     
