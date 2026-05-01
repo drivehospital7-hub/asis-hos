@@ -12,7 +12,8 @@ from app.services import (
     procedimiento_crud,
     nota_hoja_crud,
     notas_tecnicas_crud,
-    eps_nota_crud
+    eps_nota_crud,
+    genderize_extractor
 )
 
 import_csv_bp = Blueprint("import_csv", __name__, url_prefix="/api/import")
