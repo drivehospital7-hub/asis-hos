@@ -4,6 +4,12 @@
 
 {% block head_extra %}
 <style>
+  /* Print styles */
+  @media print {
+    .table-wrapper { overflow: visible; max-width: 100%; }
+    .table { width: 100%; font-size: 10px; }
+    .table th, .table td { padding: 4px; }
+  }
   .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
   .page-title { font-size: var(--font-size-2xl); font-weight: 600; margin: 0; }
   .filters { display: flex; gap: var(--space-md); margin-bottom: var(--space-lg); flex-wrap: wrap; }
