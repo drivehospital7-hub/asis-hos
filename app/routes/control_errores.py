@@ -101,5 +101,6 @@ def servir_imagen(error_id: str, filename: str):
     """Servir imagen."""
     from pathlib import Path
     from flask import current_app
-    imagenes_dir = Path(current_app.root_path).parent / IMAGENES_DIR / error_id
+    app_root = Path(current_app.root_path)
+    imagenes_dir = app_root / "data" / "imagenes" / error_id
     return send_from_directory(imagenes_dir, filename)
