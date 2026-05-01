@@ -2,7 +2,7 @@
 
 import logging
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_from_directory
 
 from app.services.control_errores_service import (
     get_opciones,
@@ -10,7 +10,12 @@ from app.services.control_errores_service import (
     add_error,
     update_error,
     delete_error,
+    get_imagenes,
+    upload_imagen,
+    delete_imagen,
 )
+
+from app.constants import IMAGENES_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +67,39 @@ def actualizar_error(error_id: str):
 def eliminar_error(error_id: str):
     """Eliminar un error."""
     return jsonify(delete_error(error_id))
+
+
+# =============================================================================
+# Gestión de Imágenes
+# =============================================================================
+
+@control_errores_bp.get("/api/control-errores/<error_id>/imagenes")
+def listar_imagenes(error_id: str):
+    """Listar imágenes."""
+    return jsonify(get_imagenes(error_id))
+
+
+@control_errores_bp.post("/api/control-errores/<error_id>/imagenes")
+def subir_imagen(error_id: str):
+    """Subir imagen."""
+    if "imagen" not in request.files:
+        return jsonify({"status": "error", "data": {}, "errors": ["No se encontró archivo"]})
+    file = request.files["imagen"]
+    if file.filename == "":
+        return jsonify({"status": "error", "data": {}, "errors": ["Archivo vacío"]})
+    return jsonify(upload_imagen(error_id, file))
+
+
+@control_errores_bp.delete("/api/control-errores/<error_id>/imagenes/")
+def eliminar_imagen(error_id: str, filename: str):
+    """Eliminar imagen."""
+    return jsonify(delete_imagen(error_id, filename))
+
+
+@control_errores_bp.get("/api/control-errores/<error_id>/imagenes/")
+def servir_imagen(error_id: str, filename: str):
+    """Servir imagen."""
+    from pathlib import Path
+    from flask import current_app
+    imagenes_dir = Path(current_app.root_path).parent / IMAGENES_DIR / error_id
+    return send_from_directory(imagenes_dir, filename)

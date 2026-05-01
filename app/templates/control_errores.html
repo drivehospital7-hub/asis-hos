@@ -17,6 +17,61 @@
   .btn--danger:hover { background-color: #fee2e2; }
   .empty-state { text-align: center; padding: var(--space-xl); color: var(--color-text-muted); }
 
+  /* Icono hover en celda observación */
+  .obs-cell-wrapper {
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 24px);
+  }
+  .obs-img-icon {
+    position: absolute;
+    right: 2px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    width: 18px;
+    height: 12px;
+    cursor: pointer;
+    border-radius: 1px;
+    background: linear-gradient(90deg, #666 0%, #666 35%, transparent 35%);
+  }
+  .obs-img-text {
+    position: absolute;
+    right: 22px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: none;
+    font-size: 9px;
+    color: #fff;
+    cursor: pointer;
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    background: #666;
+    padding: 1px 8px;
+    border-radius: 6px;
+  }
+  td.obs-cell { position: relative; }
+  td.obs-cell:hover .obs-img-icon { display: block; }
+  td.obs-cell:hover .obs-img-text { display: block; }
+
+  /* Modal imágenes */
+  #image-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; }
+  #image-modal.open { display: flex; align-items: center; justify-content: center; }
+  #image-modal .modal-content { background: #fff; border-radius: 8px; padding: 1.5rem; max-width: 600px; width: 90%; }
+  #image-modal .modal-header { display: flex; justify-content: space-between; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee; }
+  #image-modal .modal-title { font-size: 1.1rem; font-weight: 600; }
+  #image-modal .modal-close { cursor: pointer; font-size: 1.25rem; border: none; background: none; }
+  #image-modal .modal-images { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  #image-modal .modal-image { position: relative; width: 120px; height: 90px; object-fit: cover; border-radius: 4px; cursor: pointer; }
+  #image-modal .modal-delete-img { position: absolute; top: -6px; right: -6px; background: #f44336; color: #fff; border: none; border-radius: 50%; width: 20px; height: 20px; font-size: 12px; cursor: pointer; }
+  #image-modal .dropzone { border: 2px dashed #ccc; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; margin-bottom: 1rem; }
+  #image-modal .dropzone:hover { border-color: #666; background: #f9f9f9; }
+  #image-modal .dropzone-text { color: #666; font-size: 0.9rem; }
+  #image-modal .dropzone-hint { color: #999; font-size: 0.8rem; margin-top: 0.25rem; }
+
   /* Editor global - fuera de la tabla */
   #global-editor {
     position: fixed;
@@ -200,6 +255,22 @@
 <div id="global-editor">
   <input type="text" id="editor-input">
 </div>
+
+<!-- Modal de imágenes -->
+<div id="image-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <span class="modal-title">Imágenes</span>
+      <button class="modal-close" onclick="closeImageModal()">&times;</button>
+    </div>
+    <div id="modal-images-list" class="modal-images"></div>
+    <div id="modal-dropzone" class="dropzone">
+      <div class="dropzone-text">Arrastra imagen o click para subir</div>
+      <div class="dropzone-hint">Máx 3 imágenes</div>
+      <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -269,7 +340,7 @@
         html += `<tr>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">${escapeHtml(e.tipo_error)}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">${escapeHtml(e.factura)}</td>
-          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">${escapeHtml(e.observacion||'-')}</td>
+          <td class="editable-cell obs-cell" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)"><span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span><span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">SUBIR</span><span class="obs-img-icon" title="Agregar imagen" onclick="event.stopPropagation(); openImageModal('${e.id}')"></span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)"><span class="badge ${e.estado==='Pendiente'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">${escapeHtml(e.responsable)}</td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
@@ -669,6 +740,71 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   async function deleteError(id) { if (!confirm('¿Eliminar?')) return; const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); const result = await res.json(); if (result.status === 'success') loadErrores(); else alert(result.errors.join(', ')); }
   function applyFilters() { loadErrores(); }
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
+
+  // ====== MODAL IMÁGENES ======
+  let currentImageErrorId = null;
+
+  async function openImageModal(errorId) {
+    currentImageErrorId = errorId;
+    const modal = document.getElementById('image-modal');
+    const listEl = document.getElementById('modal-images-list');
+    const dropzone = document.getElementById('modal-dropzone');
+    const fileInput = document.getElementById('file-input');
+
+    // Cargar imágenes
+    const res = await fetch(`/api/control-errores/${errorId}/imagenes`);
+    const result = await res.json();
+    if (result.status === 'success') {
+      listEl.innerHTML = result.data.imagenes.map(img => `
+        <div style="position:relative;width:120px;height:90px;">
+          <img src="/api/control-errores/${errorId}/imagenes/${img}" class="modal-image" onclick="viewFullImage('${errorId}','${img}')">
+          <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${img}')">&times;</button>
+        </div>
+      `).join('');
+      dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
+    }
+
+    modal.classList.add('open');
+
+    // Event listeners
+    dropzone.onclick = () => fileInput.click();
+    fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
+    dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+    dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+    dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); uploadImages(errorId, e.dataTransfer.files); };
+  }
+
+  function closeImageModal() {
+    document.getElementById('image-modal').classList.remove('open');
+    currentImageErrorId = null;
+  }
+
+  async function uploadImages(errorId, files) {
+    for (const file of files) {
+      if (!file.type.startsWith('image/')) continue;
+      const formData = new FormData();
+      formData.append('imagen', file);
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes`, { method: 'POST', body: formData });
+      const result = await res.json();
+      if (result.status !== 'success') alert(result.errors.join(', '));
+    }
+    openImageModal(errorId);
+    loadErrores();
+  }
+
+  async function deleteImage(errorId, filename) {
+    if (!confirm('¿Eliminar imagen?')) return;
+    const res = await fetch(`/api/control-errores/${errorId}/imagenes/${filename}`, { method: 'DELETE' });
+    const result = await res.json();
+    if (result.status === 'success') { openImageModal(errorId); loadErrores(); }
+    else alert(result.errors.join(', '));
+  }
+
+  function viewFullImage(errorId, filename) {
+    window.open(`/api/control-errores/${errorId}/imagenes/${filename}`, '_blank');
+  }
+
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeImageModal(); });
 
   loadOpciones().then(loadErrores);
 </script>

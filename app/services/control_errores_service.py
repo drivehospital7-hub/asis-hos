@@ -9,6 +9,10 @@ from app.utils.errores_storage import (
     obtener_error,
     actualizar_error,
     eliminar_error,
+    listar_imagenes,
+    obtener_imagenes_count,
+    guardar_imagen,
+    eliminar_imagen,
 )
 
 logger = logging.getLogger(__name__)
@@ -106,4 +110,47 @@ def delete_error(error_id: str) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
     except Exception as e:
         logger.exception("Error eliminando error")
+        return {"status": "error", "data": {}, "errors": [str(e)]}
+
+
+# =============================================================================
+# Gestión de Imágenes
+# =============================================================================
+
+def get_imagenes(error_id: str) -> dict[str, Any]:
+    """Listar imágenes."""
+    try:
+        imagenes = listar_imagenes(error_id)
+        count = obtener_imagenes_count(error_id)
+        return {"status": "success", "data": {"imagenes": imagenes, "count": count}, "errors": []}
+    except Exception as e:
+        logger.exception("Error listando imágenes")
+        return {"status": "error", "data": {}, "errors": [str(e)]}
+
+
+def upload_imagen(error_id: str, file) -> dict[str, Any]:
+    """Subir imagen."""
+    try:
+        if not obtener_error(error_id):
+            return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        success, result = guardar_imagen(error_id, file)
+        if success:
+            logger.info("Imagen subida: %s", result)
+            return {"status": "success", "data": {"filename": result, "count": obtener_imagenes_count(error_id)}, "errors": []}
+        return {"status": "error", "data": {}, "errors": [result]}
+    except Exception as e:
+        logger.exception("Error subiendo imagen")
+        return {"status": "error", "data": {}, "errors": [str(e)]}
+
+
+def delete_imagen(error_id: str, filename: str) -> dict[str, Any]:
+    """Eliminar imagen."""
+    try:
+        success, error = eliminar_imagen(error_id, filename)
+        if success:
+            return {"status": "success", "data": {"count": obtener_imagenes_count(error_id)}, "errors": []}
+        return {"status": "error", "data": {}, "errors": [error]}
+    except Exception as e:
+        logger.exception("Error eliminando imagen")
         return {"status": "error", "data": {}, "errors": [str(e)]}

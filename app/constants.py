@@ -871,6 +871,12 @@ ERROR_RESPONSABLE_URGENCIAS = [
     "España Lorena",
 ]
 
+# Imágenes para observaciones de errores
+IMAGENES_DIR = "data/imagenes"
+IMAGENES_MAX_PER_OBSERVACION = 3
+IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
+IMAGENES_MAX_SIZE_MB = 5
+
 # =============================================================================
 # URGENCIAS - Códigos CUPS Capita (ESS118)
 # =============================================================================
