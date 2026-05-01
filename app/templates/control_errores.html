@@ -748,11 +748,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (result.status === 'success') {
       listEl.innerHTML = result.data.imagenes.map(img => `
         <div style="position:relative;width:120px;height:90px;">
-          <img src="/api/control-errores/${errorId}/imagenes/${img}" class="modal-image" onclick="viewFullImage('${errorId}','${img}')">
+          <img src="/api/control-errores/${errorId}/imagenes/${img}" class="modal-image" onclick="viewFullImage('${errorId}','${img}')" onerror="console.error('Error cargando imagen:', this.src)">
           <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${img}')">&times;</button>
         </div>
       `).join('');
       dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
+    } else {
+      listEl.innerHTML = '<p style="color:red">Error: ' + JSON.stringify(result) + '</p>';
     }
 
     modal.classList.add('open');
@@ -785,7 +787,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function deleteImage(errorId, filename) {
     if (!confirm('¿Eliminar imagen?')) return;
-    const res = await fetch(`/api/control-errores/${errorId}/imagenes/${filename}`, { method: 'DELETE' });
+    const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
     const result = await res.json();
     if (result.status === 'success') { openImageModal(errorId); loadErrores(); }
     else alert(result.errors.join(', '));

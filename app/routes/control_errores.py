@@ -90,17 +90,30 @@ def subir_imagen(error_id: str):
     return jsonify(upload_imagen(error_id, file))
 
 
-@control_errores_bp.delete("/api/control-errores/<error_id>/imagenes/")
-def eliminar_imagen(error_id: str, filename: str):
+@control_errores_bp.route("/api/control-errores/<error_id>/imagenes/", methods=["DELETE"])
+def eliminar_imagen(error_id: str):
     """Eliminar imagen."""
+    import urllib.parse
+    filename = request.args.get("filename")
+    if not filename:
+        return jsonify({"status": "error", "data": {}, "errors": ["filename requerido"]})
+    filename = urllib.parse.unquote(filename)
     return jsonify(delete_imagen(error_id, filename))
 
 
-@control_errores_bp.get("/api/control-errores/<error_id>/imagenes/")
+@control_errores_bp.route("/api/control-errores/<error_id>/imagenes/<path:filename>")
 def servir_imagen(error_id: str, filename: str):
     """Servir imagen."""
     from pathlib import Path
-    from flask import current_app
+    from flask import current_app, send_from_directory, abort
+
     app_root = Path(current_app.root_path)
     imagenes_dir = app_root / "data" / "imagenes" / error_id
+    filepath = imagenes_dir / filename
+    
+    if not filepath.exists():
+        logger.warning(f"Imagen no encontrada: {filepath}")
+        abort(404)
+    
+    logger.info(f"Sirviendo imagen: {filepath}")
     return send_from_directory(imagenes_dir, filename)
