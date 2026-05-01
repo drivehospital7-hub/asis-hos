@@ -205,6 +205,10 @@
     height: 28px;
     line-height: 28px;
   }
+  /* Campo observación más grande */
+  .editable-cell[data-field="observacion"], .new-row-cell[data-field="observacion"] {
+    max-width: 300px;
+  }
   .editable-cell:hover, .new-row-cell:hover {
     background-color: #f1f5f9;
   }
@@ -241,9 +245,9 @@
 </div>
 
 <div class="table-wrapper">
-  <table class="table" id="erroresTable">
+  <table class="table" id="erroresTable" style="min-width: 900px;">
     <thead>
-      <tr><th>Tipo de Error</th><th>Factura</th><th>Observación</th><th>Estado</th><th>Responsable</th><th>Creado</th><th>Acciones</th></tr>
+      <tr><th style="width:120px">Tipo de Error</th><th style="width:100px">Factura</th><th style="width:280px">Observación</th><th style="width:90px">Estado</th><th style="width:120px">Responsable</th><th style="width:80px">Creado</th><th style="width:90px">Acciones</th></tr>
     </thead>
     <tbody id="erroresBody"><tr><td colspan="6" class="empty-state">Cargando...</td></tr></tbody>
   </table>
