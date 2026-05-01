@@ -11,6 +11,14 @@
   .filters__label { font-size: var(--font-size-sm); font-weight: 500; color: var(--color-text-muted); }
   .filters__select { min-width: 180px; padding: 0.5rem; border: 1px solid var(--color-border-strong); border-radius: var(--radius-md); background-color: var(--color-surface); font-size: var(--font-size-sm); }
   .table-wrapper { overflow-x: auto; width: 100%; max-width: 1000px; }
+  .table thead th { white-space: nowrap; }
+  .table thead th:nth-child(1) { width: 12%; }
+  .table thead th:nth-child(2) { width: 8%; }
+  .table thead th:nth-child(3) { width: 32%; }
+  .table thead th:nth-child(4) { width: 6%; }
+  .table thead th:nth-child(5) { width: 14%; }
+  .table thead th:nth-child(6) { width: 8%; }
+  .table thead th:nth-child(7) { width: 10%; }
   .table-actions { display: flex; gap: var(--space-xs); }
   .fecha-creado { font-size: var(--font-size-xs); color: var(--color-text-muted); text-align: center; }
   .btn--small { padding: 0.25rem 0.5rem; font-size: var(--font-size-xs); }
@@ -250,9 +258,9 @@
 </div>
 
 <div class="table-wrapper">
-  <table class="table" id="erroresTable" style="min-width: 900px;">
+  <table class="table" id="erroresTable">
     <thead>
-      <tr><th style="width:120px">Tipo de Error</th><th style="width:80px">Factura</th><th style="width:300px">Observación</th><th style="width:60px">Pendiente</th><th style="width:120px">Responsable</th><th style="width:80px">Creado</th><th style="width:90px">Acciones</th></tr>
+      <tr><th>Tipo de Error</th><th>Factura</th><th>Observación</th><th>Pendiente</th><th>Responsable</th><th>Creado</th><th>Acciones</th></tr>
     </thead>
     <tbody id="erroresBody"><tr><td colspan="6" class="empty-state">Cargando...</td></tr></tbody>
   </table>
