@@ -235,8 +235,8 @@
     <select id="filterTipo" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
-    <label class="filters__label">Estado</label>
-    <select id="filterEstado" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
+    <label class="filters__label">Pendiente</label>
+    <select id="filterEstado" class="filters__select" onchange="applyFilters()"><option value="">Todos</option><option value="Pendiente">S</option><option value="Subsanado">N</option></select>
   </div>
   <div class="filters__group">
     <label class="filters__label">Responsable</label>
@@ -247,7 +247,7 @@
 <div class="table-wrapper">
   <table class="table" id="erroresTable" style="min-width: 900px;">
     <thead>
-      <tr><th style="width:120px">Tipo de Error</th><th style="width:100px">Factura</th><th style="width:280px">Observación</th><th style="width:90px">Estado</th><th style="width:120px">Responsable</th><th style="width:80px">Creado</th><th style="width:90px">Acciones</th></tr>
+      <tr><th style="width:120px">Tipo de Error</th><th style="width:100px">Factura</th><th style="width:280px">Observación</th><th style="width:50px">P</th><th style="width:120px">Responsable</th><th style="width:80px">Creado</th><th style="width:90px">Acciones</th></tr>
     </thead>
     <tbody id="erroresBody"><tr><td colspan="6" class="empty-state">Cargando...</td></tr></tbody>
   </table>
@@ -349,7 +349,7 @@
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">${escapeHtml(e.tipo_error)}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">${escapeHtml(e.factura)}</td>
           <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)"><span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span><span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">${e.imagenes_count > 0 ? 'VER' : 'SUBIR'}</span></td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)"><span class="badge ${e.estado==='Pendiente'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span></td>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)"><span class="badge ${e.estado==='Pendiente'?'badge--pending':'badge--resolved'}">${e.estado==='Pendiente'?'S':'N'}</span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">${escapeHtml(e.responsable)}</td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
           <td class="table-actions"><button class="btn btn--small btn--danger" onmousedown="event.stopPropagation(); deleteError('${e.id}')">Eliminar</button></td>
@@ -407,7 +407,7 @@
       if (field === 'tipo_error') {
         options = opciones.tipos_error;
       } else if (field === 'estado') {
-        options = ['Pendiente', 'Subsanado'];
+        options = ['S', 'N'];
       } else if (field === 'responsable') {
         options = opciones.responsables;
       }
@@ -540,7 +540,7 @@
 
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='Pendiente'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
     } else if (currentEditType === 'select') {
       // Tipo error y responsable: texto normal pero con fondo
       currentCell.innerHTML = newValue;
@@ -632,7 +632,7 @@
 
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='Pendiente'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
     } else if (currentEditType === 'select') {
       currentCell.innerHTML = newValue;
     } else {
@@ -657,7 +657,7 @@
         tipo_error: field === 'tipo_error' ? value : error.tipo_error,
         factura: field === 'factura' ? value : error.factura,
         observacion: field === 'observacion' ? value : error.observacion,
-        estado: field === 'estado' ? value : error.estado,
+        estado: field === 'estado' ? (value === 'S' ? 'Pendiente' : 'Subsanado') : error.estado,
         responsable: field === 'responsable' ? value : error.responsable
       };
       
@@ -688,7 +688,7 @@
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Contrato</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">Pendiente</span></td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
       <td class="table-actions"></td>
