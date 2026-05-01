@@ -64,9 +64,9 @@
   #image-modal .dropzone-hint { color: #999; font-size: 0.8rem; margin-top: 0.25rem; }
 
   /* Lightbox para ver imagen */
-  #lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.9); z-index: 10001; align-items: center; justify-content: center; }
+  #lightbox { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 10001; align-items: center; justify-content: center; }
   #lightbox.open { display: flex; }
-  #lightbox img { max-width: 90%; max-height: 90%; object-fit: contain; }
+  #lightbox img { max-width: 90%; max-height: 90%; object-fit: contain; cursor: pointer; }
   #lightbox .lightbox-close { position: absolute; top: 10px; right: 20px; color: #fff; font-size: 30px; cursor: pointer; }
 
   /* Editor global - fuera de la tabla */
@@ -810,6 +810,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const img = document.getElementById('lightbox-img');
     img.src = `/api/control-errores/${errorId}/imagenes/${filename}`;
     lightbox.classList.add('open');
+    lightbox.onclick = (e) => { if (e.target === lightbox) closeLightbox(); };
   }
 
   function closeLightbox() {
