@@ -198,7 +198,7 @@ def export_excel_with_cruce_facturas(
         logger.info("Columnas filtradas: %s", filter_result)
         
         # 7. Detectar problemas para mostrar en HTML (sin crear hoja)
-        problemas_detectados = detect_all_problems(
+        problemas_detectados, responsables_map = detect_all_problems(
             data_sheet, 
             area=area_effective,
             profesional_dias=profesional_dias if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else None,
@@ -232,6 +232,7 @@ def export_excel_with_cruce_facturas(
             "estructura_excel": estructura_result.get("data", {}),
             "filter_result": filter_result,
             "problemas": problemas_detectados,
+            "responsables_map": responsables_map,
             "applied_rules": [
                 cruce_info,
                 *formatting_results,

@@ -11,6 +11,7 @@ from flask import (
 
 from app.services.excel_headers_page import build_excel_headers_form_context
 from app.services.exporter import export_excel_with_cruce_facturas
+from app.services.responsables import obtener_responsable
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 from app.constants import AREA_URGENCIAS, PROFESIONALES_URGENCIAS
 
@@ -123,16 +124,19 @@ def export_urgencias():
         # { "area": "...", "problemas": { "centros_de_costos": [...], "ide_contrato": [...] }, "totales": {...} }
         problemas_data = export_result["data"].get("problemas", {})
         problemas_dict = problemas_data.get("problemas", {})
+        responsables_map = export_result["data"].get("responsables_map", {})
+        logger.info("RESPONSABLES_MAP: %d entries - Keys sample: %s", len(responsables_map), list(responsables_map.keys())[:5])
         
         # Armar lista de errores para mostrar
         errores = []
         
-        # Centros de costos - MOSTRAR TODOS los errores (sin deduplicar por factura)
+# Centros de costos - MOSTRAR TODOS los errores (sin deduplicar por factura)
         centros = problemas_dict.get("centros_de_costos", [])
         if centros:
-            # No deduplicamos - mostramos todos los errores de cada factura
+            # No deduplicamos - mosTramosTodos los errores de cada factura
             facturas_centros = []
             for item in centros[:50]:
+                factura_str = item.get("factura", "")
                 facturas_centros.append({
                     "tipo_factura": item.get("tipo_factura", ""),
                     "factura": item.get("factura", ""),
@@ -140,6 +144,7 @@ def export_urgencias():
                     "procedimiento": item.get("procedimiento", ""),
                     "centro_actual": item.get("centro_actual", ""),
                     "centro_deberia": item.get("centro_deberia", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 })
                 logger.info("FACTURA CentroCosto: %s - Tipo: %s, Código: %s, Procedimiento: %s - Actual: '%s' -> Debería: '%s'",
                            item.get("factura", ""),
@@ -161,14 +166,15 @@ def export_urgencias():
         if ide_contrato:
             facturas_ide = []
             for item in ide_contrato[:50]:
+                factura_str = item.get("factura", "")
                 factura_error = {
-                    "factura": item.get("factura", ""),
+                    "factura": factura_str,
                     "ide_contrato_actual": item.get("ide_contrato_actual", ""),
                     "ide_contrato_deberia": item.get("ide_contrato_deberia", ""),
                     "procedimiento": item.get("procedimiento", ""),
                     "codigo": item.get("codigo", ""),
                     "entidad": item.get("entidad", ""),
-                    "nota": item.get("nota", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 }
                 facturas_ide.append(factura_error)
                 # Log por cada factura con error de IDE Contrato
@@ -191,13 +197,14 @@ def export_urgencias():
         if cups_equiv:
             facturas_cups = []
             for item in cups_equiv[:50]:
-                factura_error = {
-                    "factura": item.get("factura", ""),
+                factura_str = item.get("factura", "")
+                facturas_cups.append({
+                    "factura": factura_str,
                     "codigo": item.get("codigo", ""),
                     "codigo_equiv": item.get("codigo_equiv", ""),
                     "accion": item.get("accion", ""),
-                }
-                facturas_cups.append(factura_error)
+                    "responsable": responsables_map.get(factura_str, ""),
+                })
                 logger.info("FACTURA CupsEquiv: %s - Código: %s, Código Equiv: %s - Acción: %s",
                            item.get("factura", ""),
                            item.get("codigo", ""),
@@ -219,7 +226,14 @@ def export_urgencias():
                 "tipo": "Decimales",
                 "tipo_key": "decimales",
                 "cantidad": len(decimales),
-                "facturas": decimales[:50],  # Ya es lista de dicts con "factura" y "valores"
+                "facturas": [
+                    {
+                        "factura": (factura_str := item.get("factura", "")),
+                        "valores": item.get("valores", []),
+                        "responsable": responsables_map.get(factura_str, ""),
+                    }
+                    for item in decimales[:50]
+                ],
             })
         
         # Reglas transversales: Tipo Identificación vs Edad
@@ -227,11 +241,13 @@ def export_urgencias():
         if tipo_id_edad:
             facturas_tipo_id = []
             for item in tipo_id_edad[:50]:
+                factura_str = item.get("factura", "")
                 facturas_tipo_id.append({
-                    "factura": item.get("factura", ""),
+                    "factura": factura_str,
                     "tipo_actual": item.get("tipo_actual", ""),
                     "tipo_deberia": item.get("tipo_deberia", ""),
                     "edad": item.get("edad", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 })
             errores.append({
                 "tipo": "Tipo Identificación",
@@ -245,12 +261,14 @@ def export_urgencias():
         if entidad_afiliacion:
             facturas_entidad = []
             for item in entidad_afiliacion[:50]:
+                factura_str = item.get("factura", "")
                 facturas_entidad.append({
-                    "factura": item.get("factura", ""),
+                    "factura": factura_str,
                     "codigo_entidad_cobrar": item.get("codigo_entidad_cobrar", ""),
                     "entidad_afiliacion": item.get("entidad_afiliacion", ""),
                     "codigo_extraido_afiliacion": item.get("codigo_extraido_afiliacion", ""),
                     "problema": item.get("problema", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 })
             errores.append({
                 "tipo": "Entidad Cobrar vs Afiliación",
@@ -264,8 +282,9 @@ def export_urgencias():
         if profesionales:
             facturas_profesionales = []
             for item in profesionales[:50]:
+                factura_str = item.get("factura", "")
                 factura_error = {
-                    "factura": item.get("factura", ""),
+                    "factura": factura_str,
                     "codigo_profesional": item.get("codigo_profesional", ""),
                     "nombre": item.get("nombre", ""),
                     "tipo": item.get("tipo", ""),
@@ -273,6 +292,7 @@ def export_urgencias():
                     "procedimiento": item.get("procedimiento", ""),
                     "regla": item.get("regla", ""),
                     "problema": item.get("problema", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 }
                 facturas_profesionales.append(factura_error)
                 logger.info("FACTURA Profesionales: %s - Área: %s, Procedimiento: %s, Regla: %s, Problema: %s",
@@ -294,11 +314,13 @@ def export_urgencias():
         if mal_capitado:
             facturas_mal = []
             for item in mal_capitado[:50]:
+                factura_str = item.get("factura", "")
                 factura_error = {
-                    "factura": item.get("factura", ""),
+                    "factura": factura_str,
                     "codigo": item.get("codigo", ""),
                     "procedimiento": item.get("procedimiento", ""),
                     "observacion": item.get("observacion", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
                 }
                 facturas_mal.append(factura_error)
                 logger.info("FACTURA MAL CAPITADO: %s - Código: %s, Procedimiento: %s, Observación: %s",

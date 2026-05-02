@@ -867,8 +867,10 @@ ERROR_ESTADO_URGENCIAS = [
 ]
 
 ERROR_RESPONSABLE_URGENCIAS = [
-    "Meza Carlos",
-    "España Lorena",
+    "ALEJANDRA ESPAÑA",
+    "CARLOS OMAR",
+    "DANIEL PAEZ",
+    "ANGIE ARIAS",
 ]
 
 # Imágenes para observaciones de errores

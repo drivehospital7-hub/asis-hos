@@ -82,6 +82,53 @@
 {% block scripts %}
 <script src="{{ url_for('static', filename='js/form-loading.js') }}"></script>
 <script>
+// Función global para enviar error a control-errores
+// Función para normalizar nombre del responsable
+function normalizarResponsable(nombre) {
+  if (!nombre) return '';
+  const nom = nombre.toUpperCase().trim();
+  
+  // Mapping: nombre Excel -> nombre abreviado para control-errores
+  if (nom.includes('ESPAÑA') && nom.includes('LORENY')) return 'ALEJANDRA ESPAÑA';
+  if (nom.includes('MEZA') && nom.includes('CARLOS')) return 'CARLOS OMAR';
+  if (nom.includes('PAEZ') && nom.includes('YULIETH')) return 'DANIEL PAEZ';
+  if (nom.includes('ARIAS') && nom.includes('ANGIE')) return 'ANGIE ARIAS';
+  
+  return nombre;
+}
+
+async function enviarAControl(tipoError, factura, tipoKey, observacion, responsable) {
+  console.log('>>> DATOS RECIBIDOS:', { tipoError, factura, tipoKey, observacion, responsable });
+  
+  const responsableNormalizado = normalizarResponsable(responsable);
+  
+  const data = {
+    tipo_error: tipoError,
+    factura: factura,
+    observacion: observacion,
+    estado: 'Pendiente',
+    responsable: responsableNormalizado
+  };
+  
+  console.log('>>> Enviando a Control Errores:', JSON.stringify(data, null, 2));
+  
+  try {
+    const res = await fetch('/api/control-errores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await res.json();
+    if (result.status === 'success') {
+      alert('Error enviado a Control de Errores');
+    } else {
+      alert('Error: ' + result.errors.join(', '));
+    }
+  } catch (e) {
+    alert('Error de conexión');
+  }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   const btnProcesar = document.getElementById('btn-procesar');
   const btnDescargar = document.getElementById('btn-descargar');
@@ -92,24 +139,433 @@ document.addEventListener('DOMContentLoaded', function() {
   
   let downloadUrl = null;
 
+  // Escapar HTML
+  function escapeHtml(text) {
+    if (text == null) return '';
+    return String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
   btnProcesar.addEventListener('click', async function() {
     const fileInput = document.getElementById('file_upload');
     if (!fileInput.files.length) {
       alert('Debes seleccionar un archivo');
       return;
     }
-
+    
     // Mostrar spinner
     btnProcesar.classList.add('btn--loading');
     btnProcesar.disabled = true;
-
+    
     // Ocultar mensajes previos
     erroresContainer.style.display = 'none';
     successContainer.style.display = 'none';
     btnDescargar.disabled = true;
     downloadUrl = null;
-
+    
     try {
+      const formData = new FormData(form);
+      
+      const response = await fetch('{{ url_for("urgencias.export_urgencias") }}', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // Guardar URL de descarga
+        downloadUrl = result.data.download_url;
+        console.log('Download URL:', downloadUrl);
+        
+        // Mostrar success
+        successContainer.style.display = 'block';
+        
+        // Habilitar botón descargar
+        btnDescargar.disabled = false;
+        
+        // Mostrar errores si hay
+        const errores = result.data.errores || [];
+        const totalErrores = result.data.total_errores || 0;
+        
+        console.log('=== ERRORES ===');
+        errores.forEach(function(e) {
+          console.log('Tipo:', e.tipo, '- Cantidad:', e.cantidad, '- Key:', e.tipo_key, '- Facturas:', JSON.stringify(e.facturas).substring(0, 100));
+        });
+        
+        if (errores.length > 0) {
+          let html = '<p class="mb-md"><strong>Total errores: ' + totalErrores + '</strong></p>';
+          
+          errores.forEach(function(error) {
+            html += '<div class="mb-lg">';
+            html += '<p class="mb-sm"><strong>' + error.tipo + '</strong> (' + error.cantidad + ')</p>';
+            
+            const tipoKey = error.tipo_key || '';
+            const esCodigosSinDB = tipoKey === 'codigos_sin_db_ide_969';
+            const esIdeContrato = tipoKey === 'ide_contrato';
+            const esCentrosCostos = tipoKey === 'centros_de_costos' || error.tipo.toLowerCase().includes('centros de costos');
+            const esVerificarDerechos = tipoKey === 'verificar_derechos';
+            const esDecimales = tipoKey === 'decimales';
+            const esTipoIdentificacion = tipoKey === 'tipo_identificacion_edad';
+            const esCodigoEntidadVsAfiliacion = tipoKey === 'codigo_entidad_vs_afiliacion';
+            const esCupsEquivalentes = tipoKey === 'cups_equivalentes';
+            const esProfesionales = tipoKey === 'profesionales';
+            const esMalCapitado = tipoKey === 'mal_capitado';
+              
+            if (esVerificarDerechos) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                } else {
+                  factura = item || '';
+                }
+                html += '<tr><td>' + factura + '</td></tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esCentrosCostos) {
+              // Centros de Costos: 6 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              function renderFacturas(items) {
+                let html = '';
+                items.slice(0, 50).forEach(function(item) {
+                  let tipoFactura = '';
+                  let factura = '';
+                  let codigo = '';
+                  let procedimiento = '';
+                  let centroActual = '';
+                  let centroDeberia = '';
+                  let responsable = '';
+                  
+                  if (typeof item === 'object' && item !== null) {
+                    tipoFactura = item.tipo_factura || '-';
+                    factura = item.factura || '';
+                    codigo = item.codigo || '';
+                    procedimiento = item.procedimiento || '';
+                    centroActual = item.centro_actual || '';
+                    centroDeberia = item.centro_deberia || '';
+                    responsable = item.responsable || '';
+                  }
+                  
+                  html += '<tr>';
+                  html += '<td>' + tipoFactura + '</td>';
+                  html += '<td>' + factura + '</td>';
+                  html += '<td>' + codigo + '</td>';
+                  html += '<td>' + procedimiento + '</td>';
+                  html += '<td>' + centroActual + '</td>';
+                  html += '<td>' + centroDeberia + '</td>';
+                  html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(centroActual + ' -> ' + centroDeberia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                  html += '</tr>';
+                });
+                return html;
+              }
+              
+              html += renderFacturas(error.facturas);
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esIdeContrato) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              function renderIdeContrato(items) {
+                let html = '';
+                items.slice(0, 50).forEach(function(item) {
+                  let factura = '';
+                  let procedimiento = '';
+                  let codigo = '';
+                  let entidad = '';
+                  let ideActual = '';
+                  let ideDeberia = '';
+                  let nota = '';
+                  let responsable = '';
+                  
+                  if (typeof item === 'object' && item !== null) {
+                    factura = item.factura || '';
+                    procedimiento = item.procedimiento || '-';
+                    codigo = item.codigo || '-';
+                    entidad = item.entidad || '-';
+                    ideActual = item.ide_contrato_actual || '';
+                    ideDeberia = item.ide_contrato_deberia || '';
+                    nota = item.nota || '';
+                    responsable = item.responsable || '';
+                  }
+                  
+                  let obs = ideActual + ' -> ' + ideDeberia + (nota ? ' (' + nota + ')' : '');
+                  html += '<tr>';
+                  html += '<td>' + factura + '</td>';
+                  html += '<td>' + procedimiento + '</td>';
+                  html += '<td>' + codigo + '</td>';
+                  html += '<td>' + entidad + '</td>';
+                  html += '<td>' + ideActual + '</td>';
+                  html += '<td>' + ideDeberia + (nota ? ' (' + nota + ')' : '') + '</td>';
+                  html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                  html += '</tr>';
+                });
+                return html;
+              }
+              
+              html += renderIdeContrato(error.facturas);
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esDecimales) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Valores</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let valores = '';
+                let responsable = '';
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  valores = item.valores || '';
+                  responsable = item.responsable || '';
+                } else {
+                  factura = item || '';
+                }
+                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esTipoIdentificacion) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let tipoActual = '';
+                let tipoDeberia = '';
+                let edad = '';
+                let responsable = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  tipoActual = item.tipo_actual || '';
+                  tipoDeberia = item.tipo_deberia || '';
+                  edad = item.edad || '';
+                  responsable = item.responsable || '';
+                }
+                
+                let obs = tipoActual + ' -> ' + tipoDeberia + ' (Edad: ' + edad + ')';
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + tipoActual + '</td>';
+                html += '<td>' + tipoDeberia + '</td>';
+                html += '<td>' + edad + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esCodigoEntidadVsAfiliacion) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigoEntidadCobrar = '';
+                let entidadAfiliacion = '';
+                let codigoExtraido = '';
+                let problema = '';
+                let responsable = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigoEntidadCobrar = item.codigo_entidad_cobrar || '';
+                  entidadAfiliacion = item.entidad_afiliacion || '';
+                  codigoExtraido = item.codigo_extraido_afiliacion || '';
+                  problema = item.problema || '';
+                  responsable = item.responsable || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigoEntidadCobrar + '</td>';
+                html += '<td>' + entidadAfiliacion + '</td>';
+                html += '<td>' + codigoExtraido + '</td>';
+                html += '<td>' + problema + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esProfesionales) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigoProfesional = '';
+                let nombre = '';
+                let area = '';
+                let procedimiento = '';
+                let regla = '';
+                let problema = '';
+                let responsable = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigoProfesional = item.codigo_profesional || '';
+                  nombre = item.nombre || '';
+                  area = item.tipo || item.profesional_area || '';
+                  procedimiento = item.procedimiento || '';
+                  regla = item.regla || '';
+                  problema = item.problema || '';
+                  responsable = item.responsable || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigoProfesional + '</td>';
+                html += '<td>' + nombre + '</td>';
+                html += '<td>' + area + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + regla + '</td>';
+                html += '<td>' + problema + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esMalCapitado) {
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let observacion = '';
+                let responsable = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  observacion = item.observacion || '';
+                  responsable = item.responsable || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + observacion + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(observacion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else {
+              // Otras tablas sin botón específico
+              html += '<table class="table">';
+              html += '<thead><tr><th>Datos</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let datos = '';
+                if (typeof item === 'object' && item !== null) {
+                  datos = JSON.stringify(item);
+                } else {
+                  datos = item || '';
+                }
+                html += '<tr><td>' + datos + '</td></tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            }
+            
+            html += '</div>';
+          });
+          
+          erroresList.innerHTML = html;
+          erroresContainer.style.display = 'block';
+        }
+        
+      } else {
+        let html = '<div class="alert alert--error">';
+        html += '<p class="alert__title">Error</p>';
+        html += '<p>' + result.errors.join(', ') + '</p>';
+        html += '</div>';
+        erroresList.innerHTML = html;
+        erroresContainer.style.display = 'block';
+      }
+      
+    } catch (error) {
+      console.error('Error:', error);
+      let html = '<div class="alert alert--error">';
+      html += '<p class="alert__title">Error de conexión</p>';
+      html += '<p>Ocurrió un error al procesar el archivo. Intenta de nuevo.</p>';
+      html += '</div>';
+      erroresList.innerHTML = html;
+      erroresContainer.style.display = 'block';
+    } finally {
+      btnProcesar.classList.remove('btn--loading');
+      btnProcesar.disabled = false;
+    }
+  });
+
+  btnDescargar.addEventListener('click', function() {
+    if (downloadUrl) {
+      window.location.href = downloadUrl;
+    }
+  });
+});
+</script>
+{% endblock %}
       const formData = new FormData(form);
       
       const response = await fetch('{{ url_for("urgencias.export_urgencias") }}', {
@@ -191,9 +647,9 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCentrosCostos) {
-              // Centros de Costos: 5 columnas
+              // Centros de Costos: 6 columnas + botón
               html += '<table class="table">';
-              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th></tr></thead>';
+              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th></th></tr></thead>';
               html += '<tbody>';
               
               // Función para renderizar facturas con 6 columnas
@@ -206,6 +662,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   let procedimiento = '';
                   let centroActual = '';
                   let centroDeberia = '';
+                  let responsable = '';
                   
                   if (typeof item === 'object' && item !== null) {
                     tipoFactura = item.tipo_factura || '-';
@@ -214,14 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     procedimiento = item.procedimiento || '';
                     centroActual = item.centro_actual || '';
                     centroDeberia = item.centro_deberia || '';
-                  } else if (typeof item === 'string' && item.includes('|')) {
-                    const parts = item.split('|');
-                    tipoFactura = parts[0] || '-';
-                    factura = parts[1] || '';
-                    codigo = parts[2] || '';
-                    procedimiento = parts[3] || '';
-                    centroActual = parts[4] || '';
-                    centroDeberia = parts[5] || '';
+                    responsable = item.responsable || '';
                   }
                   
                   html += '<tr>';
@@ -231,6 +681,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + centroActual + '</td>';
                   html += '<td>' + centroDeberia + '</td>';
+                  html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(centroActual + ' -> ' + centroDeberia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
                 return html;
@@ -239,7 +690,7 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderFacturas(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
@@ -248,7 +699,7 @@ document.addEventListener('DOMContentLoaded', function() {
             // IDE Contrato: 6 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería)
             if (esIdeContrato) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th></th></tr></thead>';
               html += '<tbody>';
               
               function renderIdeContrato(items) {
@@ -261,6 +712,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   let ideActual = '';
                   let ideDeberia = '';
                   let nota = '';
+                  let responsable = '';
                   
                   if (typeof item === 'object' && item !== null) {
                     factura = item.factura || '';
@@ -270,8 +722,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     ideActual = item.ide_contrato_actual || '';
                     ideDeberia = item.ide_contrato_deberia || '';
                     nota = item.nota || '';
+                    responsable = item.responsable || '';
                   }
                   
+                  let obs = ideActual + ' -> ' + ideDeberia + (nota ? ' (' + nota + ')' : '');
                   html += '<tr>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + procedimiento + '</td>';
@@ -279,6 +733,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + entidad + '</td>';
                   html += '<td>' + ideActual + '</td>';
                   html += '<td>' + ideDeberia + (nota ? ' (' + nota + ')' : '') + '</td>';
+                  html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
                 return html;
@@ -324,31 +779,35 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esDecimales) {
-              // Decimales: solo 1 columna (factura) - se deduplica por factura
+              // Decimales: 2 columnas + botón
               console.log('Renderizando decimales:', error.facturas);
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Valores</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
+                let valores = '';
+                let responsable = '';
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
+                  valores = item.valores || '';
+                  responsable = item.responsable || '';
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td></tr>';
+                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esTipoIdentificacion) {
-              // Tipo Identificación: 4 columnas (Factura, Tipo Actual, Tipo Debería, Edad)
+              // Tipo Identificación: 4 columnas + botón
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -356,19 +815,23 @@ document.addEventListener('DOMContentLoaded', function() {
                 let tipoActual = '';
                 let tipoDeberia = '';
                 let edad = '';
+                let responsable = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   tipoActual = item.tipo_actual || '';
                   tipoDeberia = item.tipo_deberia || '';
                   edad = item.edad || '';
+                  responsable = item.responsable || '';
                 }
                 
+                let obs = tipoActual + ' -> ' + tipoDeberia + ' (Edad: ' + edad + ')';
                 html += '<tr>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + tipoActual + '</td>';
                 html += '<td>' + tipoDeberia + '</td>';
                 html += '<td>' + edad + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
@@ -399,9 +862,9 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCodigoEntidadVsAfiliacion) {
-              // Entidad Cobrar vs Afiliación: 5 columnas (Factura, Cód. Entidad Cobrar, Entidad Afiliación, Cód. Extraído, Problema)
+              // Entidad Cobrar vs Afiliación: 5 columnas + botón
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -410,6 +873,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 let entidadAfiliacion = '';
                 let codigoExtraido = '';
                 let problema = '';
+                let responsable = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
@@ -417,6 +881,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   entidadAfiliacion = item.entidad_afiliacion || '';
                   codigoExtraido = item.codigo_extraido_afiliacion || '';
                   problema = item.problema || '';
+                  responsable = item.responsable || '';
                 }
                 
                 html += '<tr>';
@@ -425,18 +890,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + entidadAfiliacion + '</td>';
                 html += '<td>' + codigoExtraido + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esProfesionales) {
-              // Profesionales: 7 columnas (agregado Procedimiento y Regla)
+              // Profesionales: 7 columnas + botón
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -447,6 +913,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 let procedimiento = '';
                 let regla = '';
                 let problema = '';
+                let responsable = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
@@ -456,6 +923,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   procedimiento = item.procedimiento || '';
                   regla = item.regla || '';
                   problema = item.problema || '';
+                  responsable = item.responsable || '';
                 }
                 
                 html += '<tr>';
@@ -466,18 +934,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + regla + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esMalCapitado) {
-              // MAL CAPITADO: 4 columnas (Factura, Código, Procedimiento, Observación)
+              // MAL CAPITADO: 4 columnas + botón
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -485,12 +954,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 let codigo = '';
                 let procedimiento = '';
                 let observacion = '';
+                let responsable = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   codigo = item.codigo || '';
                   procedimiento = item.procedimiento || '';
                   observacion = item.observacion || '';
+                  responsable = item.responsable || '';
                 }
                 
                 html += '<tr>';
@@ -498,11 +969,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + observacion + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(observacion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
@@ -560,6 +1032,54 @@ document.addEventListener('DOMContentLoaded', function() {
       window.location.href = downloadUrl;
     }
   });
-});
-</script>
-{% endblock %}
+
+  // Función para enviar error a control-errores
+  async function enviarAControl(tipoError, factura, tipoKey, observacion, responsable) {
+    const data = {
+      tipo_error: tipoError,
+      factura: factura,
+      observacion: observacion,
+      estado: 'Pendiente',
+      responsable: responsable
+    };
+    
+    try {
+      const res = await fetch('/api/control-errores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      if (result.status === 'success') {
+        alert('Error enviado a Control de Errores');
+      } else {
+        alert('Error: ' + result.errors.join(', '));
+      }
+    } catch (e) {
+      alert('Error de conexión');
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // Declarar elementos primero
+    const btnProcesar = document.getElementById('btn-procesar');
+    const btnDescargar = document.getElementById('btn-descargar');
+    const form = document.getElementById('main-form');
+    const erroresContainer = document.getElementById('errores-container');
+    const erroresList = document.getElementById('errores-list');
+    const successContainer = document.getElementById('success-container');
+    
+    let downloadUrl = null;
+
+    // Escapar HTML
+    function escapeHtml(text) {
+      if (text == null) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    btnProcesar.addEventListener('click', async function() {

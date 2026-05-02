@@ -316,6 +316,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "profesional_identificacion": None,
         "profesional_atiende": None,
         "codigo_profesional": None,
+        "responsable_cierra": None,
     }
     
     # Nombres EXACTOS requeridos - uno solo por columna, sin variantes
@@ -345,6 +346,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "profesional_identificacion": "Identificación Profesional",
         "profesional_atiende": "Profesional Atiende",
         "codigo_profesional": "Código Profesional",
+        "responsable_cierra": "Responsable Cierra Facturar",
     }
     
 # Normalizar headers del Excel para comparación EXACTA (sin strip para mantener espacios)
@@ -361,9 +363,11 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         # Buscar con el nombre exacto
         if required_name in excel_headers_normalized:
             indices[key] = excel_headers_normalized[required_name]
+            logger.info("COLUMNA MAPEADA: '%s' -> clave '%s' (índice %d)", required_name, key, excel_headers_normalized[required_name])
         else:
             # NO encontrado - reportar como faltante
             missing_columns.append(required_name)
+            logger.warning("COLUMNA FALTANTE: '%s' (clave '%s')", required_name, key)
     
     # Log de结果
     found_columns = [k for k, v in indices.items() if v is not None]
@@ -1949,7 +1953,7 @@ def _detect_centro_costo_urgencias(
                 ident_normalized = str(numero_ident).strip()
                 codigo_normalized = str(codigo).strip()
                 if codigo_normalized == CODIGO_A_BUSCAR_890405_ESSC62:
-                    identificaciones_con_890405.add(ident_normalized)
+                    identificaciones_con_890405.add(codigo_normalized)
     
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -2041,8 +2045,8 @@ def _detect_centro_costo_urgencias(
                 "centro_deberia": CENTRO_COSTO_APOYO_DIAGNOSTICO,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
-                "prioridad": 1,  # Regla específica
-            })
+                "prioridad": 1,
+                })
             logger.info(
                 "REGLA1: Fila %s: Código=02, Lab=No, Centroincorrecto (Centro: '%s', CódigoProc: '%s')",
                 row,
@@ -2061,7 +2065,7 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_TRASLADOS,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
+                    "prioridad": 1,
                 })
                 logger.info(
                     "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
@@ -2150,8 +2154,8 @@ def _detect_centro_costo_urgencias(
                 "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
-                "prioridad": 2,  # Regla general
-            })
+                "prioridad": 2,
+                })
 
         # ----- Nueva Regla: Tipo Factura=Urgencias + Centro Costo=HOSPITALIZACIÓN - ESTANCIA GENERAL -> Error (debe ser "URGENCIAS")
         # Es regla GENERAL (prioridad 2) - se aplica solo si no hay regla específica para el mismo código
@@ -2163,8 +2167,8 @@ def _detect_centro_costo_urgencias(
                 "centro_deberia": CENTRO_COSTO_URGENCIAS,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
-                "prioridad": 2,  # Regla general
-            })
+                "prioridad": 2,
+                })
 
         # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
         if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
@@ -2208,8 +2212,8 @@ def _detect_centro_costo_urgencias(
                 "centro_deberia": ERROR_HOSPITALIZACION_NO_PERMITIDO,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
-                "prioridad": 1,  # Regla específica
-            })
+                "prioridad": 1,
+                })
             logger.info(
                 "REGLA (939402-Hospitalización): Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
                 row,
@@ -2921,7 +2925,7 @@ def _detect_centro_costo_urgencias(
                     ide_contrato_str,
                     ide_esperado,
                     tiene_insercion,
-                )
+) 
 
     return problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes
 
@@ -3132,8 +3136,8 @@ def create_revision_sheet(
         # Llamar función de detección con manejo defensivo
         try:
             result = _detect_centro_costo_urgencias(data_sheet, indices, problemas_codigos_no_en_db)
-            if isinstance(result, tuple) and len(result) == 3:
-                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = result
+            if isinstance(result, tuple) and len(result) >= 3:
+                problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = result[0], result[1], result[2]
             else:
                 logger.error("Función retornó formato inesperado: %s", type(result))
                 problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
@@ -3306,11 +3310,11 @@ def detect_all_problems(
     area: str = AREA_ODONTOLOGIA,
     profesional_dias: dict[str, list[int]] | None = None,
     permitir_todos_centros: bool = False,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta todos los problemas en las facturas SIN crear hoja Excel.
     
-    Esta función retorna los resultados para mostrarlos en el HTML del área.
+    Retorna: (resultado_dict, responsables_map)
     
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -3319,7 +3323,7 @@ def detect_all_problems(
         permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL sin validación por fecha
     
     Returns:
-        Dict con los problemas encontrados por categoría
+        (resultado_dict, responsables_map)
     """
     # Obtener índices de columnas (coincidencia exacta - reporta faltantes)
     headers = [
@@ -3448,7 +3452,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                  len(problemas_centros), len(problemas_centros_filtrados), len(problemas_centros) - len(problemas_centros_filtrados))
         
         # Incluir TODOS los campos en el resultado
-        return {
+        
+        # Build responsable_cierra mapping
+        responsable_cierra = {}
+        responsable_cierra_idx = indices.get("responsable_cierra")
+        num_fact_idx = indices.get("numero_factura")
+        if responsable_cierra_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and factura not in responsable_cierra:
+                    responsable_cierra[factura] = resp
+        
+        resultado = {
             "area": area,
             "problemas": {
                 "centros_de_costos": [
@@ -3505,6 +3525,24 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
         }
+        
+        # Enrich errors with responsable from mapping
+        if responsable_cierra:
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    factura = p.get("factura")
+                    if factura and factura in responsable_cierra:
+                        p["responsable"] = responsable_cierra[factura]
+                    elif "responsable" not in p:
+                        p["responsable"] = ""
+        else:
+            # Ensure all problems have responsable key
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    if "responsable" not in p:
+                        p["responsable"] = ""
+        
+        return resultado, responsable_cierra
     elif area == AREA_EQUIPOS_BASICOS:
         # Equipos Básicos: usar reglas independientes configurables
         decimales = _detect_decimals(data_sheet, indices)
@@ -3536,7 +3574,22 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
         )
         
-        return {
+        # Build responsable_cierra mapping
+        responsable_cierra = {}
+        responsable_cierra_idx = indices.get("responsable_cierra")
+        num_fact_idx = indices.get("numero_factura")
+        if responsable_cierra_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and factura not in responsable_cierra:
+                    responsable_cierra[factura] = resp
+        
+        resultado = {
             "area": area,
             "problemas": {
                 "decimales": decimales,
@@ -3562,6 +3615,24 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             "es_equipos_basicos": True,
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
         }
+        
+        # Enrich errors with responsable from mapping
+        if responsable_cierra:
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    factura = p.get("factura")
+                    if factura and factura in responsable_cierra:
+                        p["responsable"] = responsable_cierra[factura]
+                    elif "responsable" not in p:
+                        p["responsable"] = ""
+        else:
+            # Ensure all problems have responsable key
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    if "responsable" not in p:
+                        p["responsable"] = ""
+        
+        return resultado, responsable_cierra
     else:
 # Odontología estándar: todas las validaciones
         decimales = _detect_decimals(data_sheet, indices)
@@ -3591,8 +3662,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
         entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
             data_sheet, indices, limit_log=5
         )
-
-        return {
+    
+        # Build responsable_cierra mapping
+        responsable_cierra = {}
+        responsable_cierra_idx = indices.get("responsable_cierra")
+        num_fact_idx = indices.get("numero_factura")
+        if responsable_cierra_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and factura not in responsable_cierra:
+                    responsable_cierra[factura] = resp
+        
+        resultado = {
             "area": area,
             "problemas": {
                 "decimales": decimales,
@@ -3618,3 +3704,21 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             },
             "missing_columns": missing_columns,
         }
+        
+        # Enrich errors with responsable from mapping
+        if responsable_cierra:
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    factura = p.get("factura")
+                    if factura and factura in responsable_cierra:
+                        p["responsable"] = responsable_cierra[factura]
+                    elif "responsable" not in p:
+                        p["responsable"] = ""
+        else:
+            # Ensure all problems have responsable key
+            for problem_type, problems in resultado["problemas"].items():
+                for p in problems:
+                    if "responsable" not in p:
+                        p["responsable"] = ""
+        
+        return resultado, responsable_cierra
