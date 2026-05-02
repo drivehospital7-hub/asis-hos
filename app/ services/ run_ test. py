@@ -1,0 +1,12 @@
+import shutil, os, sys
+# Copy the correct file (51 lines, has override logic) to the wrong file (Python imports this)
+src = "app/ services/ genderize_ service. py"  # good file with internal space
+dst = "app/ services/ genderize_service. py"  # bad file - no internal space, but Python imports this
+shutil.copy2(src, dst)
+print("Copied OK")
+# Now test
+sys.path.insert(0, ".")
+from app.services. import predict_ genders
+results = predict_ genders(["Hijo de Sandra", "Hija de Maria", "Erick"])
+for r in results:
+    print(r. name, "->", r. gender)

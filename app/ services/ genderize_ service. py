@@ -1,0 +1,49 @@
+"""Servicio para consumir Genderize API con urllib."""
+import json
+import logging
+import re
+from dataclasses import dataclass
+from typing import Any
+from urllib. error import HTTPError
+from urllib. parse import urlencode
+from urllib. request import urlopen
+logger = logging. getLogger(__name__)
+GENDERIZE_ API_ URL = "https://api. genderize. io"
+_ RE_ HIJO = re. compile( r"^Hijo de\ s+", re. IGNORECASE)
+_ RE_ HIJA = re. compile( r"^Hija de\ s+", re. IGNORECASE)
+@dataclass
+class GenderResult:
+    name: str
+    gender: str | None
+    probability: float | None
+    count: int | None
+def predict_ genders( names):
+    if not names: return []
+    classified = []
+    for name in names:
+        if _RE_ HIJO. match( name):
+            classified. append(( name, "male"))
+        elif _RE_ HIJA. match( name):
+            classified. append(( name, "female"))
+        else:
+            classified. append(( name, None))
+    names_ batch = [ n for n, _ in classified]
+    params = [( f" name[{ i}]", n) for i, n in enumerate( names_ batch)]
+    url = GENDERIZE_ API_ URL + "?" + urlencode( params)
+    try:
+        with urlopen( url, timeout= 30) as resp:
+            data = json. load( resp)
+    except HTTPError as e:
+        logger. exception("Error HTTP genderize: %s", e. code)
+        raise
+    by_ name = { item[ "name"]: item for item in data}
+    results = []
+    for name, forced in classified:
+        item = by_ name. get( name, {})
+        gender = forced if forced else item. get( "gender")
+        results. append( GenderResult(
+            name= name,
+            gender= gender,
+            probability= item. get( "probability"),
+            count= item. get( "count")))
+    return results

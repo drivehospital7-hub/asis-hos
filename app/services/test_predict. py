@@ -1,0 +1,4 @@
+from app.services.genderize_ service import predict_ genders
+results = predict_ genders(["Hijo de Sandra", "Hija de Maria", "Erick"])
+for r in results:
+    print(r.name, "->", r.gender)

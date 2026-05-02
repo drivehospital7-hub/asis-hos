@@ -1,0 +1,7 @@
+from app import create_app
+app = create_app()
+c = app.test_client()
+r = c.get("/api/genderize/")
+data = r.get_json()["data"]
+for name, info in data.items():
+    print(f"{name:20} gender={info[chr(103)+chr(101)+chr(110)+chr(100)+chr(101)+chr(114)]}")

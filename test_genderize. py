@@ -1,0 +1,5 @@
+from app import create_ app
+app = create_ app()
+c = app.test_ client() 
+r = c.get("/api/ genderize/")
+print(r.get_ json())

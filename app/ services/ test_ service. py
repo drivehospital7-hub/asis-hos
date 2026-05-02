@@ -1,0 +1,10 @@
+import importlib.util, os
+fname = [f for f in os.listdir("app/services") if f.startswith(" ") and "genderize" in f]
+print("FILES:", fname)
+full = "app/services/" + fname[0]
+spec = importlib.util.spec_from_file_location("gs", full)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+print("Has _RE_ HIJO:", hasattr(mod, "_RE_ HIJO"))
+results = mod.predict_ genders(["Hijo de Sandra", "Erick"])
+for r in results: print(r.name, "->", r.gender)

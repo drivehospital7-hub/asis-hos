@@ -38,7 +38,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: calc(100% - 24px);
+    width: 100%;
   }
   td.obs-cell {
     position: relative;
@@ -332,6 +332,16 @@
     const result = await res.json();
     if (result.status === 'success') {
       cachedErrores = result.data.errores;
+      // Log de facturas actuales
+      const facturasRaw = cachedErrores.map(e => e.factura).filter(Boolean);
+      console.log('Facturas raw:', facturasRaw);
+      // Parsear facturas: busca CAP o FEV seguido de números
+      const facturasParseadas = facturasRaw.map(f => {
+        // Encuentra todos los patrones CAP+num o FEV+num
+        const matches = f.match(/(CAP|FEV)\d+/gi);
+        return matches || [];
+      });
+      console.log('Facturas parseadas:', facturasParseadas);
       renderTable();
     }
   }
@@ -407,13 +417,9 @@
     editor.style.top = rect.top + window.scrollY + 'px';
     editor.style.left = rect.left + window.scrollX + 'px';
     editor.style.width = rect.width + 'px';
-    // Selects pueden expandirse, texto tiene altura fija
-    if (type === 'select') {
-      editor.style.minHeight = rect.height + 'px';
-      editor.style.height = 'auto';
-    } else {
-      editor.style.height = rect.height + 'px';
-    }
+    // Selects tienen altura fija, texto también
+    editor.style.height = rect.height + 'px';
+    editor.style.minHeight = '';
 
     // Crear input o select según el tipo
     if (type === 'select') {
@@ -470,7 +476,7 @@
       }, 10);
     } else {
       editor.classList.remove('select-mode');
-      editor.innerHTML = `<textarea id="editor-input" style="width:100%;max-width:100%;min-height:100%;padding:0.5rem 0.75rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(td.textContent.trim())}</textarea>`;
+      editor.innerHTML = `<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;">${escapeHtml(td.textContent.trim())}</textarea>`;
       setTimeout(() => {
         const textarea = editor.querySelector('textarea');
         textarea.style.height = 'auto';
@@ -496,7 +502,7 @@
     currentEditId = null;
     currentEditType = null;
     isAdding = false;
-    editor.innerHTML = '<textarea id="editor-input" style="width:100%;max-width:100%;min-height:100%;padding:0.5rem 0.75rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>';
+    editor.innerHTML = '<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>';
     editor.classList.remove('select-mode');
   }
 
@@ -727,7 +733,7 @@
       editor.style.width = rect.width + 'px';
       editor.style.height = rect.height + 'px';
       
-editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura" style="width:100%;max-width:100%;min-height:100%;padding:0.5rem 0.75rem;border:none;background:transparent;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>`;
+editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>`;
       setTimeout(() => {
         const textarea = editor.querySelector('textarea');
         textarea.focus();
@@ -811,6 +817,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('image-modal').classList.remove('open');
     currentImageErrorId = null;
   }
+
+  // Cerrar modal al hacer click afuera
+  document.getElementById('image-modal').addEventListener('click', (e) => {
+    if (e.target.id === 'image-modal') {
+      closeImageModal();
+    }
+  });
 
   async function uploadImages(errorId, files) {
     for (const file of files) {

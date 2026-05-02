@@ -1,0 +1,11 @@
+import importlib. util, os, sys
+sys. path. insert(0, "app/ services")
+fname = [f for f in os. listdir("app/ services") if f. startswith(" ") and "genderize" in f]
+print("FILES:", fname)
+full = "app/ services/" + fname[0]
+spec = importlib. util. spec_ from_ file_ location("gs", full)  # noqa: F405
+mod = importlib. util. module_ from_ spec(spec)  # noqa: F405
+spec. loader. exec_ module(mod)  # noqa: F405
+print("Has _RE_ HIJO:", hasattr(mod, "_RE_ HIJO"))
+results = mod. predict_ genders(["Hijo de Sandra", "Erick"])
+for r in results: print(r. name, "->", r. gender)
