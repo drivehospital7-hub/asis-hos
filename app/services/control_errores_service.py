@@ -60,7 +60,7 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
         tipo_error = data.get("tipo_error", "").strip() or "Contrato"
         factura = data.get("factura", "").strip() or ""
         observacion = data.get("observacion", "").strip() or ""
-        estado = data.get("estado", "").strip() or "Pendiente"
+        estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
 
         nuevo = crear_error(tipo_error, factura, observacion, estado, responsable)

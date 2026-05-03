@@ -102,11 +102,26 @@ async function enviarAControl(tipoError, factura, tipoKey, observacion, responsa
   
   const responsableNormalizado = normalizarResponsable(responsable);
   
+  // Mapear tipoKey al tipo de Control Errores
+  const mapeoTipo = {
+    'centros_de_costos': 'Centro de costos',
+    'ide_contrato': 'Contrato',
+    'codigos_sin_db_ide_969': 'Código de servicio',
+    'verificar_derechos': 'Verificar derechos',
+    'tipo_identificacion_edad': 'Tipo identificación',
+    'decimales': 'Decimales',
+    'codigo_entidad_vs_afiliacion': 'Código entidad vs afiliación',
+    'cups_equivalentes': 'CUPS equivalentes',
+    'profesionales': 'Profesionales',
+    'mal_capitado': 'Mal capitado',
+  };
+  const tipoNormalizado = mapeoTipo[tipoKey] || 'Otro';
+  
   const data = {
-    tipo_error: tipoError,
+    tipo_error: tipoNormalizado,
     factura: factura,
     observacion: observacion,
-    estado: 'Pendiente',
+    estado: 'S',
     responsable: responsableNormalizado
   };
   
@@ -1035,11 +1050,26 @@ document.addEventListener('DOMContentLoaded', function() {
 
   // Función para enviar error a control-errores
   async function enviarAControl(tipoError, factura, tipoKey, observacion, responsable) {
+    // Mapear tipoKey al tipo de Control Errores
+    const mapeoTipo = {
+      'centros_de_costos': 'Centro de costos',
+      'ide_contrato': 'Contrato',
+      'codigos_sin_db_ide_969': 'Código de servicio',
+      'verificar_derechos': 'Verificar derechos',
+      'tipo_identificacion_edad': 'Tipo identificación',
+      'decimales': 'Decimales',
+      'codigo_entidad_vs_afiliacion': 'Código entidad vs afiliación',
+      'cups_equivalentes': 'CUPS equivalentes',
+      'profesionales': 'Profesionales',
+      'mal_capitado': 'Mal capitado',
+    };
+    const tipoNormalizado = mapeoTipo[tipoKey] || 'Otro';
+    
     const data = {
-      tipo_error: tipoError,
+      tipo_error: tipoNormalizado,
       factura: factura,
       observacion: observacion,
-      estado: 'Pendiente',
+      estado: 'S',
       responsable: responsable
     };
     

@@ -858,12 +858,19 @@ ERROR_TIPO_URGENCIAS = [
     "Centro de costos",
     "Código de servicio",
     "Datos del paciente",
+    "Verificar derechos",
+    "Tipo identificación",
+    "Decimales",
+    "Código entidad vs afiliación",
+    "CUPS equivalentes",
+    "Profesionales",
+    "Mal capitado",
     "Otro",
 ]
 
 ERROR_ESTADO_URGENCIAS = [
-    "Pendiente",
-    "Subsanado",
+    "S",
+    "N",
 ]
 
 ERROR_RESPONSABLE_URGENCIAS = [
