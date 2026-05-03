@@ -310,6 +310,22 @@
   let opciones = { tipos_error: [], estados: [], responsables: [] };
   let cachedErrores = [];
   let isAdding = false;
+
+  function parsearFacturas(f) {
+    if (!f) return [];
+    var m = f.match(/(CAP|FEV)\d+/gi);
+    return m ? m.map(function(x){return x.toUpperCase();}) : [];
+  }
+
+  function buscarDuplicados(factura) {
+    var nuevas = parsearFacturas(factura);
+    if (!nuevas.length) return [];
+    return cachedErrores.filter(function(e) {
+      var olds = parsearFacturas(e.factura);
+      return olds.filter(function(x){return nuevas.indexOf(x)!==-1;}).length;
+    });
+  }
+
   let currentCell = null;
   let currentEditId = null;
   let currentEditType = null;
@@ -588,16 +604,16 @@
 
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
     if (currentEditId === 'new') {
-      // Crear nuevo registro con valores por defecto + valor de factura
-      const data = {
-        tipo_error: 'Contrato',
-        factura: field === 'factura' ? newValue : '',
-        observacion: '',
-        estado: 'S',
-        responsable: ''
-      };
-      
-      // Siempre crear (incluso sin factura, usa defaults)
+      var factura = field === 'factura' ? newValue : '';
+      if (factura) {
+        var dup = buscarDuplicados(factura);
+        if (dup.length) {
+          if (!confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+            closeEditor(); loadErrores(); return;
+          }
+        }
+      }
+      var data = { tipo_error: 'Contrato', factura: factura, observacion: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       updateBackend(currentEditId, field, newValue);
@@ -686,10 +702,14 @@
   }
 
   async function updateBackend(id, field, value) {
-    try {
-      // Buscar el error en cache
-      const error = cachedErrores.find(e => e.id === id);
-      if (!error) return;
+    if (field === 'factura' && value) {
+      var err = cachedErrores.find(function(e){return e.id===id});
+      if (err && err.factura !== value) {
+        var dup = buscarDuplicados(value);
+        if (dup.length && !confirm('La factura ' + value + ' ya existe. ¿Guardar igual?')) { loadErrores(); return; }
+      }
+    }
+    try { var error = cachedErrores.find(function(e){return e.id===id}); if (!error) return;
       
       const data = {
         tipo_error: field === 'tipo_error' ? value : error.tipo_error,
@@ -756,13 +776,16 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function cancelNewRow() { isAdding = false; renderTable(); }
 
   async function saveNewRow() {
-    const data = { tipo_error: 'Contrato', factura: document.getElementById('newFactura')?.value?.trim() || '', observacion: '', estado: 'S', responsable: '' };
-    if (data.factura) {
-      const res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
-      if (res.ok) { isAdding = false; loadErrores(); }
-    } else {
-      isAdding = false;
-      loadErrores();
+    var factura = document.getElementById('newFactura')?.value?.trim() || '';
+    if (!factura) { isAdding = false; loadErrores(); return; }
+    var dup = buscarDuplicados(factura);
+    if (dup.length && !confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+      isAdding = false; loadErrores(); return;
+    }
+    var data = { tipo_error: 'Contrato', factura: factura, observacion: '', estado: 'S', responsable: '' };
+    var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    if (res.ok) { isAdding = false; loadErrores(); }
+  }
     }
   }
 
