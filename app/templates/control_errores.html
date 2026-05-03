@@ -786,8 +786,6 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
-    }
-  }
 
   // ====== EDICIÓN DIRECTA (ya editable) ======
   function cancelEditRow() { currentEditId = null; renderTable(); }
