@@ -312,31 +312,40 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    width: 100%;
+    width: calc(100% - 15px);
   }
   td.obs-cell {
     position: relative;
     vertical-align: middle;
   }
-  .obs-img-text {
+  .obs-img-btn {
     position: absolute;
     right: 4px;
     top: 50%;
     transform: translateY(-50%);
     display: none;
-    font-size: 9px;
-    color: #fff;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #94a3b8;
     cursor: pointer;
-    text-transform: uppercase;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    background: #666;
-    padding: 1px 8px;
-    border-radius: 6px;
+    transition: all 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .obs-img-btn:hover {
+    background: #e0e7ff;
+    color: #4338ca;
   }
   /* Botón siempre visible si hay imágenes, mismo estilo */
-  td.obs-cell.has-images .obs-img-text { display: block; }
-  td.obs-cell:hover .obs-img-text { display: block; }
+  td.obs-cell.has-images .obs-img-btn { display: flex; }
+  td.obs-cell:hover .obs-img-btn { display: flex; }
+  td.obs-cell.has-images .obs-img-btn { color: #4338ca; }
 
   /* Modal imágenes */
   #image-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; }
@@ -358,6 +367,11 @@
   #lightbox.open { display: flex; }
   #lightbox img { max-width: 90%; max-height: 90%; object-fit: contain; cursor: pointer; }
   #lightbox .lightbox-close { position: absolute; top: 10px; right: 20px; color: #fff; font-size: 30px; cursor: pointer; }
+
+  /* Scroll deshabilitado cuando editor está abierto */
+  body.editor-open {
+    overflow: hidden !important;
+  }
 
   /* Editor global - fuera de la tabla */
   #global-editor {
@@ -840,8 +854,8 @@
     <label class="filters__label">Responsable</label>
     <select id="filterResponsable" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
-  <button class="filter-icon" title="Filtros avanzados">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+  <button class="filter-icon" title="Limpiar filtros" onclick="clearFilters()">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
   </button>
 </div>
 
@@ -1028,7 +1042,9 @@
           </td>
           <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
-            <span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">${e.imagenes_count > 0 ? 'VER' : 'SUBIR'}</span>
+            <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
@@ -1085,6 +1101,7 @@
     
     // Posicionar editor al lado derecho del botón
     editor.style.display = 'block';
+    document.body.classList.add('editor-open');
     editor.style.top = rect.top + 'px';
     editor.style.left = rect.left + rect.width + 8 + 'px';
     editor.style.width = '300px';
@@ -1186,6 +1203,7 @@
     // IMPORTANTE: position fixed usa coordenadas de viewport, getBoundingClientRect también,
     // así que NO se suma window.scrollY/X
     editor.style.display = 'block';
+    document.body.classList.add('editor-open');
     editor.style.top = rect.top + 'px';
     editor.style.left = rect.left + 'px';
     editor.style.width = rect.width + 'px';
@@ -1284,6 +1302,7 @@
     isAdding = false;
     editor.innerHTML = '<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>';
     editor.classList.remove('select-mode');
+    document.body.classList.remove('editor-open');
   }
 
   // Guardar al presionar Enter
@@ -1515,6 +1534,7 @@
       currentEditType = 'text';
       
       editor.style.display = 'block';
+      document.body.classList.add('editor-open');
       editor.style.top = rect.top + 'px';
       editor.style.left = rect.left + 'px';
       editor.style.width = rect.width + 'px';
@@ -1565,6 +1585,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== ELIMINAR ======
   async function deleteError(id) { if (!confirm('¿Eliminar?')) return; const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); const result = await res.json(); if (result.status === 'success') loadErrores(); else alert(result.errors.join(', ')); }
   function applyFilters() { loadErrores(); }
+  
+  function clearFilters() {
+    document.getElementById('filterTipo').value = '';
+    document.getElementById('filterEstado').value = '';
+    document.getElementById('filterResponsable').value = '';
+    loadErrores();
+  }
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 
   // ====== MODAL IMÁGENES ======
