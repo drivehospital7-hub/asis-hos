@@ -840,7 +840,7 @@
 <div class="filters">
   <div class="search-wrapper">
     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input type="text" class="search-input" placeholder="Buscar por descripción, responsable o ID...">
+    <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción, responsable o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
   </div>
   <div class="filters__group">
     <label class="filters__label">Todas las categorías</label>
@@ -1584,6 +1584,71 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   // ====== ELIMINAR ======
   async function deleteError(id) { if (!confirm('¿Eliminar?')) return; const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); const result = await res.json(); if (result.status === 'success') loadErrores(); else alert(result.errors.join(', ')); }
+  function handleSearch() {
+    const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    const filtered = cachedErrores.filter(e => {
+      const factura = (e.factura || '').toLowerCase();
+      const observacion = (e.observacion || '').toLowerCase();
+      return factura.includes(query) || observacion.includes(query);
+    });
+    renderFilteredTable(filtered);
+  }
+  
+  function renderFilteredTable(errores) {
+    const tbody = document.getElementById('erroresBody');
+    let html = '';
+    
+    if (!errores || errores.length === 0) {
+      html += '<tr><td colspan="7" class="empty-state">No se encontraron resultados</td></tr>';
+    } else {
+      errores.forEach(e => {
+        let categoryClass = 'clinico';
+        const tipo = e.tipo_error.toLowerCase();
+        if (tipo.includes('farmaco')) categoryClass = 'farmacologico';
+        else if (tipo.includes('admin')) categoryClass = 'administrativo';
+        else if (tipo.includes('equip')) categoryClass = 'equipamiento';
+        else if (tipo.includes('comunic')) categoryClass = 'comunicacion';
+        
+        const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
+        
+        html += `<tr>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
+            <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
+          </td>
+          <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
+            <span class="category-badge category-badge--${categoryClass}">${escapeHtml(e.tipo_error)}</span>
+          </td>
+          <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
+            <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
+            <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            </button>
+          </td>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">
+            <div style="display: flex; align-items: center;">
+              <span class="avatar-initials">${initials}</span>
+              <span>${escapeHtml(e.responsable)}</span>
+            </div>
+          </td>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
+            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
+          </td>
+          <td class="table-actions">
+            <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
+            <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+            </button>
+          </td>
+        </tr>`;
+      });
+    }
+    
+    tbody.innerHTML = html;
+  }
+  
   function applyFilters() { loadErrores(); }
   
   function clearFilters() {
