@@ -832,7 +832,7 @@
     <thead>
       <tr>
         <th>Factura</th>
-        <th>Fecha</th>
+        <th>Creado</th>
         <th>Categoría</th>
         <th>Descripción</th>
         <th>Responsable</th>
@@ -937,8 +937,26 @@
   function formatFecha(iso) {
     if (!iso) return '-';
     const d = new Date(iso);
+    const now = new Date();
+    
+    // Normalizar a medianoche para comparar fechas
+    const fecha = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const hoy = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const diffDays = Math.floor((hoy - fecha) / (1000 * 60 * 60 * 24));
+    
+    // Mismo día
+    if (diffDays === 0) return 'Hoy';
+    
+    // Ayer
+    if (diffDays === 1) return 'Ayer';
+    
+    // 2 a 6 días
+    if (diffDays >= 2 && diffDays < 7) return `Hace ${diffDays} días`;
+    
+    // +7 días: fecha precisa
     const mes = d.toLocaleDateString('es-CO', { month: 'long' });
-    return `${mes.charAt(0).toUpperCase() + mes.slice(1)} ${d.getDate()}`;
+    return `${d.getDate()} ${mes.charAt(0).toUpperCase() + mes.slice(1)}`;
   }
 
   function renderTable() {
