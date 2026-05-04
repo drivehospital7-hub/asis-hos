@@ -371,6 +371,8 @@
   /* Scroll deshabilitado cuando editor está abierto */
   body.editor-open {
     overflow: hidden !important;
+    /*补偿滚动条宽度，防止内容移动*/
+    padding-right: 17px;
   }
 
   /* Editor global - fuera de la tabla */
@@ -909,6 +911,7 @@
   let opciones = { tipos_error: [], estados: [], responsables: [] };
   let cachedErrores = [];
   let isAdding = false;
+  let isDragging = false; // Para detectar drag de texto
 
   function parsearFacturas(f) {
     if (!f) return [];
@@ -1116,8 +1119,10 @@
       style="width:100%;min-height:100%;padding:0.5rem;border:none;background:#fef9c3;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;" 
       placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea>`;
     
-    // Guardar cuando se hace click fuera
+    // Guardar cuando se hace click fuera (solo si no es drag)
     const handleClickOutside = (e) => {
+      // Si se estaba haciendo drag, no cerrar
+      if (isDragging) return;
       if (!editor.contains(e.target) && !btn.contains(e.target)) {
         document.removeEventListener('click', handleClickOutside);
         saveFacturadorEditor(errorId);
@@ -1129,6 +1134,7 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('click', handleClickOutside);
         saveFacturadorEditor(errorId);
       }
       if (e.key === 'Escape') {
@@ -1300,6 +1306,7 @@
     currentEditId = null;
     currentEditType = null;
     isAdding = false;
+    isDragging = false; // Reset drag flag
     editor.innerHTML = '<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>';
     editor.classList.remove('select-mode');
     document.body.classList.remove('editor-open');
@@ -1321,8 +1328,15 @@
     }
   });
 
-  // Guardar al hacer click fuera
+  // Detectar drag para texto
+  document.addEventListener('mousedown', () => { isDragging = false; });
+  document.addEventListener('mousemove', () => { isDragging = true; });
+  
+  // Guardar al hacer click fuera (solo si no es drag)
   document.addEventListener('click', (e) => {
+    // Si se estaba haciendo drag, no cerrar
+    if (isDragging) return;
+    
     const table = document.getElementById('erroresTable');
     const btnAdd = document.querySelector('.page-header .btn--primary');
     
