@@ -1085,8 +1085,8 @@
     
     // Posicionar editor al lado derecho del botón
     editor.style.display = 'block';
-    editor.style.top = rect.top + window.scrollY + 'px';
-    editor.style.left = rect.left + rect.width + 8 + window.scrollX + 'px';
+    editor.style.top = rect.top + 'px';
+    editor.style.left = rect.left + rect.width + 8 + 'px';
     editor.style.width = '300px';
     editor.style.height = '120px';
     editor.style.minHeight = '120px';
@@ -1183,10 +1183,11 @@
     isAdding = isNew;
 
     // Posicionar editor exactamente encima de la celda
-    // IMPORTANTE: sumar window.scrollY y window.scrollX para que considere el scroll del wrapper
+    // IMPORTANTE: position fixed usa coordenadas de viewport, getBoundingClientRect también,
+    // así que NO se suma window.scrollY/X
     editor.style.display = 'block';
-    editor.style.top = rect.top + window.scrollY + 'px';
-    editor.style.left = rect.left + window.scrollX + 'px';
+    editor.style.top = rect.top + 'px';
+    editor.style.left = rect.left + 'px';
     editor.style.width = rect.width + 'px';
     // Selects tienen altura fija, texto también
     editor.style.height = rect.height + 'px';
@@ -1514,8 +1515,8 @@
       currentEditType = 'text';
       
       editor.style.display = 'block';
-      editor.style.top = rect.top + window.scrollY + 'px';
-      editor.style.left = rect.left + window.scrollX + 'px';
+      editor.style.top = rect.top + 'px';
+      editor.style.left = rect.left + 'px';
       editor.style.width = rect.width + 'px';
       editor.style.height = rect.height + 'px';
       
