@@ -78,6 +78,7 @@ def crear_error(
     observacion: str,
     estado: str,
     responsable: str,
+    observacion_facturador: str = "",
 ) -> dict[str, Any]:
     """Crear un nuevo error."""
     data = _leer_datos()
@@ -87,6 +88,7 @@ def crear_error(
         "tipo_error": tipo_error,
         "factura": factura,
         "observacion": observacion,
+        "observacion_facturador": observacion_facturador,
         "estado": estado,
         "responsable": responsable,
         "creado_en": datetime.now().isoformat(),
@@ -114,6 +116,7 @@ def actualizar_error(
     tipo_error: str | None = None,
     factura: str | None = None,
     observacion: str | None = None,
+    observacion_facturador: str | None = None,
     estado: str | None = None,
     responsable: str | None = None,
 ) -> dict[str, Any] | None:
@@ -128,6 +131,8 @@ def actualizar_error(
                 error["factura"] = factura
             if observacion is not None:
                 error["observacion"] = observacion
+            if observacion_facturador is not None:
+                error["observacion_facturador"] = observacion_facturador
             if estado is not None:
                 error["estado"] = estado
             if responsable is not None:

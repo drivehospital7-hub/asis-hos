@@ -60,10 +60,11 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
         tipo_error = data.get("tipo_error", "").strip() or "Contrato"
         factura = data.get("factura", "").strip() or ""
         observacion = data.get("observacion", "").strip() or ""
+        observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
 
-        nuevo = crear_error(tipo_error, factura, observacion, estado, responsable)
+        nuevo = crear_error(tipo_error, factura, observacion, estado, responsable, observacion_facturador)
         logger.info("Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}
     except Exception as e:
@@ -81,6 +82,7 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         tipo_error = data.get("tipo_error", "").strip()
         factura = data.get("factura", "").strip()
         observacion = data.get("observacion", "").strip()
+        observacion_facturador = data.get("observacion_facturador", "").strip()
         estado = data.get("estado", "").strip()
         responsable = data.get("responsable", "").strip()
 
@@ -89,6 +91,7 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
             tipo_error=tipo_error or None,
             factura=factura or None,
             observacion=observacion or None,
+            observacion_facturador=observacion_facturador or None,
             estado=estado or None,
             responsable=responsable or None,
         )

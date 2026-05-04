@@ -8,7 +8,7 @@
   @media print {
     .table-wrapper { overflow: visible; max-width: 70rem; }
     .table { width: 100%; font-size: 10px; }
-    .table th, .table td { padding: 4px; }
+    .table th, .table td { padding: 1px 3px; }
   }
   .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: var(--space-lg); }
   .page-title { font-size: var(--font-size-2xl); font-weight: 600; margin: 0; }
@@ -25,12 +25,15 @@
   .table thead th:nth-child(5) { width: 16%; }
   .table thead th:nth-child(6) { width: 10%; }
   .table thead th:nth-child(7) { width: 10%; }
+  .table thead th:nth-child(8) { width: 10%; }
 .table-actions { font-size: var(--font-size-xs); text-align: center; }
 .table-actions .btn { margin: 0; }
 .fecha-creado { font-size: var(--font-size-xs); color: var(--color-text-muted); text-align: center; }
   .btn--small { padding: 0.25rem 0.5rem; font-size: var(--font-size-xs); }
   .btn--danger { background-color: var(--color-error-bg); border-color: var(--color-error-border); color: var(--color-error-text); }
   .btn--danger:hover { background-color: #fee2e2; }
+  .btn--trash { background: transparent; border: none; color: #94a3b8; cursor: pointer; padding: 4px; display: flex; align-items: center; justify-content: center; border-radius: 4px; transition: all 0.15s ease; }
+  .btn--trash:hover { color: #ef4444; background: #fef2f2; }
   .empty-state { text-align: center; padding: var(--space-xl); color: var(--color-text-muted); }
 
   /* Icono hover en celda observación */
@@ -197,9 +200,9 @@
   .inline-input, .inline-select {
     width: 100%;
     height: 100%;
-    padding: 0.5rem 0.75rem;
+    padding: 0.15rem 0.25rem;
     border: none;
-    font-size: 13px;
+    font-size: 12px;
     background: transparent;
     box-sizing: border-box;
   }
@@ -218,11 +221,14 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 150px;
-    height: 28px;
-    line-height: 28px;
+    height: 20px;
+    line-height: 20px;
   }
   /* Campo observación más grande */
   .editable-cell[data-field="observacion"], .new-row-cell[data-field="observacion"] {
+    max-width: 300px;
+  }
+  .editable-cell[data-field="observacion_facturador"], .new-row-cell[data-field="observacion_facturador"] {
     max-width: 300px;
   }
   .editable-cell:hover, .new-row-cell:hover {
@@ -271,9 +277,9 @@
 <div class="table-wrapper">
   <table class="table" id="erroresTable">
     <thead>
-      <tr><th>Tipo de Error</th><th>Factura</th><th>Observación</th><th>Pendiente</th><th>Responsable</th><th>Creado</th><th>Acciones</th></tr>
+      <tr><th>Tipo de Error</th><th>Factura</th><th>Observación</th><th>Observación Facturador</th><th>Pendiente</th><th>Responsable</th><th>Creado</th><th></th></tr>
     </thead>
-    <tbody id="erroresBody"><tr><td colspan="7" class="empty-state">Cargando...</td></tr></tbody>
+    <tbody id="erroresBody"><tr><td colspan="8" class="empty-state">Cargando...</td></tr></tbody>
   </table>
 </div>
 
@@ -384,6 +390,7 @@
         <td data-type="select" data-field="tipo_error"><span class="editable-cell">Contrato</span></td>
         <td data-type="text" data-field="factura"><input type="text" id="newFactura" class="inline-input" placeholder="Número" style="width:100%;padding:0.25rem;box-sizing:border-box;"></td>
         <td data-type="text" data-field="observacion"><input type="text" id="newObservacion" class="inline-input" placeholder="Obs" style="width:100%;padding:0.25rem;box-sizing:border-box;"></td>
+        <td data-type="text" data-field="observacion_facturador"><input type="text" id="newObservacionFacturador" class="inline-input" placeholder="Obs Fact" style="width:100%;padding:0.25rem;box-sizing:border-box;"></td>
         <td data-type="select" data-field="estado"><span class="editable-cell">S</span></td>
         <td data-type="select" data-field="responsable"><select id="newResponsable" class="inline-select" style="width:100%;padding:0.25rem;box-sizing:border-box;"><option value="">Seleccionar...</option>${opciones.responsables.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}</select></td>
         <td class="table-actions"><button class="btn btn--small btn--primary" onclick="saveNewRow()">Guardar</button><button class="btn btn--small" onclick="cancelNewRow()">Cancelar</button></td>
@@ -391,7 +398,7 @@
     }
 
     if (!cachedErrores || cachedErrores.length === 0) {
-      if (!isAdding) html += '<tr><td colspan="7" class="empty-state">No hay errores</td></tr>';
+      if (!isAdding) html += '<tr><td colspan="8" class="empty-state">No hay errores</td></tr>';
     } else {
       cachedErrores.forEach(e => {
         // Solo celdas clickeables - el editor global flota encima
@@ -399,10 +406,11 @@
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">${escapeHtml(e.tipo_error)}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">${escapeHtml(e.factura)}</td>
           <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)"><span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span><span class="obs-img-text" onclick="event.stopPropagation(); openImageModal('${e.id}')">${e.imagenes_count > 0 ? 'VER' : 'SUBIR'}</span></td>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="observacion_facturador" onclick="handleCellClick(this)">${escapeHtml(e.observacion_facturador||'-')}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)"><span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'S':'N'}</span></td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" onclick="handleCellClick(this)">${escapeHtml(e.responsable)}</td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
-          <td class="table-actions"><button class="btn btn--small btn--danger" onmousedown="event.stopPropagation(); deleteError('${e.id}')">Eliminar</button></td>
+          <td class="table-actions"><button class="btn--trash" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></button></td>
         </tr>`;
       });
     }
@@ -613,7 +621,7 @@
           }
         }
       }
-      var data = { tipo_error: 'Contrato', factura: factura, observacion: '', estado: 'S', responsable: '' };
+      var data = { tipo_error: 'Contrato', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       updateBackend(currentEditId, field, newValue);
@@ -627,6 +635,7 @@
     return {
       tipo_error: 'Contrato',
       observacion: '',
+      observacion_facturador: '',
       estado: 'S',
       responsable: ''
     };
@@ -676,6 +685,7 @@
         tipo_error: 'Contrato',
         factura: field === 'factura' ? newValue : '',
         observacion: '',
+        observacion_facturador: '',
         estado: 'S',
         responsable: ''
       };
@@ -715,6 +725,7 @@
         tipo_error: field === 'tipo_error' ? value : error.tipo_error,
         factura: field === 'factura' ? value : error.factura,
         observacion: field === 'observacion' ? value : error.observacion,
+        observacion_facturador: field === 'observacion_facturador' ? value : (error.observacion_facturador || ''),
         estado: field === 'estado' ? value : error.estado,
         responsable: field === 'responsable' ? value : error.responsable
       };
@@ -746,6 +757,7 @@
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Contrato</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
+      <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion_facturador" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
@@ -782,7 +794,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (dup.length && !confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Contrato', factura: factura, observacion: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Contrato', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
@@ -795,6 +807,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       tipo_error: document.getElementById('editTipoError')?.value || 'Contrato', 
       factura: document.getElementById('editFactura')?.value?.trim() || '', 
       observacion: document.getElementById('editObservacion')?.value?.trim() || '', 
+      observacion_facturador: document.getElementById('editObservacionFacturador')?.value?.trim() || '', 
       estado: document.getElementById('editEstado')?.value || 'Pendiente', 
       responsable: document.getElementById('editResponsable')?.value || '' 
     };
