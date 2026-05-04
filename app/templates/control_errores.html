@@ -784,6 +784,104 @@
     outline: 2px solid #3b82f6;
     outline-offset: 2px;
   }
+  
+  /* Month tabs - compacto */
+  .month-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    padding-bottom: 0;
+  }
+  
+  .month-tab {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: #64748b;
+    background: none;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    border-radius: 6px 6px 0 0;
+  }
+  
+  .month-tab:hover {
+    color: #3b82f6;
+    background: #f8fafc;
+  }
+  
+  .month-tab.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+    font-weight: 600;
+    background: #eff6ff;
+  }
+  
+  .month-tab .badge-count {
+    display: inline-block;
+    margin-left: 0.25rem;
+    padding: 0.0625rem 0.3125rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    border-radius: 9999px;
+    color: #64748b;
+  }
+  
+  .month-tab.active .badge-count {
+    background: #dbeafe;
+    color: #3b82f6;
+  }
+  
+  /* Pagination */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1.5rem;
+    padding: 1rem 0;
+  }
+  
+  .pagination-btn {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #64748b;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  
+  .pagination-btn:hover:not(:disabled) {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+    color: #3b82f6;
+  }
+  
+  .pagination-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  
+  .pagination-btn.active {
+    background: #3b82f6;
+    color: white;
+    border-color: #3b82f6;
+  }
+  
+  .pagination-info {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0 0.5rem;
+  }
 </style>
 {% endblock %}
 
@@ -802,6 +900,9 @@
     <button class="btn btn--primary" onclick="addNewRow()">Agregar Error</button>
   </div>
 </div>
+
+<!-- Month Tabs -->
+<div class="month-tabs" id="monthTabs"></div>
 
 <!-- Stats Cards -->
 <div class="stats-grid">
@@ -878,6 +979,9 @@
   </table>
 </div>
 
+<!-- Pagination -->
+<div class="pagination" id="pagination"></div>
+
 <!-- Editor global - vive fuera de la tabla -->
 <div id="global-editor">
   <input type="text" id="editor-input">
@@ -912,6 +1016,9 @@
   let cachedErrores = [];
   let isAdding = false;
   let isDragging = false; // Para detectar drag de texto
+  let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
+  const ITEMS_PER_PAGE = 20;
+  let currentPage = 1;
 
   function parsearFacturas(f) {
     if (!f) return [];
@@ -946,6 +1053,71 @@
     }
   }
 
+  // ====== MONTH TABS ======
+  function getCurrentMonth() {
+    const now = new Date();
+    return now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  }
+  
+  function formatMonthLabel(year, month) {
+    const months = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    return months[month - 1] + ' ' + year;
+  }
+  
+  function generateMonthTabs() {
+    const now = new Date();
+    let tabs = [];
+    
+    // Generar tabs de los últimos 6 meses en orden cronológico (más reciente primero)
+    for (let i = 0; i < 6; i++) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const year = d.getFullYear();
+      const month = d.getMonth() + 1;
+      const monthKey = year + '-' + String(month).padStart(2, '0');
+      const label = formatMonthLabel(year, month);
+      
+      // Contar errores de este mes
+      const count = cachedErrores.filter(e => {
+        if (!e.creado_en) return false;
+        const creado = new Date(e.creado_en);
+        return creado.getFullYear() === year && (creado.getMonth() + 1) === month;
+      }).length;
+      
+      tabs.push({ key: monthKey, label, count, isActive: monthKey === currentMonth });
+    }
+    
+    // Ordenar por fecha (más reciente primero), mantener el orden cronológico
+    // El activo ya está en su posición correcta, solo marcarlo visualmente
+    let tabsHtml = tabs.map(t => 
+      `<button class="month-tab ${t.isActive ? 'active' : ''}" onclick="selectMonth('${t.key}')">
+        ${t.label}<span class="badge-count">${t.count}</span>
+      </button>`
+    ).join('');
+    
+    document.getElementById('monthTabs').innerHTML = tabsHtml;
+  }
+  
+  function selectMonth(monthKey) {
+    currentMonth = monthKey;
+    currentPage = 1; // Reset a primera página
+    generateMonthTabs();
+    // La tabla ya se renderiza con cachedErrores, filtramos visualmente
+    renderFilteredByMonth();
+    updateStats();
+  }
+  
+  function renderFilteredByMonth() {
+    const filtered = cachedErrores.filter(e => {
+      if (!e.creado_en) return false;
+      const creado = new Date(e.creado_en);
+      const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
+      return monthKey === currentMonth;
+    });
+    renderFilteredTable(filtered);
+    updateStats();
+  }
+  
+  // ====== LOAD ERRORES ======
   async function loadErrores() {
     const url = '/api/control-errores?' + 
       'tipo_error=' + encodeURIComponent(document.getElementById('filterTipo').value) +
@@ -965,7 +1137,9 @@
         return matches || [];
       });
       console.log('Facturas parseadas:', facturasParseadas);
-      renderTable();
+      // Generar tabs y renderizar por mes actual
+      generateMonthTabs();
+      renderFilteredByMonth();
     }
   }
 
@@ -1077,9 +1251,17 @@
   }
   
   function updateStats() {
-    const total = cachedErrores.length;
-    const pendientes = cachedErrores.filter(e => e.estado === 'S').length;
-    const resueltos = cachedErrores.filter(e => e.estado === 'N').length;
+    // Filtrar solo errores del mes seleccionado
+    const erroresDelMes = cachedErrores.filter(e => {
+      if (!e.creado_en) return false;
+      const creado = new Date(e.creado_en);
+      const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
+      return monthKey === currentMonth;
+    });
+    
+    const total = erroresDelMes.length;
+    const pendientes = erroresDelMes.filter(e => e.estado === 'S').length;
+    const resueltos = erroresDelMes.filter(e => e.estado === 'N').length;
     
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-pendientes').textContent = pendientes;
@@ -1599,8 +1781,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== ELIMINAR ======
   async function deleteError(id) { if (!confirm('¿Eliminar?')) return; const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); const result = await res.json(); if (result.status === 'success') loadErrores(); else alert(result.errors.join(', ')); }
   function handleSearch() {
+    currentPage = 1; // Reset a primera página al buscar
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
-    const filtered = cachedErrores.filter(e => {
+    // Primero filtrar por mes
+    const erroresDelMes = cachedErrores.filter(e => {
+      if (!e.creado_en) return false;
+      const creado = new Date(e.creado_en);
+      const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
+      return monthKey === currentMonth;
+    });
+    // Luego por búsqueda
+    const filtered = erroresDelMes.filter(e => {
       const factura = (e.factura || '').toLowerCase();
       const observacion = (e.observacion || '').toLowerCase();
       return factura.includes(query) || observacion.includes(query);
@@ -1612,10 +1803,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const tbody = document.getElementById('erroresBody');
     let html = '';
     
+    // Paginación
+    const totalItems = errores.length;
+    const totalPages = Math.ceil(totalItems / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const endIndex = startIndex + ITEMS_PER_PAGE;
+    const pageItems = errores.slice(startIndex, endIndex);
+    
     if (!errores || errores.length === 0) {
       html += '<tr><td colspan="7" class="empty-state">No se encontraron resultados</td></tr>';
     } else {
-      errores.forEach(e => {
+      pageItems.forEach(e => {
         let categoryClass = 'clinico';
         const tipo = e.tipo_error.toLowerCase();
         if (tipo.includes('farmaco')) categoryClass = 'farmacologico';
@@ -1661,6 +1859,49 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     }
     
     tbody.innerHTML = html;
+    
+    // Renderizar paginación
+    renderPagination(totalPages, totalItems);
+  }
+  
+  function renderPagination(totalPages, totalItems) {
+    const paginationEl = document.getElementById('pagination');
+    if (totalPages <= 1) {
+      paginationEl.innerHTML = '';
+      return;
+    }
+    
+    let html = '';
+    
+    // Botón anterior
+    html += `<button class="pagination-btn" onclick="goToPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}>‹</button>`;
+    
+    // Números de página (máximo 5 visibles)
+    let startPage = Math.max(1, currentPage - 2);
+    let endPage = Math.min(totalPages, startPage + 4);
+    if (endPage - startPage < 4) {
+      startPage = Math.max(1, endPage - 4);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+      html += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+    }
+    
+    // Botón siguiente
+    html += `<button class="pagination-btn" onclick="goToPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}>›</button>`;
+    
+    // Info
+    const start = (currentPage - 1) * ITEMS_PER_PAGE + 1;
+    const end = Math.min(currentPage * ITEMS_PER_PAGE, totalItems);
+    html += `<span class="pagination-info">${start}-${end} de ${totalItems}</span>`;
+    
+    paginationEl.innerHTML = html;
+  }
+  
+  function goToPage(page) {
+    currentPage = page;
+    // Volver a aplicar el filtro de mes
+    renderFilteredByMonth();
   }
   
   function applyFilters() { loadErrores(); }
