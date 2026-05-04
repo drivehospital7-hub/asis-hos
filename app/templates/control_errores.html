@@ -576,6 +576,24 @@
     color: #ef4444;
   }
   
+  .action-icon--add-note {
+    color: #64748b;
+  }
+  
+  .action-icon--add-note:hover {
+    background: #dbeafe;
+    color: #3b82f6;
+  }
+  
+  .action-icon--add-note.has-note {
+    color: #f59e0b;
+  }
+  
+  .action-icon--add-note.has-note:hover {
+    background: #fef3c7;
+    color: #d97706;
+  }
+  
   /* Category badges en tabla */
   .category-badge {
     display: inline-block;
@@ -1022,6 +1040,9 @@
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
           </td>
           <td class="table-actions">
+            <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </button>
             <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
@@ -1044,6 +1065,98 @@
     document.getElementById('stat-total').textContent = total;
     document.getElementById('stat-pendientes').textContent = pendientes;
     document.getElementById('stat-resueltos').textContent = resueltos;
+  }
+
+  // ====== EDITOR FACTURADOR (flotante al lado del botón +) ======
+  function openFacturadorEditor(errorId, btn) {
+    // Si ya hay un editor abierto, guardar primero
+    if (currentEditId) {
+      saveFromEditorWithCallback(() => openFacturadorEditorImpl(errorId, btn));
+      return;
+    }
+    openFacturadorEditorImpl(errorId, btn);
+  }
+
+  function openFacturadorEditorImpl(errorId, btn) {
+    const rect = btn.getBoundingClientRect();
+    currentEditId = errorId;
+    currentEditType = 'text';
+    currentCell = null; // No hay celda específica, usaremos el editor de forma independiente
+    
+    // Posicionar editor al lado derecho del botón
+    editor.style.display = 'block';
+    editor.style.top = rect.top + window.scrollY + 'px';
+    editor.style.left = rect.left + rect.width + 8 + window.scrollX + 'px';
+    editor.style.width = '300px';
+    editor.style.height = '120px';
+    editor.style.minHeight = '120px';
+    
+    // Obtener el valor actual de observacion_facturador
+    const error = cachedErrores.find(e => e.id === errorId);
+    const currentValue = error ? (error.observacion_facturador || '') : '';
+    
+    editor.innerHTML = `<textarea id="editor-input" 
+      style="width:100%;min-height:100%;padding:0.5rem;border:none;background:#fef9c3;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;" 
+      placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea>`;
+    
+    // Guardar cuando se hace click fuera
+    const handleClickOutside = (e) => {
+      if (!editor.contains(e.target) && !btn.contains(e.target)) {
+        document.removeEventListener('click', handleClickOutside);
+        saveFacturadorEditor(errorId);
+      }
+    };
+    
+    // Guardar con Enter (Shift+Enter para nueva línea)
+    const handleKeydown = (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.removeEventListener('keydown', handleKeydown);
+        saveFacturadorEditor(errorId);
+      }
+      if (e.key === 'Escape') {
+        document.removeEventListener('keydown', handleKeydown);
+        document.removeEventListener('click', handleClickOutside);
+        closeEditor();
+      }
+    };
+    
+    setTimeout(() => {
+      document.addEventListener('click', handleClickOutside);
+      document.addEventListener('keydown', handleKeydown);
+      const textarea = editor.querySelector('textarea');
+      textarea.focus();
+    }, 10);
+  }
+
+  async function saveFacturadorEditor(errorId) {
+    const input = editor.querySelector('textarea');
+    if (!input) return;
+    
+    const newValue = input.value.trim();
+    const error = cachedErrores.find(e => e.id === errorId);
+    if (!error) return;
+    
+    // Solo actualizar si cambió
+    if (newValue !== (error.observacion_facturador || '')) {
+      const data = {
+        tipo_error: error.tipo_error,
+        factura: error.factura,
+        observacion: error.observacion,
+        observacion_facturador: newValue,
+        estado: error.estado,
+        responsable: error.responsable
+      };
+      
+      await fetch(`/api/control-errores/${errorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+    }
+    
+    closeEditor();
+    loadErrores();
   }
 
   // ====== EDITOR GLOBAL ======
@@ -1070,9 +1183,10 @@
     isAdding = isNew;
 
     // Posicionar editor exactamente encima de la celda
+    // IMPORTANTE: sumar window.scrollY y window.scrollX para que considere el scroll del wrapper
     editor.style.display = 'block';
-    editor.style.top = rect.top + 'px';
-    editor.style.left = rect.left + 'px';
+    editor.style.top = rect.top + window.scrollY + 'px';
+    editor.style.left = rect.left + window.scrollX + 'px';
     editor.style.width = rect.width + 'px';
     // Selects tienen altura fija, texto también
     editor.style.height = rect.height + 'px';
@@ -1382,13 +1496,12 @@
     const newRow = document.createElement('tr');
     newRow.id = 'new-row';
     newRow.innerHTML = `
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Contrato</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion_facturador" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Contrato</td>
+      <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
       <td class="table-actions"></td>
     `;
     tbody.insertBefore(newRow, tbody.firstChild);
