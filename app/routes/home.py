@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 home_bp = Blueprint("home", __name__)
 
 
-@home_bp.get("/")
+@home_bp.get("/dashboard")
 def home_page():
     """Pagina principal con las áreas de trabajo."""
     return render_template("home.html")

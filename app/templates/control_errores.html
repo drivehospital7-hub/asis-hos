@@ -890,7 +890,7 @@
   <div class="page-header-left">
     <p class="page-subtitle">Servicio de Urgencias</p>
     <h1 class="page-title">Control de Errores</h1>
-    <p class="page-description">Registro, seguimiento y resolución de incidencias clínicas y operativas.</p>
+    <p class="page-description">Registro, seguimiento y resolución de incidenciase en facturación</p>
   </div>
   <div class="page-header-actions">
     <button class="btn btn--secondary" onclick="exportToCSV()">
@@ -1919,8 +1919,27 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       return;
     }
     
+    // Filtrar solo errores del mes seleccionado
+    const erroresDelMes = cachedErrores.filter(e => {
+      if (!e.creado_en) return false;
+      const creado = new Date(e.creado_en);
+      const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
+      return monthKey === currentMonth;
+    });
+    
+    if (erroresDelMes.length === 0) {
+      alert('No hay errores en el mes seleccionado para exportar');
+      return;
+    }
+    
+    // Nombre del mes para el archivo
+    const [year, month] = currentMonth.split('-');
+    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+    const monthName = monthNames[parseInt(month) - 1];
+    const filename = `control-errores-${monthName}-${year}.csv`;
+    
     const headers = ['Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Estado'];
-    const rows = cachedErrores.map(e => {
+    const rows = erroresDelMes.map(e => {
       // Formatear fecha
       let fecha = '-';
       if (e.creado_en) {
@@ -1949,7 +1968,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `control-errores-${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', filename);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();

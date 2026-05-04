@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 control_errores_bp = Blueprint("control_errores", __name__)
 
 
-@control_errores_bp.get("/control-errores")
+@control_errores_bp.get("/")
 def control_errores_page():
     """Página principal del control de errores."""
     from flask import render_template
