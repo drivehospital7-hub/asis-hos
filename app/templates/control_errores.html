@@ -2255,6 +2255,44 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     } 
   });
 
+  // Pegar imagen del portapapeles al error activo
+  document.addEventListener('paste', async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    
+    let imageFile = null;
+    for (const item of items) {
+      if (item.type.startsWith('image/')) {
+        imageFile = item.getAsFile();
+        break;
+      }
+    }
+    if (!imageFile) return;
+    
+    // Subir al error que tenga el modal de imágenes abierto, o al que se está editando
+    const errorId = currentImageErrorId || (currentEditId !== 'new' ? currentEditId : null);
+    if (!errorId) return;
+    
+    e.preventDefault();
+    
+    const formData = new FormData();
+    formData.append('imagen', imageFile);
+    
+    try {
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes`, {
+        method: 'POST',
+        body: formData
+      });
+      if (res.ok) {
+        loadErrores();
+        // Si el modal de imágenes está abierto, recargarlo
+        if (currentImageErrorId) openImageModal(currentImageErrorId);
+      }
+    } catch (err) {
+      console.error('Error al pegar imagen:', err);
+    }
+  });
+
   loadOpciones().then(loadErrores);
 
   // ====== POLLING: Verificar cambios cada 3 segundos ======
