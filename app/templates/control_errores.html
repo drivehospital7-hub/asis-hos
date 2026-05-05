@@ -317,10 +317,9 @@
   /* Icono hover en celda observación */
 .obs-cell-wrapper {
     display: inline-block;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    width: calc(100% - 15px);
+    width: calc(100% - 20px);
+    white-space: normal;
+    word-break: break-word;
   }
   td.obs-cell {
     position: relative;
@@ -739,10 +738,7 @@
     height: 20px;
     line-height: 20px;
   }
-  /* Campo observación más grande */
-  .editable-cell[data-field="observacion"], .new-row-cell[data-field="observacion"] {
-    max-width: 300px;
-  }
+  /* Campo observación más grande - ocupa el espacio de la columna */
   .editable-cell[data-field="observacion_facturador"], .new-row-cell[data-field="observacion_facturador"] {
     max-width: 300px;
   }
