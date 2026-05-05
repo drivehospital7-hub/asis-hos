@@ -1298,45 +1298,6 @@
   }
 
   // Mostrar contenido sin login (solo lectura)
-  function showFacturadorReadOnly(errorId, btn) {
-    const error = cachedErrores.find(e => e.id === errorId);
-    const currentValue = error ? (error.observacion_facturador || '') : '';
-    if (!currentValue) return;
-
-    const rect = btn.getBoundingClientRect();
-    const tooltip = document.createElement('div');
-    tooltip.id = 'facturador-tooltip';
-    tooltip.style.cssText = `
-      position: fixed;
-      top: ${rect.top}px;
-      left: ${rect.left + rect.width + 8}px;
-      width: 300px;
-      max-height: 200px;
-      padding: 0.75rem;
-      background: #fef9c3;
-      border: 1px solid #fde047;
-      border-radius: 8px;
-      font-size: 13px;
-      font-family: inherit;
-      color: #1a1a1a;
-      overflow-y: auto;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      z-index: 9999;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    `;
-    tooltip.textContent = currentValue;
-    document.body.appendChild(tooltip);
-
-    const closeTooltip = (e) => {
-      if (!tooltip.contains(e.target) && !btn.contains(e.target)) {
-        tooltip.remove();
-        document.removeEventListener('click', closeTooltip);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeTooltip), 10);
-  }
-
   function openFacturadorEditorImpl(errorId, btn) {
     const rect = btn.getBoundingClientRect();
     currentEditId = errorId;
@@ -1434,18 +1395,63 @@
       return;
     }
 
-    // Si ya hay un editor abierto, guardar y luego editar la nueva celda
+    // Si ya hay un editor abierto
     if (currentEditId) {
-      saveFromEditorWithCallback(() => openEditor(td));
+      // Si currentCell es null → es editor de facturador, no de celda
+      if (!currentCell) {
+        saveFacturadorEditor(currentEditId);
+        setTimeout(() => openEditor(td), 10);
+      } else {
+        saveFromEditorWithCallback(() => openEditor(td));
+      }
     } else {
       openEditor(td);
     }
   }
 
-  // Mostrar descripción en tooltip readonly sin login (encima de la celda)
+// ====== READONLY TOOLTIP (descripción sin login) ======
+  // Estado único — evita race conditions con múltiples tooltips
+  let _obsTooltipOpen = false;
+  let _obsTooltipEl = null;
+  let _obsTooltipTd = null;
+
+  // Listener PERMANENTE (se agrega una sola vez)
+  document.addEventListener('click', function _obsTooltipHandler(e) {
+    if (!_obsTooltipOpen) return;
+    // Si el click es fuera del tooltip Y fuera de la celda que lo abrió → cerrar
+    if (!_obsTooltipEl.contains(e.target) && !_obsTooltipTd.contains(e.target)) {
+      _obsTooltipEl.remove();
+      _obsTooltipOpen = false;
+      _obsTooltipEl = null;
+      _obsTooltipTd = null;
+      document.body.style.overflow = '';
+    }
+  });
+  // Escape también cierra el tooltip
+  document.addEventListener('keydown', function _obsTooltipKeyHandler(e) {
+    if (e.key === 'Escape' && _obsTooltipOpen) {
+      _obsTooltipEl.remove();
+      _obsTooltipOpen = false;
+      _obsTooltipEl = null;
+      _obsTooltipTd = null;
+      document.body.style.overflow = '';
+    }
+  });
+
   function showObservacionReadOnly(td) {
     const text = td.querySelector('span')?.textContent || td.textContent;
     if (!text || text.trim() === 'ERR-') return;
+
+    // Cerrar tooltip anterior sin tocar overflow (el nuevo lo manejará)
+    if (_obsTooltipOpen) {
+      _obsTooltipEl.remove();
+      _obsTooltipEl = null;
+      _obsTooltipTd = null;
+      _obsTooltipOpen = false;
+    }
+
+    // Bloquear scroll SIEMPRE
+    document.body.style.overflow = 'hidden';
 
     const rect = td.getBoundingClientRect();
     const tooltip = document.createElement('div');
@@ -1455,30 +1461,28 @@
       left: ${rect.left}px;
       width: ${rect.width}px;
       height: ${rect.height}px;
-      padding: 0.5rem;
-      background: #f1f5f9;
-      border: 1px solid #cbd5e1;
+      padding: 0.5rem 0.75rem;
+      background: #ffffff;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
       border-radius: 4px;
-      font-size: inherit;
+      border: none;
+      outline: none;
+      font-size: 13px;
       font-family: inherit;
       color: #1a1a1a;
       overflow-y: auto;
       white-space: pre-wrap;
       word-wrap: break-word;
       z-index: 9999;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
       cursor: default;
+      align-content: center;
     `;
     tooltip.textContent = text;
     document.body.appendChild(tooltip);
 
-    const closeTooltip = (e) => {
-      if (!tooltip.contains(e.target) && !td.contains(e.target)) {
-        tooltip.remove();
-        document.removeEventListener('click', closeTooltip);
-      }
-    };
-    setTimeout(() => document.addEventListener('click', closeTooltip), 10);
+    _obsTooltipOpen = true;
+    _obsTooltipEl = tooltip;
+    _obsTooltipTd = td;
   }
 
   function openEditor(td, isNew = false) {
