@@ -252,10 +252,13 @@
   .table-actions { 
     font-size: 0.75rem; 
     text-align: center;
-    display: flex;
-    gap: 0.5rem;
-    justify-content: center;
-    align-items: center;
+    white-space: nowrap;
+  }
+  
+  .table-actions .action-icon {
+    display: inline-flex;
+    vertical-align: middle;
+    margin: 0 2px;
   }
   
   .table-actions .btn { margin: 0; }
