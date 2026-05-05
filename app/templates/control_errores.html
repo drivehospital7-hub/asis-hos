@@ -336,16 +336,28 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    pointer-events: auto;
+    z-index: 1;
+    filter: none !important;
+    -webkit-filter: none !important;
   }
-  
-  .obs-img-btn:hover {
+
+  .obs-img-btn:hover:not(.disabled-action) {
     background: #e0e7ff;
     color: #4338ca;
   }
-  /* Botón siempre visible si hay imágenes, mismo estilo */
-  td.obs-cell.has-images .obs-img-btn { display: flex; }
-  td.obs-cell:hover .obs-img-btn { display: flex; }
-  td.obs-cell.has-images .obs-img-btn { color: #4338ca; }
+  /* Botón siempre visible si hay imágenes y de color azul (alta especificidad) */
+  td.obs-cell.has-images .obs-img-btn,
+  td.obs-cell .obs-img-btn.always-enabled {
+    display: flex !important;
+    color: #3b82f6 !important;
+    filter: none !important;
+    -webkit-filter: none !important;
+    opacity: 1 !important;
+  }
+  td.obs-cell:hover .obs-img-btn {
+    display: flex;
+  }
 
   /* Modal imágenes */
   #image-modal { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 10000; }
@@ -569,43 +581,43 @@
     color: #64748b;
   }
   
-  .action-icon--view:hover {
+  .action-icon--view:hover:not(.disabled-action) {
     background: #f1f5f9;
     color: #475569;
   }
-  
+
   .action-icon--edit {
     color: #64748b;
   }
-  
-  .action-icon--edit:hover {
+
+  .action-icon--edit:hover:not(.disabled-action) {
     background: #dbeafe;
     color: #3b82f6;
   }
-  
+
   .action-icon--delete {
     color: #64748b;
   }
-  
-  .action-icon--delete:hover {
+
+  .action-icon--delete:hover:not(.disabled-action) {
     background: #fee2e2;
     color: #ef4444;
   }
-  
+
   .action-icon--add-note {
     color: #64748b;
   }
-  
-  .action-icon--add-note:hover {
+
+  .action-icon--add-note:hover:not(.disabled-action) {
     background: #dbeafe;
     color: #3b82f6;
   }
-  
+
   .action-icon--add-note.has-note {
     color: #f59e0b;
   }
-  
-  .action-icon--add-note.has-note:hover {
+
+  .action-icon--add-note.has-note:hover:not(.disabled-action) {
     background: #fef3c7;
     color: #d97706;
   }
@@ -725,15 +737,15 @@
   .editable-cell[data-field="observacion_facturador"], .new-row-cell[data-field="observacion_facturador"] {
     max-width: 300px;
   }
-  .editable-cell:hover, .new-row-cell:hover {
+  .editable-cell:hover:not(.disabled-action), .new-row-cell:hover:not(.disabled-action) {
     background-color: #f1f5f9;
   }
-  
+
   /* Select cells - indicación visual */
   .editable-cell[data-type="select"], .new-row-cell[data-type="select"] {
     background-color: transparent;
   }
-  .editable-cell[data-type="select"]:hover, .new-row-cell[data-type="select"]:hover {
+  .editable-cell[data-type="select"]:hover:not(.disabled-action), .new-row-cell[data-type="select"]:hover:not(.disabled-action) {
     background-color: #f1f5f9;
   }
 /* Celda Pendiente centrada */
@@ -897,7 +909,7 @@
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar
     </button>
-    <button class="btn btn--primary" onclick="addNewRow()">Agregar Error</button>
+    <button class="btn btn--primary" onclick="addNewRow()">Agregar Novedad</button>
   </div>
 </div>
 
@@ -970,8 +982,8 @@
         <th>Creado</th>
         <th>Categoría</th>
         <th>Descripción</th>
-        <th>Responsable</th>
-        <th>Estado</th>
+        <th>Facturador Cierra</th>
+        <th>Pendiente</th>
         <th>Acciones</th>
       </tr>
     </thead>
@@ -1140,6 +1152,8 @@
       // Generar tabs y renderizar por mes actual
       generateMonthTabs();
       renderFilteredByMonth();
+      // Re-aplicar estado disabled después de renderizar
+      updateDisabledState();
     }
   }
 
@@ -1916,6 +1930,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     currentPage = page;
     // Volver a aplicar el filtro de mes
     renderFilteredByMonth();
+    // Re-aplicar estado disabled después de cambiar página
+    updateDisabledState();
   }
   
   function applyFilters() { loadErrores(); }
@@ -2053,6 +2069,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   async function deleteImage(errorId, filename) {
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
     if (!confirm('¿Eliminar imagen?')) return;
     const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
     const result = await res.json();
@@ -2110,6 +2128,21 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (authed) {
       body.classList.add('auth-enabled');
       body.classList.remove('auth-disabled');
+      // Limpiar estados deshabilitados
+      document.querySelectorAll('.disabled-action').forEach(el => {
+        el.classList.remove('disabled-action');
+        el.style.pointerEvents = '';
+        el.style.opacity = '';
+      });
+      document.querySelectorAll('.disabled-action--has-img').forEach(el => {
+        el.classList.remove('disabled-action--has-img');
+      });
+      document.querySelectorAll('.always-enabled').forEach(el => {
+        el.classList.remove('always-enabled');
+      });
+      document.querySelectorAll('.page-header-actions button').forEach(btn => {
+        btn.classList.remove('disabled-action');
+      });
     } else {
       body.classList.remove('auth-enabled');
       body.classList.add('auth-disabled');
@@ -2123,9 +2156,16 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
         if (field !== 'estado' && field !== 'observacion_facturador') {
-          cell.classList.add('disabled-action');
-          cell.style.pointerEvents = 'none';
-          cell.style.opacity = '0.5';
+          const imgBtn = cell.querySelector('.obs-img-btn');
+          if (imgBtn) {
+            // Celda con ojito: solo deshabilitar el texto, NO el botón
+            cell.classList.add('disabled-action');
+            cell.classList.add('disabled-action--has-img');
+          } else {
+            cell.classList.add('disabled-action');
+            cell.style.pointerEvents = 'none';
+            cell.style.opacity = '0.5';
+          }
         }
       });
 
@@ -2136,9 +2176,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         cell.style.opacity = '0.5';
       });
 
-      // Deshabilitar botones de accion (imagenes, eliminar)
+      // Deshabilitar solo delete (view y edit siguen habilitados sin auth)
+      document.querySelectorAll('.action-icon--delete').forEach(btn => {
+        btn.classList.add('disabled-action');
+      });
+
+      // Habilitar siempre: observacion_facturador
       document.querySelectorAll('.action-icon--add-note').forEach(btn => {
-        // observacion_facturador SIEMPRE habilitado
         btn.classList.add('always-enabled');
       });
     }

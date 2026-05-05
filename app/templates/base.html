@@ -124,6 +124,8 @@
 
       // Click en "Mini.local"
       title.addEventListener('click', function(e) {
+        e.preventDefault(); // No navegar
+        e.stopPropagation(); // No bubbliar
         if (isAuth()) return; // Ya logueado, no abrir modal
         clickCount++;
         if (clickTimer) clearTimeout(clickTimer);

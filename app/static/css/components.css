@@ -97,7 +97,7 @@
   transition: all 0.15s ease;
 }
 
-.btn:hover {
+.btn:hover:not(.disabled-action) {
   background-color: var(--color-bg);
   border-color: var(--color-text-light);
 }
@@ -486,12 +486,20 @@
   filter: grayscale(0.5);
 }
 
+/* Celda disabled con ojito: NO aplica grayscale para no tapar el color del botón */
+.disabled-action--has-img {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
 .auth-disabled .disabled-action:hover,
 .disabled-action:hover {
-  background-color: inherit;
-  border-color: inherit;
-  box-shadow: none;
-  transform: none;
+  background-color: inherit !important;
+  border-color: inherit !important;
+  box-shadow: none !important;
+  transform: none !important;
+  color: inherit !important;
 }
 
 /* Excepciones: siempre habilitados aunque no haya auth */
@@ -500,7 +508,17 @@
   opacity: 1;
   pointer-events: auto;
   cursor: pointer;
-  filter: none;
+  filter: none !important;
+  color: inherit !important;
+}
+
+/* Obs-img-btn siempre visible con color (no grayscale) - alta especificidad para override */
+td.obs-cell .obs-img-btn {
+  filter: none !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  color: #3b82f6 !important;
+  display: flex !important;
 }
 
 /* Ocultar elementos que solo se ven con auth */
