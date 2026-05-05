@@ -2290,10 +2290,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         btn.classList.add('disabled-action');
       });
 
-      // Deshabilitar celdas editables (excepto estado, observacion_facturador y observacion)
+      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion y factura)
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
-        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion') {
+        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') {
           const imgBtn = cell.querySelector('.obs-img-btn');
           if (imgBtn) {
             // Celda con ojito: NO opacity, solo pointer-events none
