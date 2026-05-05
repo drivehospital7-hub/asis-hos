@@ -12,6 +12,9 @@ from app.constants import IMAGENES_DIR, IMAGENES_MAX_PER_OBSERVACION, IMAGENES_A
 
 logger = logging.getLogger(__name__)
 
+# Sentinel para distinguir "no proporcionado" de "vacío"
+_NOT_SET = object()
+
 DATA_DIR = Path(__file__).parent.parent / "data"
 ERRORES_FILE = DATA_DIR / "control_errores.json"
 IMAGENES_PATH = DATA_DIR / "imagenes"
@@ -135,29 +138,29 @@ def obtener_error(error_id: str) -> dict[str, Any] | None:
 
 def actualizar_error(
     error_id: str,
-    tipo_error: str | None = None,
-    factura: str | None = None,
-    observacion: str | None = None,
-    observacion_facturador: str | None = None,
-    estado: str | None = None,
-    responsable: str | None = None,
+    tipo_error: str | None = _NOT_SET,
+    factura: str | None = _NOT_SET,
+    observacion: str | None = _NOT_SET,
+    observacion_facturador: str | None = _NOT_SET,
+    estado: str | None = _NOT_SET,
+    responsable: str | None = _NOT_SET,
 ) -> dict[str, Any] | None:
     """Actualizar un error existente."""
     data = _leer_datos()
 
     for error in data.get("errores", []):
         if error.get("id") == error_id:
-            if tipo_error is not None:
+            if tipo_error is not _NOT_SET:
                 error["tipo_error"] = tipo_error
-            if factura is not None:
+            if factura is not _NOT_SET:
                 error["factura"] = factura
-            if observacion is not None:
+            if observacion is not _NOT_SET:
                 error["observacion"] = observacion
-            if observacion_facturador is not None:
+            if observacion_facturador is not _NOT_SET:
                 error["observacion_facturador"] = observacion_facturador
-            if estado is not None:
+            if estado is not _NOT_SET:
                 error["estado"] = estado
-            if responsable is not None:
+            if responsable is not _NOT_SET:
                 error["responsable"] = responsable
 
             error["actualizado_en"] = datetime.now().isoformat()

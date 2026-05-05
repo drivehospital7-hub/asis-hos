@@ -101,22 +101,22 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
-        tipo_error = data.get("tipo_error", "").strip()
-        factura = data.get("factura", "").strip()
-        observacion = data.get("observacion", "").strip()
-        observacion_facturador = data.get("observacion_facturador", "").strip()
-        estado = data.get("estado", "").strip()
-        responsable = data.get("responsable", "").strip()
+        # Solo procesar campos que vienen en el request
+        kwargs = {}
+        if "tipo_error" in data:
+            kwargs["tipo_error"] = data["tipo_error"].strip() if data["tipo_error"] else ""
+        if "factura" in data:
+            kwargs["factura"] = data["factura"].strip() if data["factura"] else ""
+        if "observacion" in data:
+            kwargs["observacion"] = data["observacion"].strip() if data["observacion"] else ""
+        if "observacion_facturador" in data:
+            kwargs["observacion_facturador"] = data["observacion_facturador"].strip() if data["observacion_facturador"] else ""
+        if "estado" in data:
+            kwargs["estado"] = data["estado"].strip() if data["estado"] else ""
+        if "responsable" in data:
+            kwargs["responsable"] = data["responsable"].strip() if data["responsable"] else ""
 
-        actualizado = actualizar_error(
-            error_id,
-            tipo_error=tipo_error or None,
-            factura=factura or None,
-            observacion=observacion or None,
-            observacion_facturador=observacion_facturador or None,
-            estado=estado or None,
-            responsable=responsable or None,
-        )
+        actualizado = actualizar_error(error_id, **kwargs)
 
         logger.info("Error actualizado: %s", error_id)
         return {"status": "success", "data": {"error": actualizado}, "errors": []}

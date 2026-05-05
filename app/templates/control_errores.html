@@ -1334,6 +1334,7 @@
     // Guardar con Enter (Shift+Enter para nueva línea)
     const handleKeydown = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
+        console.log('[facturador] Enter detectado, guardando...');
         e.preventDefault();
         document.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('click', handleClickOutside);
@@ -1355,30 +1356,35 @@
   }
 
   async function saveFacturadorEditor(errorId) {
+    console.log('[saveFacturador] llamado, errorId:', errorId);
     const input = editor.querySelector('textarea');
-    if (!input) return;
+    if (!input) { console.log('[saveFacturador] NO input, editor:', editor.innerHTML.substring(0, 50)); return; }
     
     const newValue = input.value.trim();
+    console.log('[saveFacturador] newValue:', JSON.stringify(newValue));
     const error = cachedErrores.find(e => e.id === errorId);
-    if (!error) return;
+    if (!error) { console.log('[saveFacturador] NO error en cache'); return; }
     
-    // Solo actualizar si cambió
-    if (newValue !== (error.observacion_facturador || '')) {
-      const data = {
-        tipo_error: error.tipo_error,
-        factura: error.factura,
-        observacion: error.observacion,
-        observacion_facturador: newValue,
-        estado: error.estado,
-        responsable: error.responsable
-      };
-      
-      await fetch(`/api/control-errores/${errorId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-      });
-    }
+    // Actualizar siempre el backend (incluso si se borró todo)
+    const data = {
+      tipo_error: error.tipo_error,
+      factura: error.factura,
+      observacion: error.observacion,
+      observacion_facturador: newValue,
+      estado: error.estado,
+      responsable: error.responsable
+    };
+    
+    console.log('[saveFacturador] enviando PUT:', JSON.stringify(data));
+    const resp = await fetch(`/api/control-errores/${errorId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    console.log('[saveFacturador] respuesta:', resp.status);
+    
+    // Actualizar cache local inmediatamente
+    error.observacion_facturador = newValue;
     
     closeEditor();
     loadErrores();
@@ -1657,6 +1663,8 @@
 
   function saveFromEditor() {
     if (!currentEditId) return;
+    // Editor de facturador abierto → no hacer nada (el save lo maneja saveFacturadorEditor)
+    if (!currentCell) return;
 
     let newValue = '';
     
