@@ -1757,6 +1757,8 @@
 
   function saveFromEditorWithCallback(callback) {
     if (!currentEditId) { callback(); return; }
+    // Editor de facturador abierto → no hacer nada
+    if (!currentCell) { callback(); return; }
 
     let newValue = '';
     
