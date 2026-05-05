@@ -318,8 +318,9 @@
 .obs-cell-wrapper {
     display: inline-block;
     width: calc(100% - 20px);
-    white-space: normal;
-    word-break: break-word;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   td.obs-cell {
     position: relative;
@@ -1415,8 +1416,14 @@
     const field = td.dataset.field;
     const authed = window.ceAuth && window.ceAuth.isAuth();
 
-    // Sin auth: observacion (descripcion) y factura muestran contenido en tooltip readonly
-    if (!authed && (field === 'observacion' || field === 'factura')) {
+    // Sin auth: observacion muestra tooltip readonly, con auth: puede editar
+    if (!authed && field === 'observacion') {
+      showObservacionReadOnly(td);
+      return;
+    }
+
+    // Factura sin auth: tooltip readonly
+    if (!authed && field === 'factura') {
       showObservacionReadOnly(td);
       return;
     }
@@ -1465,7 +1472,7 @@
 
   function showObservacionReadOnly(td) {
     const text = td.querySelector('span')?.textContent || td.textContent;
-    if (!text || text.trim() === 'ERR-') return;
+    if (!text || text.trim() === 'ERR-' || text.trim() === '-') return;
 
     // Cerrar tooltip anterior sin tocar overflow (el nuevo lo manejará)
     if (_obsTooltipOpen) {
@@ -1480,25 +1487,31 @@
 
     const rect = td.getBoundingClientRect();
     const tooltip = document.createElement('div');
+    
+    // Copiar estilos computados del td para que sea visualmente idéntico
+    const cs = getComputedStyle(td);
     tooltip.style.cssText = `
       position: fixed;
       top: ${rect.top}px;
       left: ${rect.left}px;
       width: ${rect.width}px;
-      padding: 0.5rem 0.75rem;
+      min-height: ${rect.height}px;
+      padding: ${cs.paddingTop} ${cs.paddingRight} ${cs.paddingBottom} ${cs.paddingLeft};
       background: #ffffff;
-      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
       border-radius: 4px;
       border: none;
       outline: none;
-      font-size: 13px;
-      font-family: inherit;
-      color: #1a1a1a;
+      box-sizing: border-box;
+      font-size: ${cs.fontSize};
+      font-family: ${cs.fontFamily};
+      color: ${cs.color};
+      font-weight: ${cs.fontWeight};
+      line-height: ${cs.lineHeight};
       white-space: pre-wrap;
       word-wrap: break-word;
       z-index: 9999;
       cursor: default;
-      max-width: 600px;
     `;
     tooltip.textContent = text;
     document.body.appendChild(tooltip);
@@ -2294,11 +2307,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') {
           const imgBtn = cell.querySelector('.obs-img-btn');
           if (imgBtn) {
-            // Celda con ojito: NO opacity, solo pointer-events none
-            // para que el ojito mantenga su color azul
             cell.classList.add('disabled-action--has-img');
             cell.style.pointerEvents = 'none';
-            // Ojito clickeable para ver imágenes
             imgBtn.style.pointerEvents = 'auto';
             imgBtn.style.cursor = 'pointer';
           } else {
