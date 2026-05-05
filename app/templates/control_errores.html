@@ -1374,18 +1374,21 @@
     const error = cachedErrores.find(e => e.id === errorId);
     if (!error) return;
     
-    // Actualizar cache ANTES de cerrar (para que el polling no lo sobrescriba)
+    // Guardar valores ANTES de cerrar (el editor se reutiliza)
+    const saveData = { observacion_facturador: newValue };
+    const saveId = errorId;
+    
+    // Actualizar cache inmediatamente
     error.observacion_facturador = newValue;
     
     // Actualizar lastUpdate INMEDIATAMENTE para bloquear el polling
-    // (el polling no re-fetch hasta que pase 3s desde ahora)
     lastUpdate = new Date().toISOString();
     
     // Cerrar inmediatamente
     closeEditor();
     
     // Actualizar UI del botón de nota directamente en el DOM
-    const btn = document.querySelector(`.action-icon--add-note[onclick*="${errorId}"]`);
+    const btn = document.querySelector(`.action-icon--add-note[onclick*="${saveId}"]`);
     if (btn) {
       if (newValue) {
         btn.classList.add('has-note');
@@ -1396,14 +1399,14 @@
       }
     }
     
-    // Enviar SOLO el campo que cambió (el service ya soporta partial updates)
-    fetch(`/api/control-errores/${errorId}`, {
+    // Enviar SOLO el campo que cambió
+    console.log('[saveFacturador] enviando:', JSON.stringify(saveData), 'id:', saveId);
+    fetch(`/api/control-errores/${saveId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        observacion_facturador: newValue
-      })
-    }).catch(err => console.error('[saveFacturador] error:', err));
+      body: JSON.stringify(saveData)
+    }).then(r => console.log('[saveFacturador] respuesta:', r.status))
+      .catch(err => console.error('[saveFacturador] error:', err));
   }
 
   // ====== EDITOR GLOBAL ======
@@ -1419,13 +1422,98 @@
 
     // Si ya hay un editor abierto
     if (currentEditId) {
-      // Si currentCell es null → es editor de facturador, no de celda
+      // Si currentCell es null → es editor de facturador, solo guardar y cerrar
       if (!currentCell) {
         saveFacturadorEditor(currentEditId);
-        setTimeout(() => openEditor(td), 10);
+        return; // NO abrir el editor de la celda automáticamente
       } else {
         saveFromEditorWithCallback(() => openEditor(td));
       }
+    } else {
+      openEditor(td);
+    }
+  }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
+    } else {
+      openEditor(td);
+    }
     } else {
       openEditor(td);
     }
