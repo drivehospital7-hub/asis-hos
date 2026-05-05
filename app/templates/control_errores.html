@@ -1834,23 +1834,17 @@
     }
     try { var error = cachedErrores.find(function(e){return e.id===id}); if (!error) return;
       
-      const data = {
-        tipo_error: field === 'tipo_error' ? value : error.tipo_error,
-        factura: field === 'factura' ? value : error.factura,
-        observacion: field === 'observacion' ? value : error.observacion,
-        observacion_facturador: field === 'observacion_facturador' ? value : (error.observacion_facturador || ''),
-        estado: field === 'estado' ? value : error.estado,
-        responsable: field === 'responsable' ? value : error.responsable
-      };
+      // Actualizar cache inmediatamente
+      error[field] = value;
       
-      await fetch(`/api/control-errores/${id}`, {
+      // Enviar SOLO el campo que cambió (fire-and-forget)
+      const data = {};
+      data[field] = value;
+      fetch(`/api/control-errores/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      
-      // Recargar datos
-      loadErrores();
     } catch (e) {
       console.error('Error:', e);
     }
