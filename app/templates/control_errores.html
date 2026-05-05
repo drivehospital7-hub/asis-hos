@@ -1334,7 +1334,6 @@
     // Guardar con Enter (Shift+Enter para nueva línea)
     const handleKeydown = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
-        console.log('[facturador] Enter detectado, guardando...');
         e.preventDefault();
         document.removeEventListener('keydown', handleKeydown);
         document.removeEventListener('click', handleClickOutside);
@@ -1355,39 +1354,45 @@
     }, 10);
   }
 
-  async function saveFacturadorEditor(errorId) {
-    console.log('[saveFacturador] llamado, errorId:', errorId);
+  function saveFacturadorEditor(errorId) {
     const input = editor.querySelector('textarea');
-    if (!input) { console.log('[saveFacturador] NO input, editor:', editor.innerHTML.substring(0, 50)); return; }
+    if (!input) return;
     
     const newValue = input.value.trim();
-    console.log('[saveFacturador] newValue:', JSON.stringify(newValue));
     const error = cachedErrores.find(e => e.id === errorId);
-    if (!error) { console.log('[saveFacturador] NO error en cache'); return; }
+    if (!error) return;
     
-    // Actualizar siempre el backend (incluso si se borró todo)
-    const data = {
-      tipo_error: error.tipo_error,
-      factura: error.factura,
-      observacion: error.observacion,
-      observacion_facturador: newValue,
-      estado: error.estado,
-      responsable: error.responsable
-    };
-    
-    console.log('[saveFacturador] enviando PUT:', JSON.stringify(data));
-    const resp = await fetch(`/api/control-errores/${errorId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    console.log('[saveFacturador] respuesta:', resp.status);
+    // Cerrar inmediatamente (UX instantánea)
+    closeEditor();
     
     // Actualizar cache local inmediatamente
     error.observacion_facturador = newValue;
     
-    closeEditor();
-    loadErrores();
+    // Actualizar UI del botón sin re-fetch completo
+    const btn = document.querySelector(`[onclick*="${errorId}"]`);
+    if (btn) {
+      if (newValue) {
+        btn.classList.add('has-note');
+        btn.title = 'Ver/editar observación facturador';
+      } else {
+        btn.classList.remove('has-note');
+        btn.title = 'Agregar observación facturador';
+      }
+    }
+    
+    // Enviar al backend en background (fire-and-forget)
+    fetch(`/api/control-errores/${errorId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tipo_error: error.tipo_error,
+        factura: error.factura,
+        observacion: error.observacion,
+        observacion_facturador: newValue,
+        estado: error.estado,
+        responsable: error.responsable
+      })
+    }).catch(err => console.error('[saveFacturador] error:', err));
   }
 
   // ====== EDITOR GLOBAL ======
