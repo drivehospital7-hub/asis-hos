@@ -1295,7 +1295,12 @@
   function openFacturadorEditor(errorId, btn) {
     // Si ya hay un editor abierto, guardar primero
     if (currentEditId) {
-      saveFromEditorWithCallback(() => openFacturadorEditorImpl(errorId, btn));
+      if (!currentCell) {
+        // Editor de facturador abierto → guardar directamente
+        saveFacturadorEditor(currentEditId);
+      } else {
+        saveFromEditorWithCallback(() => openFacturadorEditorImpl(errorId, btn));
+      }
       return;
     }
     openFacturadorEditorImpl(errorId, btn);
@@ -1369,6 +1374,10 @@
     // Actualizar cache ANTES de cerrar (para que el polling no lo sobrescriba)
     error.observacion_facturador = newValue;
     
+    // Actualizar lastUpdate INMEDIATAMENTE para bloquear el polling
+    // (el polling no re-fetch hasta que pase 3s desde ahora)
+    lastUpdate = new Date().toISOString();
+    
     // Cerrar inmediatamente
     closeEditor();
     
@@ -1384,22 +1393,13 @@
       }
     }
     
-    // Enviar al backend y actualizar lastUpdate cuando termine
-    // (esto evita que el polling pise el cambio)
+    // Enviar SOLO el campo que cambió (el service ya soporta partial updates)
     fetch(`/api/control-errores/${errorId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        tipo_error: error.tipo_error,
-        factura: error.factura,
-        observacion: error.observacion,
-        observacion_facturador: newValue,
-        estado: error.estado,
-        responsable: error.responsable
+        observacion_facturador: newValue
       })
-    }).then(() => {
-      // Cuando el servidor guardó, actualizar lastUpdate para que el polling no re-fetch
-      lastUpdate = new Date().toISOString();
     }).catch(err => console.error('[saveFacturador] error:', err));
   }
 
