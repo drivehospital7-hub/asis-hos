@@ -4,6 +4,11 @@
 
 {% block head_extra %}
 <style>
+  /* Reservar espacio de scrollbar para evitar salto cuando se abre editor */
+  html {
+    scrollbar-gutter: stable;
+  }
+  
   /* Print styles */
   @media print {
     .table-wrapper { overflow: visible; max-width: 70rem; }
@@ -390,8 +395,6 @@
   /* Scroll deshabilitado cuando editor está abierto */
   body.editor-open {
     overflow: hidden !important;
-    /*补偿滚动条宽度，防止内容移动*/
-    padding-right: 17px;
   }
 
   /* Editor global - fuera de la tabla */
