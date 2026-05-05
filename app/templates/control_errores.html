@@ -1714,8 +1714,28 @@
     if (field === 'estado') {
       currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
     } else if (currentEditType === 'select') {
-      // Tipo error y responsable: texto normal pero con fondo
-      currentCell.innerHTML = newValue;
+      // Tipo error y responsable: actualizar el span existente sin reemplazar todo
+      const badge = currentCell.querySelector('.category-badge');
+      if (badge) {
+        // categoria: tiene category-badge span
+        badge.textContent = newValue;
+        badge.className = badge.className.replace(/category-badge--\w+/g, '');
+        const tipo = newValue.toLowerCase();
+        let catClass = 'clinico';
+        if (tipo.includes('farmaco')) catClass = 'farmacologico';
+        else if (tipo.includes('admin')) catClass = 'administrativo';
+        else if (tipo.includes('equip')) catClass = 'equipamiento';
+        else if (tipo.includes('comunic')) catClass = 'comunicacion';
+        badge.classList.add('category-badge--' + catClass);
+      } else {
+        // responsable: actualizar el texto del segundo span
+        const spans = currentCell.querySelectorAll('span');
+        if (spans.length > 1) {
+          spans[1].textContent = newValue;
+        } else {
+          currentCell.textContent = newValue;
+        }
+      }
     } else {
       currentCell.textContent = newValue || '-';
     }
@@ -1835,6 +1855,9 @@
       
       // Actualizar cache inmediatamente
       error[field] = value;
+      
+      // Actualizar lastUpdate para bloquear el polling
+      lastUpdate = new Date().toISOString();
       
       // Enviar SOLO el campo que cambió (fire-and-forget)
       const data = {};
