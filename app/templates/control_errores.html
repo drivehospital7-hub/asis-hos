@@ -1639,8 +1639,7 @@
     currentEditId = null;
     currentEditType = null;
     isAdding = false;
-    isDragging = false; // Reset drag flag
-    editor.innerHTML = '<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;"></textarea>';
+    isDragging = false;
     editor.classList.remove('select-mode');
     document.body.classList.remove('editor-open');
   }
