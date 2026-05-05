@@ -1299,8 +1299,11 @@
     // Si ya hay un editor abierto, guardar primero
     if (currentEditId) {
       if (!currentCell) {
-        // Editor de facturador abierto → guardar directamente
+        // Editor de facturador abierto → guardar primero, luego abrir el nuevo
         saveFacturadorEditor(currentEditId);
+        // saveFacturadorEditor llama closeEditor() que resetea currentEditId a null
+        // Ahora podemos abrir el nuevo editor
+        openFacturadorEditorImpl(errorId, btn);
       } else {
         saveFromEditorWithCallback(() => openFacturadorEditorImpl(errorId, btn));
       }
@@ -1367,6 +1370,11 @@
   }
 
   function saveFacturadorEditor(errorId) {
+    // Si currentEditId ya es null, el editor ya fue cerrado por otro save
+    if (!currentEditId) return;
+    // Si el errorId no coincide con el editor actual, es un llamado huérfano
+    if (errorId !== currentEditId) return;
+    
     const input = editor.querySelector('textarea');
     if (!input) return;
     
@@ -1400,13 +1408,11 @@
     }
     
     // Enviar SOLO el campo que cambió
-    console.log('[saveFacturador] enviando:', JSON.stringify(saveData), 'id:', saveId);
     fetch(`/api/control-errores/${saveId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(saveData)
-    }).then(r => console.log('[saveFacturador] respuesta:', r.status))
-      .catch(err => console.error('[saveFacturador] error:', err));
+    }).catch(err => console.error('[saveFacturador] error:', err));
   }
 
   // ====== EDITOR GLOBAL ======
