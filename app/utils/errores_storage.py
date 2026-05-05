@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 import shutil
+import tempfile
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -39,13 +40,24 @@ def _leer_datos() -> dict[str, list[dict[str, Any]]]:
 
 
 def _escribir_datos(data: dict[str, list[dict[str, Any]]]) -> None:
-    """Escribir datos al archivo JSON."""
+    """Escribir datos al archivo JSON de forma atómica (evita corrupción)."""
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
         # Actualizar timestamp de última modificación
         data["ultima_actualizacion"] = datetime.now().isoformat()
-        with open(ERRORES_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # Escritura atómica: escribir a temp, luego renombrar
+        fd, tmp_path = tempfile.mkstemp(dir=DATA_DIR, suffix=".tmp")
+        try:
+            with open(fd, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            Path(tmp_path).replace(ERRORES_FILE)
+        except:
+            # Limpiar temp file en caso de error
+            try:
+                Path(tmp_path).unlink(missing_ok=True)
+            except:
+                pass
+            raise
     except Exception as e:
         logger.exception("Error escribiendo archivo de errores")
         raise

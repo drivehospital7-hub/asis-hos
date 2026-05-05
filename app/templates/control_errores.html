@@ -1366,25 +1366,26 @@
     const error = cachedErrores.find(e => e.id === errorId);
     if (!error) return;
     
-    // Cerrar inmediatamente (UX instantánea)
-    closeEditor();
-    
-    // Actualizar cache local inmediatamente
+    // Actualizar cache ANTES de cerrar (para que el polling no lo sobrescriba)
     error.observacion_facturador = newValue;
     
-    // Actualizar UI del botón sin re-fetch completo
-    const btn = document.querySelector(`[onclick*="${errorId}"]`);
+    // Cerrar inmediatamente
+    closeEditor();
+    
+    // Actualizar UI del botón de nota directamente en el DOM
+    const btn = document.querySelector(`.action-icon--add-note[onclick*="${errorId}"]`);
     if (btn) {
       if (newValue) {
         btn.classList.add('has-note');
-        btn.title = 'Ver/editar observación facturador';
+        btn.style.setProperty('color', '#f59e0b', 'important');
       } else {
         btn.classList.remove('has-note');
-        btn.title = 'Agregar observación facturador';
+        btn.style.setProperty('color', '#64748b', 'important');
       }
     }
     
-    // Enviar al backend en background (fire-and-forget)
+    // Enviar al backend y actualizar lastUpdate cuando termine
+    // (esto evita que el polling pise el cambio)
     fetch(`/api/control-errores/${errorId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -1396,6 +1397,9 @@
         estado: error.estado,
         responsable: error.responsable
       })
+    }).then(() => {
+      // Cuando el servidor guardó, actualizar lastUpdate para que el polling no re-fetch
+      lastUpdate = new Date().toISOString();
     }).catch(err => console.error('[saveFacturador] error:', err));
   }
 
