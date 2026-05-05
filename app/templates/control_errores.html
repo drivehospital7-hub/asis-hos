@@ -1475,17 +1475,16 @@
       _obsTooltipOpen = false;
     }
 
-    // Bloquear scroll SIEMPRE
+    // Bloquear scroll del body
     document.body.style.overflow = 'hidden';
 
     const rect = td.getBoundingClientRect();
     const tooltip = document.createElement('div');
     tooltip.style.cssText = `
       position: fixed;
-      top: ${rect.top}px;
+      top: ${rect.bottom + 4}px;
       left: ${rect.left}px;
       width: ${rect.width}px;
-      height: ${rect.height}px;
       padding: 0.5rem 0.75rem;
       background: #ffffff;
       box-shadow: 0 4px 16px rgba(0,0,0,0.2);
@@ -1495,12 +1494,11 @@
       font-size: 13px;
       font-family: inherit;
       color: #1a1a1a;
-      overflow-y: auto;
       white-space: pre-wrap;
       word-wrap: break-word;
       z-index: 9999;
       cursor: default;
-      align-content: center;
+      max-width: 600px;
     `;
     tooltip.textContent = text;
     document.body.appendChild(tooltip);
