@@ -2084,5 +2084,56 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       console.error('Poll error:', e);
     }
   }, 3000);
+
+  // ====== AUTH DISABLED STATE ======
+  // Escuchar evento de auth desde base.html
+  function updateDisabledState() {
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    const body = document.body;
+
+    if (authed) {
+      body.classList.add('auth-enabled');
+      body.classList.remove('auth-disabled');
+    } else {
+      body.classList.remove('auth-enabled');
+      body.classList.add('auth-disabled');
+
+      // Deshabilitar acciones: Agregar, Exportar, Eliminar
+      document.querySelectorAll('.page-header-actions button').forEach(btn => {
+        btn.classList.add('disabled-action');
+      });
+
+      // Deshabilitar celdas editables (excepto estado y observacion_facturador)
+      document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
+        const field = cell.dataset.field;
+        if (field !== 'estado') {
+          cell.classList.add('disabled-action');
+          cell.style.pointerEvents = 'none';
+          cell.style.opacity = '0.5';
+        }
+      });
+
+      // Deshabilitar nueva fila
+      document.querySelectorAll('.new-row-cell').forEach(cell => {
+        cell.classList.add('disabled-action');
+        cell.style.pointerEvents = 'none';
+        cell.style.opacity = '0.5';
+      });
+
+      // Deshabilitar botones de accion (imagenes, eliminar)
+      document.querySelectorAll('.action-icon--add-note').forEach(btn => {
+        // observacion_facturador SIEMPRE habilitado
+        btn.classList.add('always-enabled');
+      });
+    }
+  }
+
+  // Escuchar cambios de auth desde base.html
+  window.addEventListener('ce-auth-change', function(e) {
+    updateDisabledState();
+  });
+
+  // Inicializar estado al cargar
+  updateDisabledState();
 </script>
 {% endblock %}

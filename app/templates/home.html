@@ -3,7 +3,7 @@
 {% block title %}Control de Facturas — EPS MALLAMAS{% endblock %}
 
 {% block content %}
-<div class="home">
+<div class="home" id="home-content">
   <header class="home__header">
     <h1 class="home__title">Control de Facturas</h1>
     <p class="home__subtitle">Selecciona el area de trabajo</p>
@@ -99,4 +99,21 @@
     </a>
   </section>
 </div>
+
+<script>
+  // Ocultar contenido si no hay auth (easter egg no activado)
+  (function() {
+    function checkAuth() {
+      const authed = window.ceAuth && window.ceAuth.isAuth();
+      const content = document.getElementById('home-content');
+      if (content) {
+        content.style.display = authed ? '' : 'none';
+      }
+    }
+    // Verificar al cargar
+    checkAuth();
+    // Escuchar cambios de auth
+    window.addEventListener('ce-auth-change', checkAuth);
+  })();
+</script>
 {% endblock %}

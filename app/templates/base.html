@@ -12,14 +12,16 @@
   <div class="layout">
     <header class="layout__header">
       <div class="layout__header-content">
-        <a href="{{ url_for('control_errores.control_errores_page') }}" class="layout__title">Mini.local</a>
+        <a href="{{ url_for('control_errores.control_errores_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
         {% if current_user.is_authenticated %}
           <span class="layout__user">{{ current_user.username }} ({{ current_user.rol }})</span>
           <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
         {% endif %}
+        <!-- Sesion Iniciada indicator (visible via JS when localStorage auth is set) -->
+        <span id="sesion-indicator" class="layout__sesion-iniciada" style="display:none">Sesión Iniciada</span>
       </div>
     </header>
-    
+
     <!-- Flash messages -->
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% if messages %}
@@ -30,11 +32,129 @@
         </div>
       {% endif %}
     {% endwith %}
-    
+
     <main class="layout__main">
       {% block content %}{% endblock %}
     </main>
   </div>
+
+  <!-- Login Modal (Easter Egg) -->
+  <div id="login-modal" class="login-modal-overlay" style="display:none">
+    <div class="login-modal">
+      <h2 class="login-modal__title">Iniciar Sesión</h2>
+      <p id="login-error" class="login-modal__error">Usuario o contraseña incorrectos</p>
+      <div class="form-group">
+        <label class="form-group__label" for="login-user">Usuario</label>
+        <input type="text" id="login-user" class="form-input" autocomplete="off">
+      </div>
+      <div class="form-group">
+        <label class="form-group__label" for="login-pass">Contraseña</label>
+        <input type="password" id="login-pass" class="form-input">
+      </div>
+      <div class="login-modal__actions">
+        <button type="button" class="btn" id="login-cancel">Cancelar</button>
+        <button type="button" class="btn btn--primary" id="login-submit">Entrar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Easter egg: 3 clicks en "Mini.local" abre login
+    (function() {
+      const CE_AUTH_KEY = 'ce_auth';
+      let clickCount = 0;
+      let clickTimer = null;
+      const title = document.querySelector('.layout__title--clickable');
+      const modal = document.getElementById('login-modal');
+      const sesionIndicator = document.getElementById('sesion-indicator');
+      const loginUser = document.getElementById('login-user');
+      const loginPass = document.getElementById('login-pass');
+      const loginError = document.getElementById('login-error');
+      const loginCancel = document.getElementById('login-cancel');
+      const loginSubmit = document.getElementById('login-submit');
+
+      // Verificar si hay sesión iniciada
+      function isAuth() {
+        return localStorage.getItem(CE_AUTH_KEY) === 'true';
+      }
+
+      // Guardar sesión
+      function setAuth(value) {
+        localStorage.setItem(CE_AUTH_KEY, value ? 'true' : 'false');
+        updateUI();
+      }
+
+      // Actualizar UI segun auth
+      function updateUI() {
+        const authed = isAuth();
+        if (authed) {
+          sesionIndicator.style.display = '';
+        } else {
+          sesionIndicator.style.display = 'none';
+        }
+        // Dispatch event para que control_errores.html escuche
+        window.dispatchEvent(new CustomEvent('ce-auth-change', { detail: { auth: authed } }));
+      }
+
+      // Abrir modal
+      function openModal() {
+        modal.style.display = 'flex';
+        loginUser.value = '';
+        loginPass.value = '';
+        loginError.classList.remove('login-modal__error--visible');
+        loginUser.focus();
+      }
+
+      // Cerrar modal
+      function closeModal() {
+        modal.style.display = 'none';
+      }
+
+      // Intentar login
+      function attemptLogin() {
+        const user = loginUser.value;
+        const pass = loginPass.value;
+        if (user === 'admin' && pass === 'admin$') {
+          setAuth(true);
+          closeModal();
+        } else {
+          loginError.classList.add('login-modal__error--visible');
+        }
+      }
+
+      // Click en "Mini.local"
+      title.addEventListener('click', function(e) {
+        if (isAuth()) return; // Ya logueado, no abrir modal
+        clickCount++;
+        if (clickTimer) clearTimeout(clickTimer);
+        clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
+        if (clickCount >= 3) {
+          clickCount = 0;
+          openModal();
+        }
+      });
+
+      // Cerrar con Escape
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal.style.display !== 'none') {
+          closeModal();
+        }
+      });
+
+      // Botones del modal
+      loginCancel.addEventListener('click', closeModal);
+      loginSubmit.addEventListener('click', attemptLogin);
+      loginPass.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') attemptLogin();
+      });
+
+      // Inicializar UI
+      updateUI();
+
+      // Exponer para uso global
+      window.ceAuth = { isAuth: isAuth };
+    })();
+  </script>
 
   {% block scripts %}{% endblock %}
 </body>

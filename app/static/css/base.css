@@ -32,6 +32,23 @@
   color: #3b82f6;
 }
 
+/* Easter egg clickable title */
+.layout__title--clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* Sesion Iniciada indicator */
+.layout__sesion-iniciada {
+  font-size: 0.75rem;
+  color: #16a34a;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  padding: 0.125rem 0.5rem;
+  border-radius: 9999px;
+  margin-left: auto;
+}
+
 .layout__user {
   font-size: 0.875rem;
   color: var(--color-text-muted);

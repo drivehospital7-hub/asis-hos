@@ -418,9 +418,94 @@
 }
 
 .reglas-list ul {
-  margin-top: var(--space-xs);
   margin-left: var(--space-md);
   padding-left: var(--space-md);
+}
+
+.reglas-list ul ul {
+  margin-left: var(--space-sm);
+}
+
+/* --- Login Modal (Easter Egg) -------------------------------- */
+.login-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.login-modal {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  width: 100%;
+  max-width: 20rem;
+  box-shadow: var(--shadow-md);
+}
+
+.login-modal__title {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  margin-bottom: var(--space-md);
+  text-align: center;
+}
+
+.login-modal__error {
+  color: var(--color-error-text);
+  font-size: var(--font-size-sm);
+  text-align: center;
+  margin-bottom: var(--space-sm);
+  display: none;
+}
+
+.login-modal__error--visible {
+  display: block;
+}
+
+.login-modal__actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+}
+
+.login-modal__actions .btn {
+  flex: 1;
+  justify-content: center;
+}
+
+/* --- Disabled State (sin auth) -------------------------------- */
+/* Elementos deshabilitados cuando NO hay sesión iniciada */
+.auth-disabled .disabled-action,
+.disabled-action {
+  opacity: 0.5;
+  pointer-events: none;
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+}
+
+.auth-disabled .disabled-action:hover,
+.disabled-action:hover {
+  background-color: inherit;
+  border-color: inherit;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Excepciones: siempre habilitados aunque no haya auth */
+.auth-enabled .always-enabled,
+.always-enabled {
+  opacity: 1;
+  pointer-events: auto;
+  cursor: pointer;
+  filter: none;
+}
+
+/* Ocultar elementos que solo se ven con auth */
+.auth-hidden {
+  display: none !important;
 }
 
 .reglas-list ul ul {
