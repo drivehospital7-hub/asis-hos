@@ -13,6 +13,8 @@ from app.services.control_errores_service import (
     get_imagenes,
     upload_imagen,
     delete_imagen,
+    get_ultima_actualizacion,
+    check_cambios,
 )
 
 from app.constants import IMAGENES_DIR
@@ -47,6 +49,21 @@ def listar_errores():
     responsable = request.args.get("responsable")
 
     return jsonify(get_errores(tipo_error, estado, responsable))
+
+
+@control_errores_bp.get("/api/control-errores/changes")
+def check_changes():
+    """Verificar si hubo cambios desde el último poll."""
+    since = request.args.get("since")
+    changed, last_update = check_cambios(since)
+    return jsonify({
+        "status": "success",
+        "data": {
+            "changed": changed,
+            "last_update": last_update
+        },
+        "errors": []
+    })
 
 
 @control_errores_bp.post("/api/control-errores")

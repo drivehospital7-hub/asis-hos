@@ -13,6 +13,8 @@ from app.utils.errores_storage import (
     obtener_imagenes_count,
     guardar_imagen,
     eliminar_imagen,
+    get_ultima_actualizacion,
+    check_cambios,
 )
 
 logger = logging.getLogger(__name__)
@@ -51,6 +53,26 @@ def get_errores(
         return {"status": "success", "data": {"errores": errores}, "errors": []}
     except Exception as e:
         logger.exception("Error listando errores")
+        return {"status": "error", "data": {}, "errors": [str(e)]}
+
+
+def get_last_update() -> dict[str, Any]:
+    """Obtener timestamp de última modificación."""
+    try:
+        last = get_ultima_actualizacion()
+        return {"status": "success", "data": {"last_update": last}, "errors": []}
+    except Exception as e:
+        logger.exception("Error obteniendo última actualización")
+        return {"status": "error", "data": {}, "errors": [str(e)]}
+
+
+def check_for_changes(since: str | None = None) -> dict[str, Any]:
+    """Verificar si hubo cambios desde un timestamp."""
+    try:
+        changed, last_update = check_cambios(since)
+        return {"status": "success", "data": {"changed": changed, "last_update": last_update}, "errors": []}
+    except Exception as e:
+        logger.exception("Error verificando cambios")
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 

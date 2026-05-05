@@ -889,8 +889,8 @@
 <div class="page-header">
   <div class="page-header-left">
     <p class="page-subtitle">Servicio de Urgencias</p>
-    <h1 class="page-title">Control de Errores</h1>
-    <p class="page-description">Registro, seguimiento y resolución de incidenciase en facturación</p>
+    <h1 class="page-title">Control de Novedades</h1>
+    <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
   </div>
   <div class="page-header-actions">
     <button class="btn btn--secondary" onclick="exportToCSV()">
@@ -2068,5 +2068,21 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   });
 
   loadOpciones().then(loadErrores);
+
+  // ====== POLLING: Verificar cambios cada 3 segundos ======
+  let lastUpdate = null;
+
+  setInterval(async () => {
+    try {
+      const res = await fetch(`/api/control-errores/changes?since=${encodeURIComponent(lastUpdate || '')}`);
+      const result = await res.json();
+      if (result.status === 'success' && result.data.changed) {
+        lastUpdate = result.data.last_update;
+        loadErrores();
+      }
+    } catch (e) {
+      console.error('Poll error:', e);
+    }
+  }, 3000);
 </script>
 {% endblock %}

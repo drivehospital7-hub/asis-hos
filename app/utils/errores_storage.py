@@ -25,25 +25,47 @@ def _get_imagenes_dir(error_id: str) -> Path:
 def _leer_datos() -> dict[str, list[dict[str, Any]]]:
     """Leer datos del archivo JSON."""
     if not ERRORES_FILE.exists():
-        return {"errores": []}
+        return {"errores": [], "ultima_actualizacion": None}
 
     try:
         with open(ERRORES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
         logger.exception("Error leyendo archivo de errores")
-        return {"errores": []}
+        return {"errores": [], "ultima_actualizacion": None}
 
 
 def _escribir_datos(data: dict[str, list[dict[str, Any]]]) -> None:
     """Escribir datos al archivo JSON."""
     try:
         DATA_DIR.mkdir(parents=True, exist_ok=True)
+        # Actualizar timestamp de última modificación
+        data["ultima_actualizacion"] = datetime.now().isoformat()
         with open(ERRORES_FILE, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.exception("Error escribiendo archivo de errores")
         raise
+
+
+def get_ultima_actualizacion() -> str | None:
+    """Obtener timestamp de última modificación."""
+    data = _leer_datos()
+    return data.get("ultima_actualizacion")
+
+
+def check_cambios(since: str | None) -> tuple[bool, str | None]:
+    """Verificar si hubo cambios desde un timestamp.
+    
+    Returns:
+        (hay_cambios, ultima_actualizacion)
+    """
+    current = get_ultima_actualizacion()
+    if current is None:
+        return True, None  # Primera carga
+    if since is None:
+        return True, current  # Sin filtro, siempre hay cambios
+    return current > since, current
 
 
 def listar_errores(
