@@ -762,9 +762,9 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCupsEquivalentes) {
-              // Cups Equivalentes: 4 columnas (Factura, Código, Código Equiv, Acción)
+              // Cups Equivalentes: 5 columnas (Factura, Código, Código Equiv, Acción, Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Cód. Equivalente CUPS</th><th>Acción</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Cód. Equivalente CUPS</th><th>Acción</th><th>Responsable</th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -772,24 +772,27 @@ document.addEventListener('DOMContentLoaded', function() {
                 let codigo = '';
                 let codigoEquiv = '';
                 let accion = '';
+                let responsable = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   codigo = item.codigo || '';
                   codigoEquiv = item.codigo_equiv || '';
                   accion = item.accion || '';
+                  responsable = item.responsable || '';
                 }
                 
                 html += '<tr>';
-                html += '<td>' + factura + '</td>';
-                html += '<td>' + codigo + '</td>';
-                html += '<td>' + codigoEquiv + '</td>';
-                html += '<td>' + accion + '</td>';
+                html += '<td>' + escapeHtml(factura) + '</td>';
+                html += '<td>' + escapeHtml(codigo) + '</td>';
+                html += '<td>' + escapeHtml(codigoEquiv) + '</td>';
+                html += '<td>' + escapeHtml(accion) + '</td>';
+                html += '<td>' + escapeHtml(responsable) + '</td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';

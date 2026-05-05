@@ -491,6 +491,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "ROSERO LUNA JENIFER LIZBETH",
         "tipo": "JEFE ENFERMERIA",
     },
+    "03857": {
+        "nombre": "TAPIA MONCAYO ANGIE CATHERINE",
+        "tipo": "JEFE ENFERMERIA",
+    },
     "03365": {
         "nombre": "HUERTAS OCAMPO DIANA PATRICIA",
         "tipo": "FISIOTERAPEUTA",
