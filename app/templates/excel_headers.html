@@ -498,37 +498,38 @@ diasSeleccionados = [];
             let colspan = 1;
             
             if (error.tipo_key === 'decimales') {
-              headersHtml = '<th>Factura</th><th>Valores con decimal</th>';
-              colspan = 2;
-            } else if (error.tipo_key === 'doble_tipo_procedimiento') {
-              headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th>';
-              colspan = 2;
-            } else if (error.tipo_key === 'ruta_duplicada') {
-              headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th>';
+              headersHtml = '<th>Factura</th><th>Valores con decimal</th><th>Responsable</th>';
               colspan = 3;
+            } else if (error.tipo_key === 'doble_tipo_procedimiento') {
+              headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th><th>Responsable</th>';
+              colspan = 3;
+            } else if (error.tipo_key === 'ruta_duplicada') {
+              headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th><th>Responsable</th>';
+              colspan = 4;
             } else if (error.tipo_key === 'convenio_procedimiento') {
-              headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
-              colspan = 4;
+              headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th><th>Responsable</th>';
+              colspan = 5;
             } else if (error.tipo_key === 'cantidades_anomalas') {
-              headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
-              colspan = 6;
+              headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th><th>Responsable</th>';
+              colspan = 7;
             } else if (error.tipo_key === 'tipo_identificacion_edad') {
-              headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
-              colspan = 4;
+              headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th>Responsable</th>';
+              colspan = 5;
             } else if (error.tipo_key === 'centro_costo') {
-              headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
-              colspan = 5;
+              headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th><th>Responsable</th>';
+              colspan = 6;
             } else if (error.tipo_key === 'codigo_entidad_vs_afiliacion') {
-              headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
-              colspan = 5;
+              headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th>Responsable</th>';
+              colspan = 6;
             } else if (error.tipo_key === 'ide_contrato') {
-              headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
-              colspan = 6;
+              headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th><th>Responsable</th>';
+              colspan = 7;
             } else if (error.tipo_key === 'profesionales') {
-              headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th>';
-              colspan = 6;
+              headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th><th>Responsable</th>';
+              colspan = 7;
             } else {
-              headersHtml = '<th>Factura</th>';
+              headersHtml = '<th>Factura</th><th>Responsable</th>';
+              colspan = 2;
             }
             
             // Tabla con columnas dinámicas
@@ -605,6 +606,9 @@ diasSeleccionados = [];
                 html += '<td>' + (item.factura || '') + '</td>';
               }
               
+              // Columna Responsable (presente en todos los tipos de error)
+              html += '<td>' + (item.responsable || '') + '</td>';
+              
               html += '</tr>';
             });
             
@@ -675,35 +679,30 @@ function mostrarMas(btn, errorData) {
   // Actualizar headers según el tipo
   let headersHtml = '';
   if (errorData.tipo_key === 'decimales') {
-    headersHtml = '<th>Factura</th><th>Valores con decimal</th>';
+    headersHtml = '<th>Factura</th><th>Valores con decimal</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'doble_tipo_procedimiento') {
-    headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th>';
+    headersHtml = '<th>Factura</th><th>Tipos de procedimiento</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'ruta_duplicada') {
-    headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th>';
+    headersHtml = '<th>Identificación</th><th>Facturas</th><th>Cantidad</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'convenio_procedimiento') {
-    headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Convenio</th><th>Procedimiento</th><th>Problema</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'cantidades_anomalas') {
-    headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Tipo</th><th>Procedimiento</th><th>Cantidad</th><th>Convenio</th><th>Problema</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'tipo_identificacion_edad') {
-    headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th>';
+    headersHtml = '<th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'centro_costo') {
-    headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th>';
+    headersHtml = '<th>Factura</th><th>Profesional</th><th>Fec. Factura</th><th>Centro Actual</th><th>Centro Debería</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'codigo_entidad_vs_afiliacion') {
-    headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th>Responsable</th>';
   } else if (errorData.tipo_key === 'ide_contrato') {
-    headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th>';
-} else if (errorData.tipo_key === 'profesionales') {
-      html += '<td>' + (item.factura || '') + '</td>';
-      html += '<td>' + (item.codigo_profesional || '') + '</td>';
-      html += '<td>' + (item.nombre || '') + '</td>';
-      html += '<td>' + (item.tipo || '') + '</td>';
-      html += '<td>' + (item.procedimiento || '') + '</td>';
-      html += '<td>' + (item.problema || '') + '</td>';
-    } else if (errorData.tipo_key === 'convenio_procedimiento') {
-      headersHtml = '<th>Factura</th><th>Convenio</th><th>Código</th><th>Problema</th>';
+    headersHtml = '<th>Factura</th><th>Código</th><th>Cód. Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Tipo</th><th>Responsable</th>';
+  } else if (errorData.tipo_key === 'profesionales') {
+    headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th><th>Responsable</th>';
   } else {
-    thead.innerHTML = headersHtml;
+    headersHtml = '<th>Factura</th><th>Responsable</th>';
   }
+  
+  thead.innerHTML = headersHtml;
   
   // Limpiar tabla y mostrar todos
   tbody.innerHTML = '';
@@ -765,6 +764,9 @@ function mostrarMas(btn, errorData) {
     } else {
       html += '<td>' + (item.factura || '') + '</td>';
     }
+    
+    // Columna Responsable (presente en todos los tipos de error)
+    html += '<td>' + (item.responsable || '') + '</td>';
     
     html += '</tr>';
     tbody.innerHTML += html;

@@ -133,6 +133,7 @@ def export_cruce_facturas():
         # Extraer info de problemas del nuevo campo "problemas"
         problemas_data = export_result["data"].get("problemas", {})
         problemas = problemas_data.get("problemas", {})
+        responsables_map = export_result["data"].get("responsables_map", {})
         
         # Armar lista de errores para mostrar
         errores = []
@@ -144,6 +145,7 @@ def export_cruce_facturas():
                     if isinstance(item, dict):
                         base = {
                             "factura": item.get("factura", ""),
+                            "responsable": responsables_map.get(item.get("factura", ""), ""),
                         }
                         
                         # Agregar campos según el tipo de error
