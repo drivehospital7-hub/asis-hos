@@ -1382,6 +1382,10 @@
     const field = td.dataset.field;
     const id = td.dataset.id;
 
+    // Sin auth: solo estado y observacion_facturador son editables
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed && field !== 'estado' && field !== 'observacion_facturador') return;
+
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
     currentEditType = type;
@@ -1703,6 +1707,8 @@
 
   // ====== NUEVA FILA ======
   function addNewRow() { 
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
     if (isAdding || currentEditId) return;
     isAdding = true;
     currentEditId = 'new';
@@ -1779,7 +1785,15 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   // ====== ELIMINAR ======
-  async function deleteError(id) { if (!confirm('¿Eliminar?')) return; const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); const result = await res.json(); if (result.status === 'success') loadErrores(); else alert(result.errors.join(', ')); }
+  async function deleteError(id) { 
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
+    if (!confirm('¿Eliminar?')) return; 
+    const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
+    const result = await res.json(); 
+    if (result.status === 'success') loadErrores(); 
+    else alert(result.errors.join(', ')); 
+  }
   function handleSearch() {
     currentPage = 1; // Reset a primera página al buscar
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -1914,6 +1928,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
   
   function exportToCSV() {
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       alert('No hay datos para exportar');
       return;
@@ -2106,7 +2122,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       // Deshabilitar celdas editables (excepto estado y observacion_facturador)
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
-        if (field !== 'estado') {
+        if (field !== 'estado' && field !== 'observacion_facturador') {
           cell.classList.add('disabled-action');
           cell.style.pointerEvents = 'none';
           cell.style.opacity = '0.5';
