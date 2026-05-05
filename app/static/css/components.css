@@ -486,9 +486,8 @@
   filter: grayscale(0.5);
 }
 
-/* Celda disabled con ojito: NO aplica grayscale para no tapar el color del botón */
+/* Celda disabled con ojito: NO aplica opacity ni grayscale para no tapar el color del botón */
 .disabled-action--has-img {
-  opacity: 0.5;
   pointer-events: none;
   cursor: not-allowed;
 }
@@ -509,7 +508,6 @@
   pointer-events: auto;
   cursor: pointer;
   filter: none !important;
-  color: inherit !important;
 }
 
 /* Obs-img-btn siempre visible con color (no grayscale) - alta especificidad para override */

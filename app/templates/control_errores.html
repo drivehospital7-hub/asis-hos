@@ -346,14 +346,17 @@
     background: #e0e7ff;
     color: #4338ca;
   }
-  /* Botón siempre visible si hay imágenes y de color azul (alta especificidad) */
-  td.obs-cell.has-images .obs-img-btn,
-  td.obs-cell .obs-img-btn.always-enabled {
+  /* Ojito SIN imagen: gris suave */
+  td.obs-cell .obs-img-btn {
     display: flex !important;
-    color: #3b82f6 !important;
+    color: #94a3b8 !important;
     filter: none !important;
     -webkit-filter: none !important;
     opacity: 1 !important;
+  }
+  /* Ojito CON imagen: azul intenso */
+  td.obs-cell.has-images .obs-img-btn {
+    color: #3b82f6 !important;
   }
   td.obs-cell:hover .obs-img-btn {
     display: flex;
@@ -1116,6 +1119,8 @@
     // La tabla ya se renderiza con cachedErrores, filtramos visualmente
     renderFilteredByMonth();
     updateStats();
+    // Re-aplicar estado disabled después de cambiar mes
+    updateDisabledState();
   }
   
   function renderFilteredByMonth() {
@@ -1292,6 +1297,46 @@
     openFacturadorEditorImpl(errorId, btn);
   }
 
+  // Mostrar contenido sin login (solo lectura)
+  function showFacturadorReadOnly(errorId, btn) {
+    const error = cachedErrores.find(e => e.id === errorId);
+    const currentValue = error ? (error.observacion_facturador || '') : '';
+    if (!currentValue) return;
+
+    const rect = btn.getBoundingClientRect();
+    const tooltip = document.createElement('div');
+    tooltip.id = 'facturador-tooltip';
+    tooltip.style.cssText = `
+      position: fixed;
+      top: ${rect.top}px;
+      left: ${rect.left + rect.width + 8}px;
+      width: 300px;
+      max-height: 200px;
+      padding: 0.75rem;
+      background: #fef9c3;
+      border: 1px solid #fde047;
+      border-radius: 8px;
+      font-size: 13px;
+      font-family: inherit;
+      color: #1a1a1a;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      z-index: 9999;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    `;
+    tooltip.textContent = currentValue;
+    document.body.appendChild(tooltip);
+
+    const closeTooltip = (e) => {
+      if (!tooltip.contains(e.target) && !btn.contains(e.target)) {
+        tooltip.remove();
+        document.removeEventListener('click', closeTooltip);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeTooltip), 10);
+  }
+
   function openFacturadorEditorImpl(errorId, btn) {
     const rect = btn.getBoundingClientRect();
     currentEditId = errorId;
@@ -1380,12 +1425,60 @@
 
   // ====== EDITOR GLOBAL ======
   function handleCellClick(td) {
+    const field = td.dataset.field;
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+
+    // Sin auth: observacion (descripcion) muestra contenido en tooltip readonly
+    if (!authed && field === 'observacion') {
+      showObservacionReadOnly(td);
+      return;
+    }
+
     // Si ya hay un editor abierto, guardar y luego editar la nueva celda
     if (currentEditId) {
       saveFromEditorWithCallback(() => openEditor(td));
     } else {
       openEditor(td);
     }
+  }
+
+  // Mostrar descripción en tooltip readonly sin login (encima de la celda)
+  function showObservacionReadOnly(td) {
+    const text = td.querySelector('span')?.textContent || td.textContent;
+    if (!text || text.trim() === 'ERR-') return;
+
+    const rect = td.getBoundingClientRect();
+    const tooltip = document.createElement('div');
+    tooltip.style.cssText = `
+      position: fixed;
+      top: ${rect.top}px;
+      left: ${rect.left}px;
+      width: ${rect.width}px;
+      height: ${rect.height}px;
+      padding: 0.5rem;
+      background: #f1f5f9;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: inherit;
+      font-family: inherit;
+      color: #1a1a1a;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      z-index: 9999;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      cursor: default;
+    `;
+    tooltip.textContent = text;
+    document.body.appendChild(tooltip);
+
+    const closeTooltip = (e) => {
+      if (!tooltip.contains(e.target) && !td.contains(e.target)) {
+        tooltip.remove();
+        document.removeEventListener('click', closeTooltip);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', closeTooltip), 10);
   }
 
   function openEditor(td, isNew = false) {
@@ -1396,9 +1489,9 @@
     const field = td.dataset.field;
     const id = td.dataset.id;
 
-    // Sin auth: solo estado y observacion_facturador son editables
+    // Sin auth: solo estado, observacion_facturador y observacion son editables
     const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed && field !== 'estado' && field !== 'observacion_facturador') return;
+    if (!authed && field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion') return;
 
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
@@ -1825,6 +1918,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       return factura.includes(query) || observacion.includes(query);
     });
     renderFilteredTable(filtered);
+    updateDisabledState();
   }
   
   function renderFilteredTable(errores) {
@@ -2133,12 +2227,23 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         el.classList.remove('disabled-action');
         el.style.pointerEvents = '';
         el.style.opacity = '';
+        el.style.cursor = '';
       });
       document.querySelectorAll('.disabled-action--has-img').forEach(el => {
         el.classList.remove('disabled-action--has-img');
+        el.style.pointerEvents = '';
+        el.style.cursor = '';
+        el.style.opacity = '';
       });
       document.querySelectorAll('.always-enabled').forEach(el => {
         el.classList.remove('always-enabled');
+        el.style.pointerEvents = '';
+        el.style.cursor = '';
+      });
+      // Resetear pointer-events del ojito también
+      document.querySelectorAll('.obs-img-btn').forEach(btn => {
+        btn.style.pointerEvents = '';
+        btn.style.cursor = '';
       });
       document.querySelectorAll('.page-header-actions button').forEach(btn => {
         btn.classList.remove('disabled-action');
@@ -2152,15 +2257,19 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         btn.classList.add('disabled-action');
       });
 
-      // Deshabilitar celdas editables (excepto estado y observacion_facturador)
+      // Deshabilitar celdas editables (excepto estado, observacion_facturador y observacion)
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
-        if (field !== 'estado' && field !== 'observacion_facturador') {
+        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion') {
           const imgBtn = cell.querySelector('.obs-img-btn');
           if (imgBtn) {
-            // Celda con ojito: solo deshabilitar el texto, NO el botón
-            cell.classList.add('disabled-action');
+            // Celda con ojito: NO opacity, solo pointer-events none
+            // para que el ojito mantenga su color azul
             cell.classList.add('disabled-action--has-img');
+            cell.style.pointerEvents = 'none';
+            // Ojito clickeable para ver imágenes
+            imgBtn.style.pointerEvents = 'auto';
+            imgBtn.style.cursor = 'pointer';
           } else {
             cell.classList.add('disabled-action');
             cell.style.pointerEvents = 'none';
