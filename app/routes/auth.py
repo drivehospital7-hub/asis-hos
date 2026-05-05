@@ -24,7 +24,7 @@ def login():
     """Página de login."""
     # Si ya está logueado, redirigir al home
     if current_user.is_authenticated:
-        return redirect(url_for("home.home_page"))
+        return redirect(url_for("control_errores.control_errores_page"))
     
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -48,14 +48,14 @@ def login():
                     return redirect(next_page)
                 
                 if user.rol == "admin":
-                    return redirect(url_for("home.home_page"))
+                    return redirect(url_for("control_errores.control_errores_page"))
                 elif user.areas:
                     # Redirigir a la primera área permitida
                     area = user.areas[0].area
                     endpoint = AREA_ENDPOINT_MAP.get(area, "home.home_page")
                     return redirect(url_for(endpoint))
                 else:
-                    return redirect(url_for("home.home_page"))
+                    return redirect(url_for("control_errores.control_errores_page"))
             else:
                 flash("Usuario o contraseña incorrectos", "error")
         finally:
@@ -70,7 +70,7 @@ def logout():
     """Cerrar sesión."""
     logout_user()
     flash("Sesión cerrada", "success")
-    return redirect(url_for("auth.login"))
+    return redirect(url_for("control_errores.control_errores_page"))
 
 
 @auth_bp.route("/usuarios")
@@ -79,7 +79,7 @@ def listar_usuarios():
     """Listar usuarios (solo admin)."""
     if current_user.rol != "admin":
         flash("Acceso denegado", "error")
-        return redirect(url_for("home.home_page"))
+        return redirect(url_for("control_errores.control_errores_page"))
     
     db: Session = SessionLocal()
     try:
@@ -95,7 +95,7 @@ def crear_usuario():
     """Crear usuario (solo admin)."""
     if current_user.rol != "admin":
         flash("Acceso denegado", "error")
-        return redirect(url_for("home.home_page"))
+        return redirect(url_for("control_errores.control_errores_page"))
     
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")

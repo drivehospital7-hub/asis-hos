@@ -38,7 +38,9 @@ def create_app(config=None):
     from app.routes.import_facturas import import_facturas_bp
     from app.routes.control_errores import control_errores_bp
 
-    # Home debe ser la raíz
+    # Control-errores es la raíz (debe registrarse antes de home)
+    app.register_blueprint(control_errores_bp)
+    # Home ahora es /dashboard
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(excel_headers_bp, url_prefix="/odontologia")
@@ -50,6 +52,5 @@ def create_app(config=None):
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
     app.register_blueprint(genderize_bp, url_prefix="/api/genderize")
     app.register_blueprint(import_facturas_bp)
-    app.register_blueprint(control_errores_bp)
 
     return app
