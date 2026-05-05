@@ -1415,8 +1415,8 @@
     const field = td.dataset.field;
     const authed = window.ceAuth && window.ceAuth.isAuth();
 
-    // Sin auth: observacion (descripcion) muestra contenido en tooltip readonly
-    if (!authed && field === 'observacion') {
+    // Sin auth: observacion (descripcion) y factura muestran contenido en tooltip readonly
+    if (!authed && (field === 'observacion' || field === 'factura')) {
       showObservacionReadOnly(td);
       return;
     }
@@ -1518,9 +1518,9 @@
     const field = td.dataset.field;
     const id = td.dataset.id;
 
-    // Sin auth: solo estado, observacion_facturador y observacion son editables
+    // Sin auth: solo estado, observacion_facturador, observacion y factura son editables
     const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed && field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion') return;
+    if (!authed && field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') return;
 
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
