@@ -296,6 +296,7 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
     4: "Cups Equivalentes",
     5: "MAL CAPITADO",
     6: "Cantidades",
+    7: "Cantidades Hospitalización",
 }
 
 # =============================================================================
@@ -861,6 +862,21 @@ URGENCIAS_CODIGOS_CANTIDAD_MAX_1 = frozenset({
     "129B02",
     "12333",
 })
+
+# =============================================================================
+# HOSPITALIZACIÓN - Reglas de cantidades
+# =============================================================================
+# Código 129B02: cantidad = días_estancia + 1
+#   - 12h estancia → 0 días → cantidad 1 (0+1)
+#   - 1 día 2 horas → 26h → 1 día → cantidad 2 (1+1)
+CODIGO_HOSPITALIZACION_ESTANCIA = "129B02"
+
+# Código 890601: cantidad = días de estancia (redondeado hacia arriba)
+#   - < 24h → NO puede existir 890601
+#   - >= 24h (1 día) → cantidad 1
+#   - >= 48h (2 días) → cantidad 2
+CODIGO_HOSPITALIZACION_CAMAS = "890601"
+HORAS_POR_DIA = 24
 
 # =============================================================================
 # EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar

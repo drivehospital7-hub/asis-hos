@@ -597,6 +597,48 @@ document.addEventListener('DOMContentLoaded', function() {
               }
 
               html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_hospitalizacion') {
+              // Cantidades Hospitalización: 7 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Cant. Esperada</th><th>Estancia</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let cantidadEsperada = '';
+                let estancia = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  cantidadEsperada = item.cantidad_esperada || '';
+                  estancia = (item.estancia_horas ? item.estancia_horas + 'h (' + item.estancia_dias + 'd)' : '');
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + cantidadEsperada + '</td>';
+                html += '<td>' + estancia + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cant: ' + cantidad + ' (esp: ' + cantidadEsperada + '), Est: ' + estancia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
             } else {
               // Otras tablas sin botón específico
               html += '<table class="table">';
@@ -1112,6 +1154,48 @@ document.addEventListener('DOMContentLoaded', function() {
 
               if (error.facturas.length > 50) {
                 html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_hospitalizacion') {
+              // Cantidades Hospitalización: 7 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Cant. Esperada</th><th>Estancia</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let cantidadEsperada = '';
+                let estancia = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  cantidadEsperada = item.cantidad_esperada || '';
+                  estancia = (item.estancia_horas ? item.estancia_horas + 'h (' + item.estancia_dias + 'd)' : '');
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + cantidadEsperada + '</td>';
+                html += '<td>' + estancia + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cant: ' + cantidad + ' (esp: ' + cantidadEsperada + '), Est: ' + estancia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
 
               html += '</tbody></table>';

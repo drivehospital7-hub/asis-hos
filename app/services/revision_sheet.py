@@ -245,6 +245,10 @@ from app.constants import (
     ENTIDADES_PERMITIDAS_890205,
     # Urgencias - Cantidades max 1 para ciertos códigos
     URGENCIAS_CODIGOS_CANTIDAD_MAX_1,
+    # Hospitalización - Reglas de cantidades
+    CODIGO_HOSPITALIZACION_ESTANCIA,
+    CODIGO_HOSPITALIZACION_CAMAS,
+    HORAS_POR_DIA,
 )
 
 from app.utils.formatting import (
@@ -1016,6 +1020,147 @@ def _detect_cantidades_urgencias(
 
     if problemas:
         logger.info("Cantidades Urgencias - Problemas encontrados: %d", len(problemas))
+
+    return problemas
+
+
+def _detect_cantidades_hospitalizacion(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas con cantidades incorrectas en Hospitalización.
+
+    Reglas:
+    - Tipo Factura Descripción = "Hospitalización"
+    - Código 129B02 (Estancia): cantidad esperada = días_estancia + 1
+        - < 24h (0 días) → cantidad 1
+        - >= 24h y < 48h (1 día) → cantidad 2
+        - >= 48h y < 72h (2 días) → cantidad 3
+    - Código 890601 (Camas): cantidad esperada = días_redondeados_arriba
+        - < 24h → ERROR (no puede existir 890601)
+        - >= 24h y < 48h (1 día) → cantidad 1
+        - >= 48h y < 72h (2 días) → cantidad 2
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad",
+        "cantidad_esperada", "estancia_dias", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+    fec_factura_idx = indices.get("fec_factura")
+    fecha_cierre_idx = indices.get("fecha_cierre")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
+        logger.warning("Cantidades Hospitalización - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Hospitalización"
+        if tipo_factura_str != "Hospitalización":
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Solo procesar códigos 129B02 y 890601
+        if codigo_str not in (CODIGO_HOSPITALIZACION_ESTANCIA, CODIGO_HOSPITALIZACION_CAMAS):
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Calcular estancia en horas y días
+        estancia_horas = 0
+        fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
+        fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
+
+        if fec_factura_cell and fecha_cierre_cell:
+            try:
+                fec_factura_dt = datetime.strptime(str(fec_factura_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                fecha_cierre_dt = datetime.strptime(str(fecha_cierre_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                diferencia = fecha_cierre_dt - fec_factura_dt
+                estancia_horas = diferencia.total_seconds() / 3600
+            except (ValueError, TypeError):
+                estancia_horas = 0
+
+        # Calcular días de estancia (redondeado hacia arriba)
+        if estancia_horas > 0:
+            estancia_dias = -(-int(estancia_horas) // HORAS_POR_DIA)  # Ceiling division
+        else:
+            estancia_dias = 0
+
+        procedimiento = ""
+        if procedimiento_idx is not None:
+            proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+            procedimiento = str(proc_value).strip() if proc_value else ""
+
+        es_error = False
+        cantidad_esperada = None
+
+        if codigo_str == CODIGO_HOSPITALIZACION_ESTANCIA:
+            # 129B02: cantidad = días + 1
+            cantidad_esperada = estancia_dias + 1
+            if cantidad != cantidad_esperada:
+                es_error = True
+                logger.warning(
+                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Estancia=%.1fh (%d días), Cantidad=%s (esperado=%d)",
+                    factura_str, estancia_horas, estancia_dias, cantidad, cantidad_esperada
+                )
+
+        elif codigo_str == CODIGO_HOSPITALIZACION_CAMAS:
+            # 890601: cantidad = días (redondeado arriba), NO puede existir si < 24h
+            if estancia_horas < HORAS_POR_DIA:
+                # < 24h → ERROR: no puede haber 890601
+                es_error = True
+                cantidad_esperada = 0  # Indica que no debería existir
+                logger.warning(
+                    "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Estancia=%.1fh (<24h) → NO DEBE EXISTIR",
+                    factura_str, estancia_horas
+                )
+            else:
+                cantidad_esperada = estancia_dias
+                if cantidad != cantidad_esperada:
+                    es_error = True
+                    logger.warning(
+                        "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Estancia=%.1fh (%d días), Cantidad=%s (esperado=%d)",
+                        factura_str, estancia_horas, estancia_dias, cantidad, cantidad_esperada
+                    )
+
+        if es_error:
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "cantidad_esperada": cantidad_esperada,
+                "estancia_horas": round(estancia_horas, 1),
+                "estancia_dias": estancia_dias,
+                "tipo_factura": tipo_factura_str,
+            })
+            facturas_procesadas.add(factura_str)
+
+    if problemas:
+        logger.info("Cantidades Hospitalización - Problemas encontrados: %d", len(problemas))
 
     return problemas
 
@@ -3606,6 +3751,9 @@ def create_revision_sheet(
         # Validación de cantidades para Urgencias (Tipo Factura = "Urgencias" + códigos específicos)
         cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
 
+        # Validación de cantidades para Hospitalización (Tipo Factura = "Hospitalización" + códigos 129B02/890601)
+        cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
+
         # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
             f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
@@ -3643,6 +3791,13 @@ def create_revision_sheet(
         ]
         _write_column(sheet, 6, cantidades_urgencias_str, start_row=3)
 
+        # Formatear Cantidades Hospitalización: "FACTURA|CÓDIGO|PROCEDIMIENTO|CANTIDAD|CANT_ESPERADA|ESTANCIA_H|ESTANCIA_D"
+        cantidades_hosp_str = [
+            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['cantidad']}|{item.get('cantidad_esperada', '')}|{item.get('estancia_horas', '')}|{item.get('estancia_dias', '')}"
+            for item in cantidades_hospitalizacion
+        ]
+        _write_column(sheet, 7, cantidades_hosp_str, start_row=3)
+
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
@@ -3653,6 +3808,7 @@ def create_revision_sheet(
             "Cups equivalentes urgencias": problemas_cups_equivalentes,
             "MAL CAPITADO": mal_capitado,
             "Cantidades": cantidades_urgencias,
+            "Cantidades Hospitalización": cantidades_hospitalizacion,
         }
     else:
 # Odontología: todas las validaciones
@@ -3891,8 +4047,12 @@ def detect_all_problems(
         cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, Cantidades Urgencias encontradas: %d", len(cantidades_urgencias))
 
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d",
-len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias))
+        # Validación Cantidades Hospitalización (Tipo Factura = "Hospitalización" + códigos 129B02/890601)
+        cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades Hospitalización encontradas: %d", len(cantidades_hospitalizacion))
+
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d, cantidades_hospitalizacion=%d",
+len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias), len(cantidades_hospitalizacion))
         
         # Filtrar errores: si la misma factura+código tiene prioridad 1 y prioridad 2, mostrar solo prioridad 1
         # Agrupar por factura+código
@@ -3982,6 +4142,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "profesionales": profesionales,
                 "mal_capitado": mal_capitado,
                 "cantidades_urgencias": cantidades_urgencias,
+                "cantidades_hospitalizacion": cantidades_hospitalizacion,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -3993,6 +4154,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "profesionales": len(profesionales),
                 "mal_capitado": len(mal_capitado),
                 "cantidades_urgencias": len(cantidades_urgencias),
+                "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
