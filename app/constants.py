@@ -276,16 +276,14 @@ CRUCE_HEADERS: dict[str, str] = {
     "D2": "Cruce Identificación",
 }
 
-# Headers para hoja Revision ODONTOLOGIA (columna -> valor)
+# Headers para hoja Revision ODONTOLOGIA (formato normalizado - 6 columnas fijas)
 REVISION_HEADERS: dict[int, str] = {
-    1: "Decimales",
-    2: "Doble tipo procedimiento",
-    3: "Ruta Duplicada",
-    4: "Convenio de procedimiento",
-    5: "Cantidades",
-    6: "Tipo Identificación",
-    7: "Centro Costo",
-    8: "IDE Contrato",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
 # Headers para hoja Revision URGENCIAS (formato normalizado - 6 columnas fijas)
@@ -884,15 +882,14 @@ HORAS_POR_DIA = 24
 # Columnas para Equipos Básicos (mismas que odontología por ahora)
 EQUIPOS_BASICOS_COLUMNS_TO_KEEP = COLUMNS_TO_KEEP
 
-# Headers para hoja Revision EQUIPOS BÁSICOS (pueden ser diferentes)
+# Headers para hoja Revision EQUIPOS BÁSICOS (formato normalizado - 6 columnas fijas)
 EQUIPOS_BASICOS_REVISION_HEADERS: dict[int, str] = {
-    1: "Decimales",
-    2: "Doble tipo procedimiento",
-    3: "Ruta Duplicada",
-    4: "Convenio de procedimiento",
-    5: "Cantidades",
-    6: "Tipo Identificación",
-    7: "Centro Costo",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
 # --- REGLAS CONFIGURABLES PARA EQUIPOS BÁSICOS ---

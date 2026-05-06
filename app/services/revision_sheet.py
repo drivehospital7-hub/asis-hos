@@ -3823,6 +3823,170 @@ def _build_urgencias_normalized_rows(
     return rows
 
 
+def _build_odontologia_normalized_rows(
+    decimales: list[dict] | list[str],
+    doble_tipo: list[dict],
+    ruta_dup: list[dict],
+    profesionales: list[dict],
+    cantidades: list[dict],
+    tipo_id_edad: list[dict],
+    centro_costo: list[dict],
+    ide_contrato: list[dict],
+    responsable_cierra: dict[str, str],
+) -> list[dict[str, str]]:
+    """
+    Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
+
+    Args:
+        decimales: Lista de dicts con "factura", "valores" o lista de strings (solo facturas)
+        doble_tipo: Lista de dicts con "factura", "tipos"
+        ruta_dup: Lista de dicts con "identificacion", "facturas", "cantidad"
+        profesionales: Lista de dicts con "factura", "codigo_profesional", "procedimiento", ...
+        cantidades: Lista de dicts con "factura", "tipo_procedimiento", "cantidad", ...
+        tipo_id_edad: Lista de dicts con "factura", "tipo_actual", "tipo_deberia", "edad"
+        centro_costo: Lista de dicts con "factura", "centro_actual", "centro_deberia", ...
+        ide_contrato: Lista de dicts con "factura", "codigo", "cod_entidad", "ide_actual", ...
+        responsable_cierra: Dict {factura: responsable}
+
+    Returns:
+        Lista de dicts normalizados con tipo_error, factura, responsable_cierra,
+        descripcion, procedimiento (Var1), detalle (Var2)
+    """
+    rows: list[dict[str, str]] = []
+
+    def _get_responsable(factura: str) -> str:
+        return responsable_cierra.get(factura, "")
+
+    def _build_procedimiento(codigo: str, procedimiento: str) -> str:
+        codigo = str(codigo).strip() if codigo else ""
+        procedimiento = str(procedimiento).strip() if procedimiento else ""
+        if codigo and procedimiento:
+            return f"{codigo} - {procedimiento}"
+        return codigo or procedimiento or ""
+
+    # --- Decimales ---
+    for item in decimales:
+        if isinstance(item, dict):
+            factura = item.get("factura", "")
+            valores = item.get("valores", "")
+        else:
+            factura = str(item) if item else ""
+            valores = ""
+        rows.append({
+            "tipo_error": "Decimales",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
+            "procedimiento": valores,
+            "detalle": "",
+        })
+
+    # --- Doble tipo procedimiento ---
+    for item in doble_tipo:
+        factura = item.get("factura", "")
+        tipos = item.get("tipos", "")
+        rows.append({
+            "tipo_error": "Doble tipo procedimiento",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Múltiples tipos de procedimiento",
+            "procedimiento": "",
+            "detalle": tipos,
+        })
+
+    # --- Ruta Duplicada ---
+    for item in ruta_dup:
+        identificacion = item.get("identificacion", "")
+        facturas_list = item.get("facturas", "")
+        cantidad = item.get("cantidad", 0)
+        rows.append({
+            "tipo_error": "Ruta Duplicada",
+            "factura": identificacion,
+            "responsable_cierra": _get_responsable(identificacion),
+            "descripcion": f"Paciente con {cantidad} facturas en PyP",
+            "procedimiento": facturas_list,
+            "detalle": identificacion,
+        })
+
+    # --- Profesionales (reemplaza Convenio de procedimiento) ---
+    for item in profesionales:
+        factura = item.get("factura", "")
+        cod_prof = item.get("codigo_profesional", "")
+        proc_nombre = item.get("procedimiento", "")
+        problema = item.get("problema", "")
+        regla = item.get("regla", "")
+        rows.append({
+            "tipo_error": "Convenio de procedimiento",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": problema or regla,
+            "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
+            "detalle": problema or "",
+        })
+
+    # --- Cantidades ---
+    for item in cantidades:
+        factura = item.get("factura", "")
+        tipo_proc = item.get("tipo_procedimiento", "")
+        cantidad_val = item.get("cantidad", "")
+        problema = item.get("problema", "")
+        rows.append({
+            "tipo_error": "Cantidades",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": problema or f"Cantidad anómala: {cantidad_val}",
+            "procedimiento": tipo_proc,
+            "detalle": str(cantidad_val),
+        })
+
+    # --- Tipo Identificación vs Edad ---
+    for item in tipo_id_edad:
+        factura = item.get("factura", "")
+        tipo_actual = item.get("tipo_actual", "")
+        tipo_deberia = item.get("tipo_deberia", "")
+        edad = item.get("edad", "")
+        rows.append({
+            "tipo_error": "Tipo Identificación",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
+            "procedimiento": f"Edad: {edad} años",
+            "detalle": "",
+        })
+
+    # --- Centro Costo ---
+    for item in centro_costo:
+        factura = item.get("factura", "")
+        centro_actual = item.get("centro_actual", "")
+        centro_deberia = item.get("centro_deberia", "")
+        rows.append({
+            "tipo_error": "Centro Costo",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Centro de costo debería ser {centro_deberia}",
+            "procedimiento": "",
+            "detalle": centro_actual,
+        })
+
+    # --- IDE Contrato ---
+    for item in ide_contrato:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        ide_actual = item.get("ide_actual", "")
+        ide_deberia = item.get("ide_deberia", "")
+        nota = item.get("nota", "")
+        rows.append({
+            "tipo_error": "IDE Contrato",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}",
+            "procedimiento": _build_procedimiento(codigo, ""),
+            "detalle": ide_actual,
+        })
+
+    return rows
+
+
 def create_revision_sheet(
     workbook: Workbook,
     data_sheet: Worksheet,
@@ -3950,52 +4114,65 @@ def create_revision_sheet(
             },
         }
     else:
-# Odontología: todas las validaciones
+# Odontología / Equipos Básicos: detectar todos los problemas
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
+        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
-        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         profesionales = _detect_profesionales_odontologia(data_sheet, indices)
         centro_costo = _detect_centro_costo_odontologia(data_sheet, indices)
-        
-        # Funciones no disponibles
-        conveniente_proc = []
-        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
-        
-        logger.info("create_revision_sheet - area=%s, Llamando _detect_ide_contrato_odontologia", area)
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
-        logger.info("create_revision_sheet - IDE Contrato encontrados: %d", len(ide_contrato))
-        
-        # Formatear para Excel: "FACTURA TIPO_ACTUAL -> TIPO_DEBERIA (Edad: X)"
-        tipo_id_edad_str = [
-            f"{item['factura']} {item['tipo_actual']} -> {item['tipo_deberia']} (Edad: {item['edad']})"
-            for item in tipo_id_edad
-        ]
-        
-        # Formatear IDE Contrato: "FACTURA|CÓDIGO|ENTIDAD|IDE_ACTUAL|IDE_DEBERIA"
-        ide_contrato_str = [
-            f"{item['factura']}|{item['codigo']}|{item['entidad']}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
-            for item in ide_contrato
-        ]
-        
-        # Escribir resultados en fila 3+
-        _write_column(sheet, 1, decimales, start_row=3)
-        _write_column(sheet, 2, doble_tipo, start_row=3)
-        _write_column(sheet, 3, ruta_dup, start_row=3)
-        _write_column(sheet, 4, conveniente_proc, start_row=3)
-        _write_column(sheet, 5, cantidades, start_row=3)
-        _write_column(sheet, 6, tipo_id_edad_str, start_row=3)
-        _write_column(sheet, 8, ide_contrato_str, start_row=3)
-        
+
+        # Construir mapa responsable_cierra
+        responsable_cierra_map: dict[str, str] = {}
+        rci = indices.get("responsable_cierra")
+        nfi = indices.get("numero_factura")
+        if rci is not None and nfi is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                num = data_sheet.cell(row=row, column=nfi + 1).value
+                fac = _normalize_invoice(num)
+                if not fac:
+                    continue
+                raw = data_sheet.cell(row=row, column=rci + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and fac not in responsable_cierra_map:
+                    responsable_cierra_map[fac] = resp
+
+        # Normalizar a filas de 6 columnas
+        normalized_rows = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra_map,
+        )
+
+        # Escribir filas normalizadas en Excel
+        for i, row_data in enumerate(normalized_rows, start=3):
+            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
+            sheet.cell(row=i, column=2, value=row_data["factura"])
+            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
+            sheet.cell(row=i, column=4, value=row_data["descripcion"])
+            sheet.cell(row=i, column=5, value=row_data["procedimiento"])
+            sheet.cell(row=i, column=6, value=row_data["detalle"])
+
         problemas_encontrados = {
-            "Decimales": decimales,
-            "Doble tipo procedimiento": doble_tipo,
-            "Ruta Duplicada": ruta_dup,
-            "Convenio de procedimiento": conveniente_proc,
-            "Cantidades": cantidades,
-            "Tipo Identificación": [item["factura"] for item in tipo_id_edad],
-            "IDE Contrato": ide_contrato,
+            "normalizados": normalized_rows,
+            "totales_por_tipo": {
+                "Decimales": len(decimales),
+                "Doble tipo procedimiento": len(doble_tipo),
+                "Ruta Duplicada": len(ruta_dup),
+                "Convenio de procedimiento": len(profesionales),
+                "Cantidades": len(cantidades),
+                "Tipo Identificación": len(tipo_id_edad),
+                "Centro Costo": len(centro_costo),
+                "IDE Contrato": len(ide_contrato),
+            },
         }
     
     # Aplicar estilo a filas de datos (fila 3+) según el área
@@ -4022,17 +4199,10 @@ def create_revision_sheet(
         )
     else:
         logger.info(
-            "Hoja Revision Odontología creada - Decimales: %d, Doble tipo: %d, "
-            "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d, Tipo ID: %d, IDE Contrato: %d",
-            len(decimales),
-            len(doble_tipo),
-            len(ruta_dup),
-            len(conveniente_proc),
-            len(cantidades),
-            len(tipo_id_edad),
-            len(ide_contrato),
+            "Hoja Revision Odontología/EB creada - Total filas normalizadas: %d",
+            len(normalized_rows),
         )
-    
+
     # Build resultado según el área
     if area == AREA_URGENCIAS:
         return {
@@ -4051,13 +4221,7 @@ def create_revision_sheet(
             "sheet": REVISION_SHEET,
             "area": area,
             "headers": list(REVISION_HEADERS.values()),
-            "decimal_invoices_found": len(decimales),
-            "doble_tipo_invoices_found": len(doble_tipo),
-            "ruta_duplicada_found": len(ruta_dup),
-            "convenio_de_procedimiento_found": len(conveniente_proc),
-            "cantidades_found": len(cantidades),
-            "tipo_identificacion_found": len(tipo_id_edad),
-            "ide_contrato_found": len(ide_contrato),
+            "normalized_rows_count": len(normalized_rows),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
             "missing_columns": missing_columns,
@@ -4372,9 +4536,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows_eb = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows_eb,
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,
@@ -4396,7 +4574,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "es_equipos_basicos": True,
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
         
         # Enrich errors with responsable from mapping
@@ -4461,9 +4639,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows_od = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows_od,
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,

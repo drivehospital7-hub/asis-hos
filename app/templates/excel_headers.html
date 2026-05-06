@@ -528,8 +528,9 @@ diasSeleccionados = [];
               headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th><th>Responsable</th>';
               colspan = 7;
             } else {
-              headersHtml = '<th>Factura</th><th>Responsable</th>';
-              colspan = 2;
+              // Formato normalizado 6 columnas (todos los tipos normalizados)
+              headersHtml = '<th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th>';
+              colspan = 5;
             }
             
             // Tabla con columnas dinámicas
@@ -603,11 +604,13 @@ diasSeleccionados = [];
                 html += '<td>' + (item.tipo || '') + '</td>';
                 html += '<td>' + (item.problema || '') + '</td>';
               } else {
+                // Formato normalizado 6 columnas
                 html += '<td>' + (item.factura || '') + '</td>';
+                html += '<td>' + (item.responsable_cierra || item.responsable || '') + '</td>';
+                html += '<td>' + (item.descripcion || '') + '</td>';
+                html += '<td>' + (item.procedimiento || '') + '</td>';
+                html += '<td>' + (item.detalle || '') + '</td>';
               }
-              
-              // Columna Responsable (presente en todos los tipos de error)
-              html += '<td>' + (item.responsable || '') + '</td>';
               
               html += '</tr>';
             });
@@ -699,7 +702,7 @@ function mostrarMas(btn, errorData) {
   } else if (errorData.tipo_key === 'profesionales') {
     headersHtml = '<th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Tipo</th><th>Código</th><th>Problema</th><th>Responsable</th>';
   } else {
-    headersHtml = '<th>Factura</th><th>Responsable</th>';
+    headersHtml = '<th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th>';
   }
   
   thead.innerHTML = headersHtml;
@@ -762,11 +765,13 @@ function mostrarMas(btn, errorData) {
       html += '<td>' + (item.tipo || '') + '</td>';
       html += '<td>' + (item.problema || '') + '</td>';
     } else {
+      // Formato normalizado 6 columnas
       html += '<td>' + (item.factura || '') + '</td>';
+      html += '<td>' + (item.responsable_cierra || item.responsable || '') + '</td>';
+      html += '<td>' + (item.descripcion || '') + '</td>';
+      html += '<td>' + (item.procedimiento || '') + '</td>';
+      html += '<td>' + (item.detalle || '') + '</td>';
     }
-    
-    // Columna Responsable (presente en todos los tipos de error)
-    html += '<td>' + (item.responsable || '') + '</td>';
     
     html += '</tr>';
     tbody.innerHTML += html;

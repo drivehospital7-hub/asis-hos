@@ -130,109 +130,42 @@ def export_cruce_facturas():
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]
         
-        # Extraer info de problemas del nuevo campo "problemas"
+        # Extraer info de problemas - formato NORMALIZADO 6 columnas
         problemas_data = export_result["data"].get("problemas", {})
-        problemas = problemas_data.get("problemas", {})
-        responsables_map = export_result["data"].get("responsables_map", {})
+        problemas_dict = problemas_data.get("problemas", {})
         
-        # Armar lista de errores para mostrar
+        # Obtener filas normalizadas (6 columnas fijas)
+        normalized_rows = problemas_dict.get("normalizados", [])
+        total_errores = len(normalized_rows)
+        
+        logger.info("Errores normalizados Odontología: %d total", total_errores)
+        
+        # Armar errores agrupados por tipo para la respuesta JSON
+        from itertools import groupby
         errores = []
-        for tipo, items in problemas.items():
-            if items:
-                # Extraer campos según el tipo de error
-                facturas = []
-                for item in items[:50]:
-                    if isinstance(item, dict):
-                        base = {
-                            "factura": item.get("factura", ""),
-                            "responsable": responsables_map.get(item.get("factura", ""), ""),
-                        }
-                        
-                        # Agregar campos según el tipo de error
-                        if tipo == "decimales":
-                            base["valores"] = item.get("valores", "")
-                        elif tipo == "doble_tipo_procedimiento":
-                            base["tipos"] = item.get("tipos", "")
-                        elif tipo == "ruta_duplicada":
-                            base["identificacion"] = item.get("identificacion", "")
-                            base["facturas"] = item.get("facturas", "")
-                            base["cantidad"] = item.get("cantidad", "")
-                        elif tipo == "convenio_procedimiento":
-                            base["convenio"] = item.get("convenio", "")
-                            base["procedimiento"] = item.get("procedimiento", "")
-                            base["problema"] = item.get("problema", "")
-                        elif tipo == "cantidades_anomalas":
-                            base["tipo_procedimiento"] = item.get("tipo_procedimiento", "")
-                            base["procedimiento"] = item.get("procedimiento", "")
-                            base["cantidad"] = item.get("cantidad", "")
-                            base["convenio"] = item.get("convenio", "")
-                            base["problema"] = item.get("problema", "")
-                        elif tipo == "tipo_identificacion_edad":
-                            base["tipo_actual"] = item.get("tipo_actual", "")
-                            base["tipo_deberia"] = item.get("tipo_deberia", "")
-                            base["edad"] = item.get("edad", "")
-                        elif tipo == "centro_costo":
-                            base["profesional"] = item.get("profesional", "")
-                            base["fec_factura"] = item.get("fec_factura", "")
-                            base["centro_actual"] = item.get("centro_actual", "")
-                            base["centro_deberia"] = item.get("centro_deberia", "")
-                        elif tipo == "codigo_entidad_vs_afiliacion":
-                            base["codigo_entidad_cobrar"] = item.get("codigo_entidad_cobrar", "")
-                            base["entidad_afiliacion"] = item.get("entidad_afiliacion", "")
-                            base["codigo_extraido_afiliacion"] = item.get("codigo_extraido_afiliacion", "")
-                            base["problema"] = item.get("problema", "")
-                        elif tipo == "ide_contrato":
-                            base["codigo"] = item.get("codigo", "")
-                            base["cod_entidad"] = item.get("cod_entidad", "")
-                            base["ide_actual"] = item.get("ide_actual", "")
-                            base["ide_deberia"] = item.get("ide_deberia", "")
-                            base["nota"] = item.get("nota", "")
-                        elif tipo == "profesionales":
-                            base["codigo_profesional"] = item.get("codigo_profesional", "")
-                            base["nombre"] = item.get("nombre", "")
-                            base["tipo"] = item.get("tipo", "")
-                            base["procedimiento"] = item.get("procedimiento", "")
-                            base["problema"] = item.get("problema", "")
-                        elif tipo == "mal_capitado":
-                            base["codigo"] = item.get("codigo", "")
-                            base["procedimiento"] = item.get("procedimiento", "")
-                            base["observacion"] = item.get("observacion", "")
-                        
-                        facturas.append(base)
-                    else:
-                        facturas.append({
-                            "factura": item,
-                        })
-                
-                # Nombre más legible para mostrar
-                tipo_display = tipo
-                if tipo == "tipo_identificacion_edad":
-                    tipo_display = "Tipo Identificación"
-                elif tipo == "doble_tipo_procedimiento":
-                    tipo_display = "Doble tipo procedimiento"
-                elif tipo == "ruta_duplicada":
-                    tipo_display = "Ruta Duplicada"
-                elif tipo == "convenio_procedimiento":
-                    tipo_display = "Convenio de procedimiento"
-                elif tipo == "cantidades_anomalas":
-                    tipo_display = "Cantidades"
-                elif tipo == "centro_costo":
-                    tipo_display = "Centro Costo"
-                elif tipo == "codigo_entidad_vs_afiliacion":
-                    tipo_display = "Entidad Cobrar vs Afiliación"
-                elif tipo == "ide_contrato":
-                    tipo_display = "Entidades y contratos"
-                elif tipo == "profesionales":
-                    tipo_display = "Profesionales"
-                elif tipo == "mal_capitado":
-                    tipo_display = "MAL CAPITADO"
-                
-                errores.append({
-                    "tipo": tipo_display,
-                    "tipo_key": tipo,  # Key original para uso interno
-                    "cantidad": len(items),
-                    "facturas": facturas,
-                })
+        MAX_POR_TIPO = 50
+        
+        all_items = []
+        for row in normalized_rows:
+            all_items.append({
+                "tipo_error": row.get("tipo_error", ""),
+                "factura": row.get("factura", ""),
+                "responsable_cierra": row.get("responsable_cierra", ""),
+                "descripcion": row.get("descripcion", ""),
+                "procedimiento": row.get("procedimiento", ""),
+                "detalle": row.get("detalle", ""),
+            })
+        
+        normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])
+        for tipo, group in groupby(normalized_rows_sorted, key=lambda r: r["tipo_error"]):
+            items = list(group)
+            errores.append({
+                "tipo": tipo,
+                "tipo_key": "norm_" + tipo.lower().replace(" ", "_"),
+                "cantidad": len(items),
+                "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
+                "facturas": items[:MAX_POR_TIPO],
+            })
         
         return jsonify({
             "status": "success",
@@ -241,6 +174,14 @@ def export_cruce_facturas():
                 "download_url": url_for("excel_headers.download_excel", filename=output_name),
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
+                "columnas": [
+                    "Tipo de error",
+                    "Número Factura",
+                    "Responsable Cierra",
+                    "Descripción",
+                    "Procedimiento",
+                    "Detalle",
+                ],
             },
             "errors": [],
         })
