@@ -2128,6 +2128,8 @@ def _detect_centro_costo_urgencias(
         CODIGO_CUPS_URGENCIAS_861101,
         CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO,
         ERROR_HOSPITALIZACION_NO_PERMITIDO,
+        CODIGO_12333_HOSPITALIZACION_PROHIBIDO,
+        ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
     )
     
     # Debug: mostrar los índices detectados
@@ -2244,6 +2246,22 @@ def _detect_centro_costo_urgencias(
             # Coletar códigos prohibidos (05DSB01, 5DSB01)
             if codigo_normalized in CODIGOS_HOSPITALIZACION_PROHIBIDOS:
                 factura_hospitalizacion_data[factura_str]["codigos_prohibidos"].add(codigo_normalized)
+            
+            # ----- Nueva Regla: Código CUPS 12333 + Tipo Factura=Hospitalización -> Error
+            if codigo_normalized == CODIGO_12333_HOSPITALIZACION_PROHIBIDO:
+                problemas_cups_equivalentes.append({
+                    "factura": factura_str,
+                    "codigo": codigo_normalized,
+                    "codigo_equiv": "",
+                    "accion": ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+                })
+                logger.warning(
+                    "REGLA (12333-Hospitalización) AGREGADA: Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
+                    row,
+                    codigo_normalized,
+                    ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+                )
+            
             continue  # No procesar como urgencia
 
         # Solo facturas de Urgencias
@@ -2590,11 +2608,6 @@ def _detect_centro_costo_urgencias(
         if tipo_factura_descripcion_idx is not None:
             tipo_factura_descripcion = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
         
-        # Debug: log del tipo_factura_descripcion en las primeras filas
-        if row <= 3:
-            logger.warning(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
-            print(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
-        
         ide_contrato = None
         if ide_contrato_idx is not None:
             ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
@@ -2622,8 +2635,8 @@ def _detect_centro_costo_urgencias(
         
         # Debug: log de las primeras filas para ver qué valores vienen
         if row <= 5:
-            logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
-                       row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
+            logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, tipo_factura=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
+                       row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(tipo_factura_descripcion), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
         
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
         # (Independiente - con excepciones propias: no aplica a ciertos códigos)
@@ -3521,7 +3534,7 @@ def _detect_centro_costo_urgencias(
                     ide_contrato_str,
                     ide_esperado,
                     tiene_insercion,
-) 
+                 ) 
 
     return problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes
 

@@ -928,6 +928,10 @@ CENTRO_COSTO_URGENCIAS = "URGENCIAS"
 CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO = "939402"
 ERROR_HOSPITALIZACION_NO_PERMITIDO = "No se debe facturar en Hospitalización, incluido en internación"
 
+# ----- Nueva Regla: Código CUPS 12333 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
+CODIGO_12333_HOSPITALIZACION_PROHIBIDO = "12333"
+ERROR_12333_HOSPITALIZACION_NO_PERMITIDO = "Código 12333 (Consulta Prioritaria) no permitido en Hospitalización"
+
 # ----- Nueva Regla: Servicios CUPS reemplazable
 CODIGOS_CUPS_REEMPLAZABLES = frozenset({
     "890201",  # -> 890701
