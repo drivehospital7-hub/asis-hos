@@ -3918,6 +3918,7 @@ def _build_urgencias_normalized_rows(
                 "descripcion": item.get("problema", ""),
                 "procedimiento": proc_entidad,
                 "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                "_header_override": "Entidad de factura",
             })
 
     return rows
@@ -4194,12 +4195,16 @@ def create_revision_sheet(
         )
 
         # --- Escribir filas normalizadas en Excel ---
+        # Buscar si hay rows con _header_override para la columna 5 (Procedimiento)
+        has_header_override = any("_header_override" in row for row in normalized_rows)
         for i, row_data in enumerate(normalized_rows, start=3):
             sheet.cell(row=i, column=1, value=row_data["tipo_error"])
             sheet.cell(row=i, column=2, value=row_data["factura"])
             sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
             sheet.cell(row=i, column=4, value=row_data["descripcion"])
-            sheet.cell(row=i, column=5, value=row_data["procedimiento"])
+            # Columna 5: usar _header_override si existe, si no usar procedimiento
+            col5_value = row_data.get("_header_override", row_data.get("procedimiento", ""))
+            sheet.cell(row=i, column=5, value=col5_value)
             sheet.cell(row=i, column=6, value=row_data["detalle"])
 
         problemas_encontrados = {
