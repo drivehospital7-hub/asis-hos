@@ -288,15 +288,14 @@ REVISION_HEADERS: dict[int, str] = {
     8: "IDE Contrato",
 }
 
-# Headers para hoja Revision URGENCIAS (columna -> valor)
+# Headers para hoja Revision URGENCIAS (formato normalizado - 6 columnas fijas)
 URGENCIA_REVISION_HEADERS: dict[int, str] = {
-    1: "Tipo Factura",
-    2: "Centros de Costos",
-    3: "IDE Contrato",
-    4: "Cups Equivalentes",
-    5: "MAL CAPITADO",
-    6: "Cantidades",
-    7: "Cantidades Hospitalización",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
 # =============================================================================

@@ -120,286 +120,46 @@ def export_urgencias():
         output_path = export_result["data"]["output_path"]
         output_name = export_result["data"]["output_file"]
         
-        # Extraer info de problemas - la estructura de detect_all_problems es:
-        # { "area": "...", "problemas": { "centros_de_costos": [...], "ide_contrato": [...] }, "totales": {...} }
+        # Extraer info de problemas - formato NORMALIZADO 6 columnas
         problemas_data = export_result["data"].get("problemas", {})
         problemas_dict = problemas_data.get("problemas", {})
         responsables_map = export_result["data"].get("responsables_map", {})
-        logger.info("RESPONSABLES_MAP: %d entries - Keys sample: %s", len(responsables_map), list(responsables_map.keys())[:5])
         
-        # Armar lista de errores para mostrar
+        # Obtener filas normalizadas (6 columnas fijas)
+        normalized_rows = problemas_dict.get("normalizados", [])
+        totales_por_tipo = problemas_dict.get("totales_por_tipo", {})
+        total_errores = len(normalized_rows)
+        
+        logger.info("Errores normalizados: %d total, por tipo: %s", total_errores, totales_por_tipo)
+        
+        # Armar errores agrupados por tipo para la respuesta JSON
+        from itertools import groupby
         errores = []
+        MAX_POR_TIPO = 50
         
-# Centros de costos - MOSTRAR TODOS los errores (sin deduplicar por factura)
-        centros = problemas_dict.get("centros_de_costos", [])
-        if centros:
-            # No deduplicamos - mosTramosTodos los errores de cada factura
-            facturas_centros = []
-            for item in centros[:50]:
-                factura_str = item.get("factura", "")
-                facturas_centros.append({
-                    "tipo_factura": item.get("tipo_factura", ""),
-                    "factura": item.get("factura", ""),
-                    "codigo": item.get("codigo", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "centro_actual": item.get("centro_actual", ""),
-                    "centro_deberia": item.get("centro_deberia", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                })
-                logger.info("FACTURA CentroCosto: %s - Tipo: %s, Código: %s, Procedimiento: %s - Actual: '%s' -> Debería: '%s'",
-                           item.get("factura", ""),
-                           item.get("tipo_factura", ""),
-                           item.get("codigo", ""),
-                           item.get("procedimiento", ""),
-                           item.get("centro_actual", ""),
-                           item.get("centro_deberia", ""))
-            
-            errores.append({
-                "tipo": "No se encuentra coincidencia con los siguientes centros de costos",
-                "tipo_key": "centros_de_costos",
-                "cantidad": len(centros),
-                "facturas": facturas_centros,
+        # Pre-calcular todos los items
+        all_items = []
+        for row in normalized_rows:
+            all_items.append({
+                "tipo_error": row.get("tipo_error", ""),
+                "factura": row.get("factura", ""),
+                "responsable_cierra": row.get("responsable_cierra", ""),
+                "descripcion": row.get("descripcion", ""),
+                "procedimiento": row.get("procedimiento", ""),
+                "detalle": row.get("detalle", ""),
             })
         
-        # IDE Contrato
-        ide_contrato = problemas_dict.get("ide_contrato", [])
-        if ide_contrato:
-            facturas_ide = []
-            for item in ide_contrato[:50]:
-                factura_str = item.get("factura", "")
-                factura_error = {
-                    "factura": factura_str,
-                    "ide_contrato_actual": item.get("ide_contrato_actual", ""),
-                    "ide_contrato_deberia": item.get("ide_contrato_deberia", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "codigo": item.get("codigo", ""),
-                    "entidad": item.get("entidad", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                }
-                facturas_ide.append(factura_error)
-                # Log por cada factura con error de IDE Contrato
-                logger.info("FACTURA IDEContrato: %s - Código: %s, Entidad: %s - IDE Actual: '%s' -> Debería: '%s'",
-                           item.get("factura", ""),
-                           item.get("codigo", ""),
-                           item.get("entidad", ""),
-                           item.get("ide_contrato_actual", ""),
-                           item.get("ide_contrato_deberia", ""))
-            
+        # Agrupar por tipo de error
+        normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])
+        for tipo, group in groupby(normalized_rows_sorted, key=lambda r: r["tipo_error"]):
+            items = list(group)
             errores.append({
-                "tipo": "Problemas de IDE Contrato",
-                "tipo_key": "ide_contrato",
-                "cantidad": len(ide_contrato),
-                "facturas": facturas_ide,
+                "tipo": tipo,
+                "tipo_key": "norm_" + tipo.lower().replace(" ", "_"),
+                "cantidad": len(items),
+                "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
+                "facturas": items[:MAX_POR_TIPO],
             })
-        
-        # Cups equivalentes
-        cups_equiv = problemas_dict.get("cups_equivalentes", [])
-        if cups_equiv:
-            facturas_cups = []
-            for item in cups_equiv[:50]:
-                factura_str = item.get("factura", "")
-                facturas_cups.append({
-                    "factura": factura_str,
-                    "codigo": item.get("codigo", ""),
-                    "codigo_equiv": item.get("codigo_equiv", ""),
-                    "accion": item.get("accion", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                })
-                logger.info("FACTURA CupsEquiv: %s - Código: %s, Código Equiv: %s - Acción: %s",
-                           item.get("factura", ""),
-                           item.get("codigo", ""),
-                           item.get("codigo_equiv", ""),
-                           item.get("accion", ""))
-            
-            errores.append({
-                "tipo": "Cups Equivalentes",
-                "tipo_key": "cups_equivalentes",
-                "cantidad": len(cups_equiv),
-                "facturas": facturas_cups,
-            })
-        
-        # Reglas transversales: Decimales
-        decimales = problemas_dict.get("decimales", [])
-        if decimales:
-            # Ahora cada fila con decimales se incluye (no deduplicar por factura)
-            errores.append({
-                "tipo": "Decimales",
-                "tipo_key": "decimales",
-                "cantidad": len(decimales),
-                "facturas": [
-                    {
-                        "factura": (factura_str := item.get("factura", "")),
-                        "valores": item.get("valores", []),
-                        "responsable": responsables_map.get(factura_str, ""),
-                    }
-                    for item in decimales[:50]
-                ],
-            })
-        
-        # Reglas transversales: Tipo Identificación vs Edad
-        tipo_id_edad = problemas_dict.get("tipo_identificacion_edad", [])
-        if tipo_id_edad:
-            facturas_tipo_id = []
-            for item in tipo_id_edad[:50]:
-                factura_str = item.get("factura", "")
-                facturas_tipo_id.append({
-                    "factura": factura_str,
-                    "tipo_actual": item.get("tipo_actual", ""),
-                    "tipo_deberia": item.get("tipo_deberia", ""),
-                    "edad": item.get("edad", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                })
-            errores.append({
-                "tipo": "Tipo Identificación",
-                "tipo_key": "tipo_identificacion_edad",
-                "cantidad": len(tipo_id_edad),
-                "facturas": facturas_tipo_id,
-            })
-        
-        # Reglas transversales: Cód Entidad Cobrar vs Entidad Afiliación
-        entidad_afiliacion = problemas_dict.get("codigo_entidad_vs_afiliacion", [])
-        if entidad_afiliacion:
-            facturas_entidad = []
-            for item in entidad_afiliacion[:50]:
-                factura_str = item.get("factura", "")
-                facturas_entidad.append({
-                    "factura": factura_str,
-                    "codigo_entidad_cobrar": item.get("codigo_entidad_cobrar", ""),
-                    "entidad_afiliacion": item.get("entidad_afiliacion", ""),
-                    "codigo_extraido_afiliacion": item.get("codigo_extraido_afiliacion", ""),
-                    "problema": item.get("problema", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                })
-            errores.append({
-                "tipo": "Entidad Cobrar vs Afiliación",
-                "tipo_key": "codigo_entidad_vs_afiliacion",
-                "cantidad": len(entidad_afiliacion),
-                "facturas": facturas_entidad,
-            })
-        
-        # Profesionales (Urgencias)
-        profesionales = problemas_dict.get("profesionales", [])
-        if profesionales:
-            facturas_profesionales = []
-            for item in profesionales[:50]:
-                factura_str = item.get("factura", "")
-                factura_error = {
-                    "factura": factura_str,
-                    "codigo_profesional": item.get("codigo_profesional", ""),
-                    "nombre": item.get("nombre", ""),
-                    "tipo": item.get("tipo", ""),
-                    "profesional_area": item.get("profesional_area", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "regla": item.get("regla", ""),
-                    "problema": item.get("problema", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                }
-                facturas_profesionales.append(factura_error)
-                logger.info("FACTURA Profesionales: %s - Área: %s, Procedimiento: %s, Regla: %s, Problema: %s",
-                           item.get("factura", ""),
-                           item.get("profesional_area", ""),
-                           item.get("procedimiento", ""),
-                           item.get("regla", ""),
-                           item.get("problema", ""))
-            
-            errores.append({
-                "tipo": "Profesionales",
-                "tipo_key": "profesionales",
-                "cantidad": len(profesionales),
-                "facturas": facturas_profesionales,
-            })
-        
-        # MAL CAPITADO
-        mal_capitado = problemas_dict.get("mal_capitado", [])
-        if mal_capitado:
-            facturas_mal = []
-            for item in mal_capitado[:50]:
-                factura_str = item.get("factura", "")
-                factura_error = {
-                    "factura": factura_str,
-                    "codigo": item.get("codigo", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "observacion": item.get("observacion", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                }
-                facturas_mal.append(factura_error)
-                logger.info("FACTURA MAL CAPITADO: %s - Código: %s, Procedimiento: %s, Observación: %s",
-                           item.get("factura", ""),
-                           item.get("codigo", ""),
-                           item.get("procedimiento", ""),
-                           item.get("observacion", ""))
-            
-            errores.append({
-                "tipo": "MAL CAPITADO",
-                "tipo_key": "mal_capitado",
-                "cantidad": len(mal_capitado),
-                "facturas": facturas_mal,
-            })
-
-        # Cantidades (Urgencias)
-        cantidades_urgencias = problemas_dict.get("cantidades_urgencias", [])
-        if cantidades_urgencias:
-            facturas_cant = []
-            for item in cantidades_urgencias[:50]:
-                factura_str = item.get("factura", "")
-                factura_error = {
-                    "factura": factura_str,
-                    "codigo": item.get("codigo", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "cantidad": item.get("cantidad", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                }
-                facturas_cant.append(factura_error)
-                logger.info("FACTURA CANTIDAD URGENCIAS: %s - Código: %s, Procedimiento: %s, Cantidad: %s",
-                           item.get("factura", ""),
-                           item.get("codigo", ""),
-                           item.get("procedimiento", ""),
-                           item.get("cantidad", ""))
-
-            errores.append({
-                "tipo": "Cantidades",
-                "tipo_key": "cantidades_urgencias",
-                "cantidad": len(cantidades_urgencias),
-                "facturas": facturas_cant,
-            })
-
-        # Cantidades Hospitalización
-        cantidades_hospitalizacion = problemas_dict.get("cantidades_hospitalizacion", [])
-        if cantidades_hospitalizacion:
-            facturas_cant_hosp = []
-            for item in cantidades_hospitalizacion[:50]:
-                factura_str = item.get("factura", "")
-                factura_error = {
-                    "factura": factura_str,
-                    "codigo": item.get("codigo", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "cantidad": item.get("cantidad", ""),
-                    "cantidad_esperada": item.get("cantidad_esperada", ""),
-                    "estancia_horas": item.get("estancia_horas", ""),
-                    "estancia_dias": item.get("estancia_dias", ""),
-                    "responsable": responsables_map.get(factura_str, ""),
-                }
-                facturas_cant_hosp.append(factura_error)
-                logger.info("FACTURA CANTIDAD HOSPITALIZACION: %s - Código: %s, Cantidad: %s (esperado: %s), Estancia: %sh (%sd)",
-                           item.get("factura", ""),
-                           item.get("codigo", ""),
-                           item.get("cantidad", ""),
-                           item.get("cantidad_esperada", ""),
-                           item.get("estancia_horas", ""),
-                           item.get("estancia_dias", ""))
-
-            errores.append({
-                "tipo": "Cantidades Hospitalización",
-                "tipo_key": "cantidades_hospitalizacion",
-                "cantidad": len(cantidades_hospitalizacion),
-                "facturas": facturas_cant_hosp,
-            })
-
-        # Los códigos sin DB ya están incluídos en ide_contrato con ide_contrato_deberia = "SIN CONTRATO"
-        # No necesitamos crear un grupo de error separado
-        
-        logger.info("Total errores armador para HTML: %d (%d centros, %d ide_contrato, %d decimales, %d tipo_id_edad, %d entidad_afiliacion, %d profesionales)",
-                   len(errores), len(centros), len(ide_contrato), len(decimales), len(tipo_id_edad), len(entidad_afiliacion), len(profesionales))
         
         return jsonify({
             "status": "success",
@@ -408,6 +168,14 @@ def export_urgencias():
                 "download_url": url_for("urgencias.download_urgencias", filename=output_name),
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
+                "columnas": [
+                    "Tipo de error",
+                    "Número Factura",
+                    "Responsable Cierra",
+                    "Descripción",
+                    "Procedimiento",
+                    "Detalle",
+                ],
             },
             "errors": [],
         })

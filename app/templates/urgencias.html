@@ -350,32 +350,32 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCupsEquivalentes) {
-              // Cups Equivalentes: 5 columnas (Factura, Código, Código Equiv, Acción, Responsable)
+              // Cups Equivalentes: tabla unificada normalizada
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Cód. Equivalente CUPS</th><th>Acción</th><th>Responsable</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
-                let codigo = '';
-                let codigoEquiv = '';
-                let accion = '';
                 let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
-                  codigo = item.codigo || '';
-                  codigoEquiv = item.codigo_equiv || '';
-                  accion = item.accion || '';
-                  responsable = item.responsable || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || item.accion || '';
+                  procedimiento = item.procedimiento || item.codigo || '';
+                  detalle = item.detalle || item.codigo_equiv || '';
                 }
                 
                 html += '<tr>';
                 html += '<td>' + escapeHtml(factura) + '</td>';
-                html += '<td>' + escapeHtml(codigo) + '</td>';
-                html += '<td>' + escapeHtml(codigoEquiv) + '</td>';
-                html += '<td>' + escapeHtml(accion) + '</td>';
                 html += '<td>' + escapeHtml(responsable) + '</td>';
+                html += '<td>' + escapeHtml(descripcion) + '</td>';
+                html += '<td>' + escapeHtml(procedimiento) + '</td>';
+                html += '<td>' + escapeHtml(detalle) + '</td>';
                 html += '</tr>';
               });
               
@@ -640,23 +640,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
               html += '</tbody></table>';
             } else {
-              // Otras tablas sin botón específico
+              // Tabla unificada normalizada (6 columnas fijas)
               html += '<table class="table">';
-              html += '<thead><tr><th>Datos</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
-                let datos = '';
+                let factura = '';
+                let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
                 if (typeof item === 'object' && item !== null) {
-                  datos = JSON.stringify(item);
-                } else {
-                  datos = item || '';
+                  factura = item.factura || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || '';
+                  procedimiento = item.procedimiento || '';
+                  detalle = item.detalle || '';
                 }
-                html += '<tr><td>' + datos + '</td></tr>';
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td>' + descripcion + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + detalle + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(descripcion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
@@ -883,32 +896,32 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCupsEquivalentes) {
-              // Cups Equivalentes: 5 columnas (Factura, Código, Código Equiv, Acción, Responsable)
+              // Cups Equivalentes: tabla unificada normalizada
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Cód. Equivalente CUPS</th><th>Acción</th><th>Responsable</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
-                let codigo = '';
-                let codigoEquiv = '';
-                let accion = '';
                 let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
-                  codigo = item.codigo || '';
-                  codigoEquiv = item.codigo_equiv || '';
-                  accion = item.accion || '';
-                  responsable = item.responsable || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || item.accion || '';
+                  procedimiento = item.procedimiento || item.codigo || '';
+                  detalle = item.detalle || item.codigo_equiv || '';
                 }
                 
                 html += '<tr>';
                 html += '<td>' + escapeHtml(factura) + '</td>';
-                html += '<td>' + escapeHtml(codigo) + '</td>';
-                html += '<td>' + escapeHtml(codigoEquiv) + '</td>';
-                html += '<td>' + escapeHtml(accion) + '</td>';
                 html += '<td>' + escapeHtml(responsable) + '</td>';
+                html += '<td>' + escapeHtml(descripcion) + '</td>';
+                html += '<td>' + escapeHtml(procedimiento) + '</td>';
+                html += '<td>' + escapeHtml(detalle) + '</td>';
                 html += '</tr>';
               });
               

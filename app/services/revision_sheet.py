@@ -877,11 +877,12 @@ def _detect_mal_capitado(
         indices: Índices de columnas
 
     Returns:
-        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion"
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion", "ide_contrato_actual"
     """
     num_fact_idx = indices.get("numero_factura")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
+    ide_contrato_idx = indices.get("ide_contrato")
 
     if num_fact_idx is None or codigo_idx is None:
         logger.warning("MAL CAPITADO - Columnas necesarias no encontradas: numero_factura=%s, codigo=%s",
@@ -922,10 +923,17 @@ def _detect_mal_capitado(
                 proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
                 procedimiento = str(proc_value).strip() if proc_value else ""
 
+            # Obtener IDE Contrato actual
+            ide_contrato_actual = ""
+            if ide_contrato_idx is not None:
+                ide_val = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+                ide_contrato_actual = str(ide_val).strip() if ide_val else ""
+
             problemas.append({
                 "factura": factura_str,
                 "codigo": codigo_str,
                 "procedimiento": procedimiento,
+                "ide_contrato_actual": ide_contrato_actual,
                 "observacion": f"Número Factura debe tener prefijo FEV (ej: FEV12345)",
             })
             facturas_procesadas.add(factura_str)
@@ -3676,6 +3684,145 @@ def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: i
         sheet.cell(row=i, column=column, value=value)
 
 
+def _build_urgencias_normalized_rows(
+    problemas_centros: list[dict],
+    problemas_ide_contrato: list[dict],
+    problemas_cups_equivalentes: list[dict],
+    mal_capitado: list[dict],
+    cantidades_urgencias: list[dict],
+    cantidades_hospitalizacion: list[dict],
+    responsable_cierra: dict[str, str],
+) -> list[dict[str, str]]:
+    """
+    Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
+    
+    Formato de salida: cada dict tiene:
+        - tipo_error: str
+        - factura: str
+        - responsable_cierra: str
+        - descripcion: str
+        - procedimiento: str (Var1)
+        - detalle: str (Var2)
+    
+    Args:
+        problemas_centros: Lista de errores de centros de costo
+        problemas_ide_contrato: Lista de errores de IDE Contrato
+        problemas_cups_equivalentes: Lista de errores de CUPS equivalentes
+        mal_capitado: Lista de errores MAL CAPITADO
+        cantidades_urgencias: Lista de errores de cantidades en Urgencias
+        cantidades_hospitalizacion: Lista de errores de cantidades en Hospitalización
+        responsable_cierra: Dict {factura: responsable}
+    
+    Returns:
+        Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
+    """
+    rows: list[dict[str, str]] = []
+
+    def _get_responsable(factura: str) -> str:
+        return responsable_cierra.get(factura, "")
+
+    def _build_procedimiento(codigo: str, procedimiento: str) -> str:
+        """Construye 'Código - Nombre' si ambos existen, sino el que esté presente."""
+        codigo = str(codigo).strip() if codigo else ""
+        procedimiento = str(procedimiento).strip() if procedimiento else ""
+        if codigo and procedimiento:
+            return f"{codigo} - {procedimiento}"
+        return codigo or procedimiento or ""
+
+    # --- Centros de Costo ---
+    for item in problemas_centros:
+        factura = item.get("factura", str(item.get("invoice", "")))
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "Centros de Costo",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("centro_actual", ""),
+        })
+
+    # --- IDE Contrato ---
+    for item in problemas_ide_contrato:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "IDE Contrato",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"IDE Contrato debería ser {item.get('ide_contrato_deberia', 'N/A')}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("ide_contrato_actual", ""),
+        })
+
+    # --- Cups Equivalentes ---
+    for item in problemas_cups_equivalentes:
+        factura = item.get("factura", "")
+        codigo_raw = item.get("codigo", "")
+        # codigo puede ser str o list, normalizar
+        if isinstance(codigo_raw, list):
+            codigo_str = ", ".join(str(c) for c in codigo_raw)
+        else:
+            codigo_str = str(codigo_raw)
+        rows.append({
+            "tipo_error": "Cups Equivalentes",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("accion", ""),
+            "procedimiento": _build_procedimiento(codigo_str, ""),
+            "detalle": codigo_str,
+        })
+
+    # --- MAL CAPITADO ---
+    for item in mal_capitado:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "MAL CAPITADO",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("observacion", ""),
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("ide_contrato_actual", ""),
+        })
+
+    # --- Cantidades (Urgencias) ---
+    for item in cantidades_urgencias:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        rows.append({
+            "tipo_error": "Cantidades",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debe ser ≤ 1 en Urgencias",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+        })
+
+    # --- Cantidades Hospitalización ---
+    for item in cantidades_hospitalizacion:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        cantidad_esperada = item.get("cantidad_esperada", "")
+        rows.append({
+            "tipo_error": "Cantidades Hospitalización",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+        })
+
+    return rows
+
+
 def create_revision_sheet(
     workbook: Workbook,
     data_sheet: Worksheet,
@@ -3730,19 +3877,32 @@ def create_revision_sheet(
     
 # Detectar problemas según el área
     if area == AREA_URGENCIAS:
-        # Urgencias: detectar códigos NO en DB para ESS118
+        # --- Construir mapa responsable_cierra ---
+        responsable_cierra: dict[str, str] = {}
+        responsable_cierra_idx = indices.get("responsable_cierra")
+        num_fact_idx = indices.get("numero_factura")
+        if responsable_cierra_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and factura not in responsable_cierra:
+                    responsable_cierra[factura] = resp
+
+        # --- Detectar todos los problemas ---
         logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
         problemas_codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
-        
-        # Extraer códigos únicos para logging
         codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
-        
+
         if problemas_codigos_no_en_db:
             logger.warning("Procedimientos NO encontrados en DB para ESS118 (%d errores): %s",
                         len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set))
         else:
             logger.warning("Todos los códigos de ESS118 están en DB")
-        # Llamar función de detección con manejo defensivo
+
         try:
             result = _detect_centro_costo_urgencias(data_sheet, indices, problemas_codigos_no_en_db)
             if isinstance(result, tuple) and len(result) >= 3:
@@ -3753,71 +3913,41 @@ def create_revision_sheet(
         except Exception as exc:
             logger.exception("Error en _detect_centro_costo_urgencias: %s", exc)
             problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
-        
-        # Validación MAL CAPITADO para Urgencias
+
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
-
-        # Validación de cantidades para Urgencias (Tipo Factura = "Urgencias" + códigos específicos)
         cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
-
-        # Validación de cantidades para Hospitalización (Tipo Factura = "Hospitalización" + códigos 129B02/890601)
         cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
 
-        # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
-        centros_costo_str = [
-            f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
-            for item in problemas_centros
-        ]
-        
-        # Formatear IDE Contrato: incluir todos los datos
-        ide_contrato_str = [
-            f"{item['factura']}|{item.get('procedimiento', '-')}|{item.get('codigo', '-')}|{item.get('entidad', '-')}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
-            for item in problemas_ide_contrato
-        ]
-        
-        # Formatear Cups equivalentes: "FACTURA|CODIGO|CODIGO_EQUIV|ACCION"
-        cups_equiv_str = [
-            f"{item['factura']}|{item['codigo']}|{item['codigo_equiv']}|{item['accion']}"
-            for item in problemas_cups_equivalentes
-        ]
-        
-        # Escribir en Excel: fila 3+ (ahora con Tipo Factura en columna 1)
-        _write_column(sheet, 1, centros_costo_str, start_row=3)  # Columna 1: Tipo Factura
-        _write_column(sheet, 2, ide_contrato_str, start_row=3)  # Columna 2: IDE Contrato
-        _write_column(sheet, 3, cups_equiv_str, start_row=3)  # Columna 3: Cups Equivalentes
-        
-        # Formatear MAL CAPITADO: "FACTURA|CÓDIGO|PROCEDIMIENTO|OBSERVACIÓN"
-        mal_capitado_str = [
-            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['observacion']}"
-            for item in mal_capitado
-        ]
-        _write_column(sheet, 5, mal_capitado_str, start_row=3)
+        # --- Normalizar todos los errores a filas de 6 columnas ---
+        normalized_rows = _build_urgencias_normalized_rows(
+            problemas_centros=problemas_centros,
+            problemas_ide_contrato=problemas_ide_contrato,
+            problemas_cups_equivalentes=problemas_cups_equivalentes,
+            mal_capitado=mal_capitado,
+            cantidades_urgencias=cantidades_urgencias,
+            cantidades_hospitalizacion=cantidades_hospitalizacion,
+            responsable_cierra=responsable_cierra,
+        )
 
-        # Formatear Cantidades Urgencias: "FACTURA|CÓDIGO|PROCEDIMIENTO|CANTIDAD"
-        cantidades_urgencias_str = [
-            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['cantidad']}"
-            for item in cantidades_urgencias
-        ]
-        _write_column(sheet, 6, cantidades_urgencias_str, start_row=3)
+        # --- Escribir filas normalizadas en Excel ---
+        for i, row_data in enumerate(normalized_rows, start=3):
+            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
+            sheet.cell(row=i, column=2, value=row_data["factura"])
+            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
+            sheet.cell(row=i, column=4, value=row_data["descripcion"])
+            sheet.cell(row=i, column=5, value=row_data["procedimiento"])
+            sheet.cell(row=i, column=6, value=row_data["detalle"])
 
-        # Formatear Cantidades Hospitalización: "FACTURA|CÓDIGO|PROCEDIMIENTO|CANTIDAD|CANT_ESPERADA|ESTANCIA_H|ESTANCIA_D"
-        cantidades_hosp_str = [
-            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['cantidad']}|{item.get('cantidad_esperada', '')}|{item.get('estancia_horas', '')}|{item.get('estancia_dias', '')}"
-            for item in cantidades_hospitalizacion
-        ]
-        _write_column(sheet, 7, cantidades_hosp_str, start_row=3)
-
-        # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
-            "No se encuentra coincidencia con los siguientes centros de costos": [
-                f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
-                for item in problemas_centros
-            ],
-            "Problemas de IDE Contrato": problemas_ide_contrato,
-            "Cups equivalentes urgencias": problemas_cups_equivalentes,
-            "MAL CAPITADO": mal_capitado,
-            "Cantidades": cantidades_urgencias,
-            "Cantidades Hospitalización": cantidades_hospitalizacion,
+            "normalizados": normalized_rows,
+            "totales_por_tipo": {
+                "Centros de Costo": len(problemas_centros),
+                "IDE Contrato": len(problemas_ide_contrato),
+                "Cups Equivalentes": len(problemas_cups_equivalentes),
+                "MAL CAPITADO": len(mal_capitado),
+                "Cantidades": len(cantidades_urgencias),
+                "Cantidades Hospitalización": len(cantidades_hospitalizacion),
+            },
         }
     else:
 # Odontología: todas las validaciones
@@ -3887,9 +4017,8 @@ def create_revision_sheet(
     # Logging según el área
     if area == AREA_URGENCIAS:
         logger.info(
-            "Hoja Revision Urgencias creada - Centros de Costos: %d, Cups Equivalentes: %d",
-            len(problemas_centros),
-            len(problemas_cups_equivalentes),
+            "Hoja Revision Urgencias creada - Total filas normalizadas: %d",
+            len(normalized_rows),
         )
     else:
         logger.info(
@@ -3911,11 +4040,10 @@ def create_revision_sheet(
             "sheet": REVISION_SHEET,
             "area": area,
             "headers": list(URGENCIA_REVISION_HEADERS.values()),
-            "centros_de_costos_found": len(problemas_centros),
-            "mal_capitado_found": len(mal_capitado),
+            "normalized_rows_count": len(normalized_rows),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
     else:
         return {
@@ -4107,9 +4235,21 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows = _build_urgencias_normalized_rows(
+            problemas_centros=problemas_centros_filtrados,
+            problemas_ide_contrato=problemas_ide_contrato,
+            problemas_cups_equivalentes=problemas_cups_equivalentes,
+            mal_capitado=mal_capitado,
+            cantidades_urgencias=cantidades_urgencias,
+            cantidades_hospitalizacion=cantidades_hospitalizacion,
+            responsable_cierra=responsable_cierra,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows,
                 "centros_de_costos": [
                     {
                         "tipo_factura": item.get("tipo_factura") or "-",
