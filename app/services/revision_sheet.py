@@ -1103,11 +1103,8 @@ def _detect_cantidades_hospitalizacion(
             except (ValueError, TypeError):
                 estancia_horas = 0
 
-        # Calcular días de estancia (redondeado hacia arriba)
-        if estancia_horas > 0:
-            estancia_dias = -(-int(estancia_horas) // HORAS_POR_DIA)  # Ceiling division
-        else:
-            estancia_dias = 0
+        estancia_dias_ceiling = -(-int(estancia_horas) // HORAS_POR_DIA)  # Ceiling division
+        estancia_dias_floor = int(estancia_horas) // HORAS_POR_DIA  # Floor division (días completos)
 
         procedimiento = ""
         if procedimiento_idx is not None:
@@ -1118,17 +1115,17 @@ def _detect_cantidades_hospitalizacion(
         cantidad_esperada = None
 
         if codigo_str == CODIGO_HOSPITALIZACION_ESTANCIA:
-            # 129B02: cantidad = días + 1
-            cantidad_esperada = estancia_dias + 1
+            # 129B02: cantidad = días_completos + 1 (solo cuenta días completos, no el parcial)
+            cantidad_esperada = estancia_dias_floor + 1
             if cantidad != cantidad_esperada:
                 es_error = True
                 logger.warning(
-                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Estancia=%.1fh (%d días), Cantidad=%s (esperado=%d)",
-                    factura_str, estancia_horas, estancia_dias, cantidad, cantidad_esperada
+                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                    factura_str, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
                 )
 
         elif codigo_str == CODIGO_HOSPITALIZACION_CAMAS:
-            # 890601: cantidad = días (redondeado arriba), NO puede existir si < 24h
+            # 890601: cantidad = días_redondeados_arriba, NO puede existir si < 24h
             if estancia_horas < HORAS_POR_DIA:
                 # < 24h → ERROR: no puede haber 890601
                 es_error = True
@@ -1138,12 +1135,12 @@ def _detect_cantidades_hospitalizacion(
                     factura_str, estancia_horas
                 )
             else:
-                cantidad_esperada = estancia_dias
+                cantidad_esperada = estancia_dias_ceiling
                 if cantidad != cantidad_esperada:
                     es_error = True
                     logger.warning(
                         "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Estancia=%.1fh (%d días), Cantidad=%s (esperado=%d)",
-                        factura_str, estancia_horas, estancia_dias, cantidad, cantidad_esperada
+                        factura_str, estancia_horas, estancia_dias_ceiling, cantidad, cantidad_esperada
                     )
 
         if es_error:
@@ -1154,7 +1151,7 @@ def _detect_cantidades_hospitalizacion(
                 "cantidad": cantidad,
                 "cantidad_esperada": cantidad_esperada,
                 "estancia_horas": round(estancia_horas, 1),
-                "estancia_dias": estancia_dias,
+                "estancia_dias": estancia_dias_floor,
                 "tipo_factura": tipo_factura_str,
             })
             facturas_procesadas.add(factura_str)
