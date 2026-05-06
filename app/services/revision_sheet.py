@@ -1063,7 +1063,6 @@ def _detect_cantidades_hospitalizacion(
         return []
 
     problemas = []
-    facturas_procesadas: set[str] = set()
 
     for row in range(2, data_sheet.max_row + 1):
         tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
@@ -1075,7 +1074,7 @@ def _detect_cantidades_hospitalizacion(
 
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_procesadas:
+        if not factura_str:
             continue
 
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
@@ -1120,8 +1119,8 @@ def _detect_cantidades_hospitalizacion(
             if cantidad != cantidad_esperada:
                 es_error = True
                 logger.warning(
-                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
-                    factura_str, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                    factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
                 )
 
         elif codigo_str == CODIGO_HOSPITALIZACION_CAMAS:
@@ -1131,16 +1130,16 @@ def _detect_cantidades_hospitalizacion(
                 es_error = True
                 cantidad_esperada = 0  # Indica que no debería existir
                 logger.warning(
-                    "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Estancia=%.1fh (<24h) → NO DEBE EXISTIR",
-                    factura_str, estancia_horas
+                    "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Fila=%d, Estancia=%.1fh (<24h) → NO DEBE EXISTIR",
+                    factura_str, row, estancia_horas
                 )
             else:
                 cantidad_esperada = estancia_dias_floor
                 if cantidad != cantidad_esperada:
                     es_error = True
                     logger.warning(
-                        "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
-                        factura_str, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                        "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                        factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
                     )
 
         if es_error:
@@ -1153,8 +1152,8 @@ def _detect_cantidades_hospitalizacion(
                 "estancia_horas": round(estancia_horas, 1),
                 "estancia_dias": estancia_dias_floor,
                 "tipo_factura": tipo_factura_str,
+                "fila": row,
             })
-            facturas_procesadas.add(factura_str)
 
     if problemas:
         logger.info("Cantidades Hospitalización - Problemas encontrados: %d", len(problemas))
