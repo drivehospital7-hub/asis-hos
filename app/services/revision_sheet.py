@@ -3907,12 +3907,16 @@ def _build_urgencias_normalized_rows(
     if entidad_afiliacion_comparison:
         for item in entidad_afiliacion_comparison:
             factura = item.get("factura", "")
+            # Procedimiento: Cód Entidad Cobrar + nombre de Entidad Cobrar
+            cod = item.get("codigo_entidad_cobrar", "")
+            nombre = item.get("entidad_cobrar_nombre", "")
+            proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
             rows.append({
                 "tipo_error": "Código Entidad vs Afiliación",
                 "factura": factura,
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": item.get("problema", ""),
-                "procedimiento": f"Cód: {item.get('codigo_entidad_cobrar', '')}",
+                "procedimiento": proc_entidad,
                 "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
             })
 
