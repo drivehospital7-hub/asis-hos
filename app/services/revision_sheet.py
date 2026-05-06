@@ -2218,9 +2218,32 @@ def _detect_centro_costo_urgencias(
     )
     from datetime import datetime
 
+    def _format_estancia(horas: float | None) -> str:
+        """Formatea estancia en días + horas."""
+        if horas is None:
+            return "N/A"
+        dias = int(horas // 24)
+        hrs = int(horas % 24)
+        if dias > 0:
+            return f"{dias}d {hrs}h"
+        return f"{hrs}h"
+
+    def _build_sala_proc(factura: str, codigos_sala: set) -> str:
+        """Construye 'código - nombre' para el procedimiento de sala de observación."""
+        if not codigos_sala:
+            return ""
+        # Buscar el primer código de sala en factura_sala_procedimiento
+        proc_nombre = factura_sala_procedimiento.get(factura, "")
+        primer_codigo = next(iter(codigos_sala), "")
+        if primer_codigo and proc_nombre:
+            return f"{primer_codigo} - {proc_nombre}"
+        return primer_codigo
+
     factura_sala_data: dict[str, dict] = {}
     fec_factura_idx = indices.get("fec_factura")
     fecha_cierre_idx = indices.get("fecha_cierre")
+    # Mapa para guardar procedimiento (nombre) por factura de sala de observación
+    factura_sala_procedimiento: dict[str, str] = {}
 
     # Diccionario para facturas de Hospitalización
     factura_hospitalizacion_data: dict[str, dict] = {}
@@ -2340,10 +2363,14 @@ def _detect_centro_costo_urgencias(
 
         # Recolectar códigos de sala de observación
         codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        proc_cell = data_sheet.cell(row=row, column=proc_idx + 1).value if proc_idx else None
         if codigo_cell:
             codigo_normalized = str(codigo_cell).strip()
             if codigo_normalized in (CODIGO_SALA_OBSERVACION_CORTA, CODIGO_SALA_OBSERVACION_LARGA_ESS, CODIGO_SALA_OBSERVACION_LARGA_OTRAS):
                 factura_sala_data[factura_str]["codigos_sala"].add(codigo_normalized)
+                # Guardar procedimiento (nombre) para mostrar en el reporte
+                if proc_cell:
+                    factura_sala_procedimiento[factura_str] = str(proc_cell).strip()
             # Recolectar códigos obligatorios de urgencias (890701 y 890601)
             if codigo_normalized in CODIGOS_SALA_OBSERVACION_OBLIGATORIOS:
                 factura_sala_data[factura_str]["codigos_urgencias_obligatorios"].add(codigo_normalized)
@@ -2390,8 +2417,11 @@ def _detect_centro_costo_urgencias(
         codigos_urgencia_obligatorios = data.get("codigos_urgencias_obligatorios", set())
         if codigos_sala:
             if entidad in ENTIDADES_ESS_PROHIBIDO_129B02 and CODIGO_SALA_PROHIBIDO_ESS in codigos_sala:
+                estancia_str = _format_estancia(estancia_horas)
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"ESS118/ESSC18 no puede tener {CODIGO_SALA_PROHIBIDO_ESS} - usar 05DSB01 para >6h",
                     "tipo_problema": "ess_129b02_prohibido",
@@ -2400,8 +2430,11 @@ def _detect_centro_costo_urgencias(
             tiene_890601h = data.get("tiene_890601h", False)
             tipo_factura = data.get("tipo_factura", "")
             if tipo_factura == "Urgencias" and tiene_890601h:
+                estancia_str = _format_estancia(estancia_horas)
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"Urgencias no puede tener {CODIGO_URGENCIAS_PROHIBIDO}",
                     "tipo_problema": "urgencias_890601h_prohibido",
@@ -2409,8 +2442,11 @@ def _detect_centro_costo_urgencias(
 
             if tipo_factura == "Urgencias" and CODIGO_05DSB01_PROHIBIDO_OTRAS in codigos_sala:
                 if entidad not in ENTIDADES_ESS_PERMITIDO_05DSB01:
+                    estancia_str = _format_estancia(estancia_horas)
                     facturas_sala_problema[factura_str] = {
                         "entidad": entidad, "estancia_horas": estancia_horas,
+                        "estancia_str": estancia_str,
+                        "procedimiento": _build_sala_proc(factura_str, codigos_sala),
                         "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                         "accion": f"Entidad {entidad} no puede tener {CODIGO_05DSB01_PROHIBIDO_OTRAS} - usar 5DSB01 o 129B02",
                         "tipo_problema": "otras_05dsb01_prohibido",
@@ -2418,16 +2454,22 @@ def _detect_centro_costo_urgencias(
 
             faltan_obligatorios = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS - codigos_urgencia_obligatorios
             if faltan_obligatorios:
+                estancia_str = _format_estancia(estancia_horas)
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"Agregar códigos obligatorios: {', '.join(faltan_obligatorios)}",
                     "tipo_problema": "urgencia_obligatorios",
                 }
 
         if es_problema:
+            estancia_str = _format_estancia(estancia_horas)
             facturas_sala_problema[factura_str] = {
                 "entidad": entidad, "estancia_horas": estancia_horas,
+                "estancia_str": estancia_str,
+                "procedimiento": _build_sala_proc(factura_str, codigos_sala),
                 "codigos_encontrados": list(codigos_sala), "codigo_requerido": codigo_requerido,
                 "accion": accion,
             }
@@ -2461,6 +2503,7 @@ def _detect_centro_costo_urgencias(
         else:
             codigos_obligatorios_hosp = {"890601H", "129B02"}  # solo 2 códigos
 
+        estancia_str = _format_estancia(estancia_horas)
         # Validar códigos obligatorios
         faltan = codigos_obligatorios_hosp - codigos_hosp
         if faltan:
@@ -2470,6 +2513,7 @@ def _detect_centro_costo_urgencias(
                 "codigo_equiv": "",
                 "accion": f"Hospitalización ({'>24h' if estancia_horas > 24 else '<=24h'}) debe tener: {', '.join(sorted(codigos_obligatorios_hosp))} (faltan: {', '.join(faltan)})",
                 "procedimiento": "",
+                "estancia_str": estancia_str,
             })
             facturas_hosp_reportadas.add(factura_str)
             logger.warning(
@@ -2485,6 +2529,7 @@ def _detect_centro_costo_urgencias(
                 "codigo_equiv": "",
                 "accion": f"Hospitalización no puede tener: {', '.join(codigos_prohibidos)}",
                 "procedimiento": "",
+                "estancia_str": estancia_str,
             })
             facturas_hosp_reportadas.add(factura_str)
             logger.warning(
@@ -2511,7 +2556,8 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
-                        "procedimiento": "",
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
                     })
                     facturas_urgencia_reportadas.add(factura_str)
             elif tipo_problema == "ess_129b02_prohibido":
@@ -2521,7 +2567,8 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
-                        "procedimiento": "",
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
                     })
                     facturas_ess_129b02_reportadas.add(factura_str)
             elif tipo_problema == "urgencias_890601h_prohibido":
@@ -2531,7 +2578,8 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
-                        "procedimiento": "",
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
                     })
                     facturas_urgencia_reportadas.add(factura_str)
             elif tipo_problema == "otras_05dsb01_prohibido":
@@ -2541,7 +2589,8 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
-                        "procedimiento": "",
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
                     })
                     facturas_estancia_reportadas.add(factura_str)
             else:
@@ -2551,7 +2600,8 @@ def _detect_centro_costo_urgencias(
                         "codigo": ", ".join(datos_problema["codigos_encontrados"]) if datos_problema["codigos_encontrados"] else "ninguno",
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
-                        "procedimiento": "",
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
                     })
                     facturas_estancia_reportadas.add(factura_str)
 
@@ -3745,19 +3795,25 @@ def _build_urgencias_normalized_rows(
         factura = item.get("factura", "")
         codigo_raw = item.get("codigo", "")
         proc_raw = item.get("procedimiento", "")
+        estancia_str = item.get("estancia_str", "")
         # codigo puede ser str o list, normalizar
         if isinstance(codigo_raw, list):
             codigo_str = ", ".join(str(c) for c in codigo_raw)
         else:
             codigo_str = str(codigo_raw)
         proc_str = str(proc_raw).strip() if proc_raw else ""
+        # Detalle: estancia en día+hora
+        if estancia_str:
+            detalle = f"Estancia: {estancia_str}"
+        else:
+            detalle = codigo_str
         rows.append({
             "tipo_error": "Cups Equivalentes",
             "factura": factura,
             "responsable_cierra": _get_responsable(factura),
             "descripcion": item.get("accion", ""),
             "procedimiento": _build_procedimiento(codigo_str, proc_str),
-            "detalle": codigo_str,
+            "detalle": detalle,
         })
 
     # --- MAL CAPITADO ---
