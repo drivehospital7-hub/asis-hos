@@ -2294,6 +2294,7 @@ def _detect_centro_costo_urgencias(
                     "codigo": codigo_normalized,
                     "codigo_equiv": "",
                     "accion": ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+                    "procedimiento": "",
                 })
                 logger.warning(
                     "REGLA (12333-Hospitalización) AGREGADA: Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
@@ -2468,6 +2469,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": list(codigos_hosp),
                 "codigo_equiv": "",
                 "accion": f"Hospitalización ({'>24h' if estancia_horas > 24 else '<=24h'}) debe tener: {', '.join(sorted(codigos_obligatorios_hosp))} (faltan: {', '.join(faltan)})",
+                "procedimiento": "",
             })
             facturas_hosp_reportadas.add(factura_str)
             logger.warning(
@@ -2482,6 +2484,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": list(codigos_prohibidos),
                 "codigo_equiv": "",
                 "accion": f"Hospitalización no puede tener: {', '.join(codigos_prohibidos)}",
+                "procedimiento": "",
             })
             facturas_hosp_reportadas.add(factura_str)
             logger.warning(
@@ -2508,6 +2511,7 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
+                        "procedimiento": "",
                     })
                     facturas_urgencia_reportadas.add(factura_str)
             elif tipo_problema == "ess_129b02_prohibido":
@@ -2517,6 +2521,7 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
+                        "procedimiento": "",
                     })
                     facturas_ess_129b02_reportadas.add(factura_str)
             elif tipo_problema == "urgencias_890601h_prohibido":
@@ -2526,6 +2531,7 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
+                        "procedimiento": "",
                     })
                     facturas_urgencia_reportadas.add(factura_str)
             elif tipo_problema == "otras_05dsb01_prohibido":
@@ -2535,6 +2541,7 @@ def _detect_centro_costo_urgencias(
                         "codigo": datos_problema.get("codigos_encontrados", []),
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
+                        "procedimiento": "",
                     })
                     facturas_estancia_reportadas.add(factura_str)
             else:
@@ -2544,6 +2551,7 @@ def _detect_centro_costo_urgencias(
                         "codigo": ", ".join(datos_problema["codigos_encontrados"]) if datos_problema["codigos_encontrados"] else "ninguno",
                         "codigo_equiv": "",
                         "accion": datos_problema["accion"],
+                        "procedimiento": "",
                     })
                     facturas_estancia_reportadas.add(factura_str)
 
@@ -2811,6 +2819,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": codigo_excluir,
                 "codigo_equiv": "",
                 "accion": "Usar 890701",
+                "procedimiento": proc_str,
             })
             logger.info(
                 "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 890701",
@@ -2826,6 +2835,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": codigo_excluir,
                 "codigo_equiv": "",
                 "accion": "Usar 129B02",
+                "procedimiento": proc_str,
             })
             logger.info(
                 "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 129B02",
@@ -2848,6 +2858,7 @@ def _detect_centro_costo_urgencias(
                     "codigo": codigo_excluir,
                     "codigo_equiv": "",
                     "accion": f"Usar {CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405}",
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA (Cups equivalentes): Fila %s: Código=%s, Entidad=%s -> debe usarse %s",
@@ -3733,17 +3744,19 @@ def _build_urgencias_normalized_rows(
     for item in problemas_cups_equivalentes:
         factura = item.get("factura", "")
         codigo_raw = item.get("codigo", "")
+        proc_raw = item.get("procedimiento", "")
         # codigo puede ser str o list, normalizar
         if isinstance(codigo_raw, list):
             codigo_str = ", ".join(str(c) for c in codigo_raw)
         else:
             codigo_str = str(codigo_raw)
+        proc_str = str(proc_raw).strip() if proc_raw else ""
         rows.append({
             "tipo_error": "Cups Equivalentes",
             "factura": factura,
             "responsable_cierra": _get_responsable(factura),
             "descripcion": item.get("accion", ""),
-            "procedimiento": _build_procedimiento(codigo_str, ""),
+            "procedimiento": _build_procedimiento(codigo_str, proc_str),
             "detalle": codigo_str,
         })
 
