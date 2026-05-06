@@ -3879,13 +3879,18 @@ def _build_urgencias_normalized_rows(
     if tipo_identificacion_edad:
         for item in tipo_identificacion_edad:
             factura = item.get("factura", "")
+            num_id = item.get("numero_identificacion", "")
+            anios = item.get("edad_anios", "")
+            meses = item.get("edad_meses", "")
+            tipo_actual = item.get("tipo_actual", "")
+            tipo_deberia = item.get("tipo_deberia", "")
             rows.append({
                 "tipo_error": "Tipo Identificación / Edad",
                 "factura": factura,
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": f"Edad {item.get('edad', '')}: Tipo actual {item.get('tipo_actual', '')} debería ser {item.get('tipo_deberia', '')}",
-                "procedimiento": "Nº Identificación",
-                "detalle": f"Edad: {item.get('edad', '')} años/meses",
+                "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
+                "procedimiento": num_id,
+                "detalle": f"{anios} años {meses} meses",
             })
 
     # --- Profesionales ---
@@ -3893,14 +3898,15 @@ def _build_urgencias_normalized_rows(
         for item in profesionales:
             factura = item.get("factura", "")
             cod_prof = item.get("codigo_profesional", "")
+            proc_nombre = item.get("procedimiento", "")
             nombre = item.get("nombre", "")
             rows.append({
                 "tipo_error": "Profesionales",
                 "factura": factura,
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": item.get("problema", item.get("regla", "")),
-                "procedimiento": item.get("procedimiento", ""),
-                "detalle": f"{cod_prof} - {nombre}" if cod_prof and nombre else cod_prof or nombre,
+                "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
+                "detalle": f"Cód: {cod_prof}" if cod_prof else "",
             })
 
     # --- Código Entidad vs Afiliación ---
