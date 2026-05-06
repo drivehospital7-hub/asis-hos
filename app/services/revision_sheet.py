@@ -1938,7 +1938,7 @@ def _detect_centro_costo_odontologia(
             problema = {
                 "factura": factura_str,
                 "centro_actual": centro_costo_str,
-                "centro_deberia": centro_correcto if centro_correcto else "ODONTOLOGIA o SERVICIOS ODONTOLOGIA -EXTRAMURALES",
+                "centro_deberia": centro_correcto if centro_correcto else " o ".join(centros_validos),
                 "profesional": profesional_id or "",
                 "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
             }
