@@ -2228,17 +2228,6 @@ def _detect_centro_costo_urgencias(
             return f"{dias}d {hrs}h"
         return f"{hrs}h"
 
-    def _build_sala_proc(factura: str, codigos_sala: set) -> str:
-        """Construye 'código - nombre' para el procedimiento de sala de observación."""
-        if not codigos_sala:
-            return ""
-        # Buscar el primer código de sala en factura_sala_procedimiento
-        proc_nombre = factura_sala_procedimiento.get(factura, "")
-        primer_codigo = next(iter(codigos_sala), "")
-        if primer_codigo and proc_nombre:
-            return f"{primer_codigo} - {proc_nombre}"
-        return primer_codigo
-
     factura_sala_data: dict[str, dict] = {}
     fec_factura_idx = indices.get("fec_factura")
     fecha_cierre_idx = indices.get("fecha_cierre")
@@ -2421,7 +2410,7 @@ def _detect_centro_costo_urgencias(
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
                     "estancia_str": estancia_str,
-                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "procedimiento": next(iter(codigos_sala), ""),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"ESS118/ESSC18 no puede tener {CODIGO_SALA_PROHIBIDO_ESS} - usar 05DSB01 para >6h",
                     "tipo_problema": "ess_129b02_prohibido",
@@ -2434,7 +2423,7 @@ def _detect_centro_costo_urgencias(
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
                     "estancia_str": estancia_str,
-                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "procedimiento": next(iter(codigos_sala), ""),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"Urgencias no puede tener {CODIGO_URGENCIAS_PROHIBIDO}",
                     "tipo_problema": "urgencias_890601h_prohibido",
@@ -2446,7 +2435,7 @@ def _detect_centro_costo_urgencias(
                     facturas_sala_problema[factura_str] = {
                         "entidad": entidad, "estancia_horas": estancia_horas,
                         "estancia_str": estancia_str,
-                        "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                        "procedimiento": next(iter(codigos_sala), ""),
                         "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                         "accion": f"Entidad {entidad} no puede tener {CODIGO_05DSB01_PROHIBIDO_OTRAS} - usar 5DSB01 o 129B02",
                         "tipo_problema": "otras_05dsb01_prohibido",
@@ -2458,7 +2447,7 @@ def _detect_centro_costo_urgencias(
                 facturas_sala_problema[factura_str] = {
                     "entidad": entidad, "estancia_horas": estancia_horas,
                     "estancia_str": estancia_str,
-                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "procedimiento": next(iter(codigos_sala), ""),
                     "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
                     "accion": f"Agregar códigos obligatorios: {', '.join(faltan_obligatorios)}",
                     "tipo_problema": "urgencia_obligatorios",
@@ -2469,7 +2458,7 @@ def _detect_centro_costo_urgencias(
             facturas_sala_problema[factura_str] = {
                 "entidad": entidad, "estancia_horas": estancia_horas,
                 "estancia_str": estancia_str,
-                "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                "procedimiento": next(iter(codigos_sala), ""),
                 "codigos_encontrados": list(codigos_sala), "codigo_requerido": codigo_requerido,
                 "accion": accion,
             }
