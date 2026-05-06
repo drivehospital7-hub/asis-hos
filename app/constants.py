@@ -777,6 +777,59 @@ CODIGO_CUPS_EQUIVALENTE_890205 = "890205"
 CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405 = "890405"
 ENTIDADES_PERMITIDAS_890205 = frozenset({"ESS118", "ESSC18"})
 
+# =============================================================================
+# URGENCIAS - Sala de Observación (Cups Equivalentes)
+# =============================================================================
+# Estancia > 6 horas = 21600 segundos
+ESTANCIA_SALA_OBSERVACION_THRESHOLD_SECONDS = 6 * 3600  # 21600
+
+# Entidades que usan 05DSB01 (>6h) y 5DSB01 (≤6h)
+ENTIDADES_SALA_OBSERVACION_05DSB01 = frozenset({"ESS118", "ESSC18"})
+
+# Código sala de observación para estancia <= 6 horas (todas las entidades)
+CODIGO_SALA_OBSERVACION_CORTA = "5DSB01"  # ≤ 6 horas
+
+# Código sala de observación para estancia > 6 horas
+CODIGO_SALA_OBSERVACION_LARGA_ESS = "05DSB01"  # > 6 horas (ESS118, ESSC18)
+CODIGO_SALA_OBSERVACION_LARGA_OTRAS = "129B02"  # > 6 horas (otras entidades)
+
+# Códigos que activan la regla de sala de observación obligatoria
+CODIGOS_SALA_OBSERVACION_ACTIVADORES = frozenset({
+    "5DSB01",
+    "05DSB01",
+    "129B02",
+})
+
+# Códigos obligatorios si tiene sala de observación
+CODIGOS_SALA_OBSERVACION_OBLIGATORIOS = frozenset({
+    "890701",  # Consulta de Urgencias por Medicina General
+    "890601",  # Manejo Intrahospitalario por Medicina General
+})
+
+# ----- Nueva Regla: ESS118/ESSC18 + Urgencias NO pueden tener 129B02
+ENTIDADES_ESS_PROHIBIDO_129B02 = frozenset({"ESS118", "ESSC18"})
+CODIGO_SALA_PROHIBIDO_ESS = "129B02"
+
+# ----- Nueva Regla: Urgencias NO puede tener 890601H
+CODIGO_URGENCIAS_PROHIBIDO = "890601H"
+
+# ----- Nueva Regla: Entidades distintas a ESS118/ESSC18 NO pueden tener 05DSB01 en Urgencias
+ENTIDADES_ESS_PERMITIDO_05DSB01 = frozenset({"ESS118", "ESSC18"})
+CODIGO_05DSB01_PROHIBIDO_OTRAS = "05DSB01"
+
+# ----- Nueva Regla: Hospitalización debe tener 129B02, 890601H y 890601
+CODIGOS_HOSPITALIZACION_OBLIGATORIOS = frozenset({
+    "129B02",
+    "890601H",
+    "890601",
+})
+
+# ----- Nueva Regla: Hospitalización NO puede tener 05DSB01 ni 5DSB01
+CODIGOS_HOSPITALIZACION_PROHIBIDOS = frozenset({
+    "05DSB01",
+    "5DSB01",
+})
+
 # ----- Nueva Regla: Código=890405 + Entidad=86000 -> IDE Contrato según si tiene 861801
 CODIGO_IDE_CONTRATO_890405_86000 = "890405"
 ENTIDAD_IDE_CONTRATO_890405_86000 = "86000"

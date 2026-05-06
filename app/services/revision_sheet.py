@@ -313,6 +313,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "tipo_identificacion": None,
         "fec_nacimiento": None,
         "fec_factura": None,
+        "fecha_cierre": None,
         "profesional_identificacion": None,
         "profesional_atiende": None,
         "codigo_profesional": None,
@@ -343,6 +344,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "tipo_identificacion": "Tipo Identificación",
         "fec_nacimiento": "Fec. Nacimiento",
         "fec_factura": "Fec. Factura",
+        "fecha_cierre": "Fecha Cierre",
         "profesional_identificacion": "Identificación Profesional",
         "profesional_atiende": "Profesional Atiende",
         "codigo_profesional": "Código Profesional",
@@ -572,13 +574,13 @@ def _detect_tipo_identificacion_edad(
     
     problemas = []
     facturas_ya_procesadas = set()
-    
+
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_ya_procesadas:
+        if not factura_str:
             continue
-        
+
         tipo_id = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
         fec_nac = data_sheet.cell(row=row, column=fec_nac_idx + 1).value
         fec_fact = data_sheet.cell(row=row, column=fec_fact_idx + 1).value
@@ -1954,13 +1956,378 @@ def _detect_centro_costo_urgencias(
                 codigo_normalized = str(codigo).strip()
                 if codigo_normalized == CODIGO_A_BUSCAR_890405_ESSC62:
                     identificaciones_con_890405.add(codigo_normalized)
-    
+
+    # ----- Pre-recorrido: Agrupar datos por factura para Sala de Observación
+    # Recolectar por factura: entidad, tipo_factura, fec_factura, fecha_cierre, codigos_sala
+    from app.constants import (
+        ESTANCIA_SALA_OBSERVACION_THRESHOLD_SECONDS,
+        ENTIDADES_SALA_OBSERVACION_05DSB01,
+        CODIGO_SALA_OBSERVACION_CORTA,
+        CODIGO_SALA_OBSERVACION_LARGA_ESS,
+        CODIGO_SALA_OBSERVACION_LARGA_OTRAS,
+        CODIGOS_SALA_OBSERVACION_ACTIVADORES,
+        CODIGOS_SALA_OBSERVACION_OBLIGATORIOS,
+        ENTIDADES_ESS_PROHIBIDO_129B02,
+        CODIGO_SALA_PROHIBIDO_ESS,
+        CODIGO_URGENCIAS_PROHIBIDO,
+        ENTIDADES_ESS_PERMITIDO_05DSB01,
+        CODIGO_05DSB01_PROHIBIDO_OTRAS,
+        CODIGOS_HOSPITALIZACION_OBLIGATORIOS,
+        CODIGOS_HOSPITALIZACION_PROHIBIDOS,
+    )
+    from datetime import datetime
+
+    factura_sala_data: dict[str, dict] = {}
+    fec_factura_idx = indices.get("fec_factura")
+    fecha_cierre_idx = indices.get("fecha_cierre")
+
+    # Diccionario para facturas de Hospitalización
+    factura_hospitalizacion_data: dict[str, dict] = {}
+
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
         if not factura_str:
             continue
-        
+
+        # Solo procesar si tipo_factura_descripcion_idx está disponible
+        if tipo_factura_descripcion_idx is None:
+            continue
+
+        tipo_factura_cell = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+        tipo_factura_str = str(tipo_factura_cell).strip() if tipo_factura_cell else ""
+
+        # Obtener código de esta fila
+        codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        codigo_normalized = str(codigo_cell).strip() if codigo_cell else ""
+
+        # Procesar Hospitalización
+        if tipo_factura_str == "Hospitalización":
+            if factura_str not in factura_hospitalizacion_data:
+                factura_hospitalizacion_data[factura_str] = {
+                    "entidad": "",
+                    "codigos_hospitalizacion": set(),
+                    "codigos_prohibidos": set(),
+                }
+            # Coletar códigos de hospitalización obligatorios
+            if codigo_normalized in CODIGOS_HOSPITALIZACION_OBLIGATORIOS:
+                factura_hospitalizacion_data[factura_str]["codigos_hospitalizacion"].add(codigo_normalized)
+            # Coletar códigos prohibidos (05DSB01, 5DSB01)
+            if codigo_normalized in CODIGOS_HOSPITALIZACION_PROHIBIDOS:
+                factura_hospitalizacion_data[factura_str]["codigos_prohibidos"].add(codigo_normalized)
+            continue  # No procesar como urgencia
+
+        # Solo facturas de Urgencias
+        if tipo_factura_str != "Urgencias":
+            continue
+
+        # Inicializar factura si no existe (toma datos de ESTA fila)
+        if factura_str not in factura_sala_data:
+            # Entidad
+            entidad_cell = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value if codigo_entidad_cobrar_idx else None
+            entidad_str = str(entidad_cell).strip() if entidad_cell else ""
+
+            # Fechas para estancia
+            fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
+            fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
+
+            estancia_horas = None
+            if fec_factura_cell and fecha_cierre_cell:
+                try:
+                    fec_factura_dt = datetime.strptime(str(fec_factura_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                    fecha_cierre_dt = datetime.strptime(str(fecha_cierre_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                    diferencia = fecha_cierre_dt - fec_factura_dt
+                    estancia_horas = diferencia.total_seconds() / 3600  # en horas
+                except (ValueError, TypeError):
+                    estancia_horas = None
+
+            factura_sala_data[factura_str] = {
+                "entidad": entidad_str,
+                "tipo_factura": tipo_factura_str,
+                "estancia_horas": estancia_horas,
+                "codigos_sala": set(),
+                "codigos_urgencias_obligatorios": set(),
+                "tiene_890601h": False,
+            }
+
+        # Recolectar códigos de sala de observación
+        codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        if codigo_cell:
+            codigo_normalized = str(codigo_cell).strip()
+            if codigo_normalized in (CODIGO_SALA_OBSERVACION_CORTA, CODIGO_SALA_OBSERVACION_LARGA_ESS, CODIGO_SALA_OBSERVACION_LARGA_OTRAS):
+                factura_sala_data[factura_str]["codigos_sala"].add(codigo_normalized)
+            # Recolectar códigos obligatorios de urgencias (890701 y 890601)
+            if codigo_normalized in CODIGOS_SALA_OBSERVACION_OBLIGATORIOS:
+                factura_sala_data[factura_str]["codigos_urgencias_obligatorios"].add(codigo_normalized)
+            # Colectar si tiene 890601H (prohibido en Urgencias)
+            if codigo_normalized == CODIGO_URGENCIAS_PROHIBIDO:
+                factura_sala_data[factura_str]["tiene_890601h"] = True
+
+    # ----- Pre-recorrido: identificar facturas con problema de sala de observación
+    facturas_sala_problema: dict[str, dict] = {}
+    for factura_str, data in factura_sala_data.items():
+        entidad = data["entidad"]
+        estancia_horas = data["estancia_horas"]
+        codigos_sala = data["codigos_sala"]
+
+        if estancia_horas is None:
+            # Fecha Cierre vacía - no se puede validar
+            continue
+
+        # Determinar código requerido según entidad y estancia
+        # Estancia < 2h: NO requiere código (no es sala de observación)
+        # 2h ≤ Estancia ≤ 6h: Requiere 5DSB01
+        # Estancia > 6h: Requiere 05DSB01 (ESS/ESSC18) o 129B02 (otras)
+        codigo_requerido = None
+        if estancia_horas <= 2:
+            # No requiere código de sala de observación
+            codigo_requerido = None
+        elif entidad in ENTIDADES_SALA_OBSERVACION_05DSB01:
+            # ESS118, ESSC18: >6h → 05DSB01, 2-6h → 5DSB01
+            if estancia_horas > 6:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS
+            else:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_CORTA
+        else:
+            # Otras entidades: >6h → 129B02, 2-6h → 5DSB01
+            if estancia_horas > 6:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_OTRAS
+            else:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_CORTA
+
+        # Validar: si requiere código, debe tenerlo; si tiene代码 cuando no debe, también es problema
+        es_problema = False
+        accion = ""
+
+        if codigo_requerido is None:
+            # No requiere código - validar que si lo tiene sea 5DSB01
+            codigos_incorrectos = codigos_sala - {CODIGO_SALA_OBSERVACION_CORTA}
+            if codigos_incorrectos:
+                es_problema = True
+                accion = f"Estancia <2h: no requiere sala observación (si tiene, usar 5DSB01)"
+        elif codigo_requerido not in codigos_sala:
+            # No tiene el código requerido
+                es_problema = True
+                accion = f"Usar {codigo_requerido}"
+
+        # ----- Nueva Regla: Si tiene sala de observación, debe tener 890701 y 890601
+        # Verificar si tiene códigos de sala de observación
+        codigos_urgencia_obligatorios = data.get("codigos_urgencias_obligatorios", set())
+        if codigos_sala:  # Si tiene algún código de sala de observación
+            # ----- Regla ESS118/ESSC18 + 129B02 prohibido
+            if entidad in ENTIDADES_ESS_PROHIBIDO_129B02 and CODIGO_SALA_PROHIBIDO_ESS in codigos_sala:
+                # ESS118/ESSC18 NO puede tener 129B02
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad,
+                    "estancia_horas": estancia_horas,
+                    "codigos_encontrados": list(codigos_sala),
+                    "codigo_requerido": None,
+                    "accion": f"ESS118/ESSC18 no puede tener {CODIGO_SALA_PROHIBIDO_ESS} - usar 05DSB01 para >6h",
+                    "tipo_problema": "ess_129b02_prohibido",
+                }
+                logger.info(
+                    "REGLA (ESS 129B02 Prohibido): Factura=%s, Entidad=%s, Tiene=%s",
+                    factura_str, entidad, list(codigos_sala)
+                )
+
+        # ----- Nueva Regla: Urgencias NO puede tener 890601H
+        tiene_890601h = data.get("tiene_890601h", False)
+        if tipo_factura_str == "Urgencias" and tiene_890601h:
+            facturas_sala_problema[factura_str] = {
+                "entidad": entidad,
+                "estancia_horas": estancia_horas,
+                "codigos_encontrados": list(codigos_sala),
+                "codigo_requerido": None,
+                "accion": f"Urgencias no puede tener {CODIGO_URGENCIAS_PROHIBIDO}",
+                "tipo_problema": "urgencias_890601h_prohibido",
+            }
+            logger.info(
+                "REGLA (890601H Prohibido): Factura=%s, Entidad=%s",
+                factura_str, entidad
+            )
+
+        # ----- Nueva Regla: Entidades distintas a ESS118/ESSC18 NO pueden tener 05DSB01 en Urgencias
+        if tipo_factura_str == "Urgencias" and CODIGO_05DSB01_PROHIBIDO_OTRAS in codigos_sala:
+            if entidad not in ENTIDADES_ESS_PERMITIDO_05DSB01:
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad,
+                    "estancia_horas": estancia_horas,
+                    "codigos_encontrados": list(codigos_sala),
+                    "codigo_requerido": None,
+                    "accion": f"Entidad {entidad} no puede tener {CODIGO_05DSB01_PROHIBIDO_OTRAS} - usar 5DSB01 o 129B02",
+                    "tipo_problema": "otras_05dsb01_prohibido",
+                }
+                logger.info(
+                    "REGLA (05DSB01 Prohibido Otras Entidades): Factura=%s, Entidad=%s, Tiene=%s",
+                    factura_str, entidad, list(codigos_sala)
+                )
+
+        # ----- Validación de códigos obligatorios
+        # Debe tener ambos códigos obligatorios (890701 y 890601)
+            faltan_obligatorios = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS - codigos_urgencia_obligatorios
+            if faltan_obligatorios:
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad,
+                    "estancia_horas": estancia_horas,
+                    "codigos_encontrados": list(codigos_sala),
+                    "codigo_requerido": None,
+                    "accion": f"Agregar códigos obligatorios: {', '.join(faltan_obligatorios)}",
+                    "tipo_problema": "urgencia_obligatorios",
+                }
+                logger.info(
+                    "REGLA (Urgencia Obligatorios): Factura=%s, Entidad=%s, Sala=%s, Faltan=%s",
+                    factura_str, entidad, list(codigos_sala), list(faltan_obligatorios)
+                )
+
+        if es_problema:
+            # Problema: no tiene el código requerido o tiene el incorrecto
+            facturas_sala_problema[factura_str] = {
+                "entidad": entidad,
+                "estancia_horas": estancia_horas,
+                "codigos_encontrados": list(codigos_sala),
+                "codigo_requerido": codigo_requerido,
+                "accion": accion,
+            }
+            logger.info(
+                "REGLA (Sala Observación): Factura=%s, Entidad=%s, Estancia=%.1fh, Encontrado=%s, Accion=%s",
+                factura_str, entidad, estancia_horas, list(codigos_sala), codigo_requerido
+            )
+
+    # Track facturas ya reportadas para sala de observación (no duplicar errores)
+    facturas_estancia_reportadas: set[str] = set()
+    facturas_urgencia_reportadas: set[str] = set()
+    facturas_ess_129b02_reportadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        # ----- Regla Cups Equivalentes: Sala de Observación
+        # Verificar si esta factura tiene problema de sala de observación
+        if factura_str in facturas_sala_problema:
+            datos_problema = facturas_sala_problema[factura_str]
+            tipo_problema = datos_problema.get("tipo_problema")
+
+            if tipo_problema == "urgencia_obligatorios":
+                # Problema de códigos obligatorios de urgencia (890701/890601)
+                if factura_str not in facturas_urgencia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                    })
+                    facturas_urgencia_reportadas.add(factura_str)
+                    logger.warning(
+                        "DETECTADO cups equiv URGENCIA OBLIGATORIOS: factura=%s, sala=%s, accion=%s",
+                        factura_str,
+                        datos_problema["codigos_encontrados"],
+                        datos_problema["accion"],
+                    )
+            elif tipo_problema == "ess_129b02_prohibido":
+                # Problema: ESS118/ESSC18 no puede tener 129B02
+                if factura_str not in facturas_ess_129b02_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                    })
+                    facturas_ess_129b02_reportadas.add(factura_str)
+                    logger.warning(
+                        "DETECTADO cups equiv ESS 129B02 PROHIBIDO: factura=%s, entidad=%s, accion=%s",
+                        factura_str,
+                        datos_problema["entidad"],
+                        datos_problema["accion"],
+                    )
+            elif tipo_problema == "urgencias_890601h_prohibido":
+                # Problema: Urgencias no puede tener 890601H
+                if factura_str not in facturas_urgencia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                    })
+                    facturas_urgencia_reportadas.add(factura_str)
+                    logger.warning(
+                        "DETECTADO cups equiv 890601H PROHIBIDO: factura=%s, entidad=%s, accion=%s",
+                        factura_str,
+                        datos_problema["entidad"],
+                        datos_problema["accion"],
+                    )
+            elif tipo_problema == "otras_05dsb01_prohibido":
+                # Problema: Entidades distintas a ESS118/ESSC18 no pueden tener 05DSB01
+                if factura_str not in facturas_estancia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                    })
+                    facturas_estancia_reportadas.add(factura_str)
+                    logger.warning(
+                        "DETECTADO cups equiv OTRAS ENTIDADES 05DSB01 PROHIBIDO: factura=%s, entidad=%s, accion=%s",
+                        factura_str,
+                        datos_problema["entidad"],
+                        datos_problema["accion"],
+                    )
+            else:
+                # Problema de estancia/sala (código de sala incorrecto o faltante)
+                if factura_str not in facturas_estancia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": ", ".join(datos_problema["codigos_encontrados"]) if datos_problema["codigos_encontrados"] else "ninguno",
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                    })
+                    facturas_estancia_reportadas.add(factura_str)
+                    logger.warning(
+                        "DETECTADO cups equiv SALA OBSERVACION: factura=%s, estancia=%.1fh, entidad=%s, encontrados=%s, accion=%s",
+                        factura_str,
+                        datos_problema["estancia_horas"],
+                        datos_problema["entidad"],
+                        datos_problema["codigos_encontrados"],
+                        datos_problema["accion"],
+                    )
+
+    # ----- Pre-recorrido: identificar facturas con problema de Hospitalización
+    facturas_hosp_reportadas: set[str] = set()
+    for factura_str, data in factura_hospitalizacion_data.items():
+        codigos_hosp = data.get("codigos_hospitalizacion", set())
+        codigos_prohibidos = data.get("codigos_prohibidos", set())
+
+        # Validar códigos obligatorios
+        faltan = CODIGOS_HOSPITALIZACION_OBLIGATORIOS - codigos_hosp
+        if faltan:
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": list(codigos_hosp),
+                "codigo_equiv": "",
+                "accion": f"Hospitalización debe tener: {', '.join(CODIGOS_HOSPITALIZACION_OBLIGATORIOS)} (faltan: {', '.join(faltan)})",
+            })
+            facturas_hosp_reportadas.add(factura_str)
+            logger.warning(
+                "DETECTADO cups equiv HOSPITALIZACION: factura=%s, tiene=%s, faltan=%s",
+                factura_str, list(codigos_hosp), list(faltan)
+            )
+
+        # Validar códigos prohibidos (05DSB01, 5DSB01)
+        if codigos_prohibidos:
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": list(codigos_prohibidos),
+                "codigo_equiv": "",
+                "accion": f"Hospitalización no puede tener: {', '.join(codigos_prohibidos)}",
+            })
+            facturas_hosp_reportadas.add(factura_str)
+            logger.warning(
+                "DETECTADO cups equiv HOSPITALIZACION PROHIBIDO: factura=%s, prohibidos=%s",
+                factura_str, list(codigos_prohibidos)
+            )
+
         # Obtener valores de las columnas
         codigo_tipo_proc = None
         if codigo_tipo_proc_idx is not None:
