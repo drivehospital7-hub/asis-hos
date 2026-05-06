@@ -114,6 +114,7 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 |------------|-------------|
 | **Centros de costo** | Detecta códigos NO encontrados en DB para ESS118 + Regla 890601H |
 | **IDE Contrato** | Por código + entidad (EPSI05, EPSIC5, ESS118, ESSC18, EPS037, EPSS41) |
+| **Cantidades** | Códigos 05DSB01, 5DSB01, 890601, 890701, 129B02, 12333 en Urgencias deben tener cantidad ≤ 1 |
 
 #### Centro de Costo — Urgencias
 
@@ -305,6 +306,9 @@ Columnas sin color, solo listado de facturas problemáticas:
 |---------|-----------|
 | A | Centros de Costos |
 | B | IDE Contrato |
+| C | Cups Equivalentes |
+| D | MAL CAPITADO |
+| E | Cantidades (códigos 05DSB01, 5DSB01, 890601, 890701, 129B02, 12333 con cantidad >1 en Tipo Factura = Urgencias) |
 
 ---
 

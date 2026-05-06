@@ -335,7 +335,34 @@ def export_urgencias():
                 "cantidad": len(mal_capitado),
                 "facturas": facturas_mal,
             })
-        
+
+        # Cantidades (Urgencias)
+        cantidades_urgencias = problemas_dict.get("cantidades_urgencias", [])
+        if cantidades_urgencias:
+            facturas_cant = []
+            for item in cantidades_urgencias[:50]:
+                factura_str = item.get("factura", "")
+                factura_error = {
+                    "factura": factura_str,
+                    "codigo": item.get("codigo", ""),
+                    "procedimiento": item.get("procedimiento", ""),
+                    "cantidad": item.get("cantidad", ""),
+                    "responsable": responsables_map.get(factura_str, ""),
+                }
+                facturas_cant.append(factura_error)
+                logger.info("FACTURA CANTIDAD URGENCIAS: %s - Código: %s, Procedimiento: %s, Cantidad: %s",
+                           item.get("factura", ""),
+                           item.get("codigo", ""),
+                           item.get("procedimiento", ""),
+                           item.get("cantidad", ""))
+
+            errores.append({
+                "tipo": "Cantidades",
+                "tipo_key": "cantidades_urgencias",
+                "cantidad": len(cantidades_urgencias),
+                "facturas": facturas_cant,
+            })
+
         # Los códigos sin DB ya están incluídos en ide_contrato con ide_contrato_deberia = "SIN CONTRATO"
         # No necesitamos crear un grupo de error separado
         

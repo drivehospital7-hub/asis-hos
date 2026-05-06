@@ -243,6 +243,8 @@ from app.constants import (
     CODIGO_CUPS_EQUIVALENTE_890205,
     CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405,
     ENTIDADES_PERMITIDAS_890205,
+    # Urgencias - Cantidades max 1 para ciertos códigos
+    URGENCIAS_CODIGOS_CANTIDAD_MAX_1,
 )
 
 from app.utils.formatting import (
@@ -928,6 +930,92 @@ def _detect_mal_capitado(
         logger.info("MAL CAPITADO - Problemas encontrados: %d", len(problemas))
         for p in problemas:
             logger.warning(f"  ERROR: Factura='{p['factura']}', Codigo='{p['codigo']}', Procedimiento='{p['procedimiento']}', Observacion='{p['observacion']}'")
+
+    return problemas
+
+
+def _detect_cantidades_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas con cantidades anómalas en Urgencias.
+
+    Regla: Cuando Tipo Factura Descripción = "Urgencias", los siguientes códigos
+    CUPS deben tener cantidad <= 1:
+    - 05DSB01
+    - 5DSB01
+    - 890601
+    - 890701
+    - 129B02
+    - 12333
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
+        logger.warning("Cantidades Urgencias - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Verificar si el código está en la lista restringida
+        if codigo_str not in URGENCIAS_CODIGOS_CANTIDAD_MAX_1:
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Validar: cantidad debe ser <= 1
+        if cantidad > 1:
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc_value).strip() if proc_value else ""
+
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "tipo_factura": tipo_factura_str,
+            })
+            facturas_procesadas.add(factura_str)
+            logger.warning(
+                "CANTIDAD URGENCIAS - Factura='%s', Código='%s', Cantidad=%s (debe ser <=1)",
+                factura_str, codigo_str, cantidad
+            )
+
+    if problemas:
+        logger.info("Cantidades Urgencias - Problemas encontrados: %d", len(problemas))
 
     return problemas
 
@@ -3514,7 +3602,10 @@ def create_revision_sheet(
         
         # Validación MAL CAPITADO para Urgencias
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
-        
+
+        # Validación de cantidades para Urgencias (Tipo Factura = "Urgencias" + códigos específicos)
+        cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
+
         # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
         centros_costo_str = [
             f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
@@ -3543,8 +3634,15 @@ def create_revision_sheet(
             f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['observacion']}"
             for item in mal_capitado
         ]
-        _write_column(sheet, 4, mal_capitado_str, start_row=3)
-        
+        _write_column(sheet, 5, mal_capitado_str, start_row=3)
+
+        # Formatear Cantidades Urgencias: "FACTURA|CÓDIGO|PROCEDIMIENTO|CANTIDAD"
+        cantidades_urgencias_str = [
+            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['cantidad']}"
+            for item in cantidades_urgencias
+        ]
+        _write_column(sheet, 6, cantidades_urgencias_str, start_row=3)
+
         # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
         problemas_encontrados = {
             "No se encuentra coincidencia con los siguientes centros de costos": [
@@ -3554,6 +3652,7 @@ def create_revision_sheet(
             "Problemas de IDE Contrato": problemas_ide_contrato,
             "Cups equivalentes urgencias": problemas_cups_equivalentes,
             "MAL CAPITADO": mal_capitado,
+            "Cantidades": cantidades_urgencias,
         }
     else:
 # Odontología: todas las validaciones
@@ -3788,8 +3887,12 @@ def detect_all_problems(
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, MAL CAPITADO encontrados: %d", len(mal_capitado))
 
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d",
-len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado))
+        # Validación Cantidades Urgencias (Tipo Factura = "Urgencias" + códigos específicos con cantidad > 1)
+        cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades Urgencias encontradas: %d", len(cantidades_urgencias))
+
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d",
+len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias))
         
         # Filtrar errores: si la misma factura+código tiene prioridad 1 y prioridad 2, mostrar solo prioridad 1
         # Agrupar por factura+código
@@ -3878,6 +3981,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
                 "profesionales": profesionales,
                 "mal_capitado": mal_capitado,
+                "cantidades_urgencias": cantidades_urgencias,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -3888,6 +3992,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
                 "profesionales": len(profesionales),
                 "mal_capitado": len(mal_capitado),
+                "cantidades_urgencias": len(cantidades_urgencias),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],

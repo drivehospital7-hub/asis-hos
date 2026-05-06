@@ -295,6 +295,7 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
     3: "IDE Contrato",
     4: "Cups Equivalentes",
     5: "MAL CAPITADO",
+    6: "Cantidades",
 }
 
 # =============================================================================
@@ -847,6 +848,19 @@ ENTIDAD_IDE_CONTRATO_890405_RES004 = "RES004"
 IDE_CONTRATO_CON_INSERCION_890405_RES004 = "908"  # tiene código 861801
 IDE_CONTRATO_SIN_INSERCION_890405_RES004 = "909"  # no tiene código 861801
 CODIGO_INSERCION_BUSCAR_RES004 = "861801"
+
+# =============================================================================
+# URGENCIAS - Reglas de cantidades (Tipo Factura = "Urgencias")
+# =============================================================================
+# Códigos CUPS que en urgencias deben tener cantidad <= 1
+URGENCIAS_CODIGOS_CANTIDAD_MAX_1 = frozenset({
+    "05DSB01",
+    "5DSB01",
+    "890601",
+    "890701",
+    "129B02",
+    "12333",
+})
 
 # =============================================================================
 # EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar
