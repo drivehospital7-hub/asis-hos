@@ -162,6 +162,10 @@ IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"953"})
 CODIGOS_MAL_CAPITADO = frozenset({"G03XB01", "A02BB01"})
 PREFIJO_FACTURA_MAL_CAPITADO = "FEV"
 
+# MAL CAPITADO - Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
+PREFIJO_FACTURA_CAP = "CAP"
+ENTIDAD_REQUERIDA_CAP = "ESS118"
+
 # ESS062 + Procedimientos PyP -> IDE Contrato 922
 ENTIDAD_IDE_CONTRATO_ESS062_PYP = "ESS062"
 IDE_CONTRATO_MULTIPLE_ESS062_PYP = frozenset({"922"})
@@ -584,12 +588,20 @@ CENTRO_COSTO_QUIROFANO_URGENCIAS = "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
 CODIGOS_LABORATORIO_URGENCIAS = frozenset({
     "903866",
     "903867",
-    "903856",
     "9062082",
     "903833",
     "903828",
     "902209",
     "906340",
+    "904903",
+    "902206",
+    "906129",
+    "906127",
+})
+
+# Códigos adicionales para REVERSE (solo aplica al reverse, no al original)
+CODIGOS_LABORATORIO_URGENCIAS_REVERSE = frozenset({
+    "904902",
 })
 
 # Centro de costo para procedimientos de laboratorio en urgencias
@@ -923,9 +935,21 @@ EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN = 2
 EQUIPOS_BASICOS_CANTIDAD_MAX = 10
 EQUIPOS_BASICOS_CANTIDAD_PYP_MIN = 3
 
-# ----- Nueva Regla: Código CUPS 890601 + Tipo Factura=Hospitalización -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
-CODIGO_CUPS_HOSPITALIZACION = "890601"
+# ----- Nueva Regla: Código CUPS 890601H -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+CODIGO_CUPS_HOSPITALIZACION = "890601H"
 CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+
+# ----- Nueva Regla: Centro Costo solo puede ser alguno de estos valores válidos
+CENTROS_COSTO_VALIDOS_URGENCIAS = frozenset({
+    "URGENCIAS",
+    "APOYO TERAPEUTICO-FARMACIA E INSUMOS.",
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO",
+    "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN",
+    "HOSPITALIZACIÓN - ESTANCIA GENERAL",
+    "APOYO DIAGNOSTICO-IMAGENOLOGIA",
+    "TRASLADOS",
+    "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO",
+})
 
 # ----- Nueva Regla: Código CUPS 861101 -> Centro de costo "URGENCIAS"
 CODIGO_CUPS_URGENCIAS_861101 = "861101"
@@ -1026,6 +1050,7 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "5DS002",  # Derechos de Sala de Curaciones o Procedimientos
     "869501",  # Curación de Lesión en Piel o Tejido Celular Subcutáneo SOD
     "890601H",  # Valoración Inicial Intrahospitalaria por el Médico General Tratante del Paciente Ingresado para Tratamiento no Quirúrgico u Obstétrico
+    "904902",  # (Nuevo código capita)
     "129B02",  # Internación Adultos Complejidad Baja Habitación Múltiple
     "873411",  # Radiografía de Cadera o Articulación Coxo-Femoral (AP, Lateral)
     "873312",  # Radiografía de Fémur AP y Lateral

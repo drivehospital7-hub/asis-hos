@@ -46,6 +46,7 @@ from app.constants import (
     CODIGOS_QUIROFANO_URGENCIAS,
     CENTRO_COSTO_QUIROFANO_URGENCIAS,
     CODIGOS_LABORATORIO_URGENCIAS,
+    CODIGOS_LABORATORIO_URGENCIAS_REVERSE,
     CENTRO_COSTO_LABORATORIO_URGENCIAS,
     CENTRO_COSTO_ODONTOLOGIA,
     CENTRO_COSTO_EXTRAMURAL,
@@ -239,6 +240,8 @@ from app.constants import (
     # MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
     CODIGOS_MAL_CAPITADO,
     PREFIJO_FACTURA_MAL_CAPITADO,
+    PREFIJO_FACTURA_CAP,
+    ENTIDAD_REQUERIDA_CAP,
     # Urgencias - Cups Equivalentes (890205 -> 890405)
     CODIGO_CUPS_EQUIVALENTE_890205,
     CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405,
@@ -942,6 +945,34 @@ def _detect_mal_capitado(
         logger.info("MAL CAPITADO - Problemas encontrados: %d", len(problemas))
         for p in problemas:
             logger.warning(f"  ERROR: Factura='{p['factura']}', Codigo='{p['codigo']}', Procedimiento='{p['procedimiento']}', Observacion='{p['observacion']}'")
+
+    # ----- Nueva Regla: Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
+    codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
+    if num_fact_idx is not None and codigo_entidad_cobrar_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura_str = _normalize_invoice(numero_factura)
+            if not factura_str:
+                continue
+
+            # Verificar prefijo CAP
+            if factura_str.upper().startswith(PREFIJO_FACTURA_CAP):
+                # Obtener Cód Entidad Cobrar
+                entidad_val = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
+                entidad_str = str(entidad_val).strip() if entidad_val else ""
+
+                if entidad_str != ENTIDAD_REQUERIDA_CAP:
+                    problemas.append({
+                        "factura": factura_str,
+                        "codigo": "",
+                        "procedimiento": "",
+                        "ide_contrato_actual": "",
+                        "observacion": f"Número Factura con prefijo CAP requiere Cód Entidad Cobrar={ENTIDAD_REQUERIDA_CAP} (actual: {entidad_str})",
+                    })
+                    logger.warning(
+                        "MAL CAPITADO (CAP): Factura='%s' tiene prefijo CAP pero Cód Entidad Cobrar='%s' (debe ser %s)",
+                        factura_str, entidad_str, ENTIDAD_REQUERIDA_CAP
+                    )
 
     return problemas
 
@@ -2119,6 +2150,7 @@ def _detect_centro_costo_urgencias(
         CODIGOS_QUIROFANO_URGENCIAS,
         CENTRO_COSTO_QUIROFANO_URGENCIAS,
         CODIGOS_LABORATORIO_URGENCIAS,
+        CODIGOS_LABORATORIO_URGENCIAS_REVERSE,
         CENTRO_COSTO_LABORATORIO_URGENCIAS,
         CODIGO_IDE_CONTRATO_URGENCIAS,
         ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -2139,6 +2171,7 @@ def _detect_centro_costo_urgencias(
         CODIGO_12333_HOSPITALIZACION_PROHIBIDO,
         ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
         ENTIDADES_EXCLUIDAS_ESTANCIA,
+        CENTROS_COSTO_VALIDOS_URGENCIAS,
     )
     
     # Debug: mostrar los índices detectados
@@ -2666,7 +2699,25 @@ def _detect_centro_costo_urgencias(
         if row <= 5:
             logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, tipo_factura=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
                        row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(tipo_factura_descripcion), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
-        
+
+        # ----- Regla: Centro de costo debe ser uno de los valores válidos
+        if centro_costo_str and centro_costo_str not in CENTROS_COSTO_VALIDOS_URGENCIAS:
+            problemas_centros.append({
+                "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": "Centro de costo no válido para Urgencias",
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
+                "prioridad": 1,
+                "regla": "CENTRO_INVALIDO",
+            })
+            logger.info(
+                "REGLA (CENTRO INVALIDO): Fila %s: Centro=%s no está en lista válida",
+                row,
+                centro_costo_str,
+            )
+
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
         # (Independiente - con excepciones propias: no aplica a ciertos códigos)
         regla_1_activa = (
@@ -2691,7 +2742,28 @@ def _detect_centro_costo_urgencias(
                 centro_costo,
                 codigo_excluir,
             )
-        
+
+        # ----- Regla 1 REVERSE: Centro=APOYO DIAGNOSTICO-IMAGENOLOGIA -> Código debe ser 02 Y Laboratorio=No
+        # (Sin excepciones)
+        if centro_costo_str == CENTRO_COSTO_APOYO_DIAGNOSTICO:
+            if codigo_str != CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO or laboratorio_str != LABORATORIO_NO:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": f"Código={CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO} + Laboratorio={LABORATORIO_NO}",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE1",
+                })
+                logger.info(
+                    "REGLA1-REVERSE: Fila %s: Centro=APOYO DIAGNOSTICO pero Código=%s (debe ser 02) o Lab=%s (debe ser No)",
+                    row,
+                    codigo_str,
+                    laboratorio_str,
+                )
+
         # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS
         # (Independiente)
         if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
@@ -2709,8 +2781,27 @@ def _detect_centro_costo_urgencias(
                     "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
                 )
-        
-# ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
+
+        # ----- Regla 2 REVERSE: Centro=TRASLADOS -> Código debe ser 14
+        if centro_costo_str == CENTRO_COSTO_TRASLADOS:
+            if codigo_str != CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": f"Código={CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS}",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE2",
+                })
+                logger.info(
+                    "REGLA2-REVERSE: Fila %s: Centro=TRASLADOS pero Código=%s (debe ser 14)",
+                    row,
+                    codigo_str,
+                )
+
+        # ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
         # (Independiente)
         if codigo_excluir in CODIGOS_PYP_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
@@ -2723,7 +2814,27 @@ def _detect_centro_costo_urgencias(
                     "procedimiento": proc_str,
                     "prioridad": 1,  # Regla específica
                 })
-        
+
+        # ----- Regla 3 REVERSE: Centro=PYP -> Código debe ser alguno de PYP
+        if centro_costo_str == CENTRO_COSTO_PYP_URGENCIAS:
+            if codigo_excluir not in CODIGOS_PYP_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo PYP",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE3",
+                })
+                logger.info(
+                    "REGLA3-REVERSE: Fila %s: Centro=PYP pero Código=%s (debe ser alguno de %s)",
+                    row,
+                    codigo_excluir,
+                    CODIGOS_PYP_URGENCIAS,
+                )
+
         # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS
         # (Independiente)
         if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
@@ -2743,7 +2854,27 @@ def _detect_centro_costo_urgencias(
                     codigo_excluir,
                     centro_costo_str,
                 )
-        
+
+        # ----- Regla 4 REVERSE: Centro=QUIRÓFANOS -> Código debe ser alguno de QUIRÓFANOS
+        if centro_costo_str == CENTRO_COSTO_QUIROFANO_URGENCIAS:
+            if codigo_excluir not in CODIGOS_QUIROFANO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo QUIRÓFANOS",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE4",
+                })
+                logger.info(
+                    "REGLA4-REVERSE: Fila %s: Centro=QUIRÓFANOS pero Código=%s (debe ser alguno de %s)",
+                    row,
+                    codigo_excluir,
+                    CODIGOS_QUIROFANO_URGENCIAS,
+                )
+
         # ----- Regla 5: Código en lista laboratorio + Entidad=ESS118 + Tipo=Intramural -> Centro LABORATORIO
         # (Independiente)
         if codigo_excluir in CODIGOS_LABORATORIO_URGENCIAS:
@@ -2768,9 +2899,82 @@ def _detect_centro_costo_urgencias(
                         codigo_excluir,
                         centro_costo_str,
                     )
-        
-        # ----- Regla nueva: Tipo Factura=Hospitalización + Código CUPS 890601 -> Centro de costo debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL"
-        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION and tipo_factura_str == "Hospitalización":
+
+        # ----- Regla 5 REVERSE: Centro=LABORATORIO -> Código en lista + Tipo=Intramural
+        # Si Tipo Identificación = CN -> incluye CODIGOS_LABORATORIO_URGENCIAS_REVERSE (904902)
+        if centro_costo_str == CENTRO_COSTO_LABORATORIO_URGENCIAS:
+            # Obtener Tipo Identificación para verificar si es CN
+            tipo_id_idx = indices.get("tipo_identificacion")
+            tipo_identificacion_val = None
+            if tipo_id_idx is not None:
+                tipo_identificacion_val = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
+            tipo_identificacion_str = str(tipo_identificacion_val).strip() if tipo_identificacion_val else ""
+
+            # Si Tipo Identificación = CN -> incluir código adicional 904902
+            if tipo_identificacion_str == "CN":
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS | CODIGOS_LABORATORIO_URGENCIAS_REVERSE
+            else:
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS
+
+            if tipo_factura_str != "Intramural" or codigo_excluir not in codigos_validos:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo LABORATORIO + Tipo=Intramural",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE5",
+                })
+                logger.info(
+                    "REGLA5-REVERSE: Fila %s: Centro=LABORATORIO pero Tipo=%s (debe ser Intramural) o Código=%s (no está en lista)",
+                    row,
+                    tipo_factura_str,
+                    codigo_excluir,
+                )
+
+        # ----- Regla nueva: Tipo=Intramural + Cód Entidad≠ESS118 -> Centro debe ser LABORATORIO
+        if tipo_factura_str == "Intramural" and codigo_entidad_str and codigo_entidad_str != "ESS118":
+            if centro_costo_str != CENTRO_COSTO_LABORATORIO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "INTRAMURAL_OTRAS_ENTIDADES",
+                })
+                logger.info(
+                    "REGLA (INTRAMURAL-NO-ESS118): Fila %s: Tipo=Intramural, Entidad=%s (no ESS118), Centro=%s (debe ser LABORATORIO)",
+                    row,
+                    entidad_cobrar_str,
+                    centro_costo_str,
+                )
+
+        # ----- Regla nueva: Tipo Factura=Ambulatoria -> Centro de costo debe ser PYP
+        if tipo_factura_str == "Ambulatoria":
+            if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "AMBULATORIA_PYP",
+                })
+                logger.info(
+                    "REGLA (AMBULATORIA-PYP): Fila %s: Tipo=Ambulatoria pero Centro=%s (debe ser PYP)",
+                    row,
+                    centro_costo_str,
+                )
+
+        # ----- Regla 8: Código CUPS 890601H -> Centro de costo debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION:
             if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
                 problemas_centros.append({
                     "factura": factura_str,
@@ -2779,8 +2983,15 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
+                    "prioridad": 1,
                 })
+                logger.info(
+                    "REGLA8: Fila %s: Código=%s, Centro=%s (debe ser %s)",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                    CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                )
 
 # ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
         # Es regla GENERAL (prioridad 2) - se aplica solo si no hay regla específica para el mismo código
@@ -2808,50 +3019,15 @@ def _detect_centro_costo_urgencias(
                 "prioridad": 2,
                 })
 
-        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
-            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
-                problemas_centros.append({
-                    "factura": factura_str,
-                    "tipo_factura": tipo_factura_str,
-                    "centro_actual": centro_costo_str,
-                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
-                    "codigo": codigo_excluir,
-                    "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
-                })
-        
-        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
-            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
-                problemas_centros.append({
-                    "factura": factura_str,
-                    "tipo_factura": tipo_factura_str,
-                    "centro_actual": centro_costo_str,
-                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
-                    "codigo": codigo_excluir,
-                    "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
-                })
-                logger.info(
-                    "REGLA (861101): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
-                    row,
-                    codigo_excluir,
-                    centro_costo_str,
-                    CENTRO_COSTO_URGENCIAS,
-                )
-
         # ----- Nueva Regla: Código CUPS 939402 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
         if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO and tipo_factura_str == "Hospitalización":
-            problemas_centros.append({
+            problemas_cups_equivalentes.append({
                 "factura": factura_str,
-                "tipo_factura": tipo_factura_str,
-                "centro_actual": centro_costo_str,
-                "centro_deberia": ERROR_HOSPITALIZACION_NO_PERMITIDO,
                 "codigo": codigo_excluir,
+                "codigo_equiv": "",
+                "accion": ERROR_HOSPITALIZACION_NO_PERMITIDO,
                 "procedimiento": proc_str,
-                "prioridad": 1,
-                })
+            })
             logger.info(
                 "REGLA (939402-Hospitalización): Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
                 row,
