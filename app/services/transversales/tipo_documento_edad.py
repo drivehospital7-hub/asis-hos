@@ -37,6 +37,7 @@ def detect_tipo_documento_edad(
         Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
     """
     tipo_id_idx = indices.get("tipo_identificacion")
+    num_id_idx = indices.get("identificacion")  # "Nº Identificación" en el Excel
     fec_nac_idx = indices.get("fec_nacimiento")
     fec_fact_idx = indices.get("fec_factura")
     num_fact_idx = indices.get("numero_factura")
@@ -62,6 +63,8 @@ def detect_tipo_documento_edad(
         tipo_id = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
         fec_nac = data_sheet.cell(row=row, column=fec_nac_idx + 1).value
         fec_fact = data_sheet.cell(row=row, column=fec_fact_idx + 1).value
+        num_id = data_sheet.cell(row=row, column=num_id_idx + 1).value if num_id_idx is not None else None
+        num_id_str = str(num_id).strip() if num_id else ""
         
         logger.debug(
             "Fila %s: tipo_id=%s, fec_nac=%s, fec_fact=%s",
@@ -107,11 +110,15 @@ def detect_tipo_documento_edad(
         
         # Si hay error, registrar ( deduplicar por factura)
         if tipo_correcto and tipo_id_str != tipo_correcto:
+            # Calcular meses residuales para display
+            meses_residuales = edad_meses % 12
             problemas.append({
                 "factura": factura_str,
                 "tipo_actual": tipo_id_str,
                 "tipo_deberia": tipo_correcto,
-                "edad": str(edad),
+                "numero_identificacion": num_id_str,
+                "edad_anios": edad,
+                "edad_meses": meses_residuales,
             })
             facturas_ya_procesadas.add(factura_str)
             logger.debug(

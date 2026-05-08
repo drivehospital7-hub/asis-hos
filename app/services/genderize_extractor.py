@@ -1,7 +1,11 @@
 """Servicio para extraer datos del Excel de facturas."""
 import logging
+from typing import Any
+
 import polars as pl
 from dataclasses import dataclass
+
+from app.services.transversales.estructura_excel import get_filas_a_eliminar
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +36,14 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
     """
     logger.info("Extrayendo datos de: %s", excel_path)
     
-    # Leer Excel
-    df = pl.read_excel(excel_path)
+    # Detectar estructura del Excel (filas de encabezado a saltar)
+    filas_skip = get_filas_a_eliminar(excel_path)
+    logger.info("Filas a saltar según estructura detectada: %d", filas_skip)
+
+    # Leer Excel indicando cuál fila contiene los headers
+    # Polars usa esa fila como headers y lee los datos después
+    read_opts: dict[str, Any] = {"header_row": filas_skip}
+    df = pl.read_excel(excel_path, engine="calamine", read_options=read_opts)
     
     # Buscar columnas exactas (case-sensitive)
     cols = {c: i for i, c in enumerate(df.columns)}

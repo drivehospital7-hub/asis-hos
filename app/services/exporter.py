@@ -202,7 +202,7 @@ def export_excel_with_cruce_facturas(
             data_sheet, 
             area=area_effective,
             profesional_dias=profesional_dias if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else None,
-            permitir_todos_centros=permitir_todos_centros if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else False,
+            permitir_todos_centros=(permitir_todos_centros or equipos_basicos) if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else False,
         )
         
         # 8. Crear hoja CruceFacturas

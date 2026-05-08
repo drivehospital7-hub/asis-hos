@@ -900,6 +900,178 @@
     color: #64748b;
     margin: 0 0.5rem;
   }
+  /* ====== CARGA MASIVA MODAL ====== */
+  .carga-modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.5);
+    z-index: 10000;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+  }
+  .carga-modal-overlay.open {
+    display: flex;
+  }
+  .carga-modal {
+    background: #fff;
+    border-radius: 16px;
+    max-width: 720px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+    animation: carga-fade-in 0.2s ease;
+  }
+  @keyframes carga-fade-in {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .carga-modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1.25rem 1.5rem;
+    border-bottom: 1px solid #f1f5f9;
+  }
+  .carga-modal-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+  .carga-modal-close {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1.25rem;
+    color: #94a3b8;
+    transition: all 0.15s ease;
+  }
+  .carga-modal-close:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .carga-modal-body {
+    padding: 1.5rem;
+  }
+  .carga-modal-footer {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+    padding: 1rem 1.5rem;
+    border-top: 1px solid #f1f5f9;
+  }
+  .carga-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+  .carga-label small {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+    color: #94a3b8;
+  }
+  .carga-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #0f172a;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+  }
+  .carga-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  .carga-textarea--small {
+    min-height: 80px;
+  }
+  .carga-hint {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin: 0.375rem 0 0 0;
+  }
+  .carga-preview-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+  }
+  .carga-preview-table th {
+    text-align: left;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 2px solid #e2e8f0;
+    background: #f8fafc;
+  }
+  .carga-preview-table td {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.875rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    vertical-align: middle;
+  }
+  .carga-preview-table tr:hover td {
+    background: #fafbfc;
+  }
+  .carga-preview-input {
+    width: 100%;
+    padding: 0.375rem 0.5rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 0.875rem;
+    font-family: inherit;
+    color: #0f172a;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+  }
+  .carga-preview-input:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  }
+  .carga-preview-count {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin: 0.5rem 0 0 0;
+  }
+  .carga-preview-count strong {
+    color: #0f172a;
+    font-weight: 700;
+  }
+  .carga-step {
+    display: block;
+  }
+  .carga-step.hidden {
+    display: none;
+  }
+  .carga-desc-section {
+    margin-top: 1.25rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid #f1f5f9;
+  }
 </style>
 {% endblock %}
 
@@ -914,6 +1086,10 @@
     <button class="btn btn--secondary" onclick="exportToCSV()">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar
+    </button>
+    <button class="btn btn--secondary" onclick="openCargaMasiva()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Carga Masiva
     </button>
     <button class="btn btn--primary" onclick="addNewRow()">Agregar Novedad</button>
   </div>
@@ -1026,6 +1202,69 @@
   <span class="lightbox-close" onclick="closeLightbox()">&times;</span>
   <img id="lightbox-img" src="">
 </div>
+
+<!-- Modal Carga Masiva -->
+<div id="cargaModal" class="carga-modal-overlay">
+  <div class="carga-modal">
+    <div class="carga-modal-header">
+      <h2>Carga Masiva de Novedades</h2>
+      <button class="carga-modal-close" onclick="closeCargaMasiva()">&times;</button>
+    </div>
+
+    <!-- Paso 1: Pegar datos -->
+    <div id="cargaStep1" class="carga-step">
+      <div class="carga-modal-body">
+        <label class="carga-label">Datos desde Excel <small>(Numero Factura, Cantidad, Vlr. Procedimiento, Vlr. Subsidiado, Responsable)</small></label>
+        <textarea id="cargaTextarea" class="carga-textarea" rows="10" placeholder="Pega acá los datos copiados desde Excel..."></textarea>
+        <p class="carga-hint">Se reconocerán automáticamente las columnas N° Factura y Responsable. La primera fila se tratará como encabezado y se ignorará.</p>
+
+        <div class="carga-desc-section">
+          <label class="carga-label">Descripción de Novedad</label>
+          <textarea id="cargaDescripcion" class="carga-textarea carga-textarea--small" rows="3" placeholder="Descripción que se asignará a todas las filas..."></textarea>
+        </div>
+      </div>
+      <div class="carga-modal-footer">
+        <button class="btn btn--primary" onclick="parseCargaMasiva()">Previsualizar</button>
+      </div>
+    </div>
+
+    <!-- Paso 2: Previsualización -->
+    <div id="cargaStep2" class="carga-step hidden">
+      <div class="carga-modal-body">
+        <label class="carga-label">Previsualización <small>podés editar directamente las celdas</small></label>
+        <div style="overflow-x: auto;">
+          <table class="carga-preview-table" id="cargaPreviewTable">
+            <thead>
+              <tr>
+                <th style="width:28%;">Número de Factura</th>
+                <th style="width:32%;">Descripción</th>
+                <th style="width:28%;">Responsable</th>
+                <th style="width:12%;"></th>
+              </tr>
+            </thead>
+            <tbody id="cargaPreviewBody"></tbody>
+          </table>
+        </div>
+        <p class="carga-preview-count" id="cargaPreviewCount">0 registros</p>
+
+        <div class="carga-image-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
+          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Imágenes adjuntas <small>(máx 3)</small></label>
+          <div id="cargaImageThumbs" style="display:flex;gap:0.5rem;flex-wrap:wrap;min-height:60px;margin-bottom:0.75rem;"></div>
+          <div id="cargaImageDropzoneInline" class="dropzone" style="border:2px dashed #e2e8f0;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;display:none;">
+            <div style="color:#64748b;font-size:0.8125rem;">Arrastra imagen o click para subir</div>
+            <input type="file" id="cargaFileInputInline" accept="image/*" multiple style="display:none">
+          </div>
+        </div>
+      </div>
+      <div class="carga-modal-footer">
+        <button class="btn btn--secondary" onclick="backToCargaStep1()">Volver</button>
+        <button class="btn btn--primary" onclick="submitCargaMasiva()">Confirmar y Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal imágenes para Carga Masiva (ya no se usa, ahora es inline) -->
 {% endblock %}
 
 {% block scripts %}
@@ -2244,19 +2483,43 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('lightbox').classList.remove('open');
   }
 
-  document.addEventListener('keydown', (e) => { 
-    if (e.key === 'Escape') { 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
       const lightbox = document.getElementById('lightbox');
       if (lightbox.classList.contains('open')) {
         closeLightbox();
       } else {
         closeImageModal();
       }
-    } 
+    }
   });
 
   // Pegar imagen del portapapeles al error activo
   document.addEventListener('paste', async (e) => {
+    // Si el modal de carga masiva está abierto
+    if (document.getElementById('cargaModal').classList.contains('open')) {
+      // Si estamos en PASO 2 (previsualización): auto-agregar imagen sin preguntar
+      if (!document.getElementById('cargaStep2').classList.contains('hidden')) {
+        var clipItems = e.clipboardData?.items;
+        if (clipItems) {
+          for (var idx = 0; idx < clipItems.length; idx++) {
+            if (clipItems[idx].type.startsWith('image/')) {
+              var file = clipItems[idx].getAsFile();
+              if (file) {
+                setTimeout(function() {
+                  if (cargaImages.length >= 3) return;
+                  addCargaImageFile(file);
+                  renderCargaThumbs();
+                }, 100);
+              }
+              break;
+            }
+          }
+        }
+      }
+      return; // No seguir al upload del error activo
+    }
+
     const items = e.clipboardData?.items;
     if (!items) return;
     
@@ -2293,6 +2556,430 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     }
   });
 
+  // ====== CARGA MASIVA ======
+  let cargaParsedRows = [];
+  let cargaImages = []; // { file: Blob, url: string, name: string }
+
+  /** Normaliza texto: minúsculas, sin tildes, sin espacios extra */
+  function _norm(t) {
+    return (t || '').toLowerCase().trim()
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, '')
+      .replace(/\s+/g, ' ');
+  }
+
+  /** Busca el índice de la primera columna cuyo encabezado contenga ALGUNA de las keywords */
+  function _findCol(headers, keywords) {
+    for (let i = 0; i < headers.length; i++) {
+      const h = _norm(headers[i]);
+      for (const kw of keywords) {
+        if (h.includes(_norm(kw))) return i;
+      }
+    }
+    return -1;
+  }
+
+  /** Normaliza responsable contra la lista existente.
+   *  1) Match exacto (rápido)
+   *  2) Word-set matching: compara por conjunto de palabras sin importar orden
+   *  3) Si no hay match → devuelve vacío para que el usuario lo complete en preview
+   */
+  function _matchResponsable(raw, lista) {
+    if (!raw) return '';
+    const rawNorm = _norm(raw);
+
+    for (const r of lista) {
+      if (_norm(r) === rawNorm) return r;
+    }
+
+    const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
+    if (!rawWords.length) return '';
+
+    for (const r of lista) {
+      const rWords = _norm(r).split(/\s+/).filter(function(w) { return w.length > 1; });
+      var smaller = rWords.length <= rawWords.length ? rWords : rawWords;
+      var larger  = rWords.length <= rawWords.length ? rawWords : rWords;
+      var allMatch = smaller.every(function(sw) {
+        return larger.some(function(lw) { return lw.includes(sw) || sw.includes(lw); });
+      });
+      if (allMatch && smaller.length > 0) return r;
+    }
+    return '';
+  }
+
+  // ====== GESTIÓN DE IMÁGENES EN CARGA MASIVA ======
+
+  function renderCargaThumbs() {
+    var container = document.getElementById('cargaImageThumbs');
+    var dropzone = document.getElementById('cargaImageDropzoneInline');
+    if (!container) return;
+
+    if (!cargaImages.length) {
+      container.innerHTML = '<span style="color:#94a3b8;font-size:0.8125rem;">Sin imágenes</span>';
+    } else {
+      var html = '';
+      for (var i = 0; i < cargaImages.length; i++) {
+        html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
+          '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
+          '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
+          '</div>';
+      }
+      container.innerHTML = html;
+    }
+
+    // Siempre mostrar el dropzone si hay menos de 3 imágenes (independiente de si ya hay o no)
+    if (dropzone) {
+      dropzone.style.display = cargaImages.length >= 3 ? 'none' : 'block';
+    }
+  }
+
+  function setupCargaImageInlineDropzone() {
+    var dropzone = document.getElementById('cargaImageDropzoneInline');
+    var fileInput = document.getElementById('cargaFileInputInline');
+    if (!dropzone || !fileInput) return;
+
+    dropzone.onclick = function() { fileInput.click(); };
+    fileInput.onchange = function() {
+      for (var j = 0; j < fileInput.files.length; j++) {
+        addCargaImageFile(fileInput.files[j]);
+      }
+      fileInput.value = '';
+      renderCargaThumbs();
+    };
+    dropzone.ondragover = function(e) { e.preventDefault(); dropzone.style.borderColor = '#3b82f6'; };
+    dropzone.ondragleave = function() { dropzone.style.borderColor = '#e2e8f0'; };
+    dropzone.ondrop = function(e) {
+      e.preventDefault();
+      dropzone.style.borderColor = '#e2e8f0';
+      for (var j = 0; j < e.dataTransfer.files.length; j++) {
+        addCargaImageFile(e.dataTransfer.files[j]);
+      }
+      renderCargaThumbs();
+    };
+  }
+
+  function addCargaImageFile(file) {
+    if (!file.type.startsWith('image/')) return;
+    if (cargaImages.length >= 3) { alert('Máximo 3 imágenes'); return; }
+    var url = URL.createObjectURL(file);
+    cargaImages.push({
+      file: file,
+      url: url,
+      name: 'carga_' + Date.now() + '_' + cargaImages.length + '.' + file.type.split('/')[1]
+    });
+    renderCargaThumbs();
+  }
+
+  function deleteCargaImage(index) {
+    if (!confirm('¿Eliminar imagen?')) return;
+    URL.revokeObjectURL(cargaImages[index].url);
+    cargaImages.splice(index, 1);
+    renderCargaThumbs();
+  }
+
+  function viewCargaImage(index) {
+    var lightbox = document.getElementById('lightbox');
+    var img = document.getElementById('lightbox-img');
+    img.src = cargaImages[index].url;
+    lightbox.classList.add('open');
+    lightbox.onclick = function(e) { if (e.target === lightbox) closeLightbox(); };
+  }
+
+  // Capturar imagen del portapapeles al pegar en el textarea de carga masiva
+  document.getElementById('cargaTextarea').addEventListener('paste', function(e) {
+    if (cargaImages.length >= 3) return;
+
+    // 1) Leer del paste event (síncrono, data solo disponible dentro del evento)
+    var items = e.clipboardData?.items;
+    if (items) {
+      for (var idx = 0; idx < items.length; idx++) {
+        if (items[idx].type.startsWith('image/')) {
+          var file = items[idx].getAsFile();
+          if (file) {
+            preguntarImagenCarga(file);
+          }
+          break;
+        }
+      }
+    }
+  });
+
+  function preguntarImagenCarga(file) {
+    setTimeout(function() {
+      if (cargaImages.length >= 3) return;
+      addCargaImageFile(file);
+      renderCargaThumbs();
+    }, 100);
+  }
+
+  // ====== FLUJO PRINCIPAL CARGA MASIVA ======
+
+  function openCargaMasiva() {
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
+    document.getElementById('cargaModal').classList.add('open');
+    document.getElementById('cargaStep1').classList.remove('hidden');
+    document.getElementById('cargaStep2').classList.add('hidden');
+    document.getElementById('cargaTextarea').value = '';
+    document.getElementById('cargaDescripcion').value = '';
+    document.getElementById('cargaPreviewBody').innerHTML = '';
+    document.getElementById('cargaPreviewCount').textContent = '0 registros';
+    cargaParsedRows = [];
+    // Reset imágenes
+    for (var ci = 0; ci < cargaImages.length; ci++) URL.revokeObjectURL(cargaImages[ci].url);
+    cargaImages = [];
+    renderCargaThumbs();
+    setTimeout(() => document.getElementById('cargaTextarea').focus(), 100);
+  }
+
+  function closeCargaMasiva() {
+    document.getElementById('cargaModal').classList.remove('open');
+  }
+
+  document.getElementById('cargaModal').addEventListener('click', function(e) {
+    if (e.target === this) closeCargaMasiva();
+  });
+
+  /** Detecta si una factura ya existe en cachedErrores (sin importar categoría) */
+  function _esDuplicadoCarga(factura) {
+    if (!factura || !cachedErrores.length) return false;
+    var nums = parsearFacturas(factura);
+    if (!nums.length) return false;
+    return cachedErrores.some(function(e) {
+      var existentes = parsearFacturas(e.factura);
+      return existentes.some(function(x) { return nums.indexOf(x) !== -1; });
+    });
+  }
+
+  function parseCargaMasiva() {
+    const raw = document.getElementById('cargaTextarea').value;
+    const descripcion = document.getElementById('cargaDescripcion').value.trim();
+    if (!raw.trim()) { alert('Pegá los datos de Excel primero'); return; }
+    if (!descripcion) { alert('Ingresá una Descripción de Novedad'); return; }
+
+    const lines = raw.split('\n').filter(l => l.trim());
+    if (lines.length < 2) {
+      alert('Necesitás al menos el encabezado + 1 fila de datos');
+      return;
+    }
+
+    // ---- 1. Detectar columnas por encabezado ----
+    const headers = lines[0].split('\t').map(h => h.trim());
+    const facturaCol = _findCol(headers, ['factura', 'numero', 'num']);
+    const respCol = _findCol(headers, ['responsable', 'cierra', 'facturador']);
+
+    if (facturaCol === -1) {
+      alert('No se encontró columna "Número de Factura". El encabezado debe contener "Factura" o "Número".');
+      return;
+    }
+    if (respCol === -1) {
+      alert('No se encontró columna "Responsable Cierra Facturar". El encabezado debe contener "Responsable", "Cierra" o "Facturador".');
+      return;
+    }
+
+    // ---- 2. Parsear datos ----
+    const dataLines = lines.slice(1);
+    const rows = [];
+    const errors = [];
+
+    dataLines.forEach((line, i) => {
+      const cols = line.split('\t');
+      const factura = (cols[facturaCol] || '').trim();
+      const responsableRaw = (cols[respCol] || '').trim();
+
+      if (!factura) {
+        errors.push('Fila ' + (i + 1) + ': falta número de factura');
+        return;
+      }
+
+      const responsable = _matchResponsable(responsableRaw, opciones.responsables);
+      // Marcar duplicado contra cachedErrores (misma factura + misma categoría)
+      const duplicate = _esDuplicadoCarga(factura);
+      rows.push({ factura: factura, responsable: responsable, duplicate: duplicate });
+    });
+
+    if (!rows.length) {
+      alert('Error al parsear los datos:\n' + errors.join('\n'));
+      return;
+    }
+
+    if (errors.length) {
+      if (!confirm('Hay ' + errors.length + ' fila(s) ignoradas:\n' +
+          errors.slice(0, 5).join('\n') +
+          (errors.length > 5 ? '\n... y ' + (errors.length - 5) + ' más' : '') +
+          '\n\n¿Querés continuar solo con las ' + rows.length + ' filas válidas?')) {
+        return;
+      }
+    }
+
+    // ---- 3. Detectar duplicados entre las mismas filas del batch ----
+    var seen = {};
+    for (var ri = 0; ri < rows.length; ri++) {
+      if (rows[ri].duplicate) continue; // ya marcado contra la tabla
+      var nums = parsearFacturas(rows[ri].factura);
+      for (var ni = 0; ni < nums.length; ni++) {
+        if (seen[nums[ni]]) {
+          rows[ri].duplicate = true;
+          break;
+        }
+      }
+      for (var ni = 0; ni < nums.length; ni++) {
+        seen[nums[ni]] = true;
+      }
+    }
+
+    var dupCount = rows.filter(function(r) { return r.duplicate; }).length;
+    if (dupCount > 0) {
+      if (!confirm('Se encontraron ' + dupCount + ' registro(s) duplicado(s) (misma factura + categoría "Otro").\nSe mostrarán deshabilitados en la preview.\n¿Querés continuar?')) {
+        return;
+      }
+    }
+
+    cargaParsedRows = rows;
+    renderCargaPreview(descripcion);
+    // Siempre renderizar los thumbs al ir a preview para que el dropzone esté visible
+    renderCargaThumbs();
+  }
+
+  function renderCargaPreview(descripcion) {
+    const tbody = document.getElementById('cargaPreviewBody');
+    const count = document.getElementById('cargaPreviewCount');
+    var dupTotal = cargaParsedRows.filter(function(r) { return r.duplicate; }).length;
+
+    let html = '';
+    cargaParsedRows.forEach(function(row, i) {
+      var isDup = row.duplicate;
+      var noMatch = row.responsable === '' ? ' style="color:#f59e0b;"' : '';
+      var disabledAttr = isDup ? ' disabled' : '';
+      var bgStyle = isDup ? ' style="background:#fef3c7;"' : '';
+      var dupClass = isDup ? ' carga-dup' : '';
+
+      html += '<tr' + bgStyle + '>';
+      html += '<td>' +
+        '<div style="display:flex;align-items:center;gap:0.375rem;">' +
+        '<input type="text" class="carga-preview-input' + dupClass + '" id="cp_factura_' + i + '" value="' + escapeHtml(row.factura) + '"' + disabledAttr + '>' +
+        (isDup ? '<button style="flex-shrink:0;width:20px;height:20px;border:1px solid #d97706;border-radius:4px;background:#fffbeb;color:#d97706;font-size:14px;line-height:18px;text-align:center;cursor:pointer;font-weight:700;" onclick="enableCargaRow(' + i + ')" title="Habilitar para subir">+</button>' : '') +
+        '</div></td>';
+      html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_desc_' + i + '" value="' + escapeHtml(descripcion) + '"' + disabledAttr + '></td>';
+      html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '" value="' + escapeHtml(row.responsable || '') + '" placeholder="(sin match)"' + noMatch + disabledAttr + '></td>';
+      html += '<td style="text-align:center;">' +
+        (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#10b981;">Agregado</span>') +
+        '</td>';
+      html += '</tr>';
+    });
+    tbody.innerHTML = html;
+    count.innerHTML = '<strong>' + cargaParsedRows.length + '</strong> Agregado(s) para subir' +
+      (dupTotal > 0 ? ' — <span style="color:#d97706;">' + dupTotal + ' Duplicado(s) deshabilitados</span>' : '') +
+      (cargaParsedRows.some(function(r) { return !r.duplicate && !r.responsable; })
+        ? ' — <span style="color:#f59e0b;">faltan responsables por definir</span>'
+        : '');
+
+    renderCargaThumbs();
+    document.getElementById('cargaStep1').classList.add('hidden');
+    document.getElementById('cargaStep2').classList.remove('hidden');
+  }
+
+  function enableCargaRow(index) {
+    var row = cargaParsedRows[index];
+    if (!row) return;
+    row.duplicate = false;
+    // Re-render
+    renderCargaPreview(document.getElementById('cp_desc_' + index)
+      ? document.getElementById('cp_desc_' + index).value
+      : '');
+  }
+
+  function backToCargaStep1() {
+    document.getElementById('cargaStep1').classList.remove('hidden');
+    document.getElementById('cargaStep2').classList.add('hidden');
+  }
+
+  async function submitCargaMasiva() {
+    var total = cargaParsedRows.length;
+    var enabled = cargaParsedRows.filter(function(r) { return !r.duplicate; }).length;
+    if (!enabled) { alert('No hay registros habilitados para agregar'); return; }
+    if (!confirm('¿Agregar ' + enabled + ' novedad(es) con categoría "Otro"?\n' +
+        (total - enabled > 0 ? '(' + (total - enabled) + ' duplicado(s) omitidos)' : ''))) return;
+
+    var rows = [];
+    for (var i = 0; i < cargaParsedRows.length; i++) {
+      if (cargaParsedRows[i].duplicate) continue; // saltar duplicados
+      var facturaInput = document.getElementById('cp_factura_' + i);
+      var descInput = document.getElementById('cp_desc_' + i);
+      var respInput = document.getElementById('cp_resp_' + i);
+      if (!facturaInput || !descInput || !respInput) continue;
+      rows.push({
+        factura: facturaInput.value.trim(),
+        observacion: descInput.value.trim(),
+        responsable: respInput.value.trim()
+      });
+    }
+
+    var validRows = rows.filter(function(r) { return r.factura; });
+    if (!validRows.length) { alert('No hay filas válidas para agregar'); return; }
+
+    var successCount = 0;
+    var errorCount = 0;
+    var createdIds = [];
+
+    for (var i = 0; i < validRows.length; i++) {
+      var r = validRows[i];
+      try {
+        var res = await fetch('/api/control-errores', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            tipo_error: 'Otro',
+            factura: r.factura,
+            observacion: r.observacion,
+            responsable: r.responsable,
+            estado: 'S'
+          })
+        });
+        var result = await res.json();
+        if (result.status === 'success') {
+          successCount++;
+          createdIds.push(result.data.error.id);
+        } else {
+          errorCount++;
+          console.error('Error fila ' + (i + 1) + ':', result.errors);
+        }
+      } catch (e) {
+        errorCount++;
+        console.error('Error fila ' + (i + 1) + ':', e);
+      }
+    }
+
+    // ---- Subir imágenes a cada error creado ----
+    if (cargaImages.length > 0 && createdIds.length > 0) {
+      for (var ei = 0; ei < createdIds.length; ei++) {
+        for (var ii = 0; ii < cargaImages.length; ii++) {
+          try {
+            var fd = new FormData();
+            fd.append('imagen', cargaImages[ii].file, cargaImages[ii].name);
+            await fetch('/api/control-errores/' + createdIds[ei] + '/imagenes', {
+              method: 'POST',
+              body: fd
+            });
+          } catch (e) {
+            console.error('Error subiendo imagen a ' + createdIds[ei] + ':', e);
+          }
+        }
+      }
+    }
+
+    // Liberar URLs de imágenes
+    for (var ci = 0; ci < cargaImages.length; ci++) URL.revokeObjectURL(cargaImages[ci].url);
+    cargaImages = [];
+
+    closeCargaMasiva();
+    await loadErrores();
+
+    var msg = successCount + ' novedad(es) agregada(s) correctamente';
+    if (errorCount) msg += ', ' + errorCount + ' con errores (revisá la consola)';
+    alert(msg);
+  }
+
+  setupCargaImageInlineDropzone();
   loadOpciones().then(loadErrores);
 
   // ====== POLLING: Verificar cambios cada 3 segundos ======

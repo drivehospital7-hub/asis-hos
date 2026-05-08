@@ -162,6 +162,10 @@ IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"953"})
 CODIGOS_MAL_CAPITADO = frozenset({"G03XB01", "A02BB01"})
 PREFIJO_FACTURA_MAL_CAPITADO = "FEV"
 
+# MAL CAPITADO - Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
+PREFIJO_FACTURA_CAP = "CAP"
+ENTIDAD_REQUERIDA_CAP = "ESS118"
+
 # ESS062 + Procedimientos PyP -> IDE Contrato 922
 ENTIDAD_IDE_CONTRATO_ESS062_PYP = "ESS062"
 IDE_CONTRATO_MULTIPLE_ESS062_PYP = frozenset({"922"})
@@ -276,25 +280,24 @@ CRUCE_HEADERS: dict[str, str] = {
     "D2": "Cruce Identificación",
 }
 
-# Headers para hoja Revision ODONTOLOGIA (columna -> valor)
+# Headers para hoja Revision ODONTOLOGIA (formato normalizado - 6 columnas fijas)
 REVISION_HEADERS: dict[int, str] = {
-    1: "Decimales",
-    2: "Doble tipo procedimiento",
-    3: "Ruta Duplicada",
-    4: "Convenio de procedimiento",
-    5: "Cantidades",
-    6: "Tipo Identificación",
-    7: "Centro Costo",
-    8: "IDE Contrato",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
-# Headers para hoja Revision URGENCIAS (columna -> valor)
+# Headers para hoja Revision URGENCIAS (formato normalizado - 6 columnas fijas)
 URGENCIA_REVISION_HEADERS: dict[int, str] = {
-    1: "Tipo Factura",
-    2: "Centros de Costos",
-    3: "IDE Contrato",
-    4: "Cups Equivalentes",
-    5: "MAL CAPITADO",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
 # =============================================================================
@@ -491,6 +494,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "ROSERO LUNA JENIFER LIZBETH",
         "tipo": "JEFE ENFERMERIA",
     },
+    "03857": {
+        "nombre": "TAPIA MONCAYO ANGIE CATHERINE",
+        "tipo": "JEFE ENFERMERIA",
+    },
     "03365": {
         "nombre": "HUERTAS OCAMPO DIANA PATRICIA",
         "tipo": "FISIOTERAPEUTA",
@@ -581,12 +588,20 @@ CENTRO_COSTO_QUIROFANO_URGENCIAS = "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
 CODIGOS_LABORATORIO_URGENCIAS = frozenset({
     "903866",
     "903867",
-    "903856",
     "9062082",
     "903833",
     "903828",
     "902209",
     "906340",
+    "904903",
+    "902206",
+    "906129",
+    "906127",
+})
+
+# Códigos adicionales para REVERSE (solo aplica al reverse, no al original)
+CODIGOS_LABORATORIO_URGENCIAS_REVERSE = frozenset({
+    "904902",
 })
 
 # Centro de costo para procedimientos de laboratorio en urgencias
@@ -773,6 +788,70 @@ CODIGO_CUPS_EQUIVALENTE_890205 = "890205"
 CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405 = "890405"
 ENTIDADES_PERMITIDAS_890205 = frozenset({"ESS118", "ESSC18"})
 
+# =============================================================================
+# URGENCIAS - Sala de Observación (Cups Equivalentes)
+# =============================================================================
+# Estancia > 6 horas = 21600 segundos
+ESTANCIA_SALA_OBSERVACION_THRESHOLD_SECONDS = 6 * 3600  # 21600
+
+# Entidades que usan 05DSB01 (>6h) y 5DSB01 (≤6h)
+ENTIDADES_SALA_OBSERVACION_05DSB01 = frozenset({"ESS118", "ESSC18"})
+
+# Código sala de observación para estancia <= 6 horas (todas las entidades)
+CODIGO_SALA_OBSERVACION_CORTA = "5DSB01"  # ≤ 6 horas
+
+# Código sala de observación para estancia > 6 horas
+CODIGO_SALA_OBSERVACION_LARGA_ESS = "05DSB01"  # > 6 horas (ESS118, ESSC18)
+CODIGO_SALA_OBSERVACION_LARGA_OTRAS = "129B02"  # > 6 horas (otras entidades)
+
+# Códigos que activan la regla de sala de observación obligatoria
+CODIGOS_SALA_OBSERVACION_ACTIVADORES = frozenset({
+    "5DSB01",
+    "05DSB01",
+    "129B02",
+})
+
+# Códigos obligatorios si tiene sala de observación
+CODIGOS_SALA_OBSERVACION_OBLIGATORIOS = frozenset({
+    "890701",  # Consulta de Urgencias por Medicina General
+    "890601",  # Manejo Intrahospitalario por Medicina General
+})
+
+# ----- Nueva Regla: ESS118/ESSC18 + Urgencias NO pueden tener 129B02
+ENTIDADES_ESS_PROHIBIDO_129B02 = frozenset({"ESS118", "ESSC18"})
+CODIGO_SALA_PROHIBIDO_ESS = "129B02"
+
+# ----- Nueva Regla: Urgencias NO puede tener 890601H
+CODIGO_URGENCIAS_PROHIBIDO = "890601H"
+
+# ----- Nueva Regla: Entidades distintas a ESS118/ESSC18 NO pueden tener 05DSB01 en Urgencias
+ENTIDADES_ESS_PERMITIDO_05DSB01 = frozenset({"ESS118", "ESSC18"})
+CODIGO_05DSB01_PROHIBIDO_OTRAS = "05DSB01"
+
+# ----- Nueva Regla: Entidades excluidas de reglas de estancia (>6h / ≤6h)
+ENTIDADES_EXCLUIDAS_ESTANCIA = frozenset({
+    "AT1306",  # SOAT AXA COLPATRIA
+    "1327",    # SOAT-SEGUROS-BOLIVAR
+    "AT1317",  # ASIS-SOAT-MUNDIAL-DE-SEGUROS
+    "1318",    # ASIS-SOAT-SURA
+    "AT1324",  # ASIS-SOAT-LAPREVISORA
+    "AT1329",  # ASIS-SOAT-SEGUROS-DEL-ESTADO
+    "MIN001",  # ADRES ADMINISTRADORA DE LOS RECURSOS DEL SISTEMA GENERAL
+})
+
+# ----- Nueva Regla: Hospitalización debe tener 129B02, 890601H y 890601
+CODIGOS_HOSPITALIZACION_OBLIGATORIOS = frozenset({
+    "129B02",
+    "890601H",
+    "890601",
+})
+
+# ----- Nueva Regla: Hospitalización NO puede tener 05DSB01 ni 5DSB01
+CODIGOS_HOSPITALIZACION_PROHIBIDOS = frozenset({
+    "05DSB01",
+    "5DSB01",
+})
+
 # ----- Nueva Regla: Código=890405 + Entidad=86000 -> IDE Contrato según si tiene 861801
 CODIGO_IDE_CONTRATO_890405_86000 = "890405"
 ENTIDAD_IDE_CONTRATO_890405_86000 = "86000"
@@ -792,21 +871,48 @@ IDE_CONTRATO_SIN_INSERCION_890405_RES004 = "909"  # no tiene código 861801
 CODIGO_INSERCION_BUSCAR_RES004 = "861801"
 
 # =============================================================================
+# URGENCIAS - Reglas de cantidades (Tipo Factura = "Urgencias")
+# =============================================================================
+# Códigos CUPS que en urgencias deben tener cantidad <= 1
+URGENCIAS_CODIGOS_CANTIDAD_MAX_1 = frozenset({
+    "05DSB01",
+    "5DSB01",
+    "890601",
+    "890701",
+    "129B02",
+    "12333",
+})
+
+# =============================================================================
+# HOSPITALIZACIÓN - Reglas de cantidades
+# =============================================================================
+# Código 129B02: cantidad = días_estancia + 1
+#   - 12h estancia → 0 días → cantidad 1 (0+1)
+#   - 1 día 2 horas → 26h → 1 día → cantidad 2 (1+1)
+CODIGO_HOSPITALIZACION_ESTANCIA = "129B02"
+
+# Código 890601: cantidad = días de estancia (redondeado hacia arriba)
+#   - < 24h → NO puede existir 890601
+#   - >= 24h (1 día) → cantidad 1
+#   - >= 48h (2 días) → cantidad 2
+CODIGO_HOSPITALIZACION_CAMAS = "890601"
+HORAS_POR_DIA = 24
+
+# =============================================================================
 # EQUIPOS BÁSICOS - Reglas independientes de Odontología estándar
 # =============================================================================
 
 # Columnas para Equipos Básicos (mismas que odontología por ahora)
 EQUIPOS_BASICOS_COLUMNS_TO_KEEP = COLUMNS_TO_KEEP
 
-# Headers para hoja Revision EQUIPOS BÁSICOS (pueden ser diferentes)
+# Headers para hoja Revision EQUIPOS BÁSICOS (formato normalizado - 6 columnas fijas)
 EQUIPOS_BASICOS_REVISION_HEADERS: dict[int, str] = {
-    1: "Decimales",
-    2: "Doble tipo procedimiento",
-    3: "Ruta Duplicada",
-    4: "Convenio de procedimiento",
-    5: "Cantidades",
-    6: "Tipo Identificación",
-    7: "Centro Costo",
+    1: "Tipo de error",
+    2: "Número Factura",
+    3: "Responsable Cierra",
+    4: "Descripción",
+    5: "Procedimiento",
+    6: "Detalle",
 }
 
 # --- REGLAS CONFIGURABLES PARA EQUIPOS BÁSICOS ---
@@ -829,9 +935,21 @@ EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN = 2
 EQUIPOS_BASICOS_CANTIDAD_MAX = 10
 EQUIPOS_BASICOS_CANTIDAD_PYP_MIN = 3
 
-# ----- Nueva Regla: Código CUPS 890601 + Tipo Factura=Hospitalización -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
-CODIGO_CUPS_HOSPITALIZACION = "890601"
+# ----- Nueva Regla: Código CUPS 890601H -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+CODIGO_CUPS_HOSPITALIZACION = "890601H"
 CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+
+# ----- Nueva Regla: Centro Costo solo puede ser alguno de estos valores válidos
+CENTROS_COSTO_VALIDOS_URGENCIAS = frozenset({
+    "URGENCIAS",
+    "APOYO TERAPEUTICO-FARMACIA E INSUMOS.",
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO",
+    "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN",
+    "HOSPITALIZACIÓN - ESTANCIA GENERAL",
+    "APOYO DIAGNOSTICO-IMAGENOLOGIA",
+    "TRASLADOS",
+    "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO",
+})
 
 # ----- Nueva Regla: Código CUPS 861101 -> Centro de costo "URGENCIAS"
 CODIGO_CUPS_URGENCIAS_861101 = "861101"
@@ -840,6 +958,10 @@ CENTRO_COSTO_URGENCIAS = "URGENCIAS"
 # ----- Nueva Regla: Código CUPS 939402 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
 CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO = "939402"
 ERROR_HOSPITALIZACION_NO_PERMITIDO = "No se debe facturar en Hospitalización, incluido en internación"
+
+# ----- Nueva Regla: Código CUPS 12333 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
+CODIGO_12333_HOSPITALIZACION_PROHIBIDO = "12333"
+ERROR_12333_HOSPITALIZACION_NO_PERMITIDO = "Código 12333 (Consulta Prioritaria) no permitido en Hospitalización"
 
 # ----- Nueva Regla: Servicios CUPS reemplazable
 CODIGOS_CUPS_REEMPLAZABLES = frozenset({
@@ -928,6 +1050,7 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "5DS002",  # Derechos de Sala de Curaciones o Procedimientos
     "869501",  # Curación de Lesión en Piel o Tejido Celular Subcutáneo SOD
     "890601H",  # Valoración Inicial Intrahospitalaria por el Médico General Tratante del Paciente Ingresado para Tratamiento no Quirúrgico u Obstétrico
+    "904902",  # (Nuevo código capita)
     "129B02",  # Internación Adultos Complejidad Baja Habitación Múltiple
     "873411",  # Radiografía de Cadera o Articulación Coxo-Femoral (AP, Lateral)
     "873312",  # Radiografía de Fémur AP y Lateral

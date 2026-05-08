@@ -252,9 +252,9 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCentrosCostos) {
-              // Centros de Costos: 6 columnas + botón
+              // Centros de Costos: 7 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               function renderFacturas(items) {
@@ -285,6 +285,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + centroActual + '</td>';
                   html += '<td>' + centroDeberia + '</td>';
+                  html += '<td>' + responsable + '</td>';
                   html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(centroActual + ' -> ' + centroDeberia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
@@ -294,13 +295,13 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderFacturas(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esIdeContrato) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               function renderIdeContrato(items) {
@@ -334,6 +335,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + entidad + '</td>';
                   html += '<td>' + ideActual + '</td>';
                   html += '<td>' + ideDeberia + (nota ? ' (' + nota + ')' : '') + '</td>';
+                  html += '<td>' + responsable + '</td>';
                   html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
@@ -343,13 +345,48 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderIdeContrato(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+              
+              html += '</tbody></table>';
+            } else if (esCupsEquivalentes) {
+              // Cups Equivalentes: tabla unificada normalizada
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
+                
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || item.accion || '';
+                  procedimiento = item.procedimiento || item.codigo || '';
+                  detalle = item.detalle || item.codigo_equiv || '';
+                }
+                
+                html += '<tr>';
+                html += '<td>' + escapeHtml(factura) + '</td>';
+                html += '<td>' + escapeHtml(responsable) + '</td>';
+                html += '<td>' + escapeHtml(descripcion) + '</td>';
+                html += '<td>' + escapeHtml(procedimiento) + '</td>';
+                html += '<td>' + escapeHtml(detalle) + '</td>';
+                html += '</tr>';
+              });
+              
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esDecimales) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Valores</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Valores</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -363,17 +400,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
+                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esTipoIdentificacion) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -397,18 +434,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + tipoActual + '</td>';
                 html += '<td>' + tipoDeberia + '</td>';
                 html += '<td>' + edad + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esCodigoEntidadVsAfiliacion) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -434,18 +472,19 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + entidadAfiliacion + '</td>';
                 html += '<td>' + codigoExtraido + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esProfesionales) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -477,27 +516,28 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + regla + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="9"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esMalCapitado) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
-              
+
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
                 let codigo = '';
                 let procedimiento = '';
                 let observacion = '';
                 let responsable = '';
-                
+
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   codigo = item.codigo || '';
@@ -505,39 +545,131 @@ document.addEventListener('DOMContentLoaded', function() {
                   observacion = item.observacion || '';
                   responsable = item.responsable || '';
                 }
-                
+
                 html += '<tr>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + observacion + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(observacion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_urgencias') {
+              // Cantidades Urgencias: 4 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cantidad: ' + cantidad) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_hospitalizacion') {
+              // Cantidades Hospitalización: 7 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Cant. Esperada</th><th>Estancia</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let cantidadEsperada = '';
+                let estancia = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  cantidadEsperada = item.cantidad_esperada || '';
+                  estancia = (item.estancia_horas ? item.estancia_horas + 'h (' + item.estancia_dias + 'd)' : '');
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + cantidadEsperada + '</td>';
+                html += '<td>' + estancia + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cant: ' + cantidad + ' (esp: ' + cantidadEsperada + '), Est: ' + estancia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
+            } else {
+              // Tabla unificada normalizada (6 columnas fijas)
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th><th></th></tr></thead>';
+              html += '<tbody>';
+              
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || '';
+                  procedimiento = item.procedimiento || '';
+                  detalle = item.detalle || '';
+                }
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td>' + descripcion + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + detalle + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(descripcion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
-              }
-              
-              html += '</tbody></table>';
-            } else {
-              // Otras tablas sin botón específico
-              html += '<table class="table">';
-              html += '<thead><tr><th>Datos</th></tr></thead>';
-              html += '<tbody>';
-              
-              error.facturas.slice(0, 50).forEach(function(item) {
-                let datos = '';
-                if (typeof item === 'object' && item !== null) {
-                  datos = JSON.stringify(item);
-                } else {
-                  datos = item || '';
-                }
-                html += '<tr><td>' + datos + '</td></tr>';
-              });
-              
-              if (error.facturas.length > 50) {
-                html += '<tr><td><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
@@ -662,12 +794,12 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCentrosCostos) {
-              // Centros de Costos: 6 columnas + botón
+              // Centros de Costos: 7 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Tipo Factura</th><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Centro Actual</th><th>Centro Debería</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
-              // Función para renderizar facturas con 6 columnas
+              // Función para renderizar facturas con 7 columnas
               function renderFacturas(items) {
                 let html = '';
                 items.slice(0, 50).forEach(function(item) {
@@ -696,6 +828,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + centroActual + '</td>';
                   html += '<td>' + centroDeberia + '</td>';
+                  html += '<td>' + responsable + '</td>';
                   html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(centroActual + ' -> ' + centroDeberia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
@@ -705,16 +838,16 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderFacturas(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             }
             
-            // IDE Contrato: 6 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería)
+            // IDE Contrato: 7 columnas (Factura, Procedimiento, Código, Entidad, IDE Actual, IDE Debería, Responsable)
             if (esIdeContrato) {
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Procedimiento</th><th>Código</th><th>Entidad</th><th>IDE Actual</th><th>IDE Debería</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               function renderIdeContrato(items) {
@@ -748,6 +881,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   html += '<td>' + entidad + '</td>';
                   html += '<td>' + ideActual + '</td>';
                   html += '<td>' + ideDeberia + (nota ? ' (' + nota + ')' : '') + '</td>';
+                  html += '<td>' + responsable + '</td>';
                   html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                   html += '</tr>';
                 });
@@ -757,47 +891,50 @@ document.addEventListener('DOMContentLoaded', function() {
               html += renderIdeContrato(error.facturas);
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esCupsEquivalentes) {
-              // Cups Equivalentes: 4 columnas (Factura, Código, Código Equiv, Acción)
+              // Cups Equivalentes: tabla unificada normalizada
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Cód. Equivalente CUPS</th><th>Acción</th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Responsable Cierra</th><th>Descripción</th><th>Procedimiento</th><th>Detalle</th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
-                let codigo = '';
-                let codigoEquiv = '';
-                let accion = '';
+                let responsable = '';
+                let descripcion = '';
+                let procedimiento = '';
+                let detalle = '';
                 
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
-                  codigo = item.codigo || '';
-                  codigoEquiv = item.codigo_equiv || '';
-                  accion = item.accion || '';
+                  responsable = item.responsable_cierra || item.responsable || '';
+                  descripcion = item.descripcion || item.accion || '';
+                  procedimiento = item.procedimiento || item.codigo || '';
+                  detalle = item.detalle || item.codigo_equiv || '';
                 }
                 
                 html += '<tr>';
-                html += '<td>' + factura + '</td>';
-                html += '<td>' + codigo + '</td>';
-                html += '<td>' + codigoEquiv + '</td>';
-                html += '<td>' + accion + '</td>';
+                html += '<td>' + escapeHtml(factura) + '</td>';
+                html += '<td>' + escapeHtml(responsable) + '</td>';
+                html += '<td>' + escapeHtml(descripcion) + '</td>';
+                html += '<td>' + escapeHtml(procedimiento) + '</td>';
+                html += '<td>' + escapeHtml(detalle) + '</td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esDecimales) {
-              // Decimales: 2 columnas + botón
+              // Decimales: 3 columnas + botón (agregado Responsable)
               console.log('Renderizando decimales:', error.facturas);
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Valores</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Valores</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -811,18 +948,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
+                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="3"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esTipoIdentificacion) {
-              // Tipo Identificación: 4 columnas + botón
+              // Tipo Identificación: 5 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Tipo Actual</th><th>Tipo Debería</th><th>Edad</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -846,17 +983,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + tipoActual + '</td>';
                 html += '<td>' + tipoDeberia + '</td>';
                 html += '<td>' + edad + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(obs) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="4"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esCodigosSinDB) {
-              // Códigos sin DB con IDE 969: solo 1 columna (código)
+              // Códigos sin DB con IDE 969: solo 1 columna (código) - SIN Responsable (no hay factura)
               html += '<table class="table">';
               html += '<thead><tr><th>Código</th></tr></thead>';
               html += '<tbody>';
@@ -877,9 +1015,9 @@ document.addEventListener('DOMContentLoaded', function() {
               
               html += '</tbody></table>';
             } else if (esCodigoEntidadVsAfiliacion) {
-              // Entidad Cobrar vs Afiliación: 5 columnas + botón
+              // Entidad Cobrar vs Afiliación: 6 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Entidad Cobrar</th><th>Entidad Afiliación</th><th>Cód. Extraído</th><th>Problema</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -905,19 +1043,20 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + entidadAfiliacion + '</td>';
                 html += '<td>' + codigoExtraido + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="7"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esProfesionales) {
-              // Profesionales: 7 columnas + botón
+              // Profesionales: 8 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Cód. Profesional</th><th>Nombre</th><th>Área</th><th>Procedimiento</th><th>Regla</th><th>Problema</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
               
               error.facturas.slice(0, 50).forEach(function(item) {
@@ -949,28 +1088,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + regla + '</td>';
                 html += '<td>' + problema + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(problema) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
               
               if (error.facturas.length > 50) {
-                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+                html += '<tr><td colspan="9"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
               
               html += '</tbody></table>';
             } else if (esMalCapitado) {
-              // MAL CAPITADO: 4 columnas + botón
+              // MAL CAPITADO: 5 columnas + botón (agregado Responsable)
               html += '<table class="table">';
-              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th></th></tr></thead>';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Observación</th><th>Responsable</th><th></th></tr></thead>';
               html += '<tbody>';
-              
+
               error.facturas.slice(0, 50).forEach(function(item) {
                 let factura = '';
                 let codigo = '';
                 let procedimiento = '';
                 let observacion = '';
                 let responsable = '';
-                
+
                 if (typeof item === 'object' && item !== null) {
                   factura = item.factura || '';
                   codigo = item.codigo || '';
@@ -978,20 +1118,99 @@ document.addEventListener('DOMContentLoaded', function() {
                   observacion = item.observacion || '';
                   responsable = item.responsable || '';
                 }
-                
+
                 html += '<tr>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
                 html += '<td>' + observacion + '</td>';
+                html += '<td>' + responsable + '</td>';
                 html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(observacion) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
                 html += '</tr>';
               });
-              
+
               if (error.facturas.length > 50) {
                 html += '<tr><td colspan="5"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
               }
-              
+
+              html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_urgencias') {
+              // Cantidades Urgencias: 4 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cantidad: ' + cantidad) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="6"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
+              html += '</tbody></table>';
+            } else if (error.tipo_key === 'cantidades_hospitalizacion') {
+              // Cantidades Hospitalización: 7 columnas + botón
+              html += '<table class="table">';
+              html += '<thead><tr><th>Factura</th><th>Código</th><th>Procedimiento</th><th>Cantidad</th><th>Cant. Esperada</th><th>Estancia</th><th>Responsable</th><th></th></tr></thead>';
+              html += '<tbody>';
+
+              error.facturas.slice(0, 50).forEach(function(item) {
+                let factura = '';
+                let codigo = '';
+                let procedimiento = '';
+                let cantidad = '';
+                let cantidadEsperada = '';
+                let estancia = '';
+                let responsable = '';
+
+                if (typeof item === 'object' && item !== null) {
+                  factura = item.factura || '';
+                  codigo = item.codigo || '';
+                  procedimiento = item.procedimiento || '';
+                  cantidad = item.cantidad || '';
+                  cantidadEsperada = item.cantidad_esperada || '';
+                  estancia = (item.estancia_horas ? item.estancia_horas + 'h (' + item.estancia_dias + 'd)' : '');
+                  responsable = item.responsable || '';
+                }
+
+                html += '<tr>';
+                html += '<td>' + factura + '</td>';
+                html += '<td>' + codigo + '</td>';
+                html += '<td>' + procedimiento + '</td>';
+                html += '<td>' + cantidad + '</td>';
+                html += '<td>' + cantidadEsperada + '</td>';
+                html += '<td>' + estancia + '</td>';
+                html += '<td>' + responsable + '</td>';
+                html += '<td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml('Código: ' + codigo + ', Cant: ' + cantidad + ' (esp: ' + cantidadEsperada + '), Est: ' + estancia) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td>';
+                html += '</tr>';
+              });
+
+              if (error.facturas.length > 50) {
+                html += '<tr><td colspan="8"><em>... y ' + (error.facturas.length - 50) + ' más</em></td></tr>';
+              }
+
               html += '</tbody></table>';
             }
           });

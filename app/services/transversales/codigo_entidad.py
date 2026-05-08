@@ -54,6 +54,7 @@ def detect_codigo_entidad_vs_entidad_afiliacion(
     """
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
     entidad_afiliacion_idx = indices.get("entidad_afiliacion")
+    entidad_cobrar_idx = indices.get("entidad_cobrar")
     
     if codigo_entidad_cobrar_idx is None or entidad_afiliacion_idx is None:
         logger.warning(
@@ -79,6 +80,13 @@ def detect_codigo_entidad_vs_entidad_afiliacion(
         entidad_afiliacion = data_sheet.cell(
             row=row, column=entidad_afiliacion_idx + 1
         ).value
+        entidad_cobrar_nombre = ""
+        if entidad_cobrar_idx is not None:
+            entidad_cobrar_nombre = data_sheet.cell(
+                row=row, column=entidad_cobrar_idx + 1
+            ).value
+            if entidad_cobrar_nombre is not None:
+                entidad_cobrar_nombre = str(entidad_cobrar_nombre).strip()
         
         # Normalizar valores
         codigo_str = (
@@ -121,6 +129,7 @@ def detect_codigo_entidad_vs_entidad_afiliacion(
                 "codigo_entidad_cobrar": codigo_str,
                 "entidad_afiliacion": entidad_str,
                 "codigo_extraido_afiliacion": codigo_extraido,
+                "entidad_cobrar_nombre": entidad_cobrar_nombre,
                 "problema": "Cód Entidad Cobrar no coincide con código en Entidad Afiliación",
             })
             # Loguear error (solo las 5 primeras - limit para no spam)

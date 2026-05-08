@@ -46,6 +46,7 @@ from app.constants import (
     CODIGOS_QUIROFANO_URGENCIAS,
     CENTRO_COSTO_QUIROFANO_URGENCIAS,
     CODIGOS_LABORATORIO_URGENCIAS,
+    CODIGOS_LABORATORIO_URGENCIAS_REVERSE,
     CENTRO_COSTO_LABORATORIO_URGENCIAS,
     CENTRO_COSTO_ODONTOLOGIA,
     CENTRO_COSTO_EXTRAMURAL,
@@ -239,10 +240,18 @@ from app.constants import (
     # MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
     CODIGOS_MAL_CAPITADO,
     PREFIJO_FACTURA_MAL_CAPITADO,
+    PREFIJO_FACTURA_CAP,
+    ENTIDAD_REQUERIDA_CAP,
     # Urgencias - Cups Equivalentes (890205 -> 890405)
     CODIGO_CUPS_EQUIVALENTE_890205,
     CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405,
     ENTIDADES_PERMITIDAS_890205,
+    # Urgencias - Cantidades max 1 para ciertos códigos
+    URGENCIAS_CODIGOS_CANTIDAD_MAX_1,
+    # Hospitalización - Reglas de cantidades
+    CODIGO_HOSPITALIZACION_ESTANCIA,
+    CODIGO_HOSPITALIZACION_CAMAS,
+    HORAS_POR_DIA,
 )
 
 from app.utils.formatting import (
@@ -313,6 +322,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "tipo_identificacion": None,
         "fec_nacimiento": None,
         "fec_factura": None,
+        "fecha_cierre": None,
         "profesional_identificacion": None,
         "profesional_atiende": None,
         "codigo_profesional": None,
@@ -343,6 +353,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "tipo_identificacion": "Tipo Identificación",
         "fec_nacimiento": "Fec. Nacimiento",
         "fec_factura": "Fec. Factura",
+        "fecha_cierre": "Fecha Cierre",
         "profesional_identificacion": "Identificación Profesional",
         "profesional_atiende": "Profesional Atiende",
         "codigo_profesional": "Código Profesional",
@@ -572,13 +583,13 @@ def _detect_tipo_identificacion_edad(
     
     problemas = []
     facturas_ya_procesadas = set()
-    
+
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_ya_procesadas:
+        if not factura_str:
             continue
-        
+
         tipo_id = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
         fec_nac = data_sheet.cell(row=row, column=fec_nac_idx + 1).value
         fec_fact = data_sheet.cell(row=row, column=fec_fact_idx + 1).value
@@ -869,11 +880,12 @@ def _detect_mal_capitado(
         indices: Índices de columnas
 
     Returns:
-        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion"
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion", "ide_contrato_actual"
     """
     num_fact_idx = indices.get("numero_factura")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
+    ide_contrato_idx = indices.get("ide_contrato")
 
     if num_fact_idx is None or codigo_idx is None:
         logger.warning("MAL CAPITADO - Columnas necesarias no encontradas: numero_factura=%s, codigo=%s",
@@ -914,10 +926,17 @@ def _detect_mal_capitado(
                 proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
                 procedimiento = str(proc_value).strip() if proc_value else ""
 
+            # Obtener IDE Contrato actual
+            ide_contrato_actual = ""
+            if ide_contrato_idx is not None:
+                ide_val = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
+                ide_contrato_actual = str(ide_val).strip() if ide_val else ""
+
             problemas.append({
                 "factura": factura_str,
                 "codigo": codigo_str,
                 "procedimiento": procedimiento,
+                "ide_contrato_actual": ide_contrato_actual,
                 "observacion": f"Número Factura debe tener prefijo FEV (ej: FEV12345)",
             })
             facturas_procesadas.add(factura_str)
@@ -926,6 +945,257 @@ def _detect_mal_capitado(
         logger.info("MAL CAPITADO - Problemas encontrados: %d", len(problemas))
         for p in problemas:
             logger.warning(f"  ERROR: Factura='{p['factura']}', Codigo='{p['codigo']}', Procedimiento='{p['procedimiento']}', Observacion='{p['observacion']}'")
+
+    # ----- Nueva Regla: Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
+    codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
+    if num_fact_idx is not None and codigo_entidad_cobrar_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura_str = _normalize_invoice(numero_factura)
+            if not factura_str:
+                continue
+
+            # Verificar prefijo CAP
+            if factura_str.upper().startswith(PREFIJO_FACTURA_CAP):
+                # Obtener Cód Entidad Cobrar
+                entidad_val = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
+                entidad_str = str(entidad_val).strip() if entidad_val else ""
+
+                if entidad_str != ENTIDAD_REQUERIDA_CAP:
+                    problemas.append({
+                        "factura": factura_str,
+                        "codigo": "",
+                        "procedimiento": "",
+                        "ide_contrato_actual": "",
+                        "observacion": f"Número Factura con prefijo CAP requiere Cód Entidad Cobrar={ENTIDAD_REQUERIDA_CAP} (actual: {entidad_str})",
+                    })
+                    logger.warning(
+                        "MAL CAPITADO (CAP): Factura='%s' tiene prefijo CAP pero Cód Entidad Cobrar='%s' (debe ser %s)",
+                        factura_str, entidad_str, ENTIDAD_REQUERIDA_CAP
+                    )
+
+    return problemas
+
+
+def _detect_cantidades_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas con cantidades anómalas en Urgencias.
+
+    Regla: Cuando Tipo Factura Descripción = "Urgencias", los siguientes códigos
+    CUPS deben tener cantidad <= 1:
+    - 05DSB01
+    - 5DSB01
+    - 890601
+    - 890701
+    - 129B02
+    - 12333
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
+        logger.warning("Cantidades Urgencias - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Verificar si el código está en la lista restringida
+        if codigo_str not in URGENCIAS_CODIGOS_CANTIDAD_MAX_1:
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Validar: cantidad debe ser <= 1
+        if cantidad > 1:
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc_value).strip() if proc_value else ""
+
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "tipo_factura": tipo_factura_str,
+            })
+            facturas_procesadas.add(factura_str)
+            logger.warning(
+                "CANTIDAD URGENCIAS - Factura='%s', Código='%s', Cantidad=%s (debe ser <=1)",
+                factura_str, codigo_str, cantidad
+            )
+
+    if problemas:
+        logger.info("Cantidades Urgencias - Problemas encontrados: %d", len(problemas))
+
+    return problemas
+
+
+def _detect_cantidades_hospitalizacion(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas con cantidades incorrectas en Hospitalización.
+
+    Reglas:
+    - Tipo Factura Descripción = "Hospitalización"
+    - Código 129B02 (Estancia): cantidad esperada = días_estancia + 1
+        - < 24h (0 días) → cantidad 1
+        - >= 24h y < 48h (1 día) → cantidad 2
+        - >= 48h y < 72h (2 días) → cantidad 3
+    - Código 890601 (Camas): cantidad esperada = días_redondeados_arriba
+        - < 24h → ERROR (no puede existir 890601)
+        - >= 24h y < 48h (1 día) → cantidad 1
+        - >= 48h y < 72h (2 días) → cantidad 2
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad",
+        "cantidad_esperada", "estancia_dias", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+    fec_factura_idx = indices.get("fec_factura")
+    fecha_cierre_idx = indices.get("fecha_cierre")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
+        logger.warning("Cantidades Hospitalización - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Hospitalización"
+        if tipo_factura_str != "Hospitalización":
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Solo procesar códigos 129B02 y 890601
+        if codigo_str not in (CODIGO_HOSPITALIZACION_ESTANCIA, CODIGO_HOSPITALIZACION_CAMAS):
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Calcular estancia en horas y días
+        estancia_horas = 0
+        fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
+        fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
+
+        if fec_factura_cell and fecha_cierre_cell:
+            try:
+                fec_factura_dt = datetime.strptime(str(fec_factura_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                fecha_cierre_dt = datetime.strptime(str(fecha_cierre_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                diferencia = fecha_cierre_dt - fec_factura_dt
+                estancia_horas = diferencia.total_seconds() / 3600
+            except (ValueError, TypeError):
+                estancia_horas = 0
+
+        estancia_dias_ceiling = -(-int(estancia_horas) // HORAS_POR_DIA)  # Ceiling division
+        estancia_dias_floor = int(estancia_horas) // HORAS_POR_DIA  # Floor division (días completos)
+
+        procedimiento = ""
+        if procedimiento_idx is not None:
+            proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+            procedimiento = str(proc_value).strip() if proc_value else ""
+
+        es_error = False
+        cantidad_esperada = None
+
+        if codigo_str == CODIGO_HOSPITALIZACION_ESTANCIA:
+            # 129B02: cantidad = días_completos + 1 (solo cuenta días completos, no el parcial)
+            cantidad_esperada = estancia_dias_floor + 1
+            if cantidad != cantidad_esperada:
+                es_error = True
+                logger.warning(
+                    "CANTIDAD HOSPITALIZACIÓN 129B02 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                    factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                )
+
+        elif codigo_str == CODIGO_HOSPITALIZACION_CAMAS:
+            # 890601: cantidad = días_completos (floor), NO puede existir si < 24h
+            if estancia_horas < HORAS_POR_DIA:
+                # < 24h → ERROR: no puede haber 890601
+                es_error = True
+                cantidad_esperada = 0  # Indica que no debería existir
+                logger.warning(
+                    "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Fila=%d, Estancia=%.1fh (<24h) → NO DEBE EXISTIR",
+                    factura_str, row, estancia_horas
+                )
+            else:
+                cantidad_esperada = estancia_dias_floor
+                if cantidad != cantidad_esperada:
+                    es_error = True
+                    logger.warning(
+                        "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                        factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                    )
+
+        if es_error:
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "cantidad_esperada": cantidad_esperada,
+                "estancia_horas": round(estancia_horas, 1),
+                "estancia_dias": estancia_dias_floor,
+                "tipo_factura": tipo_factura_str,
+                "fila": row,
+            })
+
+    if problemas:
+        logger.info("Cantidades Hospitalización - Problemas encontrados: %d", len(problemas))
 
     return problemas
 
@@ -1707,7 +1977,7 @@ def _detect_centro_costo_odontologia(
             problema = {
                 "factura": factura_str,
                 "centro_actual": centro_costo_str,
-                "centro_deberia": centro_correcto if centro_correcto else "ODONTOLOGIA o SERVICIOS ODONTOLOGIA -EXTRAMURALES",
+                "centro_deberia": centro_correcto if centro_correcto else " o ".join(centros_validos),
                 "profesional": profesional_id or "",
                 "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
             }
@@ -1880,6 +2150,7 @@ def _detect_centro_costo_urgencias(
         CODIGOS_QUIROFANO_URGENCIAS,
         CENTRO_COSTO_QUIROFANO_URGENCIAS,
         CODIGOS_LABORATORIO_URGENCIAS,
+        CODIGOS_LABORATORIO_URGENCIAS_REVERSE,
         CENTRO_COSTO_LABORATORIO_URGENCIAS,
         CODIGO_IDE_CONTRATO_URGENCIAS,
         ENTIDAD_IDE_CONTRATO_URGENCIAS,
@@ -1897,6 +2168,10 @@ def _detect_centro_costo_urgencias(
         CODIGO_CUPS_URGENCIAS_861101,
         CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO,
         ERROR_HOSPITALIZACION_NO_PERMITIDO,
+        CODIGO_12333_HOSPITALIZACION_PROHIBIDO,
+        ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+        ENTIDADES_EXCLUIDAS_ESTANCIA,
+        CENTROS_COSTO_VALIDOS_URGENCIAS,
     )
     
     # Debug: mostrar los índices detectados
@@ -1954,13 +2229,414 @@ def _detect_centro_costo_urgencias(
                 codigo_normalized = str(codigo).strip()
                 if codigo_normalized == CODIGO_A_BUSCAR_890405_ESSC62:
                     identificaciones_con_890405.add(codigo_normalized)
-    
+
+    # ----- Pre-recorrido: Agrupar datos por factura para Sala de Observación
+    # Recolectar por factura: entidad, tipo_factura, fec_factura, fecha_cierre, codigos_sala
+    from app.constants import (
+        ESTANCIA_SALA_OBSERVACION_THRESHOLD_SECONDS,
+        ENTIDADES_SALA_OBSERVACION_05DSB01,
+        CODIGO_SALA_OBSERVACION_CORTA,
+        CODIGO_SALA_OBSERVACION_LARGA_ESS,
+        CODIGO_SALA_OBSERVACION_LARGA_OTRAS,
+        CODIGOS_SALA_OBSERVACION_ACTIVADORES,
+        CODIGOS_SALA_OBSERVACION_OBLIGATORIOS,
+        ENTIDADES_ESS_PROHIBIDO_129B02,
+        CODIGO_SALA_PROHIBIDO_ESS,
+        CODIGO_URGENCIAS_PROHIBIDO,
+        ENTIDADES_ESS_PERMITIDO_05DSB01,
+        CODIGO_05DSB01_PROHIBIDO_OTRAS,
+        CODIGOS_HOSPITALIZACION_OBLIGATORIOS,
+        CODIGOS_HOSPITALIZACION_PROHIBIDOS,
+        ENTIDADES_EXCLUIDAS_ESTANCIA,
+    )
+    from datetime import datetime
+
+    def _format_estancia(horas: float | None) -> str:
+        """Formatea estancia en días + horas."""
+        if horas is None:
+            return "N/A"
+        dias = int(horas // 24)
+        hrs = int(horas % 24)
+        if dias > 0:
+            return f"{dias}d {hrs}h"
+        return f"{hrs}h"
+
+    def _build_sala_proc(factura: str, codigos_sala: set) -> str:
+        """Construye 'código - nombre' real del Excel para sala de observación."""
+        if not codigos_sala:
+            return ""
+        proc_nombre = factura_sala_procedimiento.get(factura, "")
+        primer_codigo = next(iter(codigos_sala), "")
+        if primer_codigo and proc_nombre:
+            return f"{primer_codigo} - {proc_nombre}"
+        return primer_codigo
+
+    factura_sala_data: dict[str, dict] = {}
+    fec_factura_idx = indices.get("fec_factura")
+    fecha_cierre_idx = indices.get("fecha_cierre")
+    # Mapa para guardar procedimiento (nombre) por factura de sala de observación
+    factura_sala_procedimiento: dict[str, str] = {}
+
+    # Diccionario para facturas de Hospitalización
+    factura_hospitalizacion_data: dict[str, dict] = {}
+
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = _normalize_invoice(numero_factura)
         if not factura_str:
             continue
-        
+
+        # Solo procesar si tipo_factura_descripcion_idx está disponible
+        if tipo_factura_descripcion_idx is None:
+            continue
+
+        tipo_factura_cell = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+        tipo_factura_str = str(tipo_factura_cell).strip() if tipo_factura_cell else ""
+
+        # Obtener código de esta fila
+        codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        codigo_normalized = str(codigo_cell).strip() if codigo_cell else ""
+
+        # Procesar Hospitalización
+        if tipo_factura_str == "Hospitalización":
+            # Calcular estancia para esta fila
+            estancia_horas_hosp = None
+            if fec_factura_idx is not None and fecha_cierre_idx is not None:
+                fec_factura_cell_hosp = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+                fecha_cierre_cell_hosp = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value
+                if fec_factura_cell_hosp and fecha_cierre_cell_hosp:
+                    try:
+                        fec_factura_dt_hosp = datetime.strptime(str(fec_factura_cell_hosp).strip(), "%Y-%m-%d %H:%M:%S")
+                        fecha_cierre_dt_hosp = datetime.strptime(str(fecha_cierre_cell_hosp).strip(), "%Y-%m-%d %H:%M:%S")
+                        diferencia_hosp = fecha_cierre_dt_hosp - fec_factura_dt_hosp
+                        estancia_horas_hosp = diferencia_hosp.total_seconds() / 3600
+                    except (ValueError, TypeError):
+                        estancia_horas_hosp = None
+
+            # Capturar entidad para Hospitalización
+            entidad_hosp = ""
+            if codigo_entidad_cobrar_idx is not None:
+                entidad_cell_hosp = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
+                entidad_hosp = str(entidad_cell_hosp).strip() if entidad_cell_hosp else ""
+
+            if factura_str not in factura_hospitalizacion_data:
+                factura_hospitalizacion_data[factura_str] = {
+                    "entidad": entidad_hosp,
+                    "codigos_hospitalizacion": set(),
+                    "codigos_prohibidos": set(),
+                    "estancia_horas": estancia_horas_hosp,
+                }
+            else:
+                # Actualizar estancia si se calculó (usar la mayor)
+                if estancia_horas_hosp is not None:
+                    previa = factura_hospitalizacion_data[factura_str].get("estancia_horas")
+                    if previa is None or estancia_horas_hosp > previa:
+                        factura_hospitalizacion_data[factura_str]["estancia_horas"] = estancia_horas_hosp
+                # Actualizar entidad si está vacía
+                if not factura_hospitalizacion_data[factura_str].get("entidad") and entidad_hosp:
+                    factura_hospitalizacion_data[factura_str]["entidad"] = entidad_hosp
+            # Coletar códigos de hospitalización obligatorios
+            if codigo_normalized in CODIGOS_HOSPITALIZACION_OBLIGATORIOS:
+                factura_hospitalizacion_data[factura_str]["codigos_hospitalizacion"].add(codigo_normalized)
+            # Coletar códigos prohibidos (05DSB01, 5DSB01)
+            if codigo_normalized in CODIGOS_HOSPITALIZACION_PROHIBIDOS:
+                factura_hospitalizacion_data[factura_str]["codigos_prohibidos"].add(codigo_normalized)
+            
+            # ----- Nueva Regla: Código CUPS 12333 + Tipo Factura=Hospitalización -> Error
+            if codigo_normalized == CODIGO_12333_HOSPITALIZACION_PROHIBIDO:
+                problemas_cups_equivalentes.append({
+                    "factura": factura_str,
+                    "codigo": codigo_normalized,
+                    "codigo_equiv": "",
+                    "accion": ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+                    "procedimiento": "",
+                })
+                logger.warning(
+                    "REGLA (12333-Hospitalización) AGREGADA: Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
+                    row,
+                    codigo_normalized,
+                    ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
+                )
+            
+            continue  # No procesar como urgencia
+
+        # Solo facturas de Urgencias
+        if tipo_factura_str != "Urgencias":
+            continue
+
+        # Inicializar factura si no existe (toma datos de ESTA fila)
+        if factura_str not in factura_sala_data:
+            # Entidad
+            entidad_cell = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value if codigo_entidad_cobrar_idx else None
+            entidad_str = str(entidad_cell).strip() if entidad_cell else ""
+
+            # Fechas para estancia
+            fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
+            fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
+
+            estancia_horas = None
+            if fec_factura_cell and fecha_cierre_cell:
+                try:
+                    fec_factura_dt = datetime.strptime(str(fec_factura_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                    fecha_cierre_dt = datetime.strptime(str(fecha_cierre_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                    diferencia = fecha_cierre_dt - fec_factura_dt
+                    estancia_horas = diferencia.total_seconds() / 3600  # en horas
+                except (ValueError, TypeError):
+                    estancia_horas = None
+
+            factura_sala_data[factura_str] = {
+                "entidad": entidad_str,
+                "tipo_factura": tipo_factura_str,
+                "estancia_horas": estancia_horas,
+                "codigos_sala": set(),
+                "codigos_urgencias_obligatorios": set(),
+                "tiene_890601h": False,
+            }
+
+        # Recolectar códigos de sala de observación
+        codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
+        proc_cell = data_sheet.cell(row=row, column=proc_idx + 1).value if proc_idx else None
+        if codigo_cell:
+            codigo_normalized = str(codigo_cell).strip()
+            if codigo_normalized in (CODIGO_SALA_OBSERVACION_CORTA, CODIGO_SALA_OBSERVACION_LARGA_ESS, CODIGO_SALA_OBSERVACION_LARGA_OTRAS):
+                factura_sala_data[factura_str]["codigos_sala"].add(codigo_normalized)
+                # Guardar procedimiento (nombre) para mostrar en el reporte
+                if proc_cell:
+                    factura_sala_procedimiento[factura_str] = str(proc_cell).strip()
+            # Recolectar códigos obligatorios de urgencias (890701 y 890601)
+            if codigo_normalized in CODIGOS_SALA_OBSERVACION_OBLIGATORIOS:
+                factura_sala_data[factura_str]["codigos_urgencias_obligatorios"].add(codigo_normalized)
+            # Colectar si tiene 890601H (prohibido en Urgencias)
+            if codigo_normalized == CODIGO_URGENCIAS_PROHIBIDO:
+                factura_sala_data[factura_str]["tiene_890601h"] = True
+
+    # ----- Pre-recorrido: identificar problemas de sala de observación
+    facturas_sala_problema: dict[str, dict] = {}
+    for factura_str, data in factura_sala_data.items():
+        entidad = data["entidad"]
+        estancia_horas = data["estancia_horas"]
+        codigos_sala = data["codigos_sala"]
+
+        if estancia_horas is None:
+            continue
+
+        # ----- Excepción: entidades excluidas de reglas de estancia
+        if entidad in ENTIDADES_EXCLUIDAS_ESTANCIA:
+            continue
+
+        # Determinar código requerido según entidad y estancia
+        codigo_requerido = None
+        if estancia_horas <= 2:
+            codigo_requerido = None
+        elif entidad in ENTIDADES_SALA_OBSERVACION_05DSB01:
+            codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
+        else:
+            codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_OTRAS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
+
+        es_problema = False
+        accion = ""
+
+        if codigo_requerido is None:
+            codigos_incorrectos = codigos_sala - {CODIGO_SALA_OBSERVACION_CORTA}
+            if codigos_incorrectos:
+                es_problema = True
+                accion = f"Estancia <2h: no requiere sala observación (si tiene, usar 5DSB01)"
+        elif codigo_requerido not in codigos_sala:
+            es_problema = True
+            accion = f"Usar {codigo_requerido}"
+
+        # ----- Nueva Regla: Si tiene sala de observación, debe tener 890701 y 890601
+        codigos_urgencia_obligatorios = data.get("codigos_urgencias_obligatorios", set())
+        if codigos_sala:
+            if entidad in ENTIDADES_ESS_PROHIBIDO_129B02 and CODIGO_SALA_PROHIBIDO_ESS in codigos_sala:
+                estancia_str = _format_estancia(estancia_horas)
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                    "accion": f"ESS118/ESSC18 no puede tener {CODIGO_SALA_PROHIBIDO_ESS} - usar 05DSB01 para >6h",
+                    "tipo_problema": "ess_129b02_prohibido",
+                }
+
+            tiene_890601h = data.get("tiene_890601h", False)
+            tipo_factura = data.get("tipo_factura", "")
+            if tipo_factura == "Urgencias" and tiene_890601h:
+                estancia_str = _format_estancia(estancia_horas)
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                    "accion": f"Urgencias no puede tener {CODIGO_URGENCIAS_PROHIBIDO}",
+                    "tipo_problema": "urgencias_890601h_prohibido",
+                }
+
+            if tipo_factura == "Urgencias" and CODIGO_05DSB01_PROHIBIDO_OTRAS in codigos_sala:
+                if entidad not in ENTIDADES_ESS_PERMITIDO_05DSB01:
+                    estancia_str = _format_estancia(estancia_horas)
+                    facturas_sala_problema[factura_str] = {
+                        "entidad": entidad, "estancia_horas": estancia_horas,
+                        "estancia_str": estancia_str,
+                        "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                        "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                        "accion": f"Entidad {entidad} no puede tener {CODIGO_05DSB01_PROHIBIDO_OTRAS} - usar 5DSB01 o 129B02",
+                        "tipo_problema": "otras_05dsb01_prohibido",
+                    }
+
+            faltan_obligatorios = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS - codigos_urgencia_obligatorios
+            if faltan_obligatorios:
+                estancia_str = _format_estancia(estancia_horas)
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                    "accion": f"Agregar códigos obligatorios: {', '.join(faltan_obligatorios)}",
+                    "tipo_problema": "urgencia_obligatorios",
+                }
+
+        if es_problema:
+            estancia_str = _format_estancia(estancia_horas)
+            facturas_sala_problema[factura_str] = {
+                "entidad": entidad, "estancia_horas": estancia_horas,
+                "estancia_str": estancia_str,
+                "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                "codigos_encontrados": list(codigos_sala), "codigo_requerido": codigo_requerido,
+                "accion": accion,
+            }
+
+    # Track facturas ya reportadas para sala de observación (no duplicar errores)
+    facturas_estancia_reportadas: set[str] = set()
+    facturas_urgencia_reportadas: set[str] = set()
+    facturas_ess_129b02_reportadas: set[str] = set()
+
+    # ----- Pre-recorrido: identificar facturas con problema de Hospitalización
+    facturas_hosp_reportadas: set[str] = set()
+    for factura_str, data in factura_hospitalizacion_data.items():
+        codigos_hosp = data.get("codigos_hospitalizacion", set())
+        codigos_prohibidos = data.get("codigos_prohibidos", set())
+        estancia_horas = data.get("estancia_horas")
+        entidad = data.get("entidad", "")
+
+        # ----- Excepción: entidades excluidas de reglas de estancia
+        if entidad in ENTIDADES_EXCLUIDAS_ESTANCIA:
+            continue
+
+        # Si no hay estancia (fecha_cierre vacía), no se puede validar
+        if estancia_horas is None:
+            continue
+
+        # Determinar códigos obligatorios según estancia
+        # > 24h: 890601, 890601H, 129B02
+        # <= 24h: 890601H, 129B02 (NO requiere 890601)
+        if estancia_horas > 24:
+            codigos_obligatorios_hosp = CODIGOS_HOSPITALIZACION_OBLIGATORIOS  # 3 códigos
+        else:
+            codigos_obligatorios_hosp = {"890601H", "129B02"}  # solo 2 códigos
+
+        estancia_str = _format_estancia(estancia_horas)
+        # Validar códigos obligatorios
+        faltan = codigos_obligatorios_hosp - codigos_hosp
+        if faltan:
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": list(codigos_hosp),
+                "codigo_equiv": "",
+                "accion": f"Hospitalización ({'>24h' if estancia_horas > 24 else '<=24h'}) debe tener: {', '.join(sorted(codigos_obligatorios_hosp))} (faltan: {', '.join(faltan)})",
+                "procedimiento": "",
+                "estancia_str": estancia_str,
+            })
+            facturas_hosp_reportadas.add(factura_str)
+            logger.warning(
+                "DETECTADO cups equiv HOSPITALIZACION: factura=%s, estancia=%.1fh, tiene=%s, faltan=%s",
+                factura_str, estancia_horas or 0, list(codigos_hosp), list(faltan)
+            )
+
+        # Validar códigos prohibidos (05DSB01, 5DSB01)
+        if codigos_prohibidos:
+            problemas_cups_equivalentes.append({
+                "factura": factura_str,
+                "codigo": list(codigos_prohibidos),
+                "codigo_equiv": "",
+                "accion": f"Hospitalización no puede tener: {', '.join(codigos_prohibidos)}",
+                "procedimiento": "",
+                "estancia_str": estancia_str,
+            })
+            facturas_hosp_reportadas.add(factura_str)
+            logger.warning(
+                "DETECTADO cups equiv HOSPITALIZACION PROHIBIDO: factura=%s, prohibidos=%s",
+                factura_str, list(codigos_prohibidos)
+            )
+
+    # ----- Loop principal: procesar centro de costos y reglas por fila
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        # ----- Regla Cups Equivalentes: Sala de Observación
+        if factura_str in facturas_sala_problema:
+            datos_problema = facturas_sala_problema[factura_str]
+            tipo_problema = datos_problema.get("tipo_problema")
+
+            if tipo_problema == "urgencia_obligatorios":
+                if factura_str not in facturas_urgencia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
+                    })
+                    facturas_urgencia_reportadas.add(factura_str)
+            elif tipo_problema == "ess_129b02_prohibido":
+                if factura_str not in facturas_ess_129b02_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
+                    })
+                    facturas_ess_129b02_reportadas.add(factura_str)
+            elif tipo_problema == "urgencias_890601h_prohibido":
+                if factura_str not in facturas_urgencia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
+                    })
+                    facturas_urgencia_reportadas.add(factura_str)
+            elif tipo_problema == "otras_05dsb01_prohibido":
+                if factura_str not in facturas_estancia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": datos_problema.get("codigos_encontrados", []),
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
+                    })
+                    facturas_estancia_reportadas.add(factura_str)
+            else:
+                if factura_str not in facturas_estancia_reportadas:
+                    problemas_cups_equivalentes.append({
+                        "factura": factura_str,
+                        "codigo": ", ".join(datos_problema["codigos_encontrados"]) if datos_problema["codigos_encontrados"] else "ninguno",
+                        "codigo_equiv": "",
+                        "accion": datos_problema["accion"],
+                        "procedimiento": datos_problema.get("procedimiento", ""),
+                        "estancia_str": datos_problema.get("estancia_str", ""),
+                    })
+                    facturas_estancia_reportadas.add(factura_str)
+
         # Obtener valores de las columnas
         codigo_tipo_proc = None
         if codigo_tipo_proc_idx is not None:
@@ -1994,11 +2670,6 @@ def _detect_centro_costo_urgencias(
         if tipo_factura_descripcion_idx is not None:
             tipo_factura_descripcion = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
         
-        # Debug: log del tipo_factura_descripcion en las primeras filas
-        if row <= 3:
-            logger.warning(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
-            print(f"DEBUG tipo_factura: Fila {row} - tipo_factura_descripcion={repr(tipo_factura_descripcion)} (tipo: {type(tipo_factura_descripcion)})")
-        
         ide_contrato = None
         if ide_contrato_idx is not None:
             ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
@@ -2026,9 +2697,27 @@ def _detect_centro_costo_urgencias(
         
         # Debug: log de las primeras filas para ver qué valores vienen
         if row <= 5:
-            logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
-                       row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
-        
+            logger.info("Fila %s DEBUG: factura=%s, codigo_tipo_proc=%s, codigo=%s, tipo_factura=%s, laboratorio=%s, centro_costo=%s, ide_contrato=%s",
+                       row, factura_str, repr(codigo_tipo_proc), repr(codigo), repr(tipo_factura_descripcion), repr(laboratorio), repr(centro_costo), repr(ide_contrato))
+
+        # ----- Regla: Centro de costo debe ser uno de los valores válidos
+        if centro_costo_str and centro_costo_str not in CENTROS_COSTO_VALIDOS_URGENCIAS:
+            problemas_centros.append({
+                "factura": factura_str,
+                "tipo_factura": tipo_factura_str,
+                "centro_actual": centro_costo_str,
+                "centro_deberia": "Centro de costo no válido para Urgencias",
+                "codigo": codigo_excluir,
+                "procedimiento": proc_str,
+                "prioridad": 1,
+                "regla": "CENTRO_INVALIDO",
+            })
+            logger.info(
+                "REGLA (CENTRO INVALIDO): Fila %s: Centro=%s no está en lista válida",
+                row,
+                centro_costo_str,
+            )
+
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro !=IMAGENOLOGIA
         # (Independiente - con excepciones propias: no aplica a ciertos códigos)
         regla_1_activa = (
@@ -2053,7 +2742,28 @@ def _detect_centro_costo_urgencias(
                 centro_costo,
                 codigo_excluir,
             )
-        
+
+        # ----- Regla 1 REVERSE: Centro=APOYO DIAGNOSTICO-IMAGENOLOGIA -> Código debe ser 02 Y Laboratorio=No
+        # (Sin excepciones)
+        if centro_costo_str == CENTRO_COSTO_APOYO_DIAGNOSTICO:
+            if codigo_str != CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO or laboratorio_str != LABORATORIO_NO:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": f"Código={CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO} + Laboratorio={LABORATORIO_NO}",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE1",
+                })
+                logger.info(
+                    "REGLA1-REVERSE: Fila %s: Centro=APOYO DIAGNOSTICO pero Código=%s (debe ser 02) o Lab=%s (debe ser No)",
+                    row,
+                    codigo_str,
+                    laboratorio_str,
+                )
+
         # ----- Regla 2: Código=14 + Centro Distinto a TRASLADOS
         # (Independiente)
         if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
@@ -2071,8 +2781,27 @@ def _detect_centro_costo_urgencias(
                     "REGLA2: Fila %s: Código=14, Centrodistinto a TRASLADOS",
                     row,
                 )
-        
-# ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
+
+        # ----- Regla 2 REVERSE: Centro=TRASLADOS -> Código debe ser 14
+        if centro_costo_str == CENTRO_COSTO_TRASLADOS:
+            if codigo_str != CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": f"Código={CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS}",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE2",
+                })
+                logger.info(
+                    "REGLA2-REVERSE: Fila %s: Centro=TRASLADOS pero Código=%s (debe ser 14)",
+                    row,
+                    codigo_str,
+                )
+
+        # ----- Regla 3: Código en (990211, 890205, 890405, 861801) + Centro != PROCEDIMIENTO PYP
         # (Independiente)
         if codigo_excluir in CODIGOS_PYP_URGENCIAS:
             if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
@@ -2085,7 +2814,27 @@ def _detect_centro_costo_urgencias(
                     "procedimiento": proc_str,
                     "prioridad": 1,  # Regla específica
                 })
-        
+
+        # ----- Regla 3 REVERSE: Centro=PYP -> Código debe ser alguno de PYP
+        if centro_costo_str == CENTRO_COSTO_PYP_URGENCIAS:
+            if codigo_excluir not in CODIGOS_PYP_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo PYP",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE3",
+                })
+                logger.info(
+                    "REGLA3-REVERSE: Fila %s: Centro=PYP pero Código=%s (debe ser alguno de %s)",
+                    row,
+                    codigo_excluir,
+                    CODIGOS_PYP_URGENCIAS,
+                )
+
         # ----- Regla 4: Código en (735301, 90DS02) + Centro != QUIRÓFANOS
         # (Independiente)
         if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
@@ -2105,7 +2854,27 @@ def _detect_centro_costo_urgencias(
                     codigo_excluir,
                     centro_costo_str,
                 )
-        
+
+        # ----- Regla 4 REVERSE: Centro=QUIRÓFANOS -> Código debe ser alguno de QUIRÓFANOS
+        if centro_costo_str == CENTRO_COSTO_QUIROFANO_URGENCIAS:
+            if codigo_excluir not in CODIGOS_QUIROFANO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo QUIRÓFANOS",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE4",
+                })
+                logger.info(
+                    "REGLA4-REVERSE: Fila %s: Centro=QUIRÓFANOS pero Código=%s (debe ser alguno de %s)",
+                    row,
+                    codigo_excluir,
+                    CODIGOS_QUIROFANO_URGENCIAS,
+                )
+
         # ----- Regla 5: Código en lista laboratorio + Entidad=ESS118 + Tipo=Intramural -> Centro LABORATORIO
         # (Independiente)
         if codigo_excluir in CODIGOS_LABORATORIO_URGENCIAS:
@@ -2130,9 +2899,82 @@ def _detect_centro_costo_urgencias(
                         codigo_excluir,
                         centro_costo_str,
                     )
-        
-        # ----- Regla nueva: Tipo Factura=Hospitalización + Código CUPS 890601 -> Centro de costo debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL"
-        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION and tipo_factura_str == "Hospitalización":
+
+        # ----- Regla 5 REVERSE: Centro=LABORATORIO -> Código en lista + Tipo=Intramural
+        # Si Tipo Identificación = CN -> incluye CODIGOS_LABORATORIO_URGENCIAS_REVERSE (904902)
+        if centro_costo_str == CENTRO_COSTO_LABORATORIO_URGENCIAS:
+            # Obtener Tipo Identificación para verificar si es CN
+            tipo_id_idx = indices.get("tipo_identificacion")
+            tipo_identificacion_val = None
+            if tipo_id_idx is not None:
+                tipo_identificacion_val = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
+            tipo_identificacion_str = str(tipo_identificacion_val).strip() if tipo_identificacion_val else ""
+
+            # Si Tipo Identificación = CN -> incluir código adicional 904902
+            if tipo_identificacion_str == "CN":
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS | CODIGOS_LABORATORIO_URGENCIAS_REVERSE
+            else:
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS
+
+            if tipo_factura_str != "Intramural" or codigo_excluir not in codigos_validos:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo LABORATORIO + Tipo=Intramural",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE5",
+                })
+                logger.info(
+                    "REGLA5-REVERSE: Fila %s: Centro=LABORATORIO pero Tipo=%s (debe ser Intramural) o Código=%s (no está en lista)",
+                    row,
+                    tipo_factura_str,
+                    codigo_excluir,
+                )
+
+        # ----- Regla nueva: Tipo=Intramural + Cód Entidad≠ESS118 -> Centro debe ser LABORATORIO
+        if tipo_factura_str == "Intramural" and codigo_entidad_str and codigo_entidad_str != "ESS118":
+            if centro_costo_str != CENTRO_COSTO_LABORATORIO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "INTRAMURAL_OTRAS_ENTIDADES",
+                })
+                logger.info(
+                    "REGLA (INTRAMURAL-NO-ESS118): Fila %s: Tipo=Intramural, Entidad=%s (no ESS118), Centro=%s (debe ser LABORATORIO)",
+                    row,
+                    entidad_cobrar_str,
+                    centro_costo_str,
+                )
+
+        # ----- Regla nueva: Tipo Factura=Ambulatoria -> Centro de costo debe ser PYP
+        if tipo_factura_str == "Ambulatoria":
+            if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_PYP_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "AMBULATORIA_PYP",
+                })
+                logger.info(
+                    "REGLA (AMBULATORIA-PYP): Fila %s: Tipo=Ambulatoria pero Centro=%s (debe ser PYP)",
+                    row,
+                    centro_costo_str,
+                )
+
+        # ----- Regla 8: Código CUPS 890601H -> Centro de costo debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+        if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION:
             if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
                 problemas_centros.append({
                     "factura": factura_str,
@@ -2141,8 +2983,15 @@ def _detect_centro_costo_urgencias(
                     "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                     "codigo": codigo_excluir,
                     "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
+                    "prioridad": 1,
                 })
+                logger.info(
+                    "REGLA8: Fila %s: Código=%s, Centro=%s (debe ser %s)",
+                    row,
+                    codigo_excluir,
+                    centro_costo_str,
+                    CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
+                )
 
 # ----- Nueva Regla: Tipo Factura=Hospitalización + Centro Costo=URGENCIAS -> Error (debe ser "HOSPITALIZACIÓN - ESTANCIA GENERAL")
         # Es regla GENERAL (prioridad 2) - se aplica solo si no hay regla específica para el mismo código
@@ -2170,50 +3019,15 @@ def _detect_centro_costo_urgencias(
                 "prioridad": 2,
                 })
 
-        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
-            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
-                problemas_centros.append({
-                    "factura": factura_str,
-                    "tipo_factura": tipo_factura_str,
-                    "centro_actual": centro_costo_str,
-                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
-                    "codigo": codigo_excluir,
-                    "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
-                })
-        
-        # ----- Regla nueva: Código CUPS 861101 -> Centro de costo debe ser "URGENCIAS"
-        if codigo_excluir == CODIGO_CUPS_URGENCIAS_861101:
-            if centro_costo_str != CENTRO_COSTO_URGENCIAS:
-                problemas_centros.append({
-                    "factura": factura_str,
-                    "tipo_factura": tipo_factura_str,
-                    "centro_actual": centro_costo_str,
-                    "centro_deberia": CENTRO_COSTO_URGENCIAS,
-                    "codigo": codigo_excluir,
-                    "procedimiento": proc_str,
-                    "prioridad": 1,  # Regla específica
-                })
-                logger.info(
-                    "REGLA (861101): Fila %s: Código=%s, Centro incorrecto (Centro: '%s', Debería: '%s')",
-                    row,
-                    codigo_excluir,
-                    centro_costo_str,
-                    CENTRO_COSTO_URGENCIAS,
-                )
-
         # ----- Nueva Regla: Código CUPS 939402 + Tipo Factura=Hospitalización -> Error (no se debe facturar en hospitalización)
         if codigo_excluir == CODIGO_CUPS_HOSPITALIZACION_PROHIBIDO and tipo_factura_str == "Hospitalización":
-            problemas_centros.append({
+            problemas_cups_equivalentes.append({
                 "factura": factura_str,
-                "tipo_factura": tipo_factura_str,
-                "centro_actual": centro_costo_str,
-                "centro_deberia": ERROR_HOSPITALIZACION_NO_PERMITIDO,
                 "codigo": codigo_excluir,
+                "codigo_equiv": "",
+                "accion": ERROR_HOSPITALIZACION_NO_PERMITIDO,
                 "procedimiento": proc_str,
-                "prioridad": 1,
-                })
+            })
             logger.info(
                 "REGLA (939402-Hospitalización): Fila %s: Código=%s, Tipo Factura=Hospitalización -> Error: %s",
                 row,
@@ -2230,6 +3044,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": codigo_excluir,
                 "codigo_equiv": "",
                 "accion": "Usar 890701",
+                "procedimiento": proc_str,
             })
             logger.info(
                 "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 890701",
@@ -2245,6 +3060,7 @@ def _detect_centro_costo_urgencias(
                 "codigo": codigo_excluir,
                 "codigo_equiv": "",
                 "accion": "Usar 129B02",
+                "procedimiento": proc_str,
             })
             logger.info(
                 "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 129B02",
@@ -2267,6 +3083,7 @@ def _detect_centro_costo_urgencias(
                     "codigo": codigo_excluir,
                     "codigo_equiv": "",
                     "accion": f"Usar {CODIGO_CUPS_EQUIVALENTE_SUSTITUTO_890405}",
+                    "procedimiento": proc_str,
                 })
                 logger.info(
                     "REGLA (Cups equivalentes): Fila %s: Código=%s, Entidad=%s -> debe usarse %s",
@@ -2925,7 +3742,7 @@ def _detect_centro_costo_urgencias(
                     ide_contrato_str,
                     ide_esperado,
                     tiene_insercion,
-) 
+                 ) 
 
     return problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes
 
@@ -3067,6 +3884,392 @@ def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: i
         sheet.cell(row=i, column=column, value=value)
 
 
+def _build_urgencias_normalized_rows(
+    problemas_centros: list[dict],
+    problemas_ide_contrato: list[dict],
+    problemas_cups_equivalentes: list[dict],
+    mal_capitado: list[dict],
+    cantidades_urgencias: list[dict],
+    cantidades_hospitalizacion: list[dict],
+    responsables_map: dict[str, str],
+    decimales: list[str] | None = None,
+    tipo_identificacion_edad: list[dict] | None = None,
+    profesionales: list[dict] | None = None,
+    entidad_afiliacion_comparison: list[dict] | None = None,
+) -> list[dict[str, str]]:
+    """
+    Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
+    
+    Formato de salida: cada dict tiene:
+        - tipo_error: str
+        - factura: str
+        - responsable_cierra: str
+        - descripcion: str
+        - procedimiento: str (Var1)
+        - detalle: str (Var2)
+    
+    Args:
+        problemas_centros: Lista de errores de centros de costo
+        problemas_ide_contrato: Lista de errores de IDE Contrato
+        problemas_cups_equivalentes: Lista de errores de CUPS equivalentes
+        mal_capitado: Lista de errores MAL CAPITADO
+        cantidades_urgencias: Lista de errores de cantidades en Urgencias
+        cantidades_hospitalizacion: Lista de errores de cantidades en Hospitalización
+        responsables_map: Dict {factura: responsable}
+        decimales: Lista de errores de decimales (opcional)
+        tipo_identificacion_edad: Lista de errores de tipo identificación/edad (opcional)
+        profesionales: Lista de errores de profesionales (opcional)
+        entidad_afiliacion_comparison: Lista de errores de entidad vs afiliación (opcional)
+    
+    Returns:
+        Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
+    """
+    rows: list[dict[str, str]] = []
+
+    def _get_responsable(factura: str) -> str:
+        return responsables_map.get(factura, "")
+
+    def _build_procedimiento(codigo: str, procedimiento: str) -> str:
+        """Construye 'Código - Nombre' si ambos existen, sino el que esté presente."""
+        codigo = str(codigo).strip() if codigo else ""
+        procedimiento = str(procedimiento).strip() if procedimiento else ""
+        if codigo and procedimiento:
+            return f"{codigo} - {procedimiento}"
+        return codigo or procedimiento or ""
+
+    # --- Centros de Costo ---
+    for item in problemas_centros:
+        factura = item.get("factura", str(item.get("invoice", "")))
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "Centros de Costo",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("centro_actual", ""),
+        })
+
+    # --- IDE Contrato ---
+    for item in problemas_ide_contrato:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "IDE Contrato",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"IDE Contrato debería ser {item.get('ide_contrato_deberia', 'N/A')}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("ide_contrato_actual", ""),
+        })
+
+    # --- Cups Equivalentes ---
+    for item in problemas_cups_equivalentes:
+        factura = item.get("factura", "")
+        codigo_raw = item.get("codigo", "")
+        proc_raw = item.get("procedimiento", "")
+        estancia_str = item.get("estancia_str", "")
+        # codigo puede ser str o list, normalizar
+        if isinstance(codigo_raw, list):
+            codigo_str = ", ".join(str(c) for c in codigo_raw)
+        else:
+            codigo_str = str(codigo_raw)
+        proc_str = str(proc_raw).strip() if proc_raw else ""
+        # Procedimiento: _build_sala_proc ya devuelve "código - nombre" tal cual del Excel
+        # Si no hay nombre, cae a solo código
+        proc_final = proc_str if proc_str else codigo_str
+        # Detalle: estancia en día+hora
+        if estancia_str:
+            detalle = f"Estancia: {estancia_str}"
+        else:
+            detalle = codigo_str
+        rows.append({
+            "tipo_error": "Cups Equivalentes",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("accion", ""),
+            "procedimiento": proc_final,
+            "detalle": detalle,
+        })
+
+    # --- MAL CAPITADO ---
+    for item in mal_capitado:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "MAL CAPITADO",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("observacion", ""),
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": item.get("ide_contrato_actual", ""),
+        })
+
+    # --- Cantidades (Urgencias) ---
+    for item in cantidades_urgencias:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        rows.append({
+            "tipo_error": "Cantidades",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debe ser ≤ 1 en Urgencias",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+        })
+
+    # --- Cantidades Hospitalización ---
+    for item in cantidades_hospitalizacion:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        cantidad_esperada = item.get("cantidad_esperada", "")
+        rows.append({
+            "tipo_error": "Cantidades Hospitalización",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+        })
+
+    # --- Decimales ---
+    if decimales:
+        for factura in decimales:
+            rows.append({
+                "tipo_error": "Decimales",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": "Valores con decimales",
+                "procedimiento": "Vlr. Procedimiento",
+                "detalle": "Vlr. Subsidiado",
+            })
+
+    # --- Tipo Identificación / Edad ---
+    if tipo_identificacion_edad:
+        for item in tipo_identificacion_edad:
+            factura = item.get("factura", "")
+            num_id = item.get("numero_identificacion", "")
+            anios = item.get("edad_anios", "")
+            meses = item.get("edad_meses", "")
+            tipo_actual = item.get("tipo_actual", "")
+            tipo_deberia = item.get("tipo_deberia", "")
+            rows.append({
+                "tipo_error": "Tipo Identificación / Edad",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
+                "procedimiento": num_id,
+                "detalle": f"{anios} años {meses} meses",
+            })
+
+    # --- Profesionales ---
+    if profesionales:
+        for item in profesionales:
+            factura = item.get("factura", "")
+            cod_prof = item.get("codigo_profesional", "")
+            proc_nombre = item.get("procedimiento", "")
+            nombre = item.get("nombre", "")
+            rows.append({
+                "tipo_error": "Profesionales",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("problema", item.get("regla", "")),
+                "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
+                "detalle": f"Cód: {cod_prof}" if cod_prof else "",
+            })
+
+    # --- Código Entidad vs Afiliación ---
+    if entidad_afiliacion_comparison:
+        for item in entidad_afiliacion_comparison:
+            factura = item.get("factura", "")
+            # Procedimiento: Cód Entidad Cobrar + nombre de Entidad Cobrar
+            cod = item.get("codigo_entidad_cobrar", "")
+            nombre = item.get("entidad_cobrar_nombre", "")
+            proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
+            rows.append({
+                "tipo_error": "Código Entidad vs Afiliación",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("problema", ""),
+                "procedimiento": proc_entidad,
+                "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                "_header_override": "Entidad de factura",
+            })
+
+    return rows
+
+
+def _build_odontologia_normalized_rows(
+    decimales: list[dict] | list[str],
+    doble_tipo: list[dict],
+    ruta_dup: list[dict],
+    profesionales: list[dict],
+    cantidades: list[dict],
+    tipo_id_edad: list[dict],
+    centro_costo: list[dict],
+    ide_contrato: list[dict],
+    responsable_cierra: dict[str, str],
+) -> list[dict[str, str]]:
+    """
+    Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
+
+    Args:
+        decimales: Lista de dicts con "factura", "valores" o lista de strings (solo facturas)
+        doble_tipo: Lista de dicts con "factura", "tipos"
+        ruta_dup: Lista de dicts con "identificacion", "facturas", "cantidad"
+        profesionales: Lista de dicts con "factura", "codigo_profesional", "procedimiento", ...
+        cantidades: Lista de dicts con "factura", "tipo_procedimiento", "cantidad", ...
+        tipo_id_edad: Lista de dicts con "factura", "tipo_actual", "tipo_deberia", "edad"
+        centro_costo: Lista de dicts con "factura", "centro_actual", "centro_deberia", ...
+        ide_contrato: Lista de dicts con "factura", "codigo", "cod_entidad", "ide_actual", ...
+        responsable_cierra: Dict {factura: responsable}
+
+    Returns:
+        Lista de dicts normalizados con tipo_error, factura, responsable_cierra,
+        descripcion, procedimiento (Var1), detalle (Var2)
+    """
+    rows: list[dict[str, str]] = []
+
+    def _get_responsable(factura: str) -> str:
+        return responsable_cierra.get(factura, "")
+
+    def _build_procedimiento(codigo: str, procedimiento: str) -> str:
+        codigo = str(codigo).strip() if codigo else ""
+        procedimiento = str(procedimiento).strip() if procedimiento else ""
+        if codigo and procedimiento:
+            return f"{codigo} - {procedimiento}"
+        return codigo or procedimiento or ""
+
+    # --- Decimales ---
+    for item in decimales:
+        if isinstance(item, dict):
+            factura = item.get("factura", "")
+            valores = item.get("valores", "")
+        else:
+            factura = str(item) if item else ""
+            valores = ""
+        rows.append({
+            "tipo_error": "Decimales",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
+            "procedimiento": valores,
+            "detalle": "",
+        })
+
+    # --- Doble tipo procedimiento ---
+    for item in doble_tipo:
+        factura = item.get("factura", "")
+        tipos = item.get("tipos", "")
+        rows.append({
+            "tipo_error": "Doble tipo procedimiento",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Múltiples tipos de procedimiento",
+            "procedimiento": "",
+            "detalle": tipos,
+        })
+
+    # --- Ruta Duplicada ---
+    for item in ruta_dup:
+        identificacion = item.get("identificacion", "")
+        facturas_list = item.get("facturas", "")
+        cantidad = item.get("cantidad", 0)
+        rows.append({
+            "tipo_error": "Ruta Duplicada",
+            "factura": identificacion,
+            "responsable_cierra": _get_responsable(identificacion),
+            "descripcion": f"Paciente con {cantidad} facturas en PyP",
+            "procedimiento": facturas_list,
+            "detalle": identificacion,
+        })
+
+    # --- Profesionales (reemplaza Convenio de procedimiento) ---
+    for item in profesionales:
+        factura = item.get("factura", "")
+        cod_prof = item.get("codigo_profesional", "")
+        proc_nombre = item.get("procedimiento", "")
+        problema = item.get("problema", "")
+        regla = item.get("regla", "")
+        rows.append({
+            "tipo_error": "Convenio de procedimiento",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": problema or regla,
+            "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
+            "detalle": problema or "",
+        })
+
+    # --- Cantidades ---
+    for item in cantidades:
+        factura = item.get("factura", "")
+        tipo_proc = item.get("tipo_procedimiento", "")
+        cantidad_val = item.get("cantidad", "")
+        problema = item.get("problema", "")
+        rows.append({
+            "tipo_error": "Cantidades",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": problema or f"Cantidad anómala: {cantidad_val}",
+            "procedimiento": tipo_proc,
+            "detalle": str(cantidad_val),
+        })
+
+    # --- Tipo Identificación vs Edad ---
+    for item in tipo_id_edad:
+        factura = item.get("factura", "")
+        tipo_actual = item.get("tipo_actual", "")
+        tipo_deberia = item.get("tipo_deberia", "")
+        edad = item.get("edad", "")
+        rows.append({
+            "tipo_error": "Tipo Identificación",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
+            "procedimiento": f"Edad: {edad} años",
+            "detalle": "",
+        })
+
+    # --- Centro Costo ---
+    for item in centro_costo:
+        factura = item.get("factura", "")
+        centro_actual = item.get("centro_actual", "")
+        centro_deberia = item.get("centro_deberia", "")
+        rows.append({
+            "tipo_error": "Centro Costo",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Centro de costo debería ser {centro_deberia}",
+            "procedimiento": "",
+            "detalle": centro_actual,
+        })
+
+    # --- IDE Contrato ---
+    for item in ide_contrato:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        ide_actual = item.get("ide_actual", "")
+        ide_deberia = item.get("ide_deberia", "")
+        nota = item.get("nota", "")
+        rows.append({
+            "tipo_error": "IDE Contrato",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}",
+            "procedimiento": _build_procedimiento(codigo, ""),
+            "detalle": ide_actual,
+        })
+
+    return rows
+
+
 def create_revision_sheet(
     workbook: Workbook,
     data_sheet: Worksheet,
@@ -3121,19 +4324,32 @@ def create_revision_sheet(
     
 # Detectar problemas según el área
     if area == AREA_URGENCIAS:
-        # Urgencias: detectar códigos NO en DB para ESS118
+        # --- Construir mapa responsable_cierra ---
+        responsable_cierra: dict[str, str] = {}
+        responsable_cierra_idx = indices.get("responsable_cierra")
+        num_fact_idx = indices.get("numero_factura")
+        if responsable_cierra_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and factura not in responsable_cierra:
+                    responsable_cierra[factura] = resp
+
+        # --- Detectar todos los problemas ---
         logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
         problemas_codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
-        
-        # Extraer códigos únicos para logging
         codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
-        
+
         if problemas_codigos_no_en_db:
             logger.warning("Procedimientos NO encontrados en DB para ESS118 (%d errores): %s",
                         len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set))
         else:
             logger.warning("Todos los códigos de ESS118 están en DB")
-        # Llamar función de detección con manejo defensivo
+
         try:
             result = _detect_centro_costo_urgencias(data_sheet, indices, problemas_codigos_no_en_db)
             if isinstance(result, tuple) and len(result) >= 3:
@@ -3144,97 +4360,106 @@ def create_revision_sheet(
         except Exception as exc:
             logger.exception("Error en _detect_centro_costo_urgencias: %s", exc)
             problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
-        
-        # Validación MAL CAPITADO para Urgencias
+
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
-        
-        # Formatear para Excel: "TIPO_FACTURA|FACTURA|CODIGO|PROCEDIMIENTO|CENTRO_ACTUAL|CENTRO_DEBERIA"
-        centros_costo_str = [
-            f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item.get('codigo', '')}|{item.get('procedimiento', '')}|{item['centro_actual']}|{item['centro_deberia']}"
-            for item in problemas_centros
-        ]
-        
-        # Formatear IDE Contrato: incluir todos los datos
-        ide_contrato_str = [
-            f"{item['factura']}|{item.get('procedimiento', '-')}|{item.get('codigo', '-')}|{item.get('entidad', '-')}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
-            for item in problemas_ide_contrato
-        ]
-        
-        # Formatear Cups equivalentes: "FACTURA|CODIGO|CODIGO_EQUIV|ACCION"
-        cups_equiv_str = [
-            f"{item['factura']}|{item['codigo']}|{item['codigo_equiv']}|{item['accion']}"
-            for item in problemas_cups_equivalentes
-        ]
-        
-        # Escribir en Excel: fila 3+ (ahora con Tipo Factura en columna 1)
-        _write_column(sheet, 1, centros_costo_str, start_row=3)  # Columna 1: Tipo Factura
-        _write_column(sheet, 2, ide_contrato_str, start_row=3)  # Columna 2: IDE Contrato
-        _write_column(sheet, 3, cups_equiv_str, start_row=3)  # Columna 3: Cups Equivalentes
-        
-        # Formatear MAL CAPITADO: "FACTURA|CÓDIGO|PROCEDIMIENTO|OBSERVACIÓN"
-        mal_capitado_str = [
-            f"{item['factura']}|{item['codigo']}|{item['procedimiento']}|{item['observacion']}"
-            for item in mal_capitado
-        ]
-        _write_column(sheet, 4, mal_capitado_str, start_row=3)
-        
-        # ParaJSON: un solo bloque para IDE Contrato (con todos los campos)
+        cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
+        cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
+
+        # --- Normalizar todos los errores a filas de 6 columnas ---
+        normalized_rows = _build_urgencias_normalized_rows(
+            problemas_centros=problemas_centros,
+            problemas_ide_contrato=problemas_ide_contrato,
+            problemas_cups_equivalentes=problemas_cups_equivalentes,
+            mal_capitado=mal_capitado,
+            cantidades_urgencias=cantidades_urgencias,
+            cantidades_hospitalizacion=cantidades_hospitalizacion,
+            responsable_cierra=responsable_cierra,
+        )
+
+        # --- Escribir filas normalizadas en Excel ---
+        # Buscar si hay rows con _header_override para la columna 5 (Procedimiento)
+        has_header_override = any("_header_override" in row for row in normalized_rows)
+        for i, row_data in enumerate(normalized_rows, start=3):
+            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
+            sheet.cell(row=i, column=2, value=row_data["factura"])
+            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
+            sheet.cell(row=i, column=4, value=row_data["descripcion"])
+            # Columna 5: usar _header_override si existe, si no usar procedimiento
+            col5_value = row_data.get("_header_override", row_data.get("procedimiento", ""))
+            sheet.cell(row=i, column=5, value=col5_value)
+            sheet.cell(row=i, column=6, value=row_data["detalle"])
+
         problemas_encontrados = {
-            "No se encuentra coincidencia con los siguientes centros de costos": [
-                f"{item.get('tipo_factura') or '-'}|{item['factura']}|{item['centro_actual']}|{item['centro_deberia']}"
-                for item in problemas_centros
-            ],
-            "Problemas de IDE Contrato": problemas_ide_contrato,
-            "Cups equivalentes urgencias": problemas_cups_equivalentes,
-            "MAL CAPITADO": mal_capitado,
+            "normalizados": normalized_rows,
+            "totales_por_tipo": {
+                "Centros de Costo": len(problemas_centros),
+                "IDE Contrato": len(problemas_ide_contrato),
+                "Cups Equivalentes": len(problemas_cups_equivalentes),
+                "MAL CAPITADO": len(mal_capitado),
+                "Cantidades": len(cantidades_urgencias),
+                "Cantidades Hospitalización": len(cantidades_hospitalizacion),
+            },
         }
     else:
-# Odontología: todas las validaciones
+# Odontología / Equipos Básicos: detectar todos los problemas
         decimales = _detect_decimals(data_sheet, indices)
         doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
         ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
+        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
-        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
         profesionales = _detect_profesionales_odontologia(data_sheet, indices)
         centro_costo = _detect_centro_costo_odontologia(data_sheet, indices)
-        
-        # Funciones no disponibles
-        conveniente_proc = []
-        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
-        
-        logger.info("create_revision_sheet - area=%s, Llamando _detect_ide_contrato_odontologia", area)
         ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
-        logger.info("create_revision_sheet - IDE Contrato encontrados: %d", len(ide_contrato))
-        
-        # Formatear para Excel: "FACTURA TIPO_ACTUAL -> TIPO_DEBERIA (Edad: X)"
-        tipo_id_edad_str = [
-            f"{item['factura']} {item['tipo_actual']} -> {item['tipo_deberia']} (Edad: {item['edad']})"
-            for item in tipo_id_edad
-        ]
-        
-        # Formatear IDE Contrato: "FACTURA|CÓDIGO|ENTIDAD|IDE_ACTUAL|IDE_DEBERIA"
-        ide_contrato_str = [
-            f"{item['factura']}|{item['codigo']}|{item['entidad']}|{item['ide_contrato_actual']}|{item['ide_contrato_deberia']}"
-            for item in ide_contrato
-        ]
-        
-        # Escribir resultados en fila 3+
-        _write_column(sheet, 1, decimales, start_row=3)
-        _write_column(sheet, 2, doble_tipo, start_row=3)
-        _write_column(sheet, 3, ruta_dup, start_row=3)
-        _write_column(sheet, 4, conveniente_proc, start_row=3)
-        _write_column(sheet, 5, cantidades, start_row=3)
-        _write_column(sheet, 6, tipo_id_edad_str, start_row=3)
-        _write_column(sheet, 8, ide_contrato_str, start_row=3)
-        
+
+        # Construir mapa responsable_cierra
+        responsable_cierra_map: dict[str, str] = {}
+        rci = indices.get("responsable_cierra")
+        nfi = indices.get("numero_factura")
+        if rci is not None and nfi is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                num = data_sheet.cell(row=row, column=nfi + 1).value
+                fac = _normalize_invoice(num)
+                if not fac:
+                    continue
+                raw = data_sheet.cell(row=row, column=rci + 1).value
+                resp = str(raw).strip() if raw else ""
+                if resp and fac not in responsable_cierra_map:
+                    responsable_cierra_map[fac] = resp
+
+        # Normalizar a filas de 6 columnas
+        normalized_rows = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra_map,
+        )
+
+        # Escribir filas normalizadas en Excel
+        for i, row_data in enumerate(normalized_rows, start=3):
+            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
+            sheet.cell(row=i, column=2, value=row_data["factura"])
+            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
+            sheet.cell(row=i, column=4, value=row_data["descripcion"])
+            sheet.cell(row=i, column=5, value=row_data["procedimiento"])
+            sheet.cell(row=i, column=6, value=row_data["detalle"])
+
         problemas_encontrados = {
-            "Decimales": decimales,
-            "Doble tipo procedimiento": doble_tipo,
-            "Ruta Duplicada": ruta_dup,
-            "Convenio de procedimiento": conveniente_proc,
-            "Cantidades": cantidades,
-            "Tipo Identificación": [item["factura"] for item in tipo_id_edad],
-            "IDE Contrato": ide_contrato,
+            "normalizados": normalized_rows,
+            "totales_por_tipo": {
+                "Decimales": len(decimales),
+                "Doble tipo procedimiento": len(doble_tipo),
+                "Ruta Duplicada": len(ruta_dup),
+                "Convenio de procedimiento": len(profesionales),
+                "Cantidades": len(cantidades),
+                "Tipo Identificación": len(tipo_id_edad),
+                "Centro Costo": len(centro_costo),
+                "IDE Contrato": len(ide_contrato),
+            },
         }
     
     # Aplicar estilo a filas de datos (fila 3+) según el área
@@ -3256,23 +4481,15 @@ def create_revision_sheet(
     # Logging según el área
     if area == AREA_URGENCIAS:
         logger.info(
-            "Hoja Revision Urgencias creada - Centros de Costos: %d, Cups Equivalentes: %d",
-            len(problemas_centros),
-            len(problemas_cups_equivalentes),
+            "Hoja Revision Urgencias creada - Total filas normalizadas: %d",
+            len(normalized_rows),
         )
     else:
         logger.info(
-            "Hoja Revision Odontología creada - Decimales: %d, Doble tipo: %d, "
-            "Ruta duplicada: %d, Convenio proc: %d, Cantidades: %d, Tipo ID: %d, IDE Contrato: %d",
-            len(decimales),
-            len(doble_tipo),
-            len(ruta_dup),
-            len(conveniente_proc),
-            len(cantidades),
-            len(tipo_id_edad),
-            len(ide_contrato),
+            "Hoja Revision Odontología/EB creada - Total filas normalizadas: %d",
+            len(normalized_rows),
         )
-    
+
     # Build resultado según el área
     if area == AREA_URGENCIAS:
         return {
@@ -3280,11 +4497,10 @@ def create_revision_sheet(
             "sheet": REVISION_SHEET,
             "area": area,
             "headers": list(URGENCIA_REVISION_HEADERS.values()),
-            "centros_de_costos_found": len(problemas_centros),
-            "mal_capitado_found": len(mal_capitado),
+            "normalized_rows_count": len(normalized_rows),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
     else:
         return {
@@ -3292,13 +4508,7 @@ def create_revision_sheet(
             "sheet": REVISION_SHEET,
             "area": area,
             "headers": list(REVISION_HEADERS.values()),
-            "decimal_invoices_found": len(decimales),
-            "doble_tipo_invoices_found": len(doble_tipo),
-            "ruta_duplicada_found": len(ruta_dup),
-            "convenio_de_procedimiento_found": len(conveniente_proc),
-            "cantidades_found": len(cantidades),
-            "tipo_identificacion_found": len(tipo_id_edad),
-            "ide_contrato_found": len(ide_contrato),
+            "normalized_rows_count": len(normalized_rows),
             "problemas": problemas_encontrados,
             "column_widths": column_widths,
             "missing_columns": missing_columns,
@@ -3421,8 +4631,16 @@ def detect_all_problems(
         mal_capitado = _detect_mal_capitado(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, MAL CAPITADO encontrados: %d", len(mal_capitado))
 
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d",
-len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado))
+        # Validación Cantidades Urgencias (Tipo Factura = "Urgencias" + códigos específicos con cantidad > 1)
+        cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades Urgencias encontradas: %d", len(cantidades_urgencias))
+
+        # Validación Cantidades Hospitalización (Tipo Factura = "Hospitalización" + códigos 129B02/890601)
+        cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades Hospitalización encontradas: %d", len(cantidades_hospitalizacion))
+
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d, cantidades_hospitalizacion=%d",
+len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias), len(cantidades_hospitalizacion))
         
         # Filtrar errores: si la misma factura+código tiene prioridad 1 y prioridad 2, mostrar solo prioridad 1
         # Agrupar por factura+código
@@ -3468,9 +4686,25 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows = _build_urgencias_normalized_rows(
+            problemas_centros=problemas_centros_filtrados,
+            problemas_ide_contrato=problemas_ide_contrato,
+            problemas_cups_equivalentes=problemas_cups_equivalentes,
+            mal_capitado=mal_capitado,
+            cantidades_urgencias=cantidades_urgencias,
+            cantidades_hospitalizacion=cantidades_hospitalizacion,
+            responsables_map=responsable_cierra,
+            decimales=decimales,
+            tipo_identificacion_edad=tipo_identificacion_edad,
+            profesionales=profesionales,
+            entidad_afiliacion_comparison=entidad_afiliacion_comparison,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows,
                 "centros_de_costos": [
                     {
                         "tipo_factura": item.get("tipo_factura") or "-",
@@ -3511,6 +4745,8 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
                 "profesionales": profesionales,
                 "mal_capitado": mal_capitado,
+                "cantidades_urgencias": cantidades_urgencias,
+                "cantidades_hospitalizacion": cantidades_hospitalizacion,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -3521,6 +4757,8 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
                 "profesionales": len(profesionales),
                 "mal_capitado": len(mal_capitado),
+                "cantidades_urgencias": len(cantidades_urgencias),
+                "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
@@ -3589,9 +4827,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows_eb = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows_eb,
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,
@@ -3613,7 +4865,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             },
             "es_equipos_basicos": True,
-            "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
+            "missing_columns": missing_columns,
         }
         
         # Enrich errors with responsable from mapping
@@ -3678,9 +4930,23 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build normalized rows for unified 6-column display
+        normalized_rows_od = _build_odontologia_normalized_rows(
+            decimales=decimales,
+            doble_tipo=doble_tipo,
+            ruta_dup=ruta_dup,
+            profesionales=profesionales,
+            cantidades=cantidades,
+            tipo_id_edad=tipo_id_edad,
+            centro_costo=centro_costo,
+            ide_contrato=ide_contrato,
+            responsable_cierra=responsable_cierra,
+        )
+
         resultado = {
             "area": area,
             "problemas": {
+                "normalizados": normalized_rows_od,
                 "decimales": decimales,
                 "doble_tipo_procedimiento": doble_tipo,
                 "ruta_duplicada": ruta_dup,
