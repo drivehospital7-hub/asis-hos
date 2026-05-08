@@ -1248,13 +1248,12 @@
         <p class="carga-preview-count" id="cargaPreviewCount">0 registros</p>
 
         <div class="carga-image-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
-          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-            <label class="carga-label" style="margin-bottom:0;">Imágenes adjuntas <small>(máx 3)</small></label>
-            <button id="cargaEyeBtn" class="obs-img-btn" onclick="openCargaImageModal()" title="Subir/ver imágenes" style="position:static;display:flex!important;width:32px;height:32px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-            </button>
+          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Imágenes adjuntas <small>(máx 3)</small></label>
+          <div id="cargaImageThumbs" style="display:flex;gap:0.5rem;flex-wrap:wrap;min-height:60px;margin-bottom:0.75rem;"></div>
+          <div id="cargaImageDropzoneInline" class="dropzone" style="border:2px dashed #e2e8f0;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;display:none;">
+            <div style="color:#64748b;font-size:0.8125rem;">Arrastra imagen o click para subir</div>
+            <input type="file" id="cargaFileInputInline" accept="image/*" multiple style="display:none">
           </div>
-          <div id="cargaImageThumbs" style="display:flex;gap:0.5rem;flex-wrap:wrap;min-height:60px;"></div>
         </div>
       </div>
       <div class="carga-modal-footer">
@@ -1265,23 +1264,7 @@
   </div>
 </div>
 
-<!-- Modal imágenes para Carga Masiva -->
-<div id="cargaImageModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.6);z-index:10001;align-items:center;justify-content:center;">
-  <div class="modal-content" style="background:#fff;border-radius:12px;padding:1.5rem;max-width:500px;width:90%;max-height:80vh;overflow-y:auto;">
-    <div class="modal-header" style="display:flex;justify-content:space-between;align-items:center;padding-bottom:0.75rem;border-bottom:1px solid #f1f5f9;margin-bottom:1rem;">
-      <span style="font-size:1.1rem;font-weight:600;color:#0f172a;">Imágenes — Carga Masiva</span>
-      <button class="carga-modal-close" onclick="closeCargaImageModal()">&times;</button>
-    </div>
-    <div id="cargaImageModalList" style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-bottom:1rem;min-height:60px;">
-      <span style="color:#94a3b8;font-size:0.875rem;">Sin imágenes</span>
-    </div>
-    <div id="cargaImageDropzone" class="dropzone" style="border:2px dashed #e2e8f0;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;">
-      <div style="color:#64748b;font-size:0.875rem;">Arrastra imagen, click para subir</div>
-      <div style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem;">Máx 3 imágenes</div>
-      <input type="file" id="cargaFileInput" accept="image/*" multiple style="display:none">
-    </div>
-  </div>
-</div>
+<!-- Modal imágenes para Carga Masiva (ya no se usa, ahora es inline) -->
 {% endblock %}
 
 {% block scripts %}
@@ -2500,23 +2483,42 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('lightbox').classList.remove('open');
   }
 
-  document.addEventListener('keydown', (e) => { 
-    if (e.key === 'Escape') { 
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
       const lightbox = document.getElementById('lightbox');
       if (lightbox.classList.contains('open')) {
         closeLightbox();
-      } else if (document.getElementById('cargaImageModal').style.display === 'flex') {
-        closeCargaImageModal();
       } else {
         closeImageModal();
       }
-    } 
+    }
   });
 
   // Pegar imagen del portapapeles al error activo
   document.addEventListener('paste', async (e) => {
-    // Si el modal de carga masiva está abierto, no intervenir (lo maneja su propio listener)
-    if (document.getElementById('cargaModal').classList.contains('open')) return;
+    // Si el modal de carga masiva está abierto
+    if (document.getElementById('cargaModal').classList.contains('open')) {
+      // Si estamos en PASO 2 (previsualización): auto-agregar imagen sin preguntar
+      if (!document.getElementById('cargaStep2').classList.contains('hidden')) {
+        var clipItems = e.clipboardData?.items;
+        if (clipItems) {
+          for (var idx = 0; idx < clipItems.length; idx++) {
+            if (clipItems[idx].type.startsWith('image/')) {
+              var file = clipItems[idx].getAsFile();
+              if (file) {
+                setTimeout(function() {
+                  if (cargaImages.length >= 3) return;
+                  addCargaImageFile(file);
+                  renderCargaThumbs();
+                }, 100);
+              }
+              break;
+            }
+          }
+        }
+      }
+      return; // No seguir al upload del error activo
+    }
 
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -2608,50 +2610,32 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   function renderCargaThumbs() {
     var container = document.getElementById('cargaImageThumbs');
-    var btn = document.getElementById('cargaEyeBtn');
+    var dropzone = document.getElementById('cargaImageDropzoneInline');
     if (!container) return;
-
-    // Actualizar color del ojo según si hay imágenes
-    if (cargaImages.length > 0) {
-      btn.style.color = '#3b82f6';
-    } else {
-      btn.style.color = '#94a3b8';
-    }
 
     if (!cargaImages.length) {
       container.innerHTML = '<span style="color:#94a3b8;font-size:0.8125rem;">Sin imágenes</span>';
-      return;
-    }
-
-    var html = '';
-    for (var i = 0; i < cargaImages.length; i++) {
-      html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
-        '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
-        '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
-        '</div>';
-    }
-    container.innerHTML = html;
-  }
-
-  function openCargaImageModal() {
-    var modal = document.getElementById('cargaImageModal');
-    var listEl = document.getElementById('cargaImageModalList');
-    var dropzone = document.getElementById('cargaImageDropzone');
-    var fileInput = document.getElementById('cargaFileInput');
-
-    if (cargaImages.length === 0) {
-      listEl.innerHTML = '<span style="color:#94a3b8;font-size:0.875rem;">Sin imágenes</span>';
     } else {
-      listEl.innerHTML = cargaImages.map(function(img, i) {
-        return '<div style="position:relative;display:inline-block;width:120px;height:90px;margin-right:0.5rem;margin-bottom:0.5rem;">' +
-          '<img src="' + img.url + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="viewCargaImage(' + i + ')">' +
+      var html = '';
+      for (var i = 0; i < cargaImages.length; i++) {
+        html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
+          '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
           '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
           '</div>';
-      }).join('');
+      }
+      container.innerHTML = html;
     }
 
-    dropzone.style.display = cargaImages.length >= 3 ? 'none' : 'block';
-    modal.style.display = 'flex';
+    // Siempre mostrar el dropzone si hay menos de 3 imágenes (independiente de si ya hay o no)
+    if (dropzone) {
+      dropzone.style.display = cargaImages.length >= 3 ? 'none' : 'block';
+    }
+  }
+
+  function setupCargaImageInlineDropzone() {
+    var dropzone = document.getElementById('cargaImageDropzoneInline');
+    var fileInput = document.getElementById('cargaFileInputInline');
+    if (!dropzone || !fileInput) return;
 
     dropzone.onclick = function() { fileInput.click(); };
     fileInput.onchange = function() {
@@ -2659,7 +2643,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         addCargaImageFile(fileInput.files[j]);
       }
       fileInput.value = '';
-      openCargaImageModal(); // refrescar
+      renderCargaThumbs();
     };
     dropzone.ondragover = function(e) { e.preventDefault(); dropzone.style.borderColor = '#3b82f6'; };
     dropzone.ondragleave = function() { dropzone.style.borderColor = '#e2e8f0'; };
@@ -2669,18 +2653,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       for (var j = 0; j < e.dataTransfer.files.length; j++) {
         addCargaImageFile(e.dataTransfer.files[j]);
       }
-      openCargaImageModal();
+      renderCargaThumbs();
     };
   }
-
-  function closeCargaImageModal() {
-    document.getElementById('cargaImageModal').style.display = 'none';
-  }
-
-  // Cerrar modal al hacer click afuera
-  document.getElementById('cargaImageModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCargaImageModal();
-  });
 
   function addCargaImageFile(file) {
     if (!file.type.startsWith('image/')) return;
@@ -2696,13 +2671,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   function deleteCargaImage(index) {
     if (!confirm('¿Eliminar imagen?')) return;
-    // Revocar la URL para liberar memoria
     URL.revokeObjectURL(cargaImages[index].url);
     cargaImages.splice(index, 1);
     renderCargaThumbs();
-    // Si el modal detallado está abierto, refrescarlo
-    var modal = document.getElementById('cargaImageModal');
-    if (modal.style.display === 'flex') openCargaImageModal();
   }
 
   function viewCargaImage(index) {
@@ -2734,11 +2705,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   function preguntarImagenCarga(file) {
     setTimeout(function() {
-      if (cargaImages.length >= 3) { alert('Máximo 3 imágenes'); return; }
-      if (confirm('¿Quieres copiar imagen también?')) {
-        addCargaImageFile(file);
-        renderCargaThumbs();
-      }
+      if (cargaImages.length >= 3) return;
+      addCargaImageFile(file);
+      renderCargaThumbs();
     }, 100);
   }
 
@@ -2770,13 +2739,12 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (e.target === this) closeCargaMasiva();
   });
 
-  /** Detecta si una factura ya existe en cachedErrores con la misma categoría */
-  function _esDuplicadoCarga(factura, categoria) {
+  /** Detecta si una factura ya existe en cachedErrores (sin importar categoría) */
+  function _esDuplicadoCarga(factura) {
     if (!factura || !cachedErrores.length) return false;
     var nums = parsearFacturas(factura);
     if (!nums.length) return false;
     return cachedErrores.some(function(e) {
-      if (e.tipo_error !== categoria) return false;
       var existentes = parsearFacturas(e.factura);
       return existentes.some(function(x) { return nums.indexOf(x) !== -1; });
     });
@@ -2825,7 +2793,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
       const responsable = _matchResponsable(responsableRaw, opciones.responsables);
       // Marcar duplicado contra cachedErrores (misma factura + misma categoría)
-      const duplicate = _esDuplicadoCarga(factura, 'Otro');
+      const duplicate = _esDuplicadoCarga(factura);
       rows.push({ factura: factura, responsable: responsable, duplicate: duplicate });
     });
 
@@ -2868,6 +2836,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     cargaParsedRows = rows;
     renderCargaPreview(descripcion);
+    // Siempre renderizar los thumbs al ir a preview para que el dropzone esté visible
+    renderCargaThumbs();
   }
 
   function renderCargaPreview(descripcion) {
@@ -3009,6 +2979,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     alert(msg);
   }
 
+  setupCargaImageInlineDropzone();
   loadOpciones().then(loadErrores);
 
   // ====== POLLING: Verificar cambios cada 3 segundos ======
