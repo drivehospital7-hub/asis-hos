@@ -4763,11 +4763,14 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
         }
-        
+
         # Enrich errors with responsable from mapping
         if responsable_cierra:
             for problem_type, problems in resultado["problemas"].items():
                 for p in problems:
+                    # Skip non-dict items (e.g., decimales is list[str] in Urgencias)
+                    if not isinstance(p, dict):
+                        continue
                     factura = p.get("factura")
                     if factura and factura in responsable_cierra:
                         p["responsable"] = responsable_cierra[factura]
@@ -4777,9 +4780,11 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             # Ensure all problems have responsable key
             for problem_type, problems in resultado["problemas"].items():
                 for p in problems:
+                    if not isinstance(p, dict):
+                        continue
                     if "responsable" not in p:
                         p["responsable"] = ""
-        
+
         return resultado, responsable_cierra
     elif area == AREA_EQUIPOS_BASICOS:
         # Equipos Básicos: usar reglas independientes configurables
