@@ -2625,9 +2625,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     var html = '';
     for (var i = 0; i < cargaImages.length; i++) {
-      html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;overflow:hidden;border:1px solid #e2e8f0;flex-shrink:0;">' +
-        '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
-        '<button style="position:absolute;top:-4px;right:-4px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
+      html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
+        '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
+        '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -2643,9 +2643,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       listEl.innerHTML = '<span style="color:#94a3b8;font-size:0.875rem;">Sin imágenes</span>';
     } else {
       listEl.innerHTML = cargaImages.map(function(img, i) {
-        return '<div style="position:relative;width:120px;height:90px;">' +
-          '<img src="' + img.url + '" class="modal-image" style="width:100%;height:100%;object-fit:cover;border-radius:4px;cursor:pointer;" onclick="viewCargaImage(' + i + ')">' +
-          '<button class="modal-delete-img" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
+        return '<div style="position:relative;display:inline-block;width:120px;height:90px;margin-right:0.5rem;margin-bottom:0.5rem;">' +
+          '<img src="' + img.url + '" style="width:100%;height:100%;object-fit:cover;border-radius:6px;cursor:pointer;" onclick="viewCargaImage(' + i + ')">' +
+          '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
           '</div>';
       }).join('');
     }
@@ -2714,26 +2714,33 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   // Capturar imagen del portapapeles al pegar en el textarea de carga masiva
-  document.getElementById('cargaTextarea').addEventListener('paste', async function(e) {
-    // Esperar a que el texto se pegue naturalmente, luego buscar imágenes
-    setTimeout(async function() {
-      if (cargaImages.length >= 3) return; // ya están al límite
-      var items = e.clipboardData?.items;
-      if (!items) return;
-      var imageFile = null;
+  document.getElementById('cargaTextarea').addEventListener('paste', function(e) {
+    if (cargaImages.length >= 3) return;
+
+    // 1) Leer del paste event (síncrono, data solo disponible dentro del evento)
+    var items = e.clipboardData?.items;
+    if (items) {
       for (var idx = 0; idx < items.length; idx++) {
         if (items[idx].type.startsWith('image/')) {
-          imageFile = items[idx].getAsFile();
+          var file = items[idx].getAsFile();
+          if (file) {
+            preguntarImagenCarga(file);
+          }
           break;
         }
       }
-      if (!imageFile) return;
+    }
+  });
+
+  function preguntarImagenCarga(file) {
+    setTimeout(function() {
+      if (cargaImages.length >= 3) { alert('Máximo 3 imágenes'); return; }
       if (confirm('¿Quieres copiar imagen también?')) {
-        addCargaImageFile(imageFile);
+        addCargaImageFile(file);
         renderCargaThumbs();
       }
-    }, 50);
-  });
+    }, 100);
+  }
 
   // ====== FLUJO PRINCIPAL CARGA MASIVA ======
 
@@ -2885,7 +2892,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_desc_' + i + '" value="' + escapeHtml(descripcion) + '"' + disabledAttr + '></td>';
       html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '" value="' + escapeHtml(row.responsable || '') + '" placeholder="(sin match)"' + noMatch + disabledAttr + '></td>';
       html += '<td style="text-align:center;">' +
-        (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#94a3b8;">ok</span>') +
+        (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#10b981;">Agregado</span>') +
         '</td>';
       html += '</tr>';
     });
