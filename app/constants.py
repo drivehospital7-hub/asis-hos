@@ -645,31 +645,27 @@ URGENCIA_HEADER_BACKGROUND_COLOR = "FFCCCC"  # Rojo muy claro
 URGENCIA_HEADER_BORDER_COLOR = "FF6B6B"      # Rojo más intenso
 URGENCIA_DATA_ROW_BACKGROUND_COLOR = "FFF0F0"  # Rojo muy claro para filas
 
-# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=735301 -> IDE Contrato debe ser 970
-# Urgencias y Contratos
-CODIGO_IDE_CONTRATO_735301 = "735301"
-ENTIDAD_IDE_CONTRATO_735301 = "ESS118"
-IDE_CONTRATO_REQUERIDO_735301 = "970"
-
 # ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=906340 -> IDE Contrato debe ser 839
 # Urgencias y Contratos
 CODIGO_IDE_CONTRATO_906340_ESS118 = "906340"
 ENTIDAD_IDE_CONTRATO_906340_ESS118 = "ESS118"
 IDE_CONTRATO_REQUERIDO_906340_ESS118 = "839"
 
-# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=861801 -> IDE Contrato debe ser 974
-# Urgencias y Contratos
-CODIGO_IDE_CONTRATO_861801_ESS118 = "861801"
-ENTIDAD_IDE_CONTRATO_861801_ESS118 = "ESS118"
-IDE_CONTRATO_REQUERIDO_861801_ESS118 = "974"
-
-# ----- Nueva Regla: Cód Entidad Cobrar=ESS118 + Código=890205/861801/735301 -> IDE Contrato puede ser 970 o 974
-# Urgencias y Contratos - cualquiera de los dos está bien
-CODIGO_IDE_CONTRATO_890205_ESS118 = "890205"
-CODIGO_IDE_CONTRATO_861801_ESS118 = "861801"
+# ----- ESS118 + Código=735301 o 861801 -> IDE Contrato puede ser 970 o 974
 CODIGO_IDE_CONTRATO_735301_ESS118 = "735301"
-ENTIDAD_IDE_CONTRATO_890205_ESS118 = "ESS118"
+CODIGO_IDE_CONTRATO_861801_ESS118 = "861801"
+ENTIDAD_IDE_CONTRATO_ESS118_NUEVOS = "ESS118"
 IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS = frozenset({"970", "974"})  # Cualquiera de los dos está bien
+
+# ----- ESS118 + Código=890405 -> IDE Contrato debe ser 974
+CODIGO_IDE_CONTRATO_890405_ESS118 = "890405"
+ENTIDAD_IDE_CONTRATO_890405_ESS118 = "ESS118"
+IDE_CONTRATO_REQUERIDO_890405_ESS118 = "974"
+
+# ----- ESS118 + Código=890205 -> IDE Contrato debe ser 970
+CODIGO_IDE_CONTRATO_890205_ESS118 = "890205"
+ENTIDAD_IDE_CONTRATO_890205_ESS118 = "ESS118"
+IDE_CONTRATO_REQUERIDO_890205_ESS118 = "970"
 
 # ----- Nueva Regla: Cód Entidad Cobrar=ESSC18 + Código=906340 -> IDE Contrato debe ser 842
 CODIGO_IDE_CONTRATO_906340_ESSC18 = "906340"
@@ -680,10 +676,10 @@ IDE_CONTRATO_REQUERIDO_906340_ESSC18 = "842"
 CODIGO_IDE_CONTRATO_861801_ESSC18 = "861801"
 IDE_CONTRATO_REQUERIDO_861801_ESSC18 = "975"
 
-# ----- Nueva Regla: Cód Entidad Cobrar=ESSC18 + Código=890205 -> IDE Contrato según inserción
-CODIGO_IDE_CONTRATO_890205_ESSC18 = "890205"
-IDE_CONTRATO_CON_INSERCION_890205_ESSC18 = "968"  # Si tiene código 861801
-IDE_CONTRATO_SIN_INSERCION_890205_ESSC18 = "975"  # Si NO tiene código 861801
+# ----- Nueva Regla: Cód Entidad Cobrar=ESSC18 + Código=890405 -> IDE Contrato según inserción
+CODIGO_IDE_CONTRATO_890405_ESSC18 = "890405"
+IDE_CONTRATO_CON_INSERCION_890405_ESSC18 = "968"  # Si tiene código 861801
+IDE_CONTRATO_SIN_INSERCION_890405_ESSC18 = "975"  # Si NO tiene código 861801
 
 # ----- Nueva Regla: Cód Entidad Cobrar=EPS037 + Código=906340 -> IDE Contrato debe ser 962
 CODIGO_IDE_CONTRATO_906340_EPS037 = "906340"
@@ -869,6 +865,116 @@ ENTIDAD_IDE_CONTRATO_890405_RES004 = "RES004"
 IDE_CONTRATO_CON_INSERCION_890405_RES004 = "908"  # tiene código 861801
 IDE_CONTRATO_SIN_INSERCION_890405_RES004 = "909"  # no tiene código 861801
 CODIGO_INSERCION_BUSCAR_RES004 = "861801"
+
+# =============================================================================
+# URGENCIAS - Reglas REVERSE: IDE Contrato → Código CUPS esperado
+# =============================================================================
+# Sin entidad: dado IDE Contrato, qué código debe tener
+
+# Mapeo directo: IDE → Código esperado (uno solo)
+IDE_CONTRATO_REVERSE = {
+    "986": "906340",
+}
+
+# IDE 977: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si la identificación tiene 861801 en otra factura → 890405 debería ser 976
+IDE_CONTRATO_REVERSE_977 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "976",
+    },
+}
+
+# IDE 979: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si la identificación tiene 861801 → 890405 debería ser 967
+IDE_CONTRATO_REVERSE_979 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "967",
+    },
+}
+
+# IDE 839 → Código debe ser 906340
+IDE_CONTRATO_REVERSE_839 = "906340"
+
+# IDE 842 → Código debe ser 906340
+IDE_CONTRATO_REVERSE_842 = "906340"
+
+# IDE 958: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si la identificación tiene 861801 → 890405 debería ser 959
+IDE_CONTRATO_REVERSE_958 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "959",
+    },
+}
+
+# IDE 961: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+IDE_CONTRATO_REVERSE_961 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "962",
+    },
+}
+
+# IDE 922: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si tiene 861801 → 890405 debería ser 921
+IDE_CONTRATO_REVERSE_922 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "921",
+    },
+}
+
+# IDE 863: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si tiene 861801 → 890405 debería ser 862
+IDE_CONTRATO_REVERSE_863 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "862",
+    },
+}
+
+# IDE 975: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si tiene 861801 → 890405 debería ser 968
+IDE_CONTRATO_REVERSE_975 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "968",
+    },
+}
+
+# IDE 920: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si tiene 861801 → 890405 debería ser 919
+IDE_CONTRATO_REVERSE_920 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "919",
+    },
+}
+
+# IDE 908: puede ser 861801 (siempre) o 890405 (solo si identificación NO tiene 861801)
+# Si tiene 861801 → 890405 debería ser 909
+IDE_CONTRATO_REVERSE_908 = {
+    "codigos_permitidos": ["861801", "890405"],
+    "codigo_error_890405": {
+        "si_identificacion_tiene": "861801",
+        "codigo_deberia_ser": "909",
+    },
+}
+
+# ESS118: IDE 970 o 974 → Código puede ser 735301, 890205 o 861801
+IDE_CONTRATO_REVERSE_ESS118 = {
+    "codigos_permitidos": ["735301", "890205", "861801"],
+}
 
 # =============================================================================
 # URGENCIAS - Reglas de cantidades (Tipo Factura = "Urgencias")
