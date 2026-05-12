@@ -20,18 +20,20 @@ from app.utils.errores_storage import (
 logger = logging.getLogger(__name__)
 
 
-def get_opciones() -> dict[str, list[str]]:
+def get_opciones() -> dict[str, list[str] | dict[str, str]]:
     """Obtener opciones para los selects."""
     from app.constants import (
         ERROR_TIPO_URGENCIAS,
         ERROR_ESTADO_URGENCIAS,
         ERROR_RESPONSABLE_URGENCIAS,
+        RESPONSABLE_NOMBRES_COMPLETOS,
     )
 
     return {
         "tipos_error": ERROR_TIPO_URGENCIAS,
         "estados": ERROR_ESTADO_URGENCIAS,
         "responsables": ERROR_RESPONSABLE_URGENCIAS,
+        "responsables_nombres_completos": RESPONSABLE_NOMBRES_COMPLETOS,
     }
 
 

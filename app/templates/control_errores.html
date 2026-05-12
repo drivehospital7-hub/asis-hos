@@ -2616,20 +2616,29 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   /** Normaliza responsable contra la lista existente.
    *  1) Match exacto (rápido)
-   *  2) Word-set matching: compara por conjunto de palabras sin importar orden
-   *  3) Si no hay match → devuelve vacío para que el usuario lo complete en preview
+   *  2) Match contra nombre completo (si existe en opciones.responsables_nombres_completos)
+   *  3) Word-set matching: compara por conjunto de palabras sin importar orden
+   *  4) Si no hay match → devuelve vacío
    */
   function _matchResponsable(raw, lista) {
     if (!raw) return '';
     const rawNorm = _norm(raw);
 
+    // 1) Match exacto
     for (const r of lista) {
       if (_norm(r) === rawNorm) return r;
+    }
+
+    // 2) Match contra nombre completo
+    var nombresCompletos = opciones.responsables_nombres_completos || {};
+    for (var shortName in nombresCompletos) {
+      if (_norm(nombresCompletos[shortName]) === rawNorm) return shortName;
     }
 
     const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
     if (!rawWords.length) return '';
 
+    // 3) Word-set matching contra nombres cortos
     for (const r of lista) {
       const rWords = _norm(r).split(/\s+/).filter(function(w) { return w.length > 1; });
       var smaller = rWords.length <= rawWords.length ? rWords : rawWords;
@@ -2639,6 +2648,18 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       });
       if (allMatch && smaller.length > 0) return r;
     }
+
+    // 4) Word-set matching contra nombres completos
+    for (var shortName in nombresCompletos) {
+      var fullWords = _norm(nombresCompletos[shortName]).split(/\s+/).filter(function(w) { return w.length > 1; });
+      var smaller = fullWords.length <= rawWords.length ? fullWords : rawWords;
+      var larger  = fullWords.length <= rawWords.length ? rawWords : fullWords;
+      var allMatch = smaller.every(function(sw) {
+        return larger.some(function(lw) { return lw.includes(sw) || sw.includes(lw); });
+      });
+      if (allMatch && smaller.length > 0) return shortName;
+    }
+
     return '';
   }
 

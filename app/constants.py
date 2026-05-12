@@ -1117,6 +1117,15 @@ ERROR_RESPONSABLE_URGENCIAS = [
     "ANGIE ARIAS",
 ]
 
+# Nombres completos de responsables para matching en carga masiva
+# clave = nombre corto (select), valor = texto a matchear
+RESPONSABLE_NOMBRES_COMPLETOS: dict[str, str] = {
+    "ALEJANDRA ESPAÑA": "ESPAÑA DIAZ LORENY ALEJANDRA",
+    "CARLOS OMAR": "MEZA FERNANDEZ CARLOS OMAR",
+    "DANIELA PAEZ": "PAEZ YULIETH DANIELA",
+    "ANGIE ARIAS": "ARIAS CULCHA ANGIE CAROLINA",
+}
+
 # Archivos para observaciones de errores (imágenes + PDFs)
 IMAGENES_DIR = "data/imagenes"
 IMAGENES_MAX_PER_OBSERVACION = 3
