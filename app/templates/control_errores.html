@@ -2839,8 +2839,14 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('cargaModal').classList.remove('open');
   }
 
+  // Cerrar el modal SOLO si el click empezó (mousedown) y terminó en el overlay
+  // Esto evita que drag-select desde el textarea cierre el modal al soltar afuera
+  var _cargaMousedownOverlay = false;
+  document.getElementById('cargaModal').addEventListener('mousedown', function(e) {
+    _cargaMousedownOverlay = (e.target === this);
+  });
   document.getElementById('cargaModal').addEventListener('click', function(e) {
-    if (e.target === this) closeCargaMasiva();
+    if (e.target === this && _cargaMousedownOverlay) closeCargaMasiva();
   });
 
   /** Detecta si una factura ya existe en cachedErrores (sin importar categoría) */
