@@ -95,6 +95,11 @@ scripts/output/
 *.sqlite3
 
 # =========================
+# Windows Zone Identifiers (ADS de NTFS en WSL)
+# =========================
+*:Zone.Identifier
+
+# =========================
 # Agent / SDD artifacts
 # =========================
 .atl/
