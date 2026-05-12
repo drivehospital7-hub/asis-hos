@@ -84,9 +84,9 @@ from app.constants import (
     IDE_CONTRATO_CON_INSERCION_890405_EPSIC5,
     IDE_CONTRATO_SIN_INSERCION_890405_EPSIC5,
     # Nueva regla ESS118 + Código 735301
-    CODIGO_IDE_CONTRATO_735301,
-    ENTIDAD_IDE_CONTRATO_735301,
-    IDE_CONTRATO_REQUERIDO_735301,
+    CODIGO_IDE_CONTRATO_735301_ESS118,
+    ENTIDAD_IDE_CONTRATO_ESS118_NUEVOS,
+    IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS,
     # Nueva regla ESS118 + Código 906340 -> IDE Contrato debe ser 839
     CODIGO_IDE_CONTRATO_906340_ESS118,
     ENTIDAD_IDE_CONTRATO_906340_ESS118,
@@ -3204,18 +3204,18 @@ def _detect_centro_costo_urgencias(
                     ident_str in identificaciones_con_insercion,
                 )
 
-        # ----- Regla 12: Cód Entidad Cobrar=ESS118 + Código=735301 -> IDE Contrato debe ser 970
+        # ----- Regla 12: Cód Entidad Cobrar=ESS118 + Código=735301 -> IDE Contrato puede ser 970 o 974
         # Urgencias y Contratos
         # (Independiente - NO depende de otras reglas)
-        if codigo_excluir == CODIGO_IDE_CONTRATO_735301 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_735301:
-            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_735301:
+        if codigo_excluir == CODIGO_IDE_CONTRATO_735301_ESS118 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_ESS118_NUEVOS:
+            if ide_contrato_str not in IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS:
                 problemas_ide_contrato.append({
                     "factura": factura_str,
                     "procedimiento": proc_str,
                     "codigo": codigo_excluir,
                     "entidad": codigo_entidad_str,
                     "ide_contrato_actual": ide_contrato_str,
-                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_735301,
+                    "ide_contrato_deberia": f"{IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS}",
                 })
                 logger.debug(
                     "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
@@ -3223,7 +3223,7 @@ def _detect_centro_costo_urgencias(
                     codigo_entidad_str,
                     codigo_excluir,
                     ide_contrato_str,
-                    IDE_CONTRATO_REQUERIDO_735301,
+                    IDE_CONTRATO_MULTIPLE_ESS118_NUEVOS,
                 )
 
         # ----- Regla 13: Cód Entidad Cobrar=ESS118 + Código=906340 -> IDE Contrato debe ser 839
