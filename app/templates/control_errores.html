@@ -1240,7 +1240,7 @@
     <!-- Paso 2: Previsualización -->
     <div id="cargaStep2" class="carga-step hidden">
       <div class="carga-modal-body">
-        <label class="carga-label">Previsualización <small>podés editar directamente las celdas</small></label>
+        <label class="carga-label">Previsualización <small>Podés editar directamente las celdas</small></label>
         <div style="overflow-x: auto;">
           <table class="carga-preview-table" id="cargaPreviewTable">
             <thead>
@@ -1257,7 +1257,7 @@
         <p class="carga-preview-count" id="cargaPreviewCount">0 registros</p>
 
         <div class="carga-image-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
-          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Archivos adjuntos <small>(máx 3 — imagen o PDF)</small></label>
+          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Archivos adjuntos <small>(Máx 3 — Imagen o PDF)</small></label>
           <div id="cargaImageThumbs" style="display:flex;gap:0.5rem;flex-wrap:wrap;min-height:60px;margin-bottom:0.75rem;"></div>
           <div id="cargaImageDropzoneInline" class="dropzone" style="border:2px dashed #e2e8f0;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;display:none;">
             <div style="color:#64748b;font-size:0.8125rem;">Arrastra archivo o click para subir</div>
@@ -2917,15 +2917,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         (isDup ? '<button style="flex-shrink:0;width:20px;height:20px;border:1px solid #d97706;border-radius:4px;background:#fffbeb;color:#d97706;font-size:14px;line-height:18px;text-align:center;cursor:pointer;font-weight:700;" onclick="enableCargaRow(' + i + ')" title="Habilitar para subir">+</button>' : '') +
         '</div></td>';
       html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_desc_' + i + '" value="' + escapeHtml(descripcion) + '"' + disabledAttr + '></td>';
-      if (row.responsable) {
-        // Responsable encontrado → input de texto (permite edición manual para correcciones)
-        html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '" value="' + escapeHtml(row.responsable) + '"' + disabledAttr + '></td>';
-      } else {
-        // Sin match → select con opciones disponibles (forzar selección)
-        var optionsHtml = '<option value="">-- Seleccionar --</option>' +
-          opciones.responsables.map(r => '<option value="' + escapeHtml(r) + '">' + escapeHtml(r) + '</option>').join('');
-        html += '<td><select class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '"' + disabledAttr + '>' + optionsHtml + '</select></td>';
-      }
+      // Siempre select: si hay match se pre-selecciona, si no → "-- Seleccionar --"
+      var optionsHtml = '<option value="">-- Seleccionar --</option>' +
+        opciones.responsables.map(function(r) {
+          var selected = r === row.responsable ? ' selected' : '';
+          return '<option value="' + escapeHtml(r) + '"' + selected + '>' + escapeHtml(r) + '</option>';
+        }).join('');
+      html += '<td><select class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '"' + disabledAttr + '>' + optionsHtml + '</select></td>';
       html += '<td style="text-align:center;">' +
         (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#10b981;">Agregado</span>') +
         '</td>';
