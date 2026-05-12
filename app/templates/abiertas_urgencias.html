@@ -161,6 +161,11 @@
     opacity: 0.7;
     pointer-events: none;
   }
+  .btn:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
 
   /* ── Collapsible parse card ── */
   .parse-card {
@@ -415,48 +420,45 @@
     word-break: break-all;
   }
 
-  .resp-detected-cols {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-bottom: 1rem;
-    padding: 0.75rem;
-    background: #f8fafc;
-    border-radius: 8px;
-    font-size: 0.8125rem;
+  /* ── Schedule table compact ── */
+  .schedule-table-wrap {
+    overflow-x: auto;
   }
-  .resp-detected-cols__item {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.375rem;
-  }
-  .resp-detected-cols__badge {
-    display: inline-block;
-    padding: 0.125rem 0.5rem;
-    border-radius: 4px;
-    font-weight: 600;
+  .schedule-table {
+    width: 100%;
+    border-collapse: collapse;
     font-size: 0.75rem;
-    background: #e2e8f0;
-    color: #475569;
+    line-height: 1.2;
   }
-  .resp-detected-cols__badge--date  { background: #dbeafe; color: #1e40af; }
-  .resp-detected-cols__badge--fact  { background: #d1fae5; color: #065f46; }
-  .resp-detected-cols__badge--name  { background: #fce7f3; color: #be185d; }
-  .resp-detected-cols__badge--num   { background: #fef3c7; color: #92400e; }
-
-  /* ── Person badges ── */
-  .person-badge {
-    display: inline-block;
-    padding: 0.25rem 0.625rem;
-    border-radius: 6px;
-    font-size: 0.8125rem;
+  .schedule-table thead th {
+    padding: 0.3rem 0.4rem;
+    font-size: 0.65rem;
     font-weight: 600;
+    text-align: center;
+    border-bottom: 1px solid #e2e8f0;
+    background: #f8fafc;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
   }
-  .person-badge--carlos    { background: #dbeafe; color: #1e40af; }
-  .person-badge--carolina  { background: #fce7f3; color: #be185d; }
-  .person-badge--yulieth   { background: #d1fae5; color: #065f46; }
-  .person-badge--alejandra { background: #fef3c7; color: #92400e; }
-  .person-badge--default   { background: #f1f5f9; color: #475569; }
+  .schedule-table tbody td {
+    padding: 0.2rem 0.4rem;
+    text-align: center;
+    border-bottom: 1px solid #f1f5f9;
+    color: #334155;
+    white-space: nowrap;
+  }
+  .schedule-table tbody tr:hover td {
+    background: #f8fafc;
+  }
+  .sched-day {
+    font-weight: 600;
+    color: #94a3b8;
+    font-size: 0.7rem;
+  }
+  .schedule-table tbody tr:last-child td {
+    border-bottom: none;
+  }
 
   /* ── Toast / feedback ── */
   .toast {
@@ -504,84 +506,6 @@
   </a>
 </div>
 
-<!-- ═══════════════════ Status Bar ═══════════════════ -->
-<div class="status-bar" id="statusBar">
-  <div class="status-bar__left">
-    <div class="status-bar__icon status-bar__icon--loading" id="statusIcon">
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-    </div>
-    <div class="status-bar__info">
-      <p class="status-bar__title" id="statusTitle">Cargando...</p>
-      <p class="status-bar__meta" id="statusMeta"></p>
-    </div>
-  </div>
-  <div class="status-bar__actions" id="statusActions" style="display:none;">
-    <button class="btn btn--secondary btn--small" onclick="toggleParseCard()" id="btnToggleParse">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-      <span id="btnToggleLabel">Modificar</span>
-    </button>
-    <button class="btn btn--danger-ghost btn--small" onclick="deleteSchedule()" title="Eliminar horario">
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
-    </button>
-  </div>
-</div>
-
-<!-- ═══════════════════ Collapsible Parse Card ═══════════════════ -->
-<div class="parse-card collapsed" id="parseCard">
-  <div class="parse-card__header" onclick="toggleParseCard()">
-    <div class="parse-card__header-left">
-      <div class="parse-card__header-icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-      </div>
-      <div class="parse-card__header-text">
-        <p class="parse-card__header-title" id="parseHeaderTitle">Pegar Horario</p>
-        <p class="parse-card__header-hint" id="parseHeaderHint">Copiá el horario desde Excel y pegalo acá para parsearlo</p>
-      </div>
-    </div>
-    <button class="parse-card__toggle" id="parseToggle" onclick="event.stopPropagation(); toggleParseCard()">
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
-  </div>
-  <div class="parse-card__body">
-    <div class="form-group">
-      <label class="form-group__label" for="schedule-input">Texto del horario</label>
-      <textarea id="schedule-input" class="form-textarea" rows="12" placeholder="Pegá acá el texto del horario...&#10;&#10;Ejemplo:&#10;URGENCIAS&#9;&#10;DIA&#9;&quot;07:00 AM-01:00&#10;PM&quot;&#9;&quot;01:00 PM-07:00&#10;PM&quot;&#9;&quot;07:00 PM-07:00&#10;AM&quot;&#10;1&#9;CARLOS&#9;CAROLINA&#9;YULIETH"></textarea>
-    </div>
-    <div class="actions-bar">
-      <button class="btn btn--primary" onclick="parseAndSave()" id="btnParse">
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-        <span>Parsear y Guardar</span>
-      </button>
-      <button class="btn btn--secondary" onclick="collapseParseCard()">
-        Cancelar
-      </button>
-    </div>
-  </div>
-</div>
-
-<!-- ═══════════════════ Table Section ═══════════════════ -->
-<div class="table-section" id="tableSection">
-  <div class="table-header">
-    <h2>Horario de Urgencias</h2>
-    <span class="table-count" id="tableCount"></span>
-  </div>
-  <div class="table-wrapper">
-    <table class="table" id="scheduleTable">
-      <thead>
-        <tr>
-          <th>Día</th>
-          <th>07:00 AM - 01:00 PM</th>
-          <th>01:00 PM - 07:00 PM</th>
-          <th>07:00 PM - 07:00 AM</th>
-        </tr>
-      </thead>
-      <tbody id="scheduleBody">
-        <tr><td colspan="4" class="empty-state">Cargando horario...</td></tr>
-      </tbody>
-    </table>
-  </div>
-</div>
-
 <!-- ════════════════════════════════════════════ -->
 <!-- SECCIÓN: Asignar Responsable desde Horario -->
 <!-- ════════════════════════════════════════════ -->
@@ -624,9 +548,13 @@
 <div class="table-section" id="respResultSection">
   <div class="table-header">
     <h2>Facturas con Responsable Asignado</h2>
-    <span class="table-count" id="respCount"></span>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+      <span class="table-count" id="respCount"></span>
+      <button class="btn btn--primary" id="btnCopiarExcel" onclick="copiarResultados()" style="padding:0.4rem 0.75rem;font-size:0.8125rem;display:none;">
+        📋 Copiar a Excel
+      </button>
+    </div>
   </div>
-  <div class="resp-detected-cols" id="respDetectedCols" style="display:none;"></div>
   <div class="table-wrapper">
     <table class="table" id="respTable">
       <thead>
@@ -645,6 +573,82 @@
         <tr><td colspan="8" class="empty-state">Pegá los datos y hacé click en "Procesar y Asignar Responsable"</td></tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<!-- ═══════════════════ Horario colapsable ═══════════════════ -->
+<div class="parse-card collapsed" id="scheduleCard">
+  <div class="parse-card__header" onclick="toggleScheduleCard()">
+    <div class="parse-card__header-left">
+      <div class="parse-card__header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div class="parse-card__header-text">
+        <p class="parse-card__header-title">Ver Horario</p>
+        <p class="parse-card__header-hint" id="scheduleCardHint">Hacé clic para ver los turnos cargados</p>
+      </div>
+    </div>
+    <button class="parse-card__toggle" id="scheduleToggle" onclick="event.stopPropagation(); toggleScheduleCard()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  </div>
+  <div class="parse-card__body">
+    <div class="schedule-table-wrap">
+      <table class="table schedule-table" id="scheduleTable">
+        <thead>
+          <tr>
+            <th>Día</th>
+            <th>07:00-13:00</th>
+            <th>13:00-19:00</th>
+            <th>19:00-07:00</th>
+          </tr>
+        </thead>
+        <tbody id="scheduleBody">
+          <tr><td colspan="4" class="empty-state">Cargando horario...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ Status Bar ═══════════════════ -->
+<div class="status-bar" id="statusBar">
+  <div class="status-bar__left">
+    <div class="status-bar__icon status-bar__icon--loading" id="statusIcon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    </div>
+    <div class="status-bar__info">
+      <p class="status-bar__title" id="statusTitle">Cargando...</p>
+      <p class="status-bar__meta" id="statusMeta"></p>
+    </div>
+  </div>
+  <div class="status-bar__actions" id="statusActions" style="display:none;">
+    <button class="btn btn--secondary btn--small" onclick="toggleParseCard()" id="btnToggleParse" {% if not current_user.is_authenticated %}disabled{% endif %}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span id="btnToggleLabel">Modificar</span>
+    </button>
+    <button class="btn btn--danger-ghost btn--small" onclick="deleteSchedule()" title="Eliminar horario" {% if not current_user.is_authenticated %}disabled{% endif %}>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════ Collapsible Parse Card ═══════════════════ -->
+<div class="parse-card collapsed" id="parseCard">
+  <div class="parse-card__body">
+    <div class="form-group">
+      <label class="form-group__label" for="schedule-input">Texto del horario</label>
+      <textarea id="schedule-input" class="form-textarea" rows="12" placeholder="Pegá acá el texto del horario...&#10;&#10;Ejemplo:&#10;URGENCIAS&#9;&#10;DIA&#9;&quot;07:00 AM-01:00&#10;PM&quot;&#9;&quot;01:00 PM-07:00&#10;PM&quot;&#9;&quot;07:00 PM-07:00&#10;AM&quot;&#10;1&#9;CARLOS&#9;CAROLINA&#9;YULIETH"></textarea>
+    </div>
+    <div class="actions-bar">
+      <button class="btn btn--primary" onclick="parseAndSave()" id="btnParse">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>Parsear y Guardar</span>
+      </button>
+      <button class="btn btn--secondary" onclick="collapseParseCard()">
+        Cancelar
+      </button>
+    </div>
   </div>
 </div>
 
@@ -668,15 +672,6 @@ function escapeHtml(text) {
     .replace(/'/g, '&#039;');
 }
 
-function getPersonClass(name) {
-  const n = (name || '').toUpperCase().trim();
-  if (n.includes('CARLOS'))    return 'person-badge--carlos';
-  if (n.includes('CAROLINA'))  return 'person-badge--carolina';
-  if (n.includes('YULIETH'))   return 'person-badge--yulieth';
-  if (n.includes('ALEJANDRA')) return 'person-badge--alejandra';
-  return 'person-badge--default';
-}
-
 function showToast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg;
@@ -689,21 +684,18 @@ function showToast(msg) {
 // ═══════════════════════════════════════════════════════
 
 function toggleParseCard() {
-  const card = document.getElementById('parseCard');
-  const toggle = document.getElementById('parseToggle');
-  card.classList.toggle('collapsed');
-  toggle.classList.toggle('open');
+  document.getElementById('parseCard').classList.toggle('collapsed');
 }
 
 function collapseParseCard() {
   document.getElementById('parseCard').classList.add('collapsed');
-  document.getElementById('parseToggle').classList.remove('open');
 }
 
-function expandParseCard() {
-  document.getElementById('parseCard').classList.remove('collapsed');
-  document.getElementById('parseToggle').classList.add('open');
-  document.getElementById('schedule-input').focus();
+function toggleScheduleCard() {
+  const card = document.getElementById('scheduleCard');
+  const toggle = document.getElementById('scheduleToggle');
+  card.classList.toggle('collapsed');
+  toggle.classList.toggle('open');
 }
 
 // ═══════════════════════════════════════════════════════
@@ -720,22 +712,18 @@ function setStatusLoaded(totalDias) {
 
   document.getElementById('statusActions').style.display = 'flex';
   document.getElementById('btnToggleLabel').textContent = 'Modificar';
-  document.getElementById('parseHeaderTitle').textContent = 'Modificar Horario';
-  document.getElementById('parseHeaderHint').textContent = 'Actualizá el horario si hubo cambios en los turnos';
 }
 
 function setStatusEmpty() {
   const icon = document.getElementById('statusIcon');
   icon.className = 'status-bar__icon status-bar__icon--empty';
-  icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>';
+  icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
 
-  document.getElementById('statusTitle').textContent = '⏳ Sin horario cargado';
-  document.getElementById('statusMeta').textContent = 'No hay horario guardado. Usá "Cargar" para agregar los turnos del mes.';
+  document.getElementById('statusTitle').textContent = '⏳ Falta cargar horario';
+  document.getElementById('statusMeta').textContent = 'No hay horario para el mes actual. Usá "Cargar" para agregar los turnos del mes.';
 
   document.getElementById('statusActions').style.display = 'flex';
   document.getElementById('btnToggleLabel').textContent = 'Cargar';
-  document.getElementById('parseHeaderTitle').textContent = 'Pegar Horario';
-  document.getElementById('parseHeaderHint').textContent = 'Copiá el horario desde Excel y pegalo acá para parsearlo';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -744,28 +732,27 @@ function setStatusEmpty() {
 
 function renderTable(dias) {
   const tbody = document.getElementById('scheduleBody');
-  const section = document.getElementById('tableSection');
-  const count = document.getElementById('tableCount');
+  const card = document.getElementById('scheduleCard');
+  const hint = document.getElementById('scheduleCardHint');
 
   if (!dias || dias.length === 0) {
     tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Sin datos de horario</td></tr>';
-    section.classList.remove('visible');
+    card.classList.add('collapsed');
     return;
   }
 
   let html = '';
   for (const row of dias) {
     html += '<tr>';
-    html += '<td><strong>' + row.dia + '</strong></td>';
-    html += '<td><span class="person-badge ' + getPersonClass(row.manana) + '">' + escapeHtml(row.manana) + '</span></td>';
-    html += '<td><span class="person-badge ' + getPersonClass(row.tarde) + '">' + escapeHtml(row.tarde) + '</span></td>';
-    html += '<td><span class="person-badge ' + getPersonClass(row.noche) + '">' + escapeHtml(row.noche) + '</span></td>';
+    html += '<td class="sched-day">' + row.dia + '</td>';
+    html += '<td>' + escapeHtml(row.manana) + '</td>';
+    html += '<td>' + escapeHtml(row.tarde) + '</td>';
+    html += '<td>' + escapeHtml(row.noche) + '</td>';
     html += '</tr>';
   }
 
   tbody.innerHTML = html;
-  count.textContent = dias.length + ' días';
-  section.classList.add('visible');
+  hint.textContent = dias.length + ' días cargados — clic para ver';
 }
 
 // ═══════════════════════════════════════════════════════
@@ -784,11 +771,13 @@ async function loadSchedule() {
       renderTable(dias);
       collapseParseCard();
     } else {
+      cronogramaDias = [];  // Limpiar datos viejos si el horario expiró
       setStatusEmpty();
       renderTable(null);
     }
   } catch (err) {
     console.error('Error cargando horario:', err);
+    cronogramaDias = [];
     setStatusEmpty();
     renderTable(null);
   }
@@ -925,6 +914,7 @@ async function deleteSchedule() {
     const result = await res.json();
     if (result.status === 'success') {
       showToast('Horario eliminado');
+      cronogramaDias = [];
       setStatusEmpty();
       renderTable(null);
     }
@@ -1156,7 +1146,7 @@ function procesarFacturas() {
 
     // ─── Auto-detectar columnas usando la primera fila de datos ───
     const firstDataRow = dataLines[0].split('\t').map(c => c.trim());
-    const { cols, foundLabels } = autoDetectColumns(headers, firstDataRow);
+    const { cols } = autoDetectColumns(headers, firstDataRow);
 
     // Verificar detección mínima
     if (cols.fechaCreaIdx === -1 || cols.fechaEgresoIdx === -1) {
@@ -1165,9 +1155,6 @@ function procesarFacturas() {
       btn.disabled = false;
       return;
     }
-
-    // Mostrar detección de columnas
-    showDetectedCols(foundLabels, firstDataRow);
 
     // ─── Procesar cada fila ───
     const results = [];
@@ -1249,16 +1236,16 @@ function showDetectedCols(foundLabels, firstDataRow) {
 // ═══════════════════════════════════════════════════════
 
 function renderRespTable(results) {
+  window.lastResults = results;
   const tbody = document.getElementById('respBody');
   const section = document.getElementById('respResultSection');
   const count = document.getElementById('respCount');
 
   let html = '';
   for (const r of results) {
-    // Clase para el responsable
-    let respClass = 'resp-status--asignado';
+    // Clase solo para Sin Egreso (los demás van sin estilo)
+    let respClass = '';
     if (r.responsable === 'Sin Egreso') respClass = 'resp-status--sin-egreso';
-    else if (r.responsable === 'Sin cronograma' || r.responsable.startsWith('Día')) respClass = 'resp-status--error';
 
     html += '<tr>';
     html += '<td class="resp-table-col-fecha">' + escapeHtml(r.fechaCrea || '—') + '</td>';
@@ -1274,7 +1261,64 @@ function renderRespTable(results) {
 
   tbody.innerHTML = html;
   count.textContent = results.length + ' facturas';
+  document.getElementById('btnCopiarExcel').style.display = 'inline-flex';
   section.classList.add('visible');
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Copiar resultados a Excel
+// ═══════════════════════════════════════════════════════
+
+function copiarResultados() {
+  if (!window.lastResults || window.lastResults.length === 0) {
+    showToast('No hay datos para copiar.');
+    return;
+  }
+
+  // Headers
+  const headers = [
+    'Fecha Crea',
+    'Fecha Egreso',
+    'N° Factura',
+    'Estado',
+    'Responsable',
+    'N Historia',
+    'Paciente',
+    'HC Pendiente',
+  ];
+
+  // Armar TSV
+  const lines = [headers.join('\t')];
+  for (const r of window.lastResults) {
+    lines.push([
+      r.fechaCrea || '',
+      r.fechaEgreso || '',
+      r.factura || '',
+      r.estado || '',
+      r.responsable || '',
+      r.historia || '',
+      r.paciente || '',
+      r.hcPendiente || '',
+    ].join('\t'));
+  }
+
+  const text = lines.join('\n');
+
+  // Copiar al portapapeles
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✅ ' + window.lastResults.length + ' filas copiadas al portapapeles');
+  }).catch(() => {
+    // Fallback para navegadores sin clipboard API
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ ' + window.lastResults.length + ' filas copiadas al portapapeles');
+  });
 }
 
 // ═══════════════════════════════════════════════════════

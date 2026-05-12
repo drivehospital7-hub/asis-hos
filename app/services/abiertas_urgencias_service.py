@@ -2,6 +2,7 @@
 
 import json
 import logging
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -15,11 +16,18 @@ def _ensure_data_dir() -> None:
     HORARIO_FILE.parent.mkdir(parents=True, exist_ok=True)
 
 
+def _mes_actual() -> dict[str, int]:
+    """Devuelve el mes y año actual."""
+    hoy = date.today()
+    return {"mes": hoy.month, "anio": hoy.year}
+
+
 def get_horario() -> dict[str, Any]:
-    """Obtener el horario guardado.
+    """Obtener el horario guardado si corresponde al mes actual.
 
     Returns:
-        Diccionario con el horario, o dict vacío si no hay datos.
+        Diccionario con el horario si es del mes actual, o vacío si no hay
+        datos o el horario es de otro mes.
     """
     if not HORARIO_FILE.exists():
         return {"status": "success", "data": {"horario": None, "total_dias": 0}, "errors": []}
@@ -27,6 +35,20 @@ def get_horario() -> dict[str, Any]:
     try:
         with open(HORARIO_FILE, encoding="utf-8") as f:
             horario = json.load(f)
+
+        # Verificar que el horario sea del mes actual
+        actual = _mes_actual()
+        mes_guardado = horario.get("mes")
+        anio_guardado = horario.get("anio")
+
+        if mes_guardado != actual["mes"] or anio_guardado != actual["anio"]:
+            logger.info(
+                "Horario ignorado: pertenece a %s/%s, mes actual %s/%s",
+                mes_guardado, anio_guardado, actual["mes"], actual["anio"],
+            )
+            # Si no tiene mes (datos viejos), lo respetamos por compatibilidad
+            if mes_guardado is not None:
+                return {"status": "success", "data": {"horario": None, "total_dias": 0}, "errors": []}
 
         logger.info("Horario cargado: %d días", len(horario.get("dias", [])))
         return {
@@ -43,7 +65,7 @@ def get_horario() -> dict[str, Any]:
 
 
 def save_horario(dias: list[dict[str, Any]]) -> dict[str, Any]:
-    """Guardar el horario.
+    """Guardar el horario para el mes actual.
 
     Args:
         dias: Lista de dicts con dia, manana, tarde, noche.
@@ -54,7 +76,10 @@ def save_horario(dias: list[dict[str, Any]]) -> dict[str, Any]:
     if not dias:
         return {"status": "error", "data": {}, "errors": ["No hay datos para guardar"]}
 
+    actual = _mes_actual()
     horario = {
+        "mes": actual["mes"],
+        "anio": actual["anio"],
         "dias": dias,
         "total_dias": len(dias),
         "columnas": [
@@ -69,7 +94,7 @@ def save_horario(dias: list[dict[str, Any]]) -> dict[str, Any]:
         with open(HORARIO_FILE, "w", encoding="utf-8") as f:
             json.dump(horario, f, indent=2, ensure_ascii=False)
 
-        logger.info("Horario guardado: %d días", len(dias))
+        logger.info("Horario guardado: %d días para %s/%s", len(dias), actual["mes"], actual["anio"])
         return {
             "status": "success",
             "data": {
