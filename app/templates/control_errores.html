@@ -1190,18 +1190,18 @@
   <input type="text" id="editor-input">
 </div>
 
-<!-- Modal de imágenes -->
+<!-- Modal de archivos (imágenes + PDFs) -->
 <div id="image-modal">
   <div class="modal-content">
     <div class="modal-header">
-      <span class="modal-title">Imágenes</span>
+      <span class="modal-title">Archivos</span>
       <button class="modal-close" onclick="closeImageModal()">&times;</button>
     </div>
     <div id="modal-images-list" class="modal-images"></div>
     <div id="modal-dropzone" class="dropzone">
-      <div class="dropzone-text">Arrastra imagen o click para subir</div>
-      <div class="dropzone-hint">Máx 3 imágenes</div>
-      <input type="file" id="file-input" accept="image/*" multiple style="display:none">
+      <div class="dropzone-text">Arrastra archivo o click para subir</div>
+      <div class="dropzone-hint">Máx 3 archivos (imagen o PDF)</div>
+      <input type="file" id="file-input" accept="image/*,.pdf" multiple style="display:none">
     </div>
   </div>
 </div>
@@ -1257,11 +1257,11 @@
         <p class="carga-preview-count" id="cargaPreviewCount">0 registros</p>
 
         <div class="carga-image-section" style="margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9;">
-          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Imágenes adjuntas <small>(máx 3)</small></label>
+          <label class="carga-label" style="margin-bottom:0.5rem;display:block;">Archivos adjuntos <small>(máx 3 — imagen o PDF)</small></label>
           <div id="cargaImageThumbs" style="display:flex;gap:0.5rem;flex-wrap:wrap;min-height:60px;margin-bottom:0.75rem;"></div>
           <div id="cargaImageDropzoneInline" class="dropzone" style="border:2px dashed #e2e8f0;border-radius:8px;padding:1rem;text-align:center;cursor:pointer;display:none;">
-            <div style="color:#64748b;font-size:0.8125rem;">Arrastra imagen o click para subir</div>
-            <input type="file" id="cargaFileInputInline" accept="image/*" multiple style="display:none">
+            <div style="color:#64748b;font-size:0.8125rem;">Arrastra archivo o click para subir</div>
+            <input type="file" id="cargaFileInputInline" accept="image/*,.pdf" multiple style="display:none">
           </div>
         </div>
       </div>
@@ -2418,6 +2418,20 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== MODAL IMÁGENES ======
   let currentImageErrorId = null;
 
+  /** Devuelve HTML para un PDF dentro del modal (ícono + enlace) */
+  function _renderPdfThumb(errorId, filename) {
+    return `<div style="position:relative;width:120px;height:90px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border:1px solid #e2e8f0;border-radius:4px;">
+      <a href="/api/control-errores/${errorId}/imagenes/${filename}" target="_blank" style="text-decoration:none;color:#dc2626;display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        <span style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${filename}</span>
+      </a>
+      <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>
+    </div>`;
+  }
+
   async function openImageModal(errorId) {
     currentImageErrorId = errorId;
     const modal = document.getElementById('image-modal');
@@ -2425,16 +2439,18 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const dropzone = document.getElementById('modal-dropzone');
     const fileInput = document.getElementById('file-input');
 
-    // Cargar imágenes
+    // Cargar archivos
     const res = await fetch(`/api/control-errores/${errorId}/imagenes`);
     const result = await res.json();
     if (result.status === 'success') {
-      listEl.innerHTML = result.data.imagenes.map(img => `
-        <div style="position:relative;width:120px;height:90px;">
-          <img src="/api/control-errores/${errorId}/imagenes/${img}" class="modal-image" onclick="viewFullImage('${errorId}','${img}')" onerror="console.error('Error cargando imagen:', this.src)">
-          <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${img}')">&times;</button>
-        </div>
-      `).join('');
+      listEl.innerHTML = result.data.imagenes.map(filename => {
+        const isPdf = filename.toLowerCase().endsWith('.pdf');
+        if (isPdf) return _renderPdfThumb(errorId, filename);
+        return `<div style="position:relative;width:120px;height:90px;">
+          <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
+          <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>
+        </div>`;
+      }).join('');
       dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
     } else {
       listEl.innerHTML = '<p style="color:red">Error: ' + JSON.stringify(result) + '</p>';
@@ -2464,7 +2480,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function uploadImages(errorId, files) {
     for (const file of files) {
-      if (!file.type.startsWith('image/')) continue;
+      const isPdf = file.name.toLowerCase().endsWith('.pdf');
+      if (!file.type.startsWith('image/') && !isPdf) continue;
       const formData = new FormData();
       formData.append('imagen', file);
       const res = await fetch(`/api/control-errores/${errorId}/imagenes`, { method: 'POST', body: formData });
@@ -2486,6 +2503,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   function viewFullImage(errorId, filename) {
+    const isPdf = filename.toLowerCase().endsWith('.pdf');
+    if (isPdf) {
+      window.open(`/api/control-errores/${errorId}/imagenes/${filename}`, '_blank');
+      return;
+    }
     const lightbox = document.getElementById('lightbox');
     const img = document.getElementById('lightbox-img');
     img.src = `/api/control-errores/${errorId}/imagenes/${filename}`;
@@ -2622,25 +2644,39 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   // ====== GESTIÓN DE IMÁGENES EN CARGA MASIVA ======
 
+  function _renderCargaPdfThumb(index, name) {
+    return '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;display:flex;align-items:center;justify-content:center;background:#f8f9fa;cursor:pointer;" onclick="viewCargaImage(' + index + ')" title="Ver PDF">' +
+      '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>' +
+        '<polyline points="14 2 14 8 20 8"/>' +
+      '</svg>' +
+      '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + index + ')">&times;</button>' +
+    '</div>';
+  }
+
   function renderCargaThumbs() {
     var container = document.getElementById('cargaImageThumbs');
     var dropzone = document.getElementById('cargaImageDropzoneInline');
     if (!container) return;
 
     if (!cargaImages.length) {
-      container.innerHTML = '<span style="color:#94a3b8;font-size:0.8125rem;">Sin imágenes</span>';
+      container.innerHTML = '<span style="color:#94a3b8;font-size:0.8125rem;">Sin archivos</span>';
     } else {
       var html = '';
       for (var i = 0; i < cargaImages.length; i++) {
-        html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
-          '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
-          '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
-          '</div>';
+        if (cargaImages[i].isPdf) {
+          html += _renderCargaPdfThumb(i, cargaImages[i].name);
+        } else {
+          html += '<div style="position:relative;width:72px;height:54px;border-radius:6px;border:1px solid #e2e8f0;flex-shrink:0;">' +
+            '<img src="' + cargaImages[i].url + '" style="width:100%;height:100%;object-fit:cover;cursor:pointer;border-radius:6px;" onclick="viewCargaImage(' + i + ')" title="Ver imagen">' +
+            '<button style="position:absolute;top:-6px;right:-6px;width:18px;height:18px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:11px;line-height:18px;text-align:center;cursor:pointer;" onclick="event.stopPropagation();deleteCargaImage(' + i + ')">&times;</button>' +
+            '</div>';
+        }
       }
       container.innerHTML = html;
     }
 
-    // Siempre mostrar el dropzone si hay menos de 3 imágenes (independiente de si ya hay o no)
+    // Siempre mostrar el dropzone si hay menos de 3 archivos
     if (dropzone) {
       dropzone.style.display = cargaImages.length >= 3 ? 'none' : 'block';
     }
@@ -2672,13 +2708,16 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   function addCargaImageFile(file) {
-    if (!file.type.startsWith('image/')) return;
-    if (cargaImages.length >= 3) { alert('Máximo 3 imágenes'); return; }
+    var isPdf = file.name.toLowerCase().endsWith('.pdf');
+    if (!file.type.startsWith('image/') && !isPdf) return;
+    if (cargaImages.length >= 3) { alert('Máximo 3 archivos'); return; }
     var url = URL.createObjectURL(file);
+    var ext = isPdf ? 'pdf' : file.type.split('/')[1];
     cargaImages.push({
       file: file,
       url: url,
-      name: 'carga_' + Date.now() + '_' + cargaImages.length + '.' + file.type.split('/')[1]
+      isPdf: isPdf,
+      name: 'carga_' + Date.now() + '_' + cargaImages.length + '.' + ext
     });
     renderCargaThumbs();
   }
@@ -2691,6 +2730,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   function viewCargaImage(index) {
+    if (cargaImages[index].isPdf) {
+      window.open(cargaImages[index].url, '_blank');
+      return;
+    }
     var lightbox = document.getElementById('lightbox');
     var img = document.getElementById('lightbox-img');
     img.src = cargaImages[index].url;

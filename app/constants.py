@@ -1117,11 +1117,11 @@ ERROR_RESPONSABLE_URGENCIAS = [
     "ANGIE ARIAS",
 ]
 
-# Imágenes para observaciones de errores
+# Archivos para observaciones de errores (imágenes + PDFs)
 IMAGENES_DIR = "data/imagenes"
 IMAGENES_MAX_PER_OBSERVACION = 3
-IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp"})
-IMAGENES_MAX_SIZE_MB = 5
+IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"})
+IMAGENES_MAX_SIZE_MB = 20
 
 # =============================================================================
 # URGENCIAS - Códigos CUPS Capita (ESS118)
