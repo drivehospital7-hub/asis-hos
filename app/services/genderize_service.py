@@ -14,6 +14,7 @@ from urllib.request import urlopen, Request
 logger = logging.getLogger(__name__)
 GENDERIZE_API_URL = "https://api.genderize.io"
 GENDERIZE_API_KEY = os.getenv("GENDERIZE_API_KEY")
+GENDERIZE_COUNTRY_ID = os.getenv("GENDERIZE_COUNTRY_ID", "CO")  # Colombia por defecto
 
 # Cache local
 CACHE_FILE = Path(__file__).parent.parent / "data" / "genderize_cache.json"
@@ -46,6 +47,27 @@ def _load_cache() -> dict[str, dict]:
 def _save_cache(cache: dict) -> None:
     """Guarda cache a JSON."""
     CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def override_gender(normalized_name: str, new_gender: str) -> bool:
+    """Sobrescribe el género de un nombre en el cache.
+
+    Args:
+        normalized_name: Nombre normalizado (key del cache).
+        new_gender: Nuevo género ('male' o 'female').
+
+    Returns:
+        True si se actualizó, False si no existía en cache.
+    """
+    cache = _load_cache()
+    if normalized_name not in cache:
+        logger.warning("Nombre no encontrado en cache: %s", normalized_name)
+        return False
+
+    cache[normalized_name]["gender"] = new_gender
+    _save_cache(cache)
+    logger.info("Override cache: %s → %s", normalized_name, new_gender)
+    return True
 
 
 def _classify(name: str) -> tuple[str, str | None]:
@@ -107,10 +129,12 @@ def predict_genders(names: list[str]) -> tuple[list[GenderResult], RateLimitInfo
         params = [(f"name[{i}]", n) for i, n in enumerate(originals)]
         if GENDERIZE_API_KEY:
             params.append(("apikey", GENDERIZE_API_KEY))
+        if GENDERIZE_COUNTRY_ID:
+            params.append(("country_id", GENDERIZE_COUNTRY_ID))
         query = urlencode(params)
         url = f"{GENDERIZE_API_URL}?{query}"
         
-        logger.info("API call para %d nombres", len(api_names))
+        logger.info("API call para %d nombres (pais: %s)", len(api_names), GENDERIZE_COUNTRY_ID or "global")
         
         try:
             request = Request(url)

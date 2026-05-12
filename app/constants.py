@@ -545,6 +545,10 @@ CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "890408",  # PSICOLOGA
     "890406",  # NUTRICIONISTA
     "890412",  # FISIOTERAPEUTA
+    "861801",  # JEFE ENFERMERIA
+    "890205",  # JEFE ENFERMERIA
+    "890405",  # JEFE ENFERMERIA
+    "990211",  # JEFE ENFERMERIA
 })
 
 # Excepciones para Bacterióloga (no requiere Tipo=02/05 ni Laboratorio=Si)

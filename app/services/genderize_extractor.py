@@ -11,7 +11,10 @@ logger = logging.getLogger(__name__)
 
 # Nombres EXACTOS de columnas
 COL_NUMERO_FACTURA = "Número Factura"
+COL_PRIMER_APELLIDO = "Primer Apellido"
+COL_SEGUNDO_APELLIDO = "Segundo Apellido"
 COL_PRIMER_NOMBRE = "Primer Nombre"
+COL_SEGUNDO_NOMBRE = "Segundo Nombre"
 COL_SEXO = "Sexo"
 
 
@@ -20,9 +23,13 @@ class ExtractResult:
     """Resultado de extracción de relación Factura-Nombre-Sexo."""
 
     numero_factura: str
+    primer_apellido: str
+    segundo_apellido: str
     primer_nombre: str
+    segundo_nombre: str
+    nombre_completo: str  # Apellidos + Nombres (solo display)
     sexo: str  # M o F (del Excel)
-    nombre_normalizado: str
+    nombre_normalizado: str  # Solo Primer+Segundo Nombre (para API)
 
 
 def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
@@ -49,7 +56,10 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
     cols = {c: i for i, c in enumerate(df.columns)}
     
     num_factura_col = cols.get(COL_NUMERO_FACTURA)
+    primer_apellido_col = cols.get(COL_PRIMER_APELLIDO)
+    segundo_apellido_col = cols.get(COL_SEGUNDO_APELLIDO)
     nombre_col = cols.get(COL_PRIMER_NOMBRE)
+    segundo_nombre_col = cols.get(COL_SEGUNDO_NOMBRE)
     sexo_col = cols.get(COL_SEXO)
     
     if num_factura_col is None:
@@ -59,27 +69,41 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
     if sexo_col is None:
         raise ValueError(f"Columna '{COL_SEXO}' no encontrada. Columnas: {df.columns}")
     
-    logger.info("Columnas encontradas: %s, %s, %s", COL_NUMERO_FACTURA, COL_PRIMER_NOMBRE, COL_SEXO)
+    logger.info("Columnas encontradas: %s, %s, %s",
+                COL_NUMERO_FACTURA, COL_PRIMER_NOMBRE, COL_SEXO)
     
     results = []
     for row in df.iter_rows(named=True):
         numero_factura = str(row[COL_NUMERO_FACTURA] or "").strip()
+        primer_apellido = str(row.get(COL_PRIMER_APELLIDO, "") or "").strip() if primer_apellido_col is not None else ""
+        segundo_apellido = str(row.get(COL_SEGUNDO_APELLIDO, "") or "").strip() if segundo_apellido_col is not None else ""
         primer_nombre = str(row[COL_PRIMER_NOMBRE] or "").strip()
+        segundo_nombre = str(row.get(COL_SEGUNDO_NOMBRE, "") or "").strip() if segundo_nombre_col is not None else ""
         sexo = str(row[COL_SEXO] or "").strip().upper()
         
         # Skip empty rows
         if not numero_factura or not primer_nombre:
             continue
         
-        # Normalizar (minúsculas, sin tildes)
+        # --- Display: nombre completo (Apellidos + Nombres) ---
+        partes_display = [p for p in [primer_apellido, segundo_apellido, primer_nombre, segundo_nombre] if p]
+        nombre_completo = " ".join(partes_display)
+        
+        # --- API: compound name solo con Primer + Segundo Nombre ---
+        compound_name = f"{primer_nombre} {segundo_nombre}".strip() if segundo_nombre else primer_nombre
+        
         import unicodedata
-        nfd = unicodedata.normalize("NFD", primer_nombre)
+        nfd = unicodedata.normalize("NFD", compound_name)
         sin_tilde = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
         nombre_normalizado = sin_tilde.lower().strip()
         
         results.append(ExtractResult(
             numero_factura=numero_factura,
+            primer_apellido=primer_apellido,
+            segundo_apellido=segundo_apellido,
             primer_nombre=primer_nombre,
+            segundo_nombre=segundo_nombre,
+            nombre_completo=nombre_completo,
             sexo=sexo,
             nombre_normalizado=nombre_normalizado,
         ))

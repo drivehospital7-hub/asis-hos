@@ -22,6 +22,30 @@
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
         th { background: #f5f5f5; }
         .warning-row { background: #fff3cd; }
+        .danger-row { background: #f8d7da; }
+        .corrected-row { background: #d4edda; }
+        .btn-corregir {
+            background: #ffc107;
+            color: #000;
+            padding: 4px 10px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-corregir:hover { background: #e0a800; }
+        .btn-corregir:disabled { background: #6c757d; cursor: not-allowed; }
+        .name-part { 
+            display: inline-block;
+            background: #e9ecef;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-size: 13px;
+        }
+        .compound-sep {
+            color: #6c757d;
+            margin: 0 4px;
+        }
     </style>
 </head>
 <body>
@@ -126,15 +150,20 @@
                 html += `<p><strong>Discrepancias encontradas:</strong> ${data.total_discrepancies}</p>`;
                 
                 if (data.discrepancies.length > 0) {
-                    html += '<table>';
-                    html += '<tr><th>Número Factura</th><th>Primer Nombre</th><th>Sexo Excel</th><th>Sexo API</th></tr>';
+                    html += '<table id="discTable">';
+                    html += '<tr><th>Número Factura</th><th>Nombre Completo</th><th>Nombres Evaluados</th><th>Sexo Excel</th><th>Sexo API</th><th>Acción</th></tr>';
                     
-                    data.discrepancies.forEach(d => {
-                        html += `<tr class="warning-row">`;
+                    data.discrepancies.forEach((d, i) => {
+                        const namesEval = d.segundo_nombre 
+                            ? `<span class="name-part">${d.primer_nombre}</span><span class="compound-sep">+</span><span class="name-part">${d.segundo_nombre}</span>`
+                            : `<span class="name-part">${d.primer_nombre}</span>`;
+                        html += `<tr class="danger-row" id="disc-row-${i}">`;
                         html += `<td>${d.numero_factura}</td>`;
-                        html += `<td>${d.primer_nombre}</td>`;
+                        html += `<td><strong>${d.nombre_completo}</strong></td>`;
+                        html += `<td>${namesEval}</td>`;
                         html += `<td>${d.sexo_excel}</td>`;
                         html += `<td>${d.sexo_api}</td>`;
+                        html += `<td><button class="btn-corregir" onclick="corregirGenero('${d.nombre_normalizado}', '${d.sexo_excel}', ${i})">Corregir → ${d.sexo_excel}</button></td>`;
                         html += '</tr>';
                     });
                     
@@ -143,6 +172,42 @@
             }
             
             resultDiv.innerHTML = html;
+        }
+        
+        async function corregirGenero(nombreNormalizado, sexoExcel, rowIndex) {
+            const btn = document.querySelector(`#disc-row-${rowIndex} .btn-corregir`);
+            if (!btn || btn.disabled) return;
+            
+            btn.disabled = true;
+            btn.textContent = 'Corrigiendo...';
+            
+            try {
+                const resp = await fetch('/api/import/cache-corregir', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        nombre_normalizado: nombreNormalizado,
+                        genero: sexoExcel,
+                    }),
+                });
+                const data = await resp.json();
+                
+                if (data.status === 'success') {
+                    const row = document.getElementById(`disc-row-${rowIndex}`);
+                    row.className = 'corrected-row';
+                    btn.textContent = '✓ Corregido';
+                    btn.style.background = '#28a745';
+                    btn.style.color = '#fff';
+                } else {
+                    alert('Error: ' + data.errors.join(', '));
+                    btn.disabled = false;
+                    btn.textContent = 'Corregir → ' + sexoExcel;
+                }
+            } catch (err) {
+                alert('Error de red: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = 'Corregir → ' + sexoExcel;
+            }
         }
         
         statsBtn.addEventListener('click', () => doRequest('/api/import/facturas-stats', statsBtn, 'Ver Estadísticas'));

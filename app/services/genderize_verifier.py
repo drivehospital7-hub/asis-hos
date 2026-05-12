@@ -25,7 +25,12 @@ class Discrepancia:
     """Registro con discrepancia entre Excel y API."""
 
     numero_factura: str
+    primer_apellido: str
+    segundo_apellido: str
     primer_nombre: str
+    segundo_nombre: str
+    nombre_completo: str
+    nombre_normalizado: str  # key del cache (solo Primer+Segundo nombre normalizado)
     sexo_excel: str  # M o F
     sexo_api: str  # male o female
 
@@ -153,7 +158,12 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
                 if f == factura:
                     discrepancies.append(Discrepancia(
                         numero_factura=factura,
+                        primer_apellido=r.primer_apellido,
+                        segundo_apellido=r.segundo_apellido,
                         primer_nombre=r.primer_nombre,
+                        segundo_nombre=r.segundo_nombre,
+                        nombre_completo=r.nombre_completo,
+                        nombre_normalizado=r.nombre_normalizado,
                         sexo_excel=sexo_excel,
                         sexo_api=sexo_api_code,
                     ))
