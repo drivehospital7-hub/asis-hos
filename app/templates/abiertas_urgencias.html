@@ -1,0 +1,1286 @@
+{% extends "base.html" %}
+
+{% block title %}Abiertas Urgencias — Horarios{% endblock %}
+
+{% block head_extra %}
+<style>
+  /* ── Page header ── */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+  }
+  .page-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+  .page-subtitle {
+    font-size: 0.875rem;
+    color: #64748b;
+    font-weight: 400;
+    margin: 0;
+  }
+  .page-title {
+    font-size: 1.875rem;
+    font-weight: 700;
+    margin: 0;
+    color: #0f172a;
+    letter-spacing: -0.025em;
+  }
+  .page-description {
+    font-size: 0.875rem;
+    color: #64748b;
+    margin: 0.5rem 0 0 0;
+  }
+
+  /* ── Status bar ── */
+  .status-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  }
+  .status-bar__left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .status-bar__icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    flex-shrink: 0;
+  }
+  .status-bar__icon--loaded {
+    background: #d1fae5;
+    color: #065f46;
+  }
+  .status-bar__icon--empty {
+    background: #f1f5f9;
+    color: #94a3b8;
+  }
+  .status-bar__icon--loading {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .status-bar__info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  .status-bar__title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0;
+  }
+  .status-bar__title strong {
+    font-weight: 700;
+  }
+  .status-bar__meta {
+    font-size: 0.8125rem;
+    color: #64748b;
+    margin: 0;
+  }
+  .status-bar__actions {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.125rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+    font-family: inherit;
+  }
+  .btn--primary {
+    background: #0f172a;
+    color: white;
+    border-color: #0f172a;
+  }
+  .btn--primary:hover {
+    background: #1e293b;
+    border-color: #1e293b;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  }
+  .btn--secondary {
+    background: white;
+    color: #475569;
+    border-color: #e2e8f0;
+  }
+  .btn--secondary:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+  }
+  .btn--ghost {
+    background: transparent;
+    color: #64748b;
+    border-color: transparent;
+  }
+  .btn--ghost:hover {
+    background: #f1f5f9;
+    color: #0f172a;
+  }
+  .btn--danger-ghost {
+    background: transparent;
+    color: #ef4444;
+    border-color: transparent;
+  }
+  .btn--danger-ghost:hover {
+    background: #fef2f2;
+  }
+  .btn--small {
+    padding: 0.375rem 0.75rem;
+    font-size: 0.8125rem;
+    border-radius: 6px;
+  }
+  .btn--loading {
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  /* ── Collapsible parse card ── */
+  .parse-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: all 0.2s ease;
+  }
+  .parse-card.collapsed .parse-card__body {
+    display: none;
+  }
+  .parse-card__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    cursor: pointer;
+    user-select: none;
+  }
+  .parse-card__header:hover {
+    background: #fafbfc;
+  }
+  .parse-card__header-left {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+  }
+  .parse-card__header-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f1f5f9;
+    color: #475569;
+    font-size: 1rem;
+    flex-shrink: 0;
+  }
+  .parse-card__header-text {
+    display: flex;
+    flex-direction: column;
+    gap: 0.125rem;
+  }
+  .parse-card__header-title {
+    font-size: 0.9375rem;
+    font-weight: 600;
+    color: #0f172a;
+    margin: 0;
+  }
+  .parse-card__header-hint {
+    font-size: 0.8125rem;
+    color: #94a3b8;
+    margin: 0;
+  }
+  .parse-card__toggle {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    transition: transform 0.2s ease;
+    flex-shrink: 0;
+  }
+  .parse-card__toggle:hover {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .parse-card__toggle.open {
+    transform: rotate(180deg);
+  }
+  .parse-card__body {
+    border-top: 1px solid #e2e8f0;
+    padding: 1.25rem;
+  }
+
+  /* ── Form elements ── */
+  .form-group {
+    margin-bottom: 1rem;
+  }
+  .form-group__label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 0.5rem;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+  }
+  .form-textarea {
+    width: 100%;
+    padding: 0.75rem;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-family: "SF Mono", "Cascadia Code", "Fira Code", monospace;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: #0f172a;
+    resize: vertical;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+    min-height: 200px;
+  }
+  .form-textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  .actions-bar {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 1rem;
+  }
+
+  /* ── Table ── */
+  .table-section {
+    display: none;
+  }
+  .table-section.visible {
+    display: block;
+  }
+  .table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+  .table-header h2 {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #0f172a;
+    margin: 0;
+  }
+  .table-count {
+    font-size: 0.875rem;
+    color: #64748b;
+  }
+  .table-wrapper {
+    overflow-x: auto;
+    width: 100%;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  }
+  .table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .table thead th {
+    white-space: nowrap;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    padding: 0.75rem 0.875rem;
+    border-bottom: 2px solid #e2e8f0;
+    text-align: center;
+  }
+  .table thead th:first-child {
+    border-top-left-radius: 12px;
+  }
+  .table thead th:last-child {
+    border-top-right-radius: 12px;
+  }
+  .table tbody tr {
+    transition: background-color 0.15s ease;
+  }
+  .table tbody tr:hover {
+    background-color: #fafbfc;
+  }
+  .table tbody td {
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid #f1f5f9;
+    color: #475569;
+    font-size: 0.875rem;
+    font-weight: 400;
+    text-align: center;
+  }
+  .table tbody tr:last-child td {
+    border-bottom: none;
+  }
+  #scheduleTable thead th:nth-child(1) { width: 8%; }
+  #scheduleTable thead th:nth-child(2),
+  #scheduleTable thead th:nth-child(3),
+  #scheduleTable thead th:nth-child(4) { width: 30.66%; }
+
+  .empty-state {
+    text-align: center;
+    padding: 3rem;
+    color: #94a3b8;
+    font-size: 0.875rem;
+  }
+
+  /* ── Responsable status ── */
+  .resp-status {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .resp-status--sin-egreso {
+    background: #fef3c7;
+    color: #92400e;
+  }
+
+  /* ── Responsible result table ── */
+  .resp-table-col-fecha  { width: 12%; }
+  .resp-table-col-egreso { width: 12%; }
+  .resp-table-col-factura { width: 12%; }
+  .resp-table-col-estado  { width: 12%; }
+  .resp-table-col-resp   { width: 16%; }
+  .resp-table-col-hist   { width: 12%; }
+  .resp-table-col-pac    { width: 12%; }
+  .resp-table-col-hc     { width: 12%; }
+  /* Total: 7×12% + 16% = 100% */
+
+  /* ── Resp table compacta ── */
+  #respTable.table {
+    table-layout: fixed;
+  }
+  #respTable.table thead th {
+    padding: 0.5rem 0.35rem;
+    font-size: 0.65rem;
+    letter-spacing: 0.03em;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-all;
+  }
+  #respTable.table tbody td {
+    padding: 0.35rem 0.35rem;
+    font-size: 0.75rem;
+    line-height: 1.3;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: break-all;
+  }
+
+  .resp-detected-cols {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 8px;
+    font-size: 0.8125rem;
+  }
+  .resp-detected-cols__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+  }
+  .resp-detected-cols__badge {
+    display: inline-block;
+    padding: 0.125rem 0.5rem;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.75rem;
+    background: #e2e8f0;
+    color: #475569;
+  }
+  .resp-detected-cols__badge--date  { background: #dbeafe; color: #1e40af; }
+  .resp-detected-cols__badge--fact  { background: #d1fae5; color: #065f46; }
+  .resp-detected-cols__badge--name  { background: #fce7f3; color: #be185d; }
+  .resp-detected-cols__badge--num   { background: #fef3c7; color: #92400e; }
+
+  /* ── Person badges ── */
+  .person-badge {
+    display: inline-block;
+    padding: 0.25rem 0.625rem;
+    border-radius: 6px;
+    font-size: 0.8125rem;
+    font-weight: 600;
+  }
+  .person-badge--carlos    { background: #dbeafe; color: #1e40af; }
+  .person-badge--carolina  { background: #fce7f3; color: #be185d; }
+  .person-badge--yulieth   { background: #d1fae5; color: #065f46; }
+  .person-badge--alejandra { background: #fef3c7; color: #92400e; }
+  .person-badge--default   { background: #f1f5f9; color: #475569; }
+
+  /* ── Toast / feedback ── */
+  .toast {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    background: #0f172a;
+    color: white;
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: all 0.25s ease;
+    pointer-events: none;
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  @media (max-width: 768px) {
+    .page-header { flex-direction: column; gap: 1rem; }
+    .status-bar { flex-direction: column; gap: 0.75rem; align-items: flex-start; }
+    .table { font-size: 0.75rem; }
+    .table thead th,
+    .table tbody td { padding: 0.375rem 0.5rem; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-header-left">
+    <p class="page-subtitle">Servicio de Urgencias</p>
+    <h1 class="page-title">Abiertas Urgencias</h1>
+    <p class="page-description">Visualiza los horarios del personal de urgencias</p>
+  </div>
+  <a href="{{ url_for('control_errores.control_errores_page') }}" class="btn btn--secondary">
+    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+    Volver a Control
+  </a>
+</div>
+
+<!-- ═══════════════════ Status Bar ═══════════════════ -->
+<div class="status-bar" id="statusBar">
+  <div class="status-bar__left">
+    <div class="status-bar__icon status-bar__icon--loading" id="statusIcon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+    </div>
+    <div class="status-bar__info">
+      <p class="status-bar__title" id="statusTitle">Cargando...</p>
+      <p class="status-bar__meta" id="statusMeta"></p>
+    </div>
+  </div>
+  <div class="status-bar__actions" id="statusActions" style="display:none;">
+    <button class="btn btn--secondary btn--small" onclick="toggleParseCard()" id="btnToggleParse">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      <span id="btnToggleLabel">Modificar</span>
+    </button>
+    <button class="btn btn--danger-ghost btn--small" onclick="deleteSchedule()" title="Eliminar horario">
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+    </button>
+  </div>
+</div>
+
+<!-- ═══════════════════ Collapsible Parse Card ═══════════════════ -->
+<div class="parse-card collapsed" id="parseCard">
+  <div class="parse-card__header" onclick="toggleParseCard()">
+    <div class="parse-card__header-left">
+      <div class="parse-card__header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
+      </div>
+      <div class="parse-card__header-text">
+        <p class="parse-card__header-title" id="parseHeaderTitle">Pegar Horario</p>
+        <p class="parse-card__header-hint" id="parseHeaderHint">Copiá el horario desde Excel y pegalo acá para parsearlo</p>
+      </div>
+    </div>
+    <button class="parse-card__toggle" id="parseToggle" onclick="event.stopPropagation(); toggleParseCard()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  </div>
+  <div class="parse-card__body">
+    <div class="form-group">
+      <label class="form-group__label" for="schedule-input">Texto del horario</label>
+      <textarea id="schedule-input" class="form-textarea" rows="12" placeholder="Pegá acá el texto del horario...&#10;&#10;Ejemplo:&#10;URGENCIAS&#9;&#10;DIA&#9;&quot;07:00 AM-01:00&#10;PM&quot;&#9;&quot;01:00 PM-07:00&#10;PM&quot;&#9;&quot;07:00 PM-07:00&#10;AM&quot;&#10;1&#9;CARLOS&#9;CAROLINA&#9;YULIETH"></textarea>
+    </div>
+    <div class="actions-bar">
+      <button class="btn btn--primary" onclick="parseAndSave()" id="btnParse">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>Parsear y Guardar</span>
+      </button>
+      <button class="btn btn--secondary" onclick="collapseParseCard()">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ Table Section ═══════════════════ -->
+<div class="table-section" id="tableSection">
+  <div class="table-header">
+    <h2>Horario de Urgencias</h2>
+    <span class="table-count" id="tableCount"></span>
+  </div>
+  <div class="table-wrapper">
+    <table class="table" id="scheduleTable">
+      <thead>
+        <tr>
+          <th>Día</th>
+          <th>07:00 AM - 01:00 PM</th>
+          <th>01:00 PM - 07:00 PM</th>
+          <th>07:00 PM - 07:00 AM</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody">
+        <tr><td colspan="4" class="empty-state">Cargando horario...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════ -->
+<!-- SECCIÓN: Asignar Responsable desde Horario -->
+<!-- ════════════════════════════════════════════ -->
+
+<hr style="border: none; border-top: 2px dashed #e2e8f0; margin: 2.5rem 0;">
+
+<div class="parse-card collapsed" id="respCard">
+  <div class="parse-card__header" onclick="toggleRespCard()">
+    <div class="parse-card__header-left">
+      <div class="parse-card__header-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><polyline points="17 11 19 13 23 9"/></svg>
+      </div>
+      <div class="parse-card__header-text">
+        <p class="parse-card__header-title">Asignar Responsable desde Horario</p>
+        <p class="parse-card__header-hint">Pegá los datos de facturación para asignar automáticamente el responsable según el cronograma</p>
+      </div>
+    </div>
+    <button class="parse-card__toggle" id="respToggle" onclick="event.stopPropagation(); toggleRespCard()">
+      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  </div>
+  <div class="parse-card__body">
+    <div class="form-group">
+      <label class="form-group__label" for="resp-input">Datos de facturación</label>
+      <textarea id="resp-input" class="form-textarea" rows="10" placeholder="Pegá acá los datos copiados desde el sistema de facturación...&#10;&#10;Ejemplo:&#10;12	727370	4832	10714	N	N	False	04/05/2026 21:02:19		08/05/2026 07:31:00	FEV	FEV416009	Abierta	1123324975	Reinel Chilito Yuri	Ninguno	N	No	Asistencia - Evento	202605725	07:31	4	Hospitalización	0	0	620	España Diaz Loreny Alejandra	España Diaz Loreny Alejandra	Paez  Yulieth Daniela	2		0	E"></textarea>
+    </div>
+    <div class="actions-bar">
+      <button class="btn btn--primary" onclick="procesarFacturas()" id="btnRespProcesar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+        <span>Procesar y Asignar Responsable</span>
+      </button>
+      <button class="btn btn--secondary" onclick="collapseRespCard()">
+        Cancelar
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Resultados Responsable -->
+<div class="table-section" id="respResultSection">
+  <div class="table-header">
+    <h2>Facturas con Responsable Asignado</h2>
+    <span class="table-count" id="respCount"></span>
+  </div>
+  <div class="resp-detected-cols" id="respDetectedCols" style="display:none;"></div>
+  <div class="table-wrapper">
+    <table class="table" id="respTable">
+      <thead>
+        <tr>
+          <th class="resp-table-col-fecha">Fecha Crea</th>
+          <th class="resp-table-col-egreso">Fecha Egreso</th>
+          <th class="resp-table-col-factura">N° Factura</th>
+          <th class="resp-table-col-estado">Estado</th>
+          <th class="resp-table-col-resp">Responsable</th>
+          <th class="resp-table-col-hist">N Historia</th>
+          <th class="resp-table-col-pac">Paciente</th>
+          <th class="resp-table-col-hc">HC Pendiente</th>
+        </tr>
+      </thead>
+      <tbody id="respBody">
+        <tr><td colspan="8" class="empty-state">Pegá los datos y hacé click en "Procesar y Asignar Responsable"</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// ═══════════════════════════════════════════════════════
+// Utilidades
+// ═══════════════════════════════════════════════════════
+
+function escapeHtml(text) {
+  if (text == null) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function getPersonClass(name) {
+  const n = (name || '').toUpperCase().trim();
+  if (n.includes('CARLOS'))    return 'person-badge--carlos';
+  if (n.includes('CAROLINA'))  return 'person-badge--carolina';
+  if (n.includes('YULIETH'))   return 'person-badge--yulieth';
+  if (n.includes('ALEJANDRA')) return 'person-badge--alejandra';
+  return 'person-badge--default';
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ═══════════════════════════════════════════════════════
+// Collapsible parse card
+// ═══════════════════════════════════════════════════════
+
+function toggleParseCard() {
+  const card = document.getElementById('parseCard');
+  const toggle = document.getElementById('parseToggle');
+  card.classList.toggle('collapsed');
+  toggle.classList.toggle('open');
+}
+
+function collapseParseCard() {
+  document.getElementById('parseCard').classList.add('collapsed');
+  document.getElementById('parseToggle').classList.remove('open');
+}
+
+function expandParseCard() {
+  document.getElementById('parseCard').classList.remove('collapsed');
+  document.getElementById('parseToggle').classList.add('open');
+  document.getElementById('schedule-input').focus();
+}
+
+// ═══════════════════════════════════════════════════════
+// Status bar
+// ═══════════════════════════════════════════════════════
+
+function setStatusLoaded(totalDias) {
+  const icon = document.getElementById('statusIcon');
+  icon.className = 'status-bar__icon status-bar__icon--loaded';
+  icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+
+  document.getElementById('statusTitle').innerHTML = '✅ Horario cargado — <strong>' + totalDias + ' días</strong>';
+  document.getElementById('statusMeta').textContent = 'Actualizado. ' + totalDias + ' turnos cargados para el mes.';
+
+  document.getElementById('statusActions').style.display = 'flex';
+  document.getElementById('btnToggleLabel').textContent = 'Modificar';
+  document.getElementById('parseHeaderTitle').textContent = 'Modificar Horario';
+  document.getElementById('parseHeaderHint').textContent = 'Actualizá el horario si hubo cambios en los turnos';
+}
+
+function setStatusEmpty() {
+  const icon = document.getElementById('statusIcon');
+  icon.className = 'status-bar__icon status-bar__icon--empty';
+  icon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>';
+
+  document.getElementById('statusTitle').textContent = '⏳ Sin horario cargado';
+  document.getElementById('statusMeta').textContent = 'No hay horario guardado. Usá "Cargar" para agregar los turnos del mes.';
+
+  document.getElementById('statusActions').style.display = 'flex';
+  document.getElementById('btnToggleLabel').textContent = 'Cargar';
+  document.getElementById('parseHeaderTitle').textContent = 'Pegar Horario';
+  document.getElementById('parseHeaderHint').textContent = 'Copiá el horario desde Excel y pegalo acá para parsearlo';
+}
+
+// ═══════════════════════════════════════════════════════
+// Render table
+// ═══════════════════════════════════════════════════════
+
+function renderTable(dias) {
+  const tbody = document.getElementById('scheduleBody');
+  const section = document.getElementById('tableSection');
+  const count = document.getElementById('tableCount');
+
+  if (!dias || dias.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Sin datos de horario</td></tr>';
+    section.classList.remove('visible');
+    return;
+  }
+
+  let html = '';
+  for (const row of dias) {
+    html += '<tr>';
+    html += '<td><strong>' + row.dia + '</strong></td>';
+    html += '<td><span class="person-badge ' + getPersonClass(row.manana) + '">' + escapeHtml(row.manana) + '</span></td>';
+    html += '<td><span class="person-badge ' + getPersonClass(row.tarde) + '">' + escapeHtml(row.tarde) + '</span></td>';
+    html += '<td><span class="person-badge ' + getPersonClass(row.noche) + '">' + escapeHtml(row.noche) + '</span></td>';
+    html += '</tr>';
+  }
+
+  tbody.innerHTML = html;
+  count.textContent = dias.length + ' días';
+  section.classList.add('visible');
+}
+
+// ═══════════════════════════════════════════════════════
+// Cargar horario desde el servidor
+// ═══════════════════════════════════════════════════════
+
+async function loadSchedule() {
+  try {
+    const res = await fetch('/abiertas-urgencias/api/schedule');
+    const result = await res.json();
+
+    if (result.status === 'success' && result.data.horario) {
+      const dias = result.data.horario.dias || [];
+      cronogramaDias = dias;
+      setStatusLoaded(dias.length);
+      renderTable(dias);
+      collapseParseCard();
+    } else {
+      setStatusEmpty();
+      renderTable(null);
+    }
+  } catch (err) {
+    console.error('Error cargando horario:', err);
+    setStatusEmpty();
+    renderTable(null);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Parsear texto y guardar
+// ═══════════════════════════════════════════════════════
+
+function parseScheduleText(text) {
+  const rawLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+
+  // Join multi-line quoted fields
+  const mergedLines = [];
+  let buffer = '';
+
+  for (const line of rawLines) {
+    const trimmed = line.trim();
+    if (trimmed === '') continue;
+
+    if (trimmed.startsWith('"') && buffer) {
+      const quoteCount = (trimmed.match(/"/g) || []).length;
+      buffer += '\t' + trimmed;
+      if (quoteCount % 2 === 1 && trimmed.endsWith('"')) {
+        mergedLines.push(buffer);
+        buffer = '';
+      }
+    } else if (trimmed.startsWith('"') && !buffer) {
+      buffer = trimmed;
+    } else if (buffer) {
+      const quoteCount = (trimmed.match(/"/g) || []).length;
+      buffer += ' ' + trimmed;
+      if (trimmed.endsWith('"')) {
+        mergedLines.push(buffer);
+        buffer = '';
+      }
+    } else {
+      mergedLines.push(trimmed);
+    }
+  }
+  if (buffer) mergedLines.push(buffer);
+
+  // Remove quotes
+  const cleanLines = mergedLines.map(l => l.replace(/"/g, ''));
+
+  if (cleanLines.length < 2) return null;
+
+  // Find header row
+  let headerIndex = -1;
+  for (let i = 0; i < cleanLines.length; i++) {
+    const first = (cleanLines[i].split('\t')[0] || '').toUpperCase().trim();
+    if (first === 'DIA' || first === 'DÍA' || first === 'DI') {
+      headerIndex = i;
+      break;
+    }
+  }
+
+  if (headerIndex === -1) return null;
+
+  // Parse data rows
+  const dataRows = [];
+  for (let i = headerIndex + 1; i < cleanLines.length; i++) {
+    const parts = cleanLines[i].split('\t');
+    if (parts.length < 4) continue;
+    const dayNum = parseInt(parts[0], 10);
+    if (isNaN(dayNum)) continue;
+    dataRows.push({
+      dia: dayNum,
+      manana: (parts[1] || '').trim(),
+      tarde: (parts[2] || '').trim(),
+      noche: (parts[3] || '').trim()
+    });
+  }
+
+  return dataRows.length > 0 ? dataRows : null;
+}
+
+async function parseAndSave() {
+  const text = document.getElementById('schedule-input').value;
+  if (!text.trim()) {
+    showToast('Pegá el texto del horario primero.');
+    return;
+  }
+
+  const btn = document.getElementById('btnParse');
+  btn.classList.add('btn--loading');
+  btn.disabled = true;
+
+  try {
+    const dias = parseScheduleText(text);
+    if (!dias) {
+      showToast('No se pudo parsear el horario. Verificá el formato.');
+      btn.classList.remove('btn--loading');
+      btn.disabled = false;
+      return;
+    }
+
+    // Guardar en el servidor
+    const res = await fetch('/abiertas-urgencias/api/schedule', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dias })
+    });
+    const result = await res.json();
+
+    if (result.status === 'success') {
+      showToast('✅ Horario guardado — ' + dias.length + ' días');
+      setStatusLoaded(dias.length);
+      renderTable(dias);
+      collapseParseCard();
+      // Clear textarea after saving
+      document.getElementById('schedule-input').value = '';
+    } else {
+      showToast('Error al guardar: ' (result.errors || ['Error desconocido']).join(', '));
+    }
+  } catch (err) {
+    console.error('Error:', err);
+    showToast('Error de conexión al guardar el horario.');
+  } finally {
+    btn.classList.remove('btn--loading');
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Eliminar horario
+// ═══════════════════════════════════════════════════════
+
+async function deleteSchedule() {
+  if (!confirm('¿Eliminar el horario cargado?')) return;
+
+  try {
+    const res = await fetch('/abiertas-urgencias/api/schedule', { method: 'DELETE' });
+    const result = await res.json();
+    if (result.status === 'success') {
+      showToast('Horario eliminado');
+      setStatusEmpty();
+      renderTable(null);
+    }
+  } catch (err) {
+    showToast('Error al eliminar');
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// Variable global: cronograma (se carga al iniciar)
+// ═══════════════════════════════════════════════════════
+
+let cronogramaDias = [];
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Collapsible card
+// ═══════════════════════════════════════════════════════
+
+function toggleRespCard() {
+  const card = document.getElementById('respCard');
+  const toggle = document.getElementById('respToggle');
+  card.classList.toggle('collapsed');
+  toggle.classList.toggle('open');
+}
+
+function collapseRespCard() {
+  document.getElementById('respCard').classList.add('collapsed');
+  document.getElementById('respToggle').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Name mapping
+// ═══════════════════════════════════════════════════════
+
+const NOMBRE_MAP = {
+  'CARLOS':    'CARLOS OMAR',
+  'ALEJANDRA': 'ALEJANDRA ESPAÑA',
+  'YULIETH':   'DANIELA PAEZ',
+  'CAROLINA':  'ANGIE ARIAS',
+};
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Auto-detectar columnas
+// ═══════════════════════════════════════════════════════
+
+function autoDetectColumns(headers, primeraFila) {
+  // headers = array de strings (puede estar vacio si no hay fila de headers)
+  // primeraFila = array de valores de la primera fila de datos
+  const cols = {
+    fechaCreaIdx: -1,
+    fechaEgresoIdx: -1,
+    facturaIdx: -1,
+    historiaIdx: -1,
+    pacienteIdx: -1,
+    estadoIdx: -1,
+    hcPendienteIdx: -1,
+    fechaCierreIdx: -1,
+  };
+
+  // Patrones
+  const datePatt = /^\d{2}\/\d{2}\/\d{4}\s+\d{2}:\d{2}:\d{2}$/;
+  const factPatt = /^(CAP|FEV)\d+/i;
+  const factPrefixPatt = /^(CAP|FEV)/i;
+  const numPatt  = /^\d{8,}$/;
+  const estadoPatt = /^(Abierta|Pendiente|Cerrada|Anulado)$/i;
+  const hcPatt = /^(Si|No|Sí)$/i;
+  const namePatt = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ]/;
+
+  let dateCount = 0;
+  let foundLabels = {};
+
+  const searchIn = headers.length > 0 ? headers : primeraFila;
+
+  for (let i = 0; i < searchIn.length; i++) {
+    const val = (searchIn[i] || '').toString().trim().toLowerCase();
+    const raw = (primeraFila[i] || '').toString().trim();
+
+    // Detectar por header label
+    if (val) {
+      if (val.includes('fecha crea'))   { cols.fechaCreaIdx = i; foundLabels[i] = 'Fecha Crea'; continue; }
+      if (val.includes('fec. cierre') || val === 'fec.cierre') { cols.fechaCierreIdx = i; foundLabels[i] = 'Fec. Cierre'; continue; }
+      if (val.includes('fecha egreso') || val === 'fechaegreso') { cols.fechaEgresoIdx = i; foundLabels[i] = 'Fecha Egreso'; continue; }
+      if (val.includes('n factura') || val.includes('factura'))  { cols.facturaIdx = i; foundLabels[i] = 'N° Factura'; continue; }
+      if (val === 'estado') { cols.estadoIdx = i; foundLabels[i] = 'Estado'; continue; }
+      if (val.includes('n historia') || val.includes('historia')) { cols.historiaIdx = i; foundLabels[i] = 'N Historia'; continue; }
+      if (val.includes('paciente')) { cols.pacienteIdx = i; foundLabels[i] = 'Paciente'; continue; }
+      if (val.includes('hc pendiente') || val.includes('h.c')) { cols.hcPendienteIdx = i; foundLabels[i] = 'HC Pendiente'; continue; }
+    }
+
+    // Detectar por valor en primera fila
+    if (raw && datePatt.test(raw)) {
+      dateCount++;
+      if (dateCount === 1) { cols.fechaCreaIdx = i; foundLabels[i] = 'Fecha Crea'; }
+      else if (dateCount === 2) { cols.fechaEgresoIdx = i; foundLabels[i] = 'Fecha Egreso'; }
+    }
+    // Detectar factura: primero con dígitos, después standalone prefix
+    if (cols.facturaIdx === -1) {
+      if (factPatt.test(raw)) {
+        cols.facturaIdx = i;
+        foundLabels[i] = 'N° Factura';
+      } else if (factPrefixPatt.test(raw)) {
+        // Standalone prefix (FEV alone) — mirar si la siguiente columna tiene el número
+        const nextRaw = (primeraFila[i + 1] || '').toString().trim();
+        if (/^\d+$/.test(nextRaw)) {
+          cols.facturaIdx = i;
+          foundLabels[i] = 'N° Factura';
+        }
+      }
+    }
+    if (cols.historiaIdx === -1 && numPatt.test(raw)) { cols.historiaIdx = i; foundLabels[i] = 'N Historia'; }
+    if (estadoPatt.test(raw) && i !== cols.facturaIdx) { cols.estadoIdx = i; foundLabels[i] = 'Estado'; }
+    if (hcPatt.test(raw)) { cols.hcPendienteIdx = i; foundLabels[i] = 'HC Pendiente'; }
+  }
+
+  // Paciente: el que no fue detectado como otra cosa y parece nombre
+  for (let i = 0; i < primeraFila.length; i++) {
+    if (i === cols.fechaCreaIdx || i === cols.fechaEgresoIdx || i === cols.facturaIdx ||
+        i === cols.historiaIdx || i === cols.estadoIdx || i === cols.hcPendienteIdx) continue;
+    const raw = (primeraFila[i] || '').toString().trim();
+    if (raw && namePatt.test(raw) && raw.split(/\s+/).length >= 3) {
+      cols.pacienteIdx = i;
+      foundLabels[i] = 'Paciente';
+      break;
+    }
+  }
+
+  return { cols, foundLabels };
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Calcular responsable
+// ═══════════════════════════════════════════════════════
+
+function calcularResponsable(fechaCreaStr, fechaEgresoStr, cronograma) {
+  // 1. Parsear fechas
+  if (!fechaCreaStr || !fechaCreaStr.trim()) return '—';
+
+  // Formato: dd/mm/yyyy hh:mm:ss
+  const parseDate = (str) => {
+    if (!str || !str.trim()) return null;
+    const parts = str.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+    if (!parts) return null;
+    return new Date(+parts[3], +parts[2] - 1, +parts[1], +parts[4], +parts[5], +parts[6]);
+  };
+
+  const fechaCrea = parseDate(fechaCreaStr);
+  if (!fechaCrea) return '—';
+
+  // 2. Verificar si tiene egreso
+  if (!fechaEgresoStr || !fechaEgresoStr.trim()) return 'Sin Egreso';
+
+  const fechaEgreso = parseDate(fechaEgresoStr);
+  if (!fechaEgreso) return 'Sin Egreso';
+
+  // 3. Si egreso < crea → paciente sigue en sala
+  if (fechaEgreso < fechaCrea) return 'Sin Egreso';
+
+  // 4. Determinar turno según hora de Fecha Crea
+  const dia = fechaCrea.getDate();
+  const hora = fechaCrea.getHours();
+
+  let turno;
+  if (hora >= 7 && hora < 13) {
+    turno = 'manana';
+  } else if (hora >= 13 && hora < 19) {
+    turno = 'tarde';
+  } else {
+    turno = 'noche';
+  }
+
+  // 5. Buscar en cronograma
+  if (!cronograma || cronograma.length === 0) return 'Sin cronograma';
+
+  const diaData = cronograma.find(d => d.dia === dia);
+  if (!diaData) return 'Día ' + dia + ' sin asignación';
+
+  const nombreCorto = diaData[turno];
+  if (!nombreCorto) return 'Sin turno';
+
+  // 6. Mapear a nombre completo
+  const nombreNormalizado = NOMBRE_MAP[nombreCorto.toUpperCase().trim()];
+  return nombreNormalizado || nombreCorto;
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Procesar facturas
+// ═══════════════════════════════════════════════════════
+
+function procesarFacturas() {
+  const text = document.getElementById('resp-input').value;
+  if (!text.trim()) {
+    showToast('Pegá los datos de facturación primero.');
+    return;
+  }
+
+  // Validar que haya cronograma cargado
+  if (!cronogramaDias || cronogramaDias.length === 0) {
+    showToast('⚠️ No hay horario cargado. Primero cargá el cronograma en la sección de arriba.');
+    return;
+  }
+
+  const btn = document.getElementById('btnRespProcesar');
+  btn.classList.add('btn--loading');
+  btn.disabled = true;
+
+  try {
+    // ─── Parsear líneas ───
+    const rawLines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+    const lines = rawLines.filter(l => l.trim() !== '');
+
+    if (lines.length < 2) {
+      showToast('Se necesitan al menos 2 líneas (encabezados + datos).');
+      btn.classList.remove('btn--loading');
+      btn.disabled = false;
+      return;
+    }
+
+    // ─── Detectar si primera línea son encabezados ───
+    // Los headers suelen tener texto sin formato numérico predominante
+    const firstRow = lines[0].split('\t');
+    const secondRow = lines[1].split('\t');
+    const hasHeaders = firstRow.length >= 4 && firstRow.length === secondRow.length &&
+      firstRow.some(h => /[a-z]/i.test(h)) &&
+      !(/^\d/.test(firstRow[0]));
+
+    const dataStartIdx = hasHeaders ? 1 : 0;
+    const headers = hasHeaders ? firstRow.map(h => h.trim()) : [];
+    const dataLines = hasHeaders ? lines.slice(1) : lines;
+
+    // ─── Auto-detectar columnas usando la primera fila de datos ───
+    const firstDataRow = dataLines[0].split('\t').map(c => c.trim());
+    const { cols, foundLabels } = autoDetectColumns(headers, firstDataRow);
+
+    // Verificar detección mínima
+    if (cols.fechaCreaIdx === -1 || cols.fechaEgresoIdx === -1) {
+      showToast('No se pudieron detectar las columnas de fecha. Verificá el formato.');
+      btn.classList.remove('btn--loading');
+      btn.disabled = false;
+      return;
+    }
+
+    // Mostrar detección de columnas
+    showDetectedCols(foundLabels, firstDataRow);
+
+    // ─── Procesar cada fila ───
+    const results = [];
+    for (const line of dataLines) {
+      const cells = line.split('\t').map(c => c.trim());
+
+      const fechaCrea   = cols.fechaCreaIdx >= 0 ? (cells[cols.fechaCreaIdx] || '') : '';
+      const fechaEgreso = cols.fechaEgresoIdx >= 0 ? (cells[cols.fechaEgresoIdx] || '') : '';
+      let factura       = cols.facturaIdx >= 0 ? (cells[cols.facturaIdx] || '') : '';
+      // Si el prefijo está solo, combinar con la siguiente columna (FEV + 416009)
+      if (factura && /^(CAP|FEV)$/i.test(factura) && cols.facturaIdx + 1 < cells.length) {
+        const nextVal = (cells[cols.facturaIdx + 1] || '').trim();
+        if (/^\d+$/.test(nextVal)) factura = factura + nextVal;
+      }
+      const estado      = cols.estadoIdx >= 0 ? (cells[cols.estadoIdx] || '') : '';
+      const historia    = cols.historiaIdx >= 0 ? (cells[cols.historiaIdx] || '') : '';
+      const paciente    = cols.pacienteIdx >= 0 ? (cells[cols.pacienteIdx] || '') : '';
+      const hcPendiente = cols.hcPendienteIdx >= 0 ? (cells[cols.hcPendienteIdx] || '') : '';
+
+      const responsable = calcularResponsable(fechaCrea, fechaEgreso, cronogramaDias);
+
+      results.push({ fechaCrea, fechaEgreso, factura, estado, responsable, historia, paciente, hcPendiente });
+    }
+
+    if (results.length === 0) {
+      showToast('No se encontraron filas de datos válidas.');
+      btn.classList.remove('btn--loading');
+      btn.disabled = false;
+      return;
+    }
+
+    renderRespTable(results);
+    collapseRespCard();
+    showToast('✅ ' + results.length + ' facturas procesadas');
+
+  } catch (err) {
+    console.error('Error procesando:', err);
+    showToast('Error al procesar los datos.');
+  } finally {
+    btn.classList.remove('btn--loading');
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Mostrar columnas detectadas
+// ═══════════════════════════════════════════════════════
+
+function showDetectedCols(foundLabels, firstDataRow) {
+  const container = document.getElementById('respDetectedCols');
+  const labelClass = {
+    'Fecha Crea': 'resp-detected-cols__badge--date',
+    'Fec. Cierre': 'resp-detected-cols__badge--date',
+    'Fecha Egreso': 'resp-detected-cols__badge--date',
+    'N° Factura': 'resp-detected-cols__badge--fact',
+    'N Historia': 'resp-detected-cols__badge--num',
+    'Paciente': 'resp-detected-cols__badge--name',
+    'Estado': 'resp-detected-cols__badge--num',
+    'HC Pendiente': 'resp-detected-cols__badge--num',
+  };
+
+  let html = '<strong style="margin-right:0.5rem;">Columnas detectadas:</strong>';
+  const sorted = Object.entries(foundLabels).sort((a, b) => +a[0] - +b[0]);
+  for (const [idx, label] of sorted) {
+    const cls = labelClass[label] || '';
+    const val = firstDataRow[idx] || '';
+    html += `<span class="resp-detected-cols__item">
+      <span class="resp-detected-cols__badge ${cls}">${label}</span>
+      <code style="color:#64748b;font-size:0.75rem;">col ${idx}</code>
+      <span style="color:#94a3b8;">«${escapeHtml(val.substring(0, 25))}»</span>
+    </span>`;
+  }
+  container.innerHTML = html;
+  container.style.display = 'flex';
+}
+
+// ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Renderizar tabla de resultados
+// ═══════════════════════════════════════════════════════
+
+function renderRespTable(results) {
+  const tbody = document.getElementById('respBody');
+  const section = document.getElementById('respResultSection');
+  const count = document.getElementById('respCount');
+
+  let html = '';
+  for (const r of results) {
+    // Clase para el responsable
+    let respClass = 'resp-status--asignado';
+    if (r.responsable === 'Sin Egreso') respClass = 'resp-status--sin-egreso';
+    else if (r.responsable === 'Sin cronograma' || r.responsable.startsWith('Día')) respClass = 'resp-status--error';
+
+    html += '<tr>';
+    html += '<td class="resp-table-col-fecha">' + escapeHtml(r.fechaCrea || '—') + '</td>';
+    html += '<td class="resp-table-col-egreso">' + escapeHtml(r.fechaEgreso || '—') + '</td>';
+    html += '<td class="resp-table-col-factura"><strong>' + escapeHtml(r.factura || '—') + '</strong></td>';
+    html += '<td class="resp-table-col-estado">' + escapeHtml(r.estado || '—') + '</td>';
+    html += '<td class="resp-table-col-resp"><span class="resp-status ' + respClass + '">' + escapeHtml(r.responsable || '—') + '</span></td>';
+    html += '<td class="resp-table-col-hist">' + escapeHtml(r.historia || '—') + '</td>';
+    html += '<td class="resp-table-col-pac" style="text-align:left;">' + escapeHtml(r.paciente || '—') + '</td>';
+    html += '<td class="resp-table-col-hc">' + escapeHtml(r.hcPendiente || '—') + '</td>';
+    html += '</tr>';
+  }
+
+  tbody.innerHTML = html;
+  count.textContent = results.length + ' facturas';
+  section.classList.add('visible');
+}
+
+// ═══════════════════════════════════════════════════════
+// Init: cargar horario al abrir la página
+// ═══════════════════════════════════════════════════════
+
+document.addEventListener('DOMContentLoaded', loadSchedule);
+</script>
+{% endblock %}

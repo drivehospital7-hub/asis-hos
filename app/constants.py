@@ -1126,6 +1126,15 @@ RESPONSABLE_NOMBRES_COMPLETOS: dict[str, str] = {
     "ANGIE ARIAS": "ARIAS CULCHA ANGIE CAROLINA",
 }
 
+# Mapping de nombres cortos del cronograma → nombres de responsables
+# Se usa en la sección "Asignar Responsable" de Abiertas Urgencias
+CRONOGRAMA_NOMBRE_MAP: dict[str, str] = {
+    "CARLOS": "CARLOS OMAR",
+    "ALEJANDRA": "ALEJANDRA ESPAÑA",
+    "YULIETH": "DANIELA PAEZ",
+    "CAROLINA": "ANGIE ARIAS",
+}
+
 # Archivos para observaciones de errores (imágenes + PDFs)
 IMAGENES_DIR = "data/imagenes"
 IMAGENES_MAX_PER_OBSERVACION = 3

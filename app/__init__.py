@@ -16,6 +16,11 @@ PUBLIC_ENDPOINTS = frozenset({
     "static",
     # Control de errores (raíz /) — página + APIs de LECTURA son públicas
     "control_errores.control_errores_page",
+    # Abiertas Urgencias — horarios + API
+    "abiertas_urgencias.abiertas_urgencias_page",
+    "abiertas_urgencias.api_get_schedule",
+    "abiertas_urgencias.api_save_schedule",
+    "abiertas_urgencias.api_delete_schedule",
     "control_errores.listar_opciones",
     "control_errores.listar_errores",
     "control_errores.check_changes",
@@ -92,9 +97,11 @@ def create_app(config=None):
     from app.routes.genderize_api import genderize_bp
     from app.routes.import_facturas import import_facturas_bp
     from app.routes.control_errores import control_errores_bp
+    from app.routes.abiertas_urgencias import abiertas_urgencias_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
+    app.register_blueprint(abiertas_urgencias_bp, url_prefix="/abiertas-urgencias")
     # Home ahora es /dashboard
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
