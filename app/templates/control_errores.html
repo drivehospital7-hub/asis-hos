@@ -2614,22 +2614,62 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     return -1;
   }
 
+  /** Calcula cuántas palabras del input matchean contra el candidato.
+   *  Cada palabra cuenta si está contenida en el otro lado.
+   */
+  function _matchScore(rawWords, candidateWords) {
+    var score = 0;
+    for (var i = 0; i < rawWords.length; i++) {
+      for (var j = 0; j < candidateWords.length; j++) {
+        if (candidateWords[j].includes(rawWords[i]) || rawWords[i].includes(candidateWords[j])) {
+          score++;
+          break; // una coincidencia por palabra del input
+        }
+      }
+    }
+    return score;
+  }
+
+  /** Elige el mejor candidato entre una lista de nombres.
+   *  Si hay empate en el score más alto entre valores DISTINTOS, devuelve '' (ambigüedad).
+   *  Si empatan pero es el mismo valor (short vs full del mismo responsable), no hay conflicto.
+   */
+  function _bestMatch(rawWords, candidates) {
+    var best = '';
+    var bestScore = 0;
+    var tiedValue = null;
+    for (var i = 0; i < candidates.length; i++) {
+      var cWords = _norm(candidates[i].text).split(/\s+/).filter(function(w) { return w.length > 1; });
+      var score = _matchScore(rawWords, cWords);
+      if (score > bestScore) {
+        bestScore = score;
+        best = candidates[i].value;
+        tiedValue = null;
+      } else if (score > 0 && score === bestScore && candidates[i].value !== best) {
+        tiedValue = candidates[i].value;
+      }
+    }
+    // Si hay un empate entre valores distintos, es ambiguo
+    if (tiedValue !== null) return '';
+    return best;
+  }
+
   /** Normaliza responsable contra la lista existente.
    *  1) Match exacto (rápido)
-   *  2) Match contra nombre completo (si existe en opciones.responsables_nombres_completos)
-   *  3) Word-set matching: compara por conjunto de palabras sin importar orden
+   *  2) Match contra nombre completo (exacto)
+   *  3) Best-match contra nombres cortos + completos (con scoring, evita empates)
    *  4) Si no hay match → devuelve vacío
    */
   function _matchResponsable(raw, lista) {
     if (!raw) return '';
     const rawNorm = _norm(raw);
 
-    // 1) Match exacto
+    // 1) Match exacto contra short
     for (const r of lista) {
       if (_norm(r) === rawNorm) return r;
     }
 
-    // 2) Match contra nombre completo
+    // 2) Match exacto contra nombre completo
     var nombresCompletos = opciones.responsables_nombres_completos || {};
     for (var shortName in nombresCompletos) {
       if (_norm(nombresCompletos[shortName]) === rawNorm) return shortName;
@@ -2638,29 +2678,15 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
     if (!rawWords.length) return '';
 
-    // 3) Word-set matching contra nombres cortos
-    for (const r of lista) {
-      const rWords = _norm(r).split(/\s+/).filter(function(w) { return w.length > 1; });
-      var smaller = rWords.length <= rawWords.length ? rWords : rawWords;
-      var larger  = rWords.length <= rawWords.length ? rawWords : rWords;
-      var allMatch = smaller.every(function(sw) {
-        return larger.some(function(lw) { return lw.includes(sw) || sw.includes(lw); });
-      });
-      if (allMatch && smaller.length > 0) return r;
+    // 3) Best-match: arma lista de candidatos (short + full) y elige el mejor
+    var candidates = [];
+    for (var i = 0; i < lista.length; i++) {
+      candidates.push({ text: lista[i], value: lista[i] });
     }
-
-    // 4) Word-set matching contra nombres completos
     for (var shortName in nombresCompletos) {
-      var fullWords = _norm(nombresCompletos[shortName]).split(/\s+/).filter(function(w) { return w.length > 1; });
-      var smaller = fullWords.length <= rawWords.length ? fullWords : rawWords;
-      var larger  = fullWords.length <= rawWords.length ? rawWords : fullWords;
-      var allMatch = smaller.every(function(sw) {
-        return larger.some(function(lw) { return lw.includes(sw) || sw.includes(lw); });
-      });
-      if (allMatch && smaller.length > 0) return shortName;
+      candidates.push({ text: nombresCompletos[shortName], value: shortName });
     }
-
-    return '';
+    return _bestMatch(rawWords, candidates);
   }
 
   // ====== GESTIÓN DE IMÁGENES EN CARGA MASIVA ======
