@@ -13,9 +13,9 @@
     <header class="layout__header">
       <div class="layout__header-content">
         <a href="{{ url_for('control_errores.control_errores_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
-        {% if current_user.is_authenticated %}
-          <span class="layout__user">{{ current_user.username }} ({{ current_user.rol }})</span>
-          <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
+        {% if current_user.is_authenticated or session.get('ce_authenticated') %}
+          <span class="layout__user">{{ current_user.username if current_user.is_authenticated else 'admin' }}</span>
+          <a href="#" id="logout-btn" class="layout__logout">Cerrar sesión</a>
         {% endif %}
         <!-- Sesion Iniciada indicator (visible via JS when localStorage auth is set) -->
         <span id="sesion-indicator" class="layout__sesion-iniciada" style="display:none">Sesión Iniciada</span>
@@ -59,7 +59,7 @@
   </div>
 
   <script>
-    // Easter egg: 3 clicks en "Mini.local" abre login
+    // Sistema de autenticación con servidor real + localStorage para UI
     (function() {
       const CE_AUTH_KEY = 'ce_auth';
       let clickCount = 0;
@@ -72,31 +72,102 @@
       const loginError = document.getElementById('login-error');
       const loginCancel = document.getElementById('login-cancel');
       const loginSubmit = document.getElementById('login-submit');
+      const logoutBtn = document.getElementById('logout-btn');
 
-      // Verificar si hay sesión iniciada
+      // ── Verificar estado en localStorage ──
       function isAuth() {
         return localStorage.getItem(CE_AUTH_KEY) === 'true';
       }
 
-      // Guardar sesión
+      // ── Guardar estado en localStorage ──
       function setAuth(value) {
         localStorage.setItem(CE_AUTH_KEY, value ? 'true' : 'false');
         updateUI();
       }
 
-      // Actualizar UI segun auth
+      // ── Actualizar UI según localStorage ──
       function updateUI() {
         const authed = isAuth();
-        if (authed) {
-          sesionIndicator.style.display = '';
-        } else {
-          sesionIndicator.style.display = 'none';
-        }
-        // Dispatch event para que control_errores.html escuche
+        sesionIndicator.style.display = authed ? '' : 'none';
+        // Dispatch para que otros templates (control_errores.html) escuchen
         window.dispatchEvent(new CustomEvent('ce-auth-change', { detail: { auth: authed } }));
       }
 
-      // Abrir modal
+      // ── Login real contra el servidor ──
+      async function attemptLogin() {
+        const user = loginUser.value;
+        const pass = loginPass.value;
+
+        try {
+          const res = await fetch('/auth/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user, pass }),
+          });
+
+          const data = await res.json();
+
+          if (data.status === 'success') {
+            setAuth(true);
+            closeModal();
+            // Recargar para que el servidor renderice contenido real
+            window.location.reload();
+          } else {
+            loginError.classList.add('login-modal__error--visible');
+          }
+        } catch (err) {
+          console.error('Error en login:', err);
+          loginError.classList.add('login-modal__error--visible');
+        }
+      }
+
+      // ── Logout real contra el servidor ──
+      async function logout() {
+        try {
+          await fetch('/auth/api/logout', { method: 'POST' });
+        } catch (err) {
+          console.error('Error en logout:', err);
+        }
+        localStorage.removeItem(CE_AUTH_KEY);
+        updateUI();
+        window.location.href = '/';
+      }
+
+      // ── Sincronizar localStorage con el servidor al cargar la página ──
+      async function syncAuthWithServer() {
+        try {
+          const res = await fetch('/auth/api/status');
+          const data = await res.json();
+          if (data.status === 'success' && data.data.authenticated) {
+            // El servidor dice que está autenticado → asegurar localStorage
+            if (!isAuth()) {
+              setAuth(true);
+            }
+          } else {
+            // El servidor dice que NO está autenticado → limpiar localStorage
+            if (isAuth()) {
+              setAuth(false);
+            }
+          }
+        } catch (err) {
+          // Si no podemos contactar el servidor, mantener estado actual
+          console.warn('No se pudo sincronizar auth con el servidor:', err);
+        }
+      }
+
+      // ── Cargar estado inicial ──
+      updateUI();
+      syncAuthWithServer();
+
+      // ── Logout button ──
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', function(e) {
+          e.preventDefault();
+          logout();
+        });
+      }
+
+      // ── Abrir modal (easter egg) ──
       function openModal() {
         modal.style.display = 'flex';
         loginUser.value = '';
@@ -105,28 +176,15 @@
         loginUser.focus();
       }
 
-      // Cerrar modal
       function closeModal() {
         modal.style.display = 'none';
       }
 
-      // Intentar login
-      function attemptLogin() {
-        const user = loginUser.value;
-        const pass = loginPass.value;
-        if (user === 'admin' && pass === 'admin$') {
-          setAuth(true);
-          closeModal();
-        } else {
-          loginError.classList.add('login-modal__error--visible');
-        }
-      }
-
-      // Click en "Mini.local"
+      // ── Click en "Mini.local": 3 clicks abre el modal ──
       title.addEventListener('click', function(e) {
-        e.preventDefault(); // No navegar
-        e.stopPropagation(); // No bubbliar
-        if (isAuth()) return; // Ya logueado, no abrir modal
+        e.preventDefault();
+        e.stopPropagation();
+        if (isAuth()) return;
         clickCount++;
         if (clickTimer) clearTimeout(clickTimer);
         clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
@@ -136,25 +194,33 @@
         }
       });
 
-      // Cerrar con Escape
+      // ── Escape cierra modal ──
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal.style.display !== 'none') {
           closeModal();
         }
       });
 
-      // Botones del modal
+      // ── Eventos del modal ──
       loginCancel.addEventListener('click', closeModal);
       loginSubmit.addEventListener('click', attemptLogin);
       loginPass.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') attemptLogin();
       });
 
-      // Inicializar UI
-      updateUI();
+      // ── Escuchar cambios en localStorage (otra pestaña) ──
+      window.addEventListener('storage', function(e) {
+        if (e.key === CE_AUTH_KEY) {
+          updateUI();
+        }
+      });
 
-      // Exponer para uso global
-      window.ceAuth = { isAuth: isAuth };
+      // ── Exponer para otros templates ──
+      window.ceAuth = {
+        isAuth: isAuth,
+        setAuth: setAuth,
+        logout: logout,
+      };
     })();
   </script>
 

@@ -1086,6 +1086,7 @@ CODIGO_CUPS_SUSTITUTO_129B02 = "129B02"
 # =============================================================================
 
 ERROR_TIPO_URGENCIAS = [
+    "Soportes de Carpeta",
     "Contrato",
     "Centro de costos",
     "Código de servicio",

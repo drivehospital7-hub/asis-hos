@@ -1,7 +1,27 @@
-from flask import Flask
-from flask_login import LoginManager
+from datetime import timedelta
+
+from flask import Flask, jsonify, render_template, request, session
+from flask_login import LoginManager, current_user
 
 login_manager = LoginManager()
+
+# Endpoints públicos que NO requieren sesión
+PUBLIC_ENDPOINTS = frozenset({
+    # Auth — login/logout/status siempre accesibles
+    "auth.api_login",
+    "auth.api_logout",
+    "auth.api_status",
+    "auth.login",
+    # Static — CSS, JS, imágenes
+    "static",
+    # Control de errores (raíz /) — página + APIs de LECTURA son públicas
+    "control_errores.control_errores_page",
+    "control_errores.listar_opciones",
+    "control_errores.listar_errores",
+    "control_errores.check_changes",
+    "control_errores.listar_imagenes",
+    "control_errores.servir_imagen",
+})
 
 
 def create_app(config=None):
@@ -10,9 +30,44 @@ def create_app(config=None):
     if config:
         app.config.from_object(config)
 
+    # ──────────────────────────────────────────────
+    # Session persistente (cookie 30 días)
+    # ──────────────────────────────────────────────
+    app.config.setdefault("SESSION_PERMANENT", True)
+    app.config.setdefault("PERMANENT_SESSION_LIFETIME", timedelta(days=30))
+    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+
+    # ──────────────────────────────────────────────
+    # Middleware global: verifica auth en cada request
+    # ──────────────────────────────────────────────
+    @app.before_request
+    def check_session_auth():
+        # Rutas públicas (login, logout, status, estáticos)
+        if request.endpoint in PUBLIC_ENDPOINTS:
+            return
+
+        # Si ya tiene session nuestra → OK
+        if session.get("ce_authenticated"):
+            return
+
+        # Si tiene Flask-Login activo → también OK
+        if current_user.is_authenticated:
+            return
+
+        # No autenticado
+        if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": ["No autenticado"],
+            }), 401
+
+        return render_template("unauthorized.html"), 401
+
     # Inicializar Flask-Login
     login_manager.init_app(app)
-    login_manager.login_view = "auth.login"  # Route para login
+    login_manager.login_view = "auth.login"
 
     # User loader callback
     @login_manager.user_loader

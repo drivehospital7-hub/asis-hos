@@ -1990,7 +1990,7 @@
           }
         }
       }
-      var data = { tipo_error: 'Contrato', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otro', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       updateBackend(currentEditId, field, newValue);
@@ -2053,7 +2053,7 @@
     // Si es nuevo registro, crear directamente
     if (prevId === 'new') {
       const data = {
-        tipo_error: 'Contrato',
+        tipo_error: 'Otro',
         factura: field === 'factura' ? newValue : '',
         observacion: '',
         observacion_facturador: '',
@@ -2126,7 +2126,7 @@
     newRow.innerHTML = `
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Contrato</td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otro</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
@@ -2174,7 +2174,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function saveEditRow() {
     const data = { 
-      tipo_error: document.getElementById('editTipoError')?.value || 'Contrato', 
+      tipo_error: document.getElementById('editTipoError')?.value || 'Otro', 
       factura: document.getElementById('editFactura')?.value?.trim() || '', 
       observacion: document.getElementById('editObservacion')?.value?.trim() || '', 
       observacion_facturador: document.getElementById('editObservacionFacturador')?.value?.trim() || '', 

@@ -101,7 +101,8 @@
 </div>
 
 <script>
-  // Ocultar contenido si no hay auth (easter egg no activado)
+  // Mostrar contenido solo si localStorage tiene auth
+  // (el servidor ya verificó la sesión antes de renderizar)
   (function() {
     function checkAuth() {
       const authed = window.ceAuth && window.ceAuth.isAuth();
@@ -110,9 +111,8 @@
         content.style.display = authed ? '' : 'none';
       }
     }
-    // Verificar al cargar
     checkAuth();
-    // Escuchar cambios de auth
+    // Re-verificar cuando se sincronice con el servidor
     window.addEventListener('ce-auth-change', checkAuth);
   })();
 </script>

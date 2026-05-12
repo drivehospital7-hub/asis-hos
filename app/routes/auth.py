@@ -1,12 +1,25 @@
-"""Routes de autenticación (login/logout)."""
+"""Routes de autenticación (login/logout).
 
-from flask import Blueprint, render_template, redirect, url_for, flash, request
+Sistema DUAL:
+- API endpoints (JSON) → usado por el easter egg del frontend (admin / admin$)
+- Flask-Login routes → usado por el formulario /auth/login tradicional (DB)
+
+Ambos setean `session['ce_authenticated']` para que el `before_request`
+en __init__.py funcione con cualquiera de los dos.
+"""
+
+import logging
+
+from flask import Blueprint, jsonify, render_template, redirect, url_for, flash, request
 from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
 from app.models import User, AREAS_VALIDAS
+from app.utils.auth_session import check_credentials, do_login, do_logout, is_authenticated
+
+logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -19,12 +32,69 @@ AREA_ENDPOINT_MAP = {
 }
 
 
+# =============================================================================
+# API endpoints (JSON) — usados por el easter egg del frontend
+# =============================================================================
+
+
+@auth_bp.route("/api/login", methods=["POST"])
+def api_login():
+    """Login vía JSON (usado por el modal del frontend)."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"status": "error", "data": {}, "errors": ["Cuerpo JSON inválido"]}), 400
+
+    user = data.get("user", "")
+    passwd = data.get("pass", "")
+
+    if not user or not passwd:
+        return jsonify({"status": "error", "data": {}, "errors": ["Usuario y contraseña requeridos"]}), 400
+
+    if check_credentials(user, passwd):
+        do_login()
+        logger.info("Login exitoso via API: %s", user)
+        return jsonify({
+            "status": "success",
+            "data": {"authenticated": True},
+            "errors": [],
+        })
+
+    logger.warning("Intento de login fallido via API: %s", user)
+    return jsonify({
+        "status": "error",
+        "data": {},
+        "errors": ["Usuario o contraseña incorrectos"],
+    }), 401
+
+
+@auth_bp.route("/api/logout", methods=["POST"])
+def api_logout():
+    """Logout vía JSON."""
+    do_logout()
+    logger.info("Logout exitoso via API")
+    return jsonify({
+        "status": "success",
+        "data": {},
+        "errors": [],
+    })
+
+
+@auth_bp.route("/api/status")
+def api_status():
+    """Devuelve el estado de autenticación actual."""
+    return jsonify({
+        "status": "success",
+        "data": {"authenticated": is_authenticated()},
+        "errors": [],
+    })
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Página de login."""
-    # Si ya está logueado, redirigir al home
-    if current_user.is_authenticated:
-        return redirect(url_for("control_errores.control_errores_page"))
+    """Página de login (Flask-Login tradicional)."""
+    # Si ya está logueado con cualquiera de los dos sistemas, redirigir
+    if is_authenticated() or current_user.is_authenticated:
+        return redirect(url_for("home.home_page"))
     
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -40,7 +110,9 @@ def login():
             
             if user and check_password_hash(user.password_hash, password):
                 login_user(user)
+                do_login()  # Sincronizar con nuestra session
                 flash(f"Bienvenido {user.username}", "success")
+                logger.info("Login exitoso via formulario: %s", username)
                 
                 # Redirigir al área por defecto o la primera permitida
                 next_page = request.args.get("next")
@@ -48,16 +120,16 @@ def login():
                     return redirect(next_page)
                 
                 if user.rol == "admin":
-                    return redirect(url_for("control_errores.control_errores_page"))
+                    return redirect(url_for("home.home_page"))
                 elif user.areas:
-                    # Redirigir a la primera área permitida
                     area = user.areas[0].area
                     endpoint = AREA_ENDPOINT_MAP.get(area, "home.home_page")
                     return redirect(url_for(endpoint))
                 else:
-                    return redirect(url_for("control_errores.control_errores_page"))
+                    return redirect(url_for("home.home_page"))
             else:
                 flash("Usuario o contraseña incorrectos", "error")
+                logger.warning("Intento de login fallido via formulario: %s", username)
         finally:
             db.close()
     
@@ -67,10 +139,12 @@ def login():
 @auth_bp.route("/logout")
 @login_required
 def logout():
-    """Cerrar sesión."""
+    """Cerrar sesión (Flask-Login)."""
     logout_user()
+    do_logout()  # Sincronizar con nuestra session
     flash("Sesión cerrada", "success")
-    return redirect(url_for("control_errores.control_errores_page"))
+    logger.info("Logout exitoso via formulario")
+    return redirect(url_for("home.home_page"))
 
 
 @auth_bp.route("/usuarios")
