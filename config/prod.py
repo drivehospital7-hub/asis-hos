@@ -44,10 +44,3 @@ class ProdConfig:
 
     LOG_LEVEL = "INFO"
     LOG_FILE = "logs/prod.log"
-
-    @classmethod
-    def validate(cls):
-        """Validate config before using in production."""
-        # _prod_secret_key() ya valida SECRET_KEY al cargar la clase
-        if not os.getenv("DB_HOST"):
-            raise ValueError("DB_HOST must be set in production environment")
