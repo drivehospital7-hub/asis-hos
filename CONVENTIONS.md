@@ -277,6 +277,24 @@ Comparte las validaciones de Odontología:
 - Convenio incorrecto
 - Cantidades anómalas
 
+### 📋 Abiertas Urgencias — Horarios y Responsables
+
+Reglas del módulo de cronograma de turnos para asignación automática de responsable.
+
+#### 30 minutos de recepción (handover)
+
+El turno entrante se hace cargo **30 minutos antes** del cambio formal de horario.  
+Esto aplica a los tres turnos:
+
+| Turno | Horario formal | Responsable desde | Responsable hasta |
+|-------|---------------|-------------------|-------------------|
+| **Mañana** | 07:00 – 13:00 | 06:30 | 12:29 |
+| **Tarde** | 13:00 – 19:00 | 12:30 | 18:29 |
+| **Noche** | 19:00 – 07:00 | 18:30 | 06:29 |
+
+Ejemplo: si el turno de tarde es de 1:00 PM a 7:00 PM, a las 6:30 PM el responsable
+ya es el del turno de noche (no el de las 7:00 PM).
+
 ---
 
 ## Formato Condicional (Colores Excel)
@@ -405,4 +423,4 @@ Centro Costo
 
 ---
 
-*Última actualización: 2026-04-13*
+*Última actualización: 2026-05-12*

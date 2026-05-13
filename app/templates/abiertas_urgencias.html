@@ -1072,14 +1072,22 @@ function calcularResponsable(fechaCreaStr, fechaEgresoStr, cronograma) {
   // 3. Si egreso < crea → paciente sigue en sala
   if (fechaEgreso < fechaCrea) return 'Sin Egreso';
 
-  // 4. Determinar turno según hora de Fecha Crea
-  const dia = fechaCrea.getDate();
-  const hora = fechaCrea.getHours();
+  // 4. Determinar turno según hora de Fecha Egreso
+  //    (fechaCrea solo se usa como referencia comparativa arriba)
+  // ⚠️ Regla de 30min de recepción: el turno entrante se hace cargo
+  //    30 minutos antes del cambio formal.
+  //    - Mañana: 06:30 – 12:29 (toma a las 06:30, 30min antes de las 07:00)
+  //    - Tarde:  12:30 – 18:29 (toma a las 12:30, 30min antes de las 13:00)
+  //    - Noche:  18:30 – 06:29 (toma a las 18:30, 30min antes de las 19:00)
+  const dia = fechaEgreso.getDate();
+  const hora = fechaEgreso.getHours();
+  const minutos = fechaEgreso.getMinutes();
+  const horaMinutos = hora + minutos / 60;
 
   let turno;
-  if (hora >= 7 && hora < 13) {
+  if (horaMinutos >= 6.5 && horaMinutos < 12.5) {
     turno = 'manana';
-  } else if (hora >= 13 && hora < 19) {
+  } else if (horaMinutos >= 12.5 && horaMinutos < 18.5) {
     turno = 'tarde';
   } else {
     turno = 'noche';
