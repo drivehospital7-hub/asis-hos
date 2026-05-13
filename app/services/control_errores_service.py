@@ -85,8 +85,8 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
     """Crear un nuevo error."""
     try:
         tipo_error = data.get("tipo_error", "").strip() or "Otros"
-        factura = data.get("factura", "").strip() or ""
-        observacion = data.get("observacion", "").strip() or ""
+        factura = (data.get("factura", "").strip() or "").upper()
+        observacion = (data.get("observacion", "").strip() or "").upper()
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
@@ -126,9 +126,9 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if "tipo_error" in data:
             kwargs["tipo_error"] = data["tipo_error"].strip() if data["tipo_error"] else ""
         if "factura" in data:
-            kwargs["factura"] = data["factura"].strip() if data["factura"] else ""
+            kwargs["factura"] = (data["factura"].strip() if data["factura"] else "").upper()
         if "observacion" in data:
-            kwargs["observacion"] = data["observacion"].strip() if data["observacion"] else ""
+            kwargs["observacion"] = (data["observacion"].strip() if data["observacion"] else "").upper()
         if "observacion_facturador" in data:
             kwargs["observacion_facturador"] = data["observacion_facturador"].strip() if data["observacion_facturador"] else ""
         if "estado" in data:

@@ -127,12 +127,12 @@ async function enviarAControl(tipoError, factura, tipoKey, observacion, responsa
   
   const data = {
     tipo_error: tipoNormalizado,
-    factura: factura,
-    observacion: observacion,
+    factura: (factura || '').toUpperCase(),
+    observacion: (observacion || '').toUpperCase(),
     estado: 'S',
     responsable: responsableNormalizado
   };
-  
+
   console.log('>>> Enviando a Control Errores:', JSON.stringify(data, null, 2));
   
   try {
@@ -1299,8 +1299,8 @@ document.addEventListener('DOMContentLoaded', function() {
     
     const data = {
       tipo_error: tipoNormalizado,
-      factura: factura,
-      observacion: observacion,
+      factura: (factura || '').toUpperCase(),
+      observacion: (observacion || '').toUpperCase(),
       estado: 'S',
       responsable: responsable
     };

@@ -58,7 +58,7 @@ from app.constants import (
     CODIGO_TRABAJADORA_SOCIAL,
     CODIGO_PSICOLOGA,
     CODIGO_NUTRICIONISTA,
-    CODIGO_FISIOTERAPEUTA,
+    CODIGOS_FISIOTERAPEUTA,
     CODIGOS_JEFE_ENFERMERIA,
     CODIGOS_EXCLUIDOS_MEDICO,
     EXCEPCIONES_BACTERIOLOGA,
@@ -1371,7 +1371,7 @@ def _detect_profesionales_urgencias(
                 })
                 facturas_procesadas.add(factura_str)
         
-        # Si es FISIOTERAPEUTA, validar código 890412
+        # Si es FISIOTERAPEUTA, validar código 890412 o 890411
         if tipo_profesional == "FISIOTERAPEUTA" and codigo_idx is not None:
             codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
             codigo_str = str(codigo).strip() if codigo else ""
@@ -1382,7 +1382,8 @@ def _detect_profesionales_urgencias(
                 proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
                 procedimiento = str(proc).strip() if proc else ""
             
-            if codigo_str and codigo_str != CODIGO_FISIOTERAPEUTA:
+            codigos_validos = ", ".join(sorted(CODIGOS_FISIOTERAPEUTA))
+            if codigo_str and codigo_str not in CODIGOS_FISIOTERAPEUTA:
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
@@ -1390,8 +1391,8 @@ def _detect_profesionales_urgencias(
                     "tipo": "FISIOTERAPEUTA",
                     "profesional_area": "FISIOTERAPEUTA",
                     "procedimiento": procedimiento,
-                    "regla": f"Código debe ser {CODIGO_FISIOTERAPEUTA}",
-                    "problema": f"FISIOTERAPEUTA con código no permitido ({codigo_str}). Debería usar {CODIGO_FISIOTERAPEUTA}",
+                    "regla": f"Código debe ser {codigos_validos}",
+                    "problema": f"FISIOTERAPEUTA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
                 facturas_procesadas.add(factura_str)
         
@@ -4361,6 +4362,12 @@ def _build_urgencias_normalized_rows(
             return f"{codigo} - {procedimiento}"
         return codigo or procedimiento or ""
 
+    def _build_ide_contrato_descripcion(ide_deberia: str) -> str:
+        """Construye descripción de IDE Contrato, omitiendo el prefix para errores de DB."""
+        if ide_deberia in ("Código no en DB", "CÓDIGO NO EN DB"):
+            return ide_deberia
+        return f"IDE Contrato debería ser {ide_deberia}"
+
     # --- Centros de Costo ---
     for item in problemas_centros:
         factura = item.get("factura", str(item.get("invoice", "")))
@@ -4385,7 +4392,7 @@ def _build_urgencias_normalized_rows(
             "tipo_error": "IDE Contrato",
             "factura": factura,
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"IDE Contrato debería ser {item.get('ide_contrato_deberia', 'N/A')}",
+            "descripcion": _build_ide_contrato_descripcion(item.get('ide_contrato_deberia', 'N/A')),
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": item.get("ide_contrato_actual", ""),
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -5041,7 +5048,7 @@ def detect_all_problems(
             problemas_ide_contrato.append({
                 "factura": problema.get("factura", ""),
                 "ide_contrato_actual": "N/A",
-                "ide_contrato_deberia": "CÓDIGO NO EN DB",
+                "ide_contrato_deberia": "Código no en DB",
                 "procedimiento": problema.get("procedimiento", ""),
                 "codigo": problema.get("codigo", ""),
                 "entidad": problema.get("entidad", ""),
