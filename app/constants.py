@@ -1090,19 +1090,9 @@ CODIGO_CUPS_SUSTITUTO_129B02 = "129B02"
 # =============================================================================
 
 ERROR_TIPO_URGENCIAS = [
+    "Otros",
     "Soportes de Carpeta",
-    "Contrato",
-    "Centro de costos",
-    "Código de servicio",
-    "Datos del paciente",
-    "Verificar derechos",
-    "Tipo identificación",
-    "Decimales",
-    "Código entidad vs afiliación",
-    "CUPS equivalentes",
-    "Profesionales",
-    "Mal capitado",
-    "Otro",
+    "Factura Abierta",
 ]
 
 ERROR_ESTADO_URGENCIAS = [

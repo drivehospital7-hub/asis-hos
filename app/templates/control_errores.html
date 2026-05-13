@@ -1925,22 +1925,19 @@
     // Si se estaba haciendo drag, no cerrar
     if (isDragging) return;
     
-    const table = document.getElementById('erroresTable');
     const btnAdd = document.querySelector('.page-header .btn--primary');
     
-    // Si el click es en la tabla, en el botón de agregar, o en el editor, no hacer nada
-    if (table.contains(e.target) || (btnAdd && btnAdd.contains(e.target)) || editor.contains(e.target)) {
+    // Click en el editor o en el botón agregar: no cerrar
+    if (editor.contains(e.target) || (btnAdd && btnAdd.contains(e.target))) {
       return;
     }
     
-    // Si el click fue en una celda editable con tipo select, NO cerrar el editor
-    // (el handleCellClick se encarga de manejar eso)
-    const targetCell = e.target.closest('.editable-cell, .new-row-cell');
-    if (targetCell && targetCell.dataset.type === 'select') {
+    // Click en celda editable: handleCellClick se encarga de abrir/cerrar
+    if (e.target.closest('.editable-cell, .new-row-cell')) {
       return;
     }
     
-    // Solo cerrar si hay algo editándose
+    // Click fuera del editor y fuera de celdas editables → guardar y cerrar
     if (currentEditId) {
       saveFromEditor();
     }
@@ -2012,7 +2009,7 @@
           }
         }
       }
-    var data = { tipo_error: 'Otro', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       updateBackend(currentEditId, field, newValue);
@@ -2022,9 +2019,9 @@
   
   // Obtener datos de la fila nueva
   function getNewRowData() {
-    // Por defecto: tipo_error = Contrato, estado = Pendiente
+    // Por defecto: tipo_error = Otros, estado = Pendiente
     return {
-      tipo_error: 'Contrato',
+      tipo_error: 'Otros',
       observacion: '',
       observacion_facturador: '',
       estado: 'S',
@@ -2075,7 +2072,7 @@
     // Si es nuevo registro, crear directamente
     if (prevId === 'new') {
       const data = {
-        tipo_error: 'Otro',
+        tipo_error: 'Otros',
         factura: field === 'factura' ? newValue : '',
         observacion: '',
         observacion_facturador: '',
@@ -2148,7 +2145,7 @@
     newRow.innerHTML = `
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otro</td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
@@ -2186,7 +2183,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (dup.length && !confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Contrato', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
@@ -2196,7 +2193,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function saveEditRow() {
     const data = { 
-      tipo_error: document.getElementById('editTipoError')?.value || 'Otro', 
+      tipo_error: document.getElementById('editTipoError')?.value || 'Otros', 
       factura: document.getElementById('editFactura')?.value?.trim() || '', 
       observacion: document.getElementById('editObservacion')?.value?.trim() || '', 
       observacion_facturador: document.getElementById('editObservacionFacturador')?.value?.trim() || '', 
@@ -2427,7 +2424,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   let currentImageErrorId = null;
 
   /** Devuelve HTML para un PDF dentro del modal (ícono + enlace) */
-  function _renderPdfThumb(errorId, filename) {
+  function _renderPdfThumb(errorId, filename, authed) {
     return `<div style="position:relative;width:120px;height:90px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border:1px solid #e2e8f0;border-radius:4px;">
       <a href="/api/control-errores/${errorId}/imagenes/${filename}" target="_blank" style="text-decoration:none;color:#dc2626;display:flex;flex-direction:column;align-items:center;gap:4px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -2436,7 +2433,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         </svg>
         <span style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${filename}</span>
       </a>
-      <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>
+      ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
     </div>`;
   }
 
@@ -2447,31 +2444,43 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const dropzone = document.getElementById('modal-dropzone');
     const fileInput = document.getElementById('file-input');
 
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+
+    // Sin auth: ocultar dropzone (solo visualización)
+    if (!authed) {
+      dropzone.style.display = 'none';
+    }
+
     // Cargar archivos
     const res = await fetch(`/api/control-errores/${errorId}/imagenes`);
     const result = await res.json();
     if (result.status === 'success') {
       listEl.innerHTML = result.data.imagenes.map(filename => {
         const isPdf = filename.toLowerCase().endsWith('.pdf');
-        if (isPdf) return _renderPdfThumb(errorId, filename);
+        if (isPdf) return _renderPdfThumb(errorId, filename, authed);
         return `<div style="position:relative;width:120px;height:90px;">
           <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
-          <button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>
+          ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
         </div>`;
       }).join('');
-      dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
+      // Solo mostrar dropzone si está autenticado y hay espacio
+      if (authed) {
+        dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
+      }
     } else {
       listEl.innerHTML = '<p style="color:red">Error: ' + JSON.stringify(result) + '</p>';
     }
 
     modal.classList.add('open');
 
-    // Event listeners
-    dropzone.onclick = () => fileInput.click();
-    fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
-    dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
-    dropzone.ondragleave = () => dropzone.classList.remove('dragover');
-    dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); uploadImages(errorId, e.dataTransfer.files); };
+    // Event listeners (solo si está autenticado)
+    if (authed) {
+      dropzone.onclick = () => fileInput.click();
+      fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
+      dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+      dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+      dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); uploadImages(errorId, e.dataTransfer.files); };
+    }
   }
 
   function closeImageModal() {
@@ -2487,6 +2496,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   });
 
   async function uploadImages(errorId, files) {
+    const authed = window.ceAuth && window.ceAuth.isAuth();
+    if (!authed) return;
     for (const file of files) {
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       if (!file.type.startsWith('image/') && !isPdf) continue;
@@ -2947,7 +2958,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     var dupCount = rows.filter(function(r) { return r.duplicate; }).length;
     if (dupCount > 0) {
-      if (!confirm('Se encontraron ' + dupCount + ' registro(s) duplicado(s) (misma factura + categoría "Otro").\nSe mostrarán deshabilitados en la preview.\n¿Querés continuar?')) {
+      if (!confirm('Se encontraron ' + dupCount + ' registro(s) duplicado(s) (misma factura + categoría "Otros").\nSe mostrarán deshabilitados en la preview.\n¿Querés continuar?')) {
         return;
       }
     }
@@ -3021,7 +3032,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     var total = cargaParsedRows.length;
     var enabled = cargaParsedRows.filter(function(r) { return !r.duplicate; }).length;
     if (!enabled) { alert('No hay registros habilitados para agregar'); return; }
-    if (!confirm('¿Agregar ' + enabled + ' novedad(es) con categoría "Otro"?\n' +
+    if (!confirm('¿Agregar ' + enabled + ' novedad(es) con categoría "Otros"?\n' +
         (total - enabled > 0 ? '(' + (total - enabled) + ' duplicado(s) omitidos)' : ''))) return;
 
     var rows = [];
@@ -3052,7 +3063,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            tipo_error: 'Otro',
+        tipo_error: 'Otros',
             factura: r.factura,
             observacion: r.observacion,
             responsable: r.responsable,

@@ -388,16 +388,64 @@
     color: #92400e;
   }
 
+  /* ── Fila vencida: factura abierta con egreso > 4 días ── */
+  .resp-row--vencida {
+    background-color: #fff0f0;
+  }
+  .resp-row--vencida:hover {
+    background-color: #ffe0e0;
+  }
+
   /* ── Responsible result table ── */
   .resp-table-col-fecha  { width: 12%; }
   .resp-table-col-egreso { width: 12%; }
-  .resp-table-col-factura { width: 12%; }
-  .resp-table-col-estado  { width: 12%; }
-  .resp-table-col-resp   { width: 16%; }
-  .resp-table-col-hist   { width: 12%; }
-  .resp-table-col-pac    { width: 12%; }
-  .resp-table-col-hc     { width: 12%; }
-  /* Total: 7×12% + 16% = 100% */
+  .resp-table-col-factura { width: 11%; }
+  .resp-table-col-estado  { width: 10%; }
+  .resp-table-col-resp   { width: 17%; }
+  .resp-table-col-hist   { width: 10%; }
+  .resp-table-col-pac    { width: 11%; }
+  .resp-table-col-hc     { width: 3%; }
+  .resp-table-col-action { width: 14%; text-align: center; }
+  /* Total: ~100% */
+
+  /* ── Action buttons for envio a control ── */
+  .action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+    min-width: 28px;
+    height: 26px;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0 0.4rem;
+    transition: all 0.15s ease;
+    text-decoration: none;
+  }
+  .action-btn--add {
+    background: #dbeafe;
+    color: #1d4ed8;
+  }
+  .action-btn--add:hover {
+    background: #bfdbfe;
+  }
+  .action-btn--exists {
+    background: #fef3c7;
+    color: #92400e;
+  }
+  .action-btn--exists:hover {
+    background: #fde68a;
+  }
+  .action-btn--sent {
+    background: #d1fae5;
+    color: #065f46;
+    cursor: default;
+    font-size: 0.75rem;
+  }
 
   /* ── Resp table compacta ── */
   #respTable.table {
@@ -566,11 +614,12 @@
           <th class="resp-table-col-resp">Responsable</th>
           <th class="resp-table-col-hist">N Historia</th>
           <th class="resp-table-col-pac">Paciente</th>
-          <th class="resp-table-col-hc">HC Pendiente</th>
+          <th class="resp-table-col-hc">HC</th>
+          <th class="resp-table-col-action">Envío</th>
         </tr>
       </thead>
       <tbody id="respBody">
-        <tr><td colspan="8" class="empty-state">Pegá los datos y hacé click en "Procesar y Asignar Responsable"</td></tr>
+        <tr><td colspan="9" class="empty-state">Pegá los datos y hacé click en "Procesar y Asignar Responsable"</td></tr>
       </tbody>
     </table>
   </div>
@@ -658,6 +707,8 @@
 
 {% block scripts %}
 <script>
+window._isAuth = {{ 'true' if is_auth else 'false' }};
+
 // ═══════════════════════════════════════════════════════
 // Utilidades
 // ═══════════════════════════════════════════════════════
@@ -1240,6 +1291,64 @@ function showDetectedCols(foundLabels, firstDataRow) {
 }
 
 // ═══════════════════════════════════════════════════════
+// ASIGNAR RESPONSABLE — Enviar factura a Control de Errores
+// ═══════════════════════════════════════════════════════
+
+// Conjuntos globales para trackear estado de envío
+window._envioExistentes = new Set();
+window._envioEnviadas  = new Set();
+
+async function sendToControl(factura, responsable, btnEl) {
+  if (!factura) return;
+
+  // Si ya está en control, pedir confirmación de duplicado
+  if (window._envioExistentes.has(factura)) {
+    if (!confirm('La factura "' + factura + '" ya existe en la tabla de Control de Errores.\n¿Querés duplicarla de todas formas?')) {
+      return;
+    }
+  } else {
+    if (!confirm('¿Enviar factura "' + factura + '" a Control de Errores como "Factura Abierta"?')) {
+      return;
+    }
+  }
+
+  const data = {
+    tipo_error: 'Factura Abierta',
+    factura: factura,
+    observacion: 'Factura abierta con responsable segun cronograma de facturadores',
+    observacion_facturador: '',
+    estado: 'S',
+    responsable: responsable || '',
+  };
+
+  try {
+    const res = await fetch('/api/control-errores', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    const result = await res.json();
+    if (result.status === 'success') {
+      window._envioEnviadas.add(factura);
+      window._envioExistentes.add(factura);
+      // Marcar el resultado como enviado para que copiarResultados lo sepa
+      if (window.lastResults) {
+        const r = window.lastResults.find(x => x.factura === factura);
+        if (r) r._enviada = true;
+      }
+      // Cambiar el botón a "✓ Enviado"
+      btnEl.outerHTML = '<span class="action-btn action-btn--sent" title="Enviada a Control">✓ Enviado</span>';
+      showToast('✅ Factura "' + factura + '" enviada a Control de Errores');
+    } else {
+      showToast('Error: ' + (result.errors || ['Error desconocido']).join(', '));
+    }
+  } catch (e) {
+    showToast('Error de conexión al enviar');
+    console.error(e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════
 // ASIGNAR RESPONSABLE — Renderizar tabla de resultados
 // ═══════════════════════════════════════════════════════
 
@@ -1249,29 +1358,103 @@ function renderRespTable(results) {
   const section = document.getElementById('respResultSection');
   const count = document.getElementById('respCount');
 
-  let html = '';
-  for (const r of results) {
-    // Clase solo para Sin Egreso (los demás van sin estilo)
-    let respClass = '';
-    if (r.responsable === 'Sin Egreso') respClass = 'resp-status--sin-egreso';
-
-    html += '<tr>';
-    html += '<td class="resp-table-col-fecha">' + escapeHtml(r.fechaCrea || '—') + '</td>';
-    html += '<td class="resp-table-col-egreso">' + escapeHtml(r.fechaEgreso || '—') + '</td>';
-    html += '<td class="resp-table-col-factura"><strong>' + escapeHtml(r.factura || '—') + '</strong></td>';
-    html += '<td class="resp-table-col-estado">' + escapeHtml(r.estado || '—') + '</td>';
-    html += '<td class="resp-table-col-resp"><span class="resp-status ' + respClass + '">' + escapeHtml(r.responsable || '—') + '</span></td>';
-    html += '<td class="resp-table-col-hist">' + escapeHtml(r.historia || '—') + '</td>';
-    html += '<td class="resp-table-col-pac" style="text-align:left;">' + escapeHtml(r.paciente || '—') + '</td>';
-    html += '<td class="resp-table-col-hc">' + escapeHtml(r.hcPendiente || '—') + '</td>';
-    html += '</tr>';
+  // Parse fecha "dd/mm/yyyy hh:mm:ss" → Date
+  function parseFecha(str) {
+    if (!str || !str.trim()) return null;
+    const parts = str.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+    if (!parts) return null;
+    return new Date(+parts[3], +parts[2] - 1, +parts[1], +parts[4], +parts[5], +parts[6]);
   }
 
-  tbody.innerHTML = html;
-  count.textContent = results.length + ' facturas';
-  document.getElementById('btnCopiarExcel').style.display = 'inline-flex';
-  section.classList.add('visible');
+  // Obtener inicio del día (hoy a las 00:00:00)
+  const hoy = new Date();
+  const hoyInicio = new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate());
+
+  // Cargar facturas existentes en control de errores
+  fetch('/api/control-errores')
+    .then(res => res.json())
+    .then(data => {
+      window._envioExistentes = new Set();
+      if (data.status === 'success' && data.data && data.data.errores) {
+        data.data.errores.forEach(e => {
+          if (e.factura) window._envioExistentes.add(e.factura);
+        });
+      }
+      renderTabla(results);
+    })
+    .catch(() => {
+      window._envioExistentes = new Set();
+      renderTabla(results);
+    });
+
+  function renderTabla(results) {
+    let html = '';
+    for (const r of results) {
+      let respClass = '';
+      if (r.responsable === 'Sin Egreso') respClass = 'resp-status--sin-egreso';
+
+      // Detectar factura abierta con egreso > 4 días
+      let rowClass = '';
+      if (r.estado === 'Abierta') {
+        const egreso = parseFecha(r.fechaEgreso);
+        if (egreso) {
+          const egresoInicio = new Date(egreso.getFullYear(), egreso.getMonth(), egreso.getDate());
+          const diffDias = Math.floor((hoyInicio - egresoInicio) / (1000 * 60 * 60 * 24));
+          if (diffDias > 4) rowClass = 'resp-row--vencida';
+        }
+      }
+
+      // Determinar estado del botón de envío
+      const yaExiste  = window._envioExistentes.has(r.factura);
+      const yaEnviada = r._enviada || window._envioEnviadas.has(r.factura);
+      let actionHtml;
+      if (!window._isAuth) {
+        // No logueado: todos los botones deshabilitados
+        if (yaEnviada) {
+          actionHtml = '<span class="action-btn action-btn--sent" title="Enviada a Control">✓ Enviado</span>';
+        } else if (yaExiste) {
+          actionHtml = '<span class="action-btn action-btn--exists" style="opacity:0.4;cursor:not-allowed;" title="Ya está en Control (sin permiso)">⚠+</span>';
+        } else {
+          actionHtml = '<span class="action-btn action-btn--add" style="opacity:0.4;cursor:not-allowed;" title="Iniciá sesión para enviar">+</span>';
+        }
+      } else if (yaEnviada) {
+        actionHtml = '<span class="action-btn action-btn--sent" title="Enviada a Control">✓ Enviado</span>';
+      } else if (yaExiste) {
+        actionHtml = '<button class="action-btn action-btn--exists" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" title="Ya está en Control — Click para duplicar">⚠+</button>';
+      } else {
+        actionHtml = '<button class="action-btn action-btn--add" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" title="Enviar a Control de Errores">+</button>';
+      }
+
+      html += '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>';
+      html += '<td class="resp-table-col-fecha">' + escapeHtml(r.fechaCrea || '—') + '</td>';
+      html += '<td class="resp-table-col-egreso">' + escapeHtml(r.fechaEgreso || '—') + '</td>';
+      html += '<td class="resp-table-col-factura"><strong>' + escapeHtml(r.factura || '—') + '</strong></td>';
+      html += '<td class="resp-table-col-estado">' + escapeHtml(r.estado || '—') + '</td>';
+      html += '<td class="resp-table-col-resp"><span class="resp-status ' + respClass + '">' + escapeHtml(r.responsable || '—') + '</span></td>';
+      html += '<td class="resp-table-col-hist">' + escapeHtml(r.historia || '—') + '</td>';
+      html += '<td class="resp-table-col-pac" style="text-align:left;">' + escapeHtml(r.paciente || '—') + '</td>';
+      html += '<td class="resp-table-col-hc">' + escapeHtml(r.hcPendiente || '—') + '</td>';
+      html += '<td class="resp-table-col-action">' + actionHtml + '</td>';
+      html += '</tr>';
+    }
+
+    tbody.innerHTML = html;
+    count.textContent = results.length + ' facturas';
+    document.getElementById('btnCopiarExcel').style.display = 'inline-flex';
+    section.classList.add('visible');
+  }
 }
+
+// Delegación de eventos para los botones de envío (se añade una sola vez)
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('respBody').addEventListener('click', function(e) {
+    const btn = e.target.closest('.action-btn--add, .action-btn--exists');
+    if (!btn) return;
+    const factura = btn.dataset.factura;
+    const responsable = btn.dataset.responsable;
+    if (factura) sendToControl(factura, responsable, btn);
+  });
+});
 
 // ═══════════════════════════════════════════════════════
 // ASIGNAR RESPONSABLE — Copiar resultados a Excel
@@ -1293,11 +1476,15 @@ function copiarResultados() {
     'N Historia',
     'Paciente',
     'HC Pendiente',
+    'Envío',
   ];
 
   // Armar TSV
   const lines = [headers.join('\t')];
   for (const r of window.lastResults) {
+    let envio = '';
+    if (r._enviada) envio = 'Enviado';
+    else if (window._envioExistentes && window._envioExistentes.has(r.factura)) envio = 'Ya existe';
     lines.push([
       r.fechaCrea || '',
       r.fechaEgreso || '',
@@ -1307,6 +1494,7 @@ function copiarResultados() {
       r.historia || '',
       r.paciente || '',
       r.hcPendiente || '',
+      envio,
     ].join('\t'));
   }
 

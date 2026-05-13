@@ -28,6 +28,8 @@ PUBLIC_ENDPOINTS = frozenset({
     "control_errores.check_changes",
     "control_errores.listar_imagenes",
     "control_errores.servir_imagen",
+    # Escritura — PUT para actualizar campos individuales (estado sobre todo)
+    "control_errores.actualizar_error",
 })
 
 

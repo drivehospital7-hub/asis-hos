@@ -2,7 +2,8 @@
 
 import logging
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, jsonify, render_template, request, session
+from flask_login import current_user
 
 from app.services.abiertas_urgencias_service import (
     delete_horario,
@@ -23,7 +24,8 @@ abiertas_urgencias_bp = Blueprint("abiertas_urgencias", __name__)
 @abiertas_urgencias_bp.get("/")
 def abiertas_urgencias_page():
     """Página de horarios de abiertas urgencias."""
-    return render_template("abiertas_urgencias.html")
+    is_auth = current_user.is_authenticated or session.get("ce_authenticated")
+    return render_template("abiertas_urgencias.html", is_auth=is_auth)
 
 
 # ═══════════════════════════════════════════════

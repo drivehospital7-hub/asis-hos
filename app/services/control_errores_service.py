@@ -3,6 +3,9 @@
 import logging
 from typing import Any
 
+from flask import session
+from flask_login import current_user
+
 from app.utils.errores_storage import (
     listar_errores,
     crear_error,
@@ -81,7 +84,7 @@ def check_for_changes(since: str | None = None) -> dict[str, Any]:
 def add_error(data: dict[str, Any]) -> dict[str, Any]:
     """Crear un nuevo error."""
     try:
-        tipo_error = data.get("tipo_error", "").strip() or "Contrato"
+        tipo_error = data.get("tipo_error", "").strip() or "Otros"
         factura = data.get("factura", "").strip() or ""
         observacion = data.get("observacion", "").strip() or ""
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
@@ -102,6 +105,21 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        # Sin autenticación: solo permitir estado y observación del facturador
+        authed = session.get("ce_authenticated") or current_user.is_authenticated
+        if not authed:
+            prohibited = set(data.keys()) - {"estado", "observacion_facturador"}
+            if prohibited:
+                return {
+                    "status": "error",
+                    "data": {},
+                    "errors": [
+                        f"No autorizado. Sin sesión solo puede cambiar 'estado' y "
+                        f"'observacion_facturador'. "
+                        f"Campos rechazados: {', '.join(sorted(prohibited))}"
+                    ],
+                }
 
         # Solo procesar campos que vienen en el request
         kwargs = {}
