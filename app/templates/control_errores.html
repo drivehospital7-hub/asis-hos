@@ -2088,7 +2088,7 @@
       if (prevId === 'new') {
         var dupNew = buscarDuplicados(newValue);
         if (dupNew.length && !confirm('La factura ' + newValue + ' ya existe. ¿Crear igual?')) {
-          closeEditor(); loadErrores(); callback(); return;
+          closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
         }
       } else {
         var errActual = cachedErrores.find(function(e){return e.id===prevId});
@@ -2096,7 +2096,7 @@
           var dupExisting = buscarDuplicados(newValue);
           if (dupExisting.length && !confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
             currentCell.textContent = errActual.factura || '-';
-            closeEditor(); loadErrores(); callback(); return;
+            closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
           }
         }
       }
@@ -2114,7 +2114,7 @@
       };
       createNewError(data);
       closeEditor();
-      callback();
+      // NO ejecutar callback - la fila se está creando, el usuario vuelve a hacer click
       return;
     }
 
