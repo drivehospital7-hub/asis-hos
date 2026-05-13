@@ -1,4 +1,6 @@
+import secrets
 from datetime import timedelta
+from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, session
 from flask_login import LoginManager, current_user
@@ -29,11 +31,41 @@ PUBLIC_ENDPOINTS = frozenset({
 })
 
 
+def _ensure_secret_key(app: Flask) -> None:
+    """Asegura que SECRET_KEY esté seteada, con respaldo a archivo fuera del repo.
+
+    Orden de resolución:
+    1. Lo que vino del config class (env var o default)
+    2. instance/secret.key (archivo local, inmune a git pull)
+    3. Genera una nueva y la persiste en instance/secret.key
+    """
+    if app.config.get("SECRET_KEY"):
+        return  # Ya está seteada desde env var o default
+
+    key_path = Path(app.instance_path) / "secret.key"
+
+    if key_path.exists():
+        app.config["SECRET_KEY"] = key_path.read_text().strip()
+        return
+
+    # Primera ejecución: generar y persistir
+    new_key = secrets.token_hex(32)
+    app.config["SECRET_KEY"] = new_key
+    try:
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_text(new_key)
+    except OSError:
+        pass  # Si no puede escribir, la clave en memoria funciona igual
+
+
 def create_app(config=None):
     app = Flask(__name__)
 
     if config:
         app.config.from_object(config)
+
+    # Asegurar SECRET_KEY (env var > instance/secret.key > generar)
+    _ensure_secret_key(app)
 
     # ──────────────────────────────────────────────
     # Session persistente (cookie 30 días)
