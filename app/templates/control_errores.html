@@ -1289,7 +1289,7 @@
   let opciones = { tipos_error: [], estados: [], responsables: [] };
   let cachedErrores = [];
   let isAdding = false;
-  let isDragging = false; // Para detectar drag de texto
+
   let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
   const ITEMS_PER_PAGE = 20;
   let currentPage = 1;
@@ -1588,10 +1588,8 @@
       style="width:100%;min-height:100%;padding:0.5rem;border:none;background:#fef9c3;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;" 
       placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea>`;
     
-    // Guardar cuando se hace click fuera (solo si no es drag)
+    // Guardar cuando se hace click fuera
     const handleClickOutside = (e) => {
-      // Si se estaba haciendo drag, no cerrar
-      if (isDragging) return;
       if (!editor.contains(e.target) && !btn.contains(e.target)) {
         document.removeEventListener('click', handleClickOutside);
         saveFacturadorEditor(errorId);
@@ -1897,7 +1895,6 @@
     currentEditId = null;
     currentEditType = null;
     isAdding = false;
-    isDragging = false;
     editor.classList.remove('select-mode');
     document.body.classList.remove('editor-open');
   }
@@ -1918,15 +1915,8 @@
     }
   });
 
-  // Detectar drag para texto
-  document.addEventListener('mousedown', () => { isDragging = false; });
-  document.addEventListener('mousemove', () => { isDragging = true; });
-  
-  // Guardar al hacer click fuera (solo si no es drag)
+  // Guardar al hacer click fuera del editor
   document.addEventListener('click', (e) => {
-    // Si se estaba haciendo drag, no cerrar
-    if (isDragging) return;
-    
     const btnAdd = document.querySelector('.page-header .btn--primary');
     
     // Click en el editor o en el botón agregar: no cerrar
@@ -2019,6 +2009,18 @@
     var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
+      // Validar duplicados en factura para registros existentes
+      if (field === 'factura' && newValue) {
+        var errActual = cachedErrores.find(function(e){return e.id===currentEditId});
+        if (errActual && errActual.factura !== newValue) {
+          var dup = buscarDuplicados(newValue);
+          if (dup.length && !confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+            // Revertir cambio visual y recargar
+            currentCell.textContent = errActual.factura || '-';
+            closeEditor(); loadErrores(); return;
+          }
+        }
+      }
       updateBackend(currentEditId, field, newValue);
     }
     closeEditor();
@@ -2081,6 +2083,25 @@
       newValue = newValue.toUpperCase();
     }
 
+    // Validar duplicados en factura
+    if (field === 'factura' && newValue) {
+      if (prevId === 'new') {
+        var dupNew = buscarDuplicados(newValue);
+        if (dupNew.length && !confirm('La factura ' + newValue + ' ya existe. ¿Crear igual?')) {
+          closeEditor(); loadErrores(); callback(); return;
+        }
+      } else {
+        var errActual = cachedErrores.find(function(e){return e.id===prevId});
+        if (errActual && errActual.factura !== newValue) {
+          var dupExisting = buscarDuplicados(newValue);
+          if (dupExisting.length && !confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+            currentCell.textContent = errActual.factura || '-';
+            closeEditor(); loadErrores(); callback(); return;
+          }
+        }
+      }
+    }
+
     // Si es nuevo registro, crear directamente
     if (prevId === 'new') {
       const data = {
@@ -2093,6 +2114,7 @@
       };
       createNewError(data);
       closeEditor();
+      callback();
       return;
     }
 
@@ -2117,13 +2139,6 @@
     // Forzar mayúsculas en factura y observación
     if (field === 'factura' || field === 'observacion') {
       value = value.toUpperCase();
-    }
-    if (field === 'factura' && value) {
-      var err = cachedErrores.find(function(e){return e.id===id});
-      if (err && err.factura !== value) {
-        var dup = buscarDuplicados(value);
-        if (dup.length && !confirm('La factura ' + value + ' ya existe. ¿Guardar igual?')) { loadErrores(); return; }
-      }
     }
     try { var error = cachedErrores.find(function(e){return e.id===id}); if (!error) return;
       
