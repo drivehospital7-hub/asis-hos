@@ -656,6 +656,9 @@
           <tr><td colspan="4" class="empty-state">Cargando horario...</td></tr>
         </tbody>
       </table>
+      <button class="btn btn--secondary" id="btnCopiarHorario" onclick="copiarHorario()" style="margin-top:0.75rem;display:none;">
+        📋 CopiarHorario
+      </button>
     </div>
   </div>
 </div>
@@ -804,6 +807,42 @@ function renderTable(dias) {
 
   tbody.innerHTML = html;
   hint.textContent = dias.length + ' días cargados — clic para ver';
+  document.getElementById('btnCopiarHorario').style.display = 'inline-block';
+}
+
+// ═══════════════════════════════════════════════════════
+// Copiar horario a portapapeles con encabezados
+// ═══════════════════════════════════════════════════════
+
+function copiarHorario() {
+  if (!cronogramaDias || cronogramaDias.length === 0) {
+    showToast('No hay horario para copiar.');
+    return;
+  }
+  const headers = ['Día', '07:00-13:00', '13:00-19:00', '19:00-07:00'];
+  const lines = [headers.join('\t')];
+  for (const row of cronogramaDias) {
+    lines.push([
+      row.dia,
+      row.manana || '',
+      row.tarde || '',
+      row.noche || '',
+    ].join('\t'));
+  }
+  const text = lines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    showToast('✅ ' + cronogramaDias.length + ' filas copiadas al portapapeles');
+  }).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('✅ ' + cronogramaDias.length + ' filas copiadas al portapapeles');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
