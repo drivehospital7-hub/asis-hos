@@ -4312,6 +4312,7 @@ def _build_urgencias_normalized_rows(
     tipo_identificacion_edad: list[dict] | None = None,
     profesionales: list[dict] | None = None,
     entidad_afiliacion_comparison: list[dict] | None = None,
+    fecha_cierre_vacia_map: dict[str, bool] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
@@ -4323,6 +4324,7 @@ def _build_urgencias_normalized_rows(
         - descripcion: str
         - procedimiento: str (Var1)
         - detalle: str (Var2)
+        - fecha_cierre_vacia: bool
     
     Args:
         problemas_centros: Lista de errores de centros de costo
@@ -4336,11 +4338,17 @@ def _build_urgencias_normalized_rows(
         tipo_identificacion_edad: Lista de errores de tipo identificación/edad (opcional)
         profesionales: Lista de errores de profesionales (opcional)
         entidad_afiliacion_comparison: Lista de errores de entidad vs afiliación (opcional)
+        fecha_cierre_vacia_map: Dict {factura: True si Fecha Cierre está vacía} (opcional)
     
     Returns:
         Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
     """
     rows: list[dict[str, str]] = []
+
+    def _get_fecha_cierre_vacia(factura: str) -> bool:
+        if fecha_cierre_vacia_map is None:
+            return False
+        return fecha_cierre_vacia_map.get(factura, False)
 
     def _get_responsable(factura: str) -> str:
         return responsables_map.get(factura, "")
@@ -4365,6 +4373,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}",
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": item.get("centro_actual", ""),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- IDE Contrato ---
@@ -4379,6 +4388,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": f"IDE Contrato debería ser {item.get('ide_contrato_deberia', 'N/A')}",
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": item.get("ide_contrato_actual", ""),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Cups Equivalentes ---
@@ -4408,6 +4418,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": item.get("accion", ""),
             "procedimiento": proc_final,
             "detalle": detalle,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- MAL CAPITADO ---
@@ -4422,6 +4433,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": item.get("observacion", ""),
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": item.get("ide_contrato_actual", ""),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Cantidades (Urgencias) ---
@@ -4437,6 +4449,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": f"Cantidad {cantidad} debe ser ≤ 1 en Urgencias",
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": str(cantidad),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Cantidades Hospitalización ---
@@ -4453,6 +4466,7 @@ def _build_urgencias_normalized_rows(
             "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada}",
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": str(cantidad),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Decimales ---
@@ -4465,6 +4479,7 @@ def _build_urgencias_normalized_rows(
                 "descripcion": "Valores con decimales",
                 "procedimiento": "Vlr. Procedimiento",
                 "detalle": "Vlr. Subsidiado",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # --- Tipo Identificación / Edad ---
@@ -4483,6 +4498,7 @@ def _build_urgencias_normalized_rows(
                 "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
                 "procedimiento": num_id,
                 "detalle": f"{anios} años {meses} meses",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # --- Profesionales ---
@@ -4499,6 +4515,7 @@ def _build_urgencias_normalized_rows(
                 "descripcion": item.get("problema", item.get("regla", "")),
                 "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
                 "detalle": f"Cód: {cod_prof}" if cod_prof else "",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # --- Código Entidad vs Afiliación ---
@@ -4516,6 +4533,7 @@ def _build_urgencias_normalized_rows(
                 "descripcion": item.get("problema", ""),
                 "procedimiento": proc_entidad,
                 "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
                 "_header_override": "Entidad de factura",
             })
 
@@ -5106,6 +5124,26 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 if resp and factura not in responsable_cierra:
                     responsable_cierra[factura] = resp
         
+        # Build fecha_cierre_vacia mapping: factura -> True si Fecha Cierre está vacía
+        fecha_cierre_vacia: dict[str, bool] = {}
+        fecha_cierre_idx = indices.get("fecha_cierre")
+        num_fact_idx = indices.get("numero_factura")
+        if fecha_cierre_idx is not None and num_fact_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = _normalize_invoice(numero)
+                if not factura:
+                    continue
+                fecha_cierre_val = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value
+                # Si ALGUNA fila tiene Fecha Cierre vacía, marcar toda la factura
+                if not fecha_cierre_val or str(fecha_cierre_val).strip() == "":
+                    fecha_cierre_vacia[factura] = True
+                elif factura not in fecha_cierre_vacia:
+                    fecha_cierre_vacia[factura] = False
+        
+        logger.info("Fecha Cierre vacía detectada para %d facturas", 
+                     sum(1 for v in fecha_cierre_vacia.values() if v))
+        
         # Build normalized rows for unified 6-column display
         normalized_rows = _build_urgencias_normalized_rows(
             problemas_centros=problemas_centros_filtrados,
@@ -5119,6 +5157,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             tipo_identificacion_edad=tipo_identificacion_edad,
             profesionales=profesionales,
             entidad_afiliacion_comparison=entidad_afiliacion_comparison,
+            fecha_cierre_vacia_map=fecha_cierre_vacia,
         )
 
         resultado = {

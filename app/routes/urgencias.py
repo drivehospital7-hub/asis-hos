@@ -147,6 +147,7 @@ def export_urgencias():
                 "descripcion": row.get("descripcion", ""),
                 "procedimiento": row.get("procedimiento", ""),
                 "detalle": row.get("detalle", ""),
+                "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
             })
         
         # Agrupar por tipo de error

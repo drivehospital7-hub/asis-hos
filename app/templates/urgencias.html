@@ -2,6 +2,14 @@
 
 {% block title %}Urgencias — Control Facturacion{% endblock %}
 
+{% block head_extra %}
+<style>
+.row-fecha-cierre-vacia {
+  background-color: #fff3cd !important;
+}
+</style>
+{% endblock %}
+
 {% block content %}
   <h1>Urgencias</h1>
 
@@ -165,6 +173,11 @@ document.addEventListener('DOMContentLoaded', function() {
       .replace(/'/g, '&#039;');
   }
 
+  // Helper: agrega clase CSS si Fecha Cierre está vacía
+  function trClass(item) {
+    return (item && item.fecha_cierre_vacia) ? ' class="row-fecha-cierre-vacia"' : '';
+  }
+
   btnProcesar.addEventListener('click', async function() {
     const fileInput = document.getElementById('file_upload');
     if (!fileInput.files.length) {
@@ -231,7 +244,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const esProfesionales = tipoKey === 'profesionales';
             const esMalCapitado = tipoKey === 'mal_capitado';
               
-            if (esVerificarDerechos) {
+             if (esVerificarDerechos) {
               html += '<table class="table">';
               html += '<thead><tr><th>Factura</th></tr></thead>';
               html += '<tbody>';
@@ -243,7 +256,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td></tr>';
+                html += '<tr' + trClass(item) + '><td>' + factura + '</td></tr>';
               });
               
               if (error.facturas.length > 50) {
@@ -278,7 +291,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     responsable = item.responsable || '';
                   }
                   
-                  html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                   html += '<td>' + tipoFactura + '</td>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + codigo + '</td>';
@@ -328,7 +341,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   
                   let obs = ideActual + ' -> ' + ideDeberia + (nota ? ' (' + nota + ')' : '');
-                  html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + codigo + '</td>';
@@ -370,7 +383,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   detalle = item.detalle || item.codigo_equiv || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + escapeHtml(factura) + '</td>';
                 html += '<td>' + escapeHtml(responsable) + '</td>';
                 html += '<td>' + escapeHtml(descripcion) + '</td>';
@@ -400,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
+                html += '<tr' + trClass(item) + '><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
               });
               
               if (error.facturas.length > 50) {
@@ -429,7 +442,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 let obs = tipoActual + ' -> ' + tipoDeberia + ' (Edad: ' + edad + ')';
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + tipoActual + '</td>';
                 html += '<td>' + tipoDeberia + '</td>';
@@ -466,7 +479,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigoEntidadCobrar + '</td>';
                 html += '<td>' + entidadAfiliacion + '</td>';
@@ -508,7 +521,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigoProfesional + '</td>';
                 html += '<td>' + nombre + '</td>';
@@ -546,7 +559,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
@@ -582,7 +595,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
@@ -622,7 +635,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
@@ -658,7 +671,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   procedimiento = item.procedimiento || '';
                   detalle = item.detalle || '';
                 }
-                html += '<tr>';
+                html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + responsable + '</td>';
                 html += '<td>' + descripcion + '</td>';
@@ -785,7 +798,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td></tr>';
+                html += '<tr' + trClass(item) + '><td>' + factura + '</td></tr>';
               });
               
               if (error.facturas.length > 50) {
@@ -821,7 +834,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     responsable = item.responsable || '';
                   }
                   
-                  html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                   html += '<td>' + tipoFactura + '</td>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + codigo + '</td>';
@@ -874,7 +887,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   }
                   
                   let obs = ideActual + ' -> ' + ideDeberia + (nota ? ' (' + nota + ')' : '');
-                  html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                   html += '<td>' + factura + '</td>';
                   html += '<td>' + procedimiento + '</td>';
                   html += '<td>' + codigo + '</td>';
@@ -916,7 +929,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   detalle = item.detalle || item.codigo_equiv || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + escapeHtml(factura) + '</td>';
                 html += '<td>' + escapeHtml(responsable) + '</td>';
                 html += '<td>' + escapeHtml(descripcion) + '</td>';
@@ -948,7 +961,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   factura = item || '';
                 }
-                html += '<tr><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
+                html += '<tr' + trClass(item) + '><td>' + factura + '</td><td>' + valores + '</td><td>' + responsable + '</td><td><button class="btn btn--small btn--primary" onclick="enviarAControl(\'' + escapeHtml(error.tipo) + '\', \'' + escapeHtml(factura) + '\', \'' + escapeHtml(error.tipo_key) + '\', \'' + escapeHtml(valores) + '\', \'' + escapeHtml(responsable) + '\')">→ Control</button></td></tr>';
               });
               
               if (error.facturas.length > 50) {
@@ -978,7 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
                 
                 let obs = tipoActual + ' -> ' + tipoDeberia + ' (Edad: ' + edad + ')';
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + tipoActual + '</td>';
                 html += '<td>' + tipoDeberia + '</td>';
@@ -1006,7 +1019,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 } else {
                   codigo = item || '';
                 }
-                html += '<tr><td>' + codigo + '</td></tr>';
+                html += '<tr' + trClass(item) + '><td>' + codigo + '</td></tr>';
               });
               
               if (error.facturas.length > 50) {
@@ -1037,7 +1050,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigoEntidadCobrar + '</td>';
                 html += '<td>' + entidadAfiliacion + '</td>';
@@ -1080,7 +1093,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
                 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigoProfesional + '</td>';
                 html += '<td>' + nombre + '</td>';
@@ -1119,7 +1132,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
@@ -1155,7 +1168,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
@@ -1195,7 +1208,7 @@ document.addEventListener('DOMContentLoaded', function() {
                   responsable = item.responsable || '';
                 }
 
-                html += '<tr>';
+                  html += '<tr' + trClass(item) + '>';
                 html += '<td>' + factura + '</td>';
                 html += '<td>' + codigo + '</td>';
                 html += '<td>' + procedimiento + '</td>';
