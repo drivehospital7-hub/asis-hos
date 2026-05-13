@@ -1,4 +1,5 @@
 import os
+import secrets
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -7,10 +8,10 @@ load_dotenv()
 
 
 def _prod_secret_key() -> str:
-    """Resuelve SECRET_KEY para producción: env var > instance/secret.key.
+    """Resuelve SECRET_KEY: env var > instance/secret.key > generar y persistir.
 
-    Si no hay SECRET_KEY en env ni en el archivo, error CRÍTICO.
-    instance/secret.key es inmune a git pull — está en .gitignore.
+    En el peor caso genera una clave nueva y la guarda en instance/secret.key.
+    Ese archivo está en .gitignore — git pull nunca lo toca.
     """
     key = os.getenv("SECRET_KEY")
     if key:
@@ -20,10 +21,14 @@ def _prod_secret_key() -> str:
     if key_path.exists():
         return key_path.read_text().strip()
 
-    raise ValueError(
-        "SECRET_KEY no encontrada. "
-        "Setear en .env, variable de entorno, o crear instance/secret.key"
-    )
+    # Primera ejecución: generar, persistir, y devolver
+    new_key = secrets.token_hex(32)
+    try:
+        key_path.parent.mkdir(parents=True, exist_ok=True)
+        key_path.write_text(new_key)
+    except OSError:
+        pass  # Si no puede escribir, la clave en memoria es suficiente
+    return new_key
 
 
 class ProdConfig:
