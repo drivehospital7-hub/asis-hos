@@ -1175,18 +1175,27 @@ function calcularResponsable(fechaCreaStr, fechaEgresoStr, cronograma) {
   const horaMinutos = hora + minutos / 60;
 
   let turno;
+  let diaBuscar = dia;
+
   if (horaMinutos >= 6.5 && horaMinutos < 12.5) {
     turno = 'manana';
   } else if (horaMinutos >= 12.5 && horaMinutos < 18.5) {
     turno = 'tarde';
   } else {
     turno = 'noche';
+    // 🐛 Fix: el turno noche CRUZA la medianoche (19:00 - 07:00).
+    // Si la hora de egreso es ANTES de las 06:30 (límite de recepción
+    // del turno entrante de mañana), la factura pertenece al turno
+    // noche del DÍA ANTERIOR.
+    if (horaMinutos < 6.5) {
+      diaBuscar = dia - 1;
+    }
   }
 
   // 5. Buscar en cronograma
   if (!cronograma || cronograma.length === 0) return 'Sin cronograma';
 
-  const diaData = cronograma.find(d => d.dia === dia);
+  const diaData = cronograma.find(d => d.dia === diaBuscar);
   if (!diaData) return 'Día ' + dia + ' sin asignación';
 
   const nombreCorto = diaData[turno];

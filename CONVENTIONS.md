@@ -64,6 +64,20 @@ Compara `Cód Entidad Cobrar` vs código extraído de `Entidad Afiliación` (for
 |-----------|-----------|
 | Código en `Cód Entidad Cobrar` ≠ código en `Entidad Afiliación` | 🔴 Error |
 
+### 4. Tipo Usuario
+
+La columna `Tipo Usuario` solo puede contener los siguientes valores:
+
+| Valor válido | Descripción |
+|--------------|-------------|
+| **SUBSIDIADO** | Régimen subsidiado |
+| **CONTRIBUTIVO** | Régimen contributivo |
+| **OTROS (REGÍMENES ESPECIALES, EOC)** | Regímenes especiales |
+| **VINCULADO** | Usuarios vinculados |
+| **PARTICULAR** | Usuarios particulares |
+
+> Cualquier otro valor en `Tipo Usuario` → 🔴 Error
+
 ---
 
 ## Reglas por Área

@@ -244,6 +244,18 @@ CONVENIO_ASISTENCIAL = "Asistencial"
 CONVENIO_PYP = "Promoción y Prevención"
 
 # =============================================================================
+# TIPO USUARIO - Valores válidos (regla transversal)
+# =============================================================================
+
+TIPO_USUARIO_VALORES = frozenset({
+    "SUBSIDIADO",
+    "CONTRIBUTIVO",
+    "OTROS (REGÍMENES ESPECIALES, EOC)",
+    "VINCULADO",
+    "PARTICULAR",
+})
+
+# =============================================================================
 # ENTIDADES
 # =============================================================================
 
@@ -535,21 +547,27 @@ CENTRO_COSTO_APOYO_DIAGNOSTICO = "APOYO DIAGNOSTICO-IMAGENOLOGIA"
 CENTRO_COSTO_TRASLADOS = "TRASLADOS"
 
 # Códigos permitidos por tipo de profesional en Urgencias
-CODIGO_TRABAJADORA_SOCIAL = "890409"
-CODIGO_PSICOLOGA = "890408"
-CODIGO_NUTRICIONISTA = "890406"
-CODIGOS_FISIOTERAPEUTA = frozenset({"890412", "890411"})
-CODIGOS_JEFE_ENFERMERIA = frozenset({"861801", "890205", "890405", "990211"})
+CODIGOS_TRABAJADORA_SOCIAL = frozenset({"890409", "37701"})
+CODIGOS_PSICOLOGA = frozenset({"890408", "35102"})
+CODIGOS_NUTRICIONISTA = frozenset({"890406", "37602"})
+CODIGOS_FISIOTERAPEUTA = frozenset({"890412", "890411", "29117"})
+CODIGOS_JEFE_ENFERMERIA = frozenset({"861801", "890205", "890405", "990211", "29116", "39360"})
 CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "890409",  # TRABAJADORA SOCIAL
+    "37701",   # TRABAJADORA SOCIAL
     "890408",  # PSICOLOGA
+    "35102",   # PSICOLOGA
     "890406",  # NUTRICIONISTA
+    "37602",   # NUTRICIONISTA
     "890412",  # FISIOTERAPEUTA
     "890411",  # FISIOTERAPEUTA
+    "29117",   # FISIOTERAPEUTA
     "861801",  # JEFE ENFERMERIA
     "890205",  # JEFE ENFERMERIA
     "890405",  # JEFE ENFERMERIA
     "990211",  # JEFE ENFERMERIA
+    "29116",   # JEFE ENFERMERIA
+    "39360",   # JEFE ENFERMERIA
 })
 
 # Excepciones para Bacterióloga (no requiere Tipo=02/05 ni Laboratorio=Si)
@@ -575,6 +593,8 @@ CODIGOS_PYP_URGENCIAS = frozenset({
     "890205",
     "890405",
     "861801",
+    "39360",
+    "29116",
 })
 
 # Centro de costo para procedimientos PYP en urgencias
@@ -584,6 +604,8 @@ CENTRO_COSTO_PYP_URGENCIAS = "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
 CODIGOS_QUIROFANO_URGENCIAS = frozenset({
     "735301",
     "90DS02",
+    "512002",
+    "39220",
 })
 
 # Centro de costo para procedimientos de quirófano en urgencias
@@ -612,6 +634,10 @@ CODIGOS_LABORATORIO_URGENCIAS_REVERSE = frozenset({
 
 # Centro de costo para procedimientos de laboratorio en urgencias
 CENTRO_COSTO_LABORATORIO_URGENCIAS = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+
+# ----- Nueva Regla: Tarifario="Suminstros, Medicamentos" -> Centro de costo "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
+VALOR_TARIFARIO_FARMACIA = "Suminstros, Medicamentos"
+CENTRO_COSTO_FARMACIA = "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
 
 # ----- Nueva Regla: IDE Contrato para Código=906340 + Entidad=EPSI05
 CODIGO_IDE_CONTRATO_URGENCIAS = "906340"
@@ -852,10 +878,11 @@ CODIGOS_HOSPITALIZACION_OBLIGATORIOS = frozenset({
     "890601",
 })
 
-# ----- Nueva Regla: Hospitalización NO puede tener 05DSB01 ni 5DSB01
+# ----- Nueva Regla: Hospitalización NO puede tener 05DSB01, 5DSB01 ni 890701
 CODIGOS_HOSPITALIZACION_PROHIBIDOS = frozenset({
     "05DSB01",
     "5DSB01",
+    "890701",
 })
 
 # ----- Nueva Regla: Código=890405 + Entidad=86000 -> IDE Contrato según si tiene 861801
@@ -1054,6 +1081,12 @@ EQUIPOS_BASICOS_CANTIDAD_PYP_MIN = 3
 # ----- Nueva Regla: Código CUPS 890601H -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
 CODIGO_CUPS_HOSPITALIZACION = "890601H"
 CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+
+# Códigos que deben tener centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+CODIGOS_HOSPITALIZACION_ESTANCIA = frozenset({
+    "890601H",
+    "39133",
+})
 
 # ----- Nueva Regla: Centro Costo solo puede ser alguno de estos valores válidos
 CENTROS_COSTO_VALIDOS_URGENCIAS = frozenset({

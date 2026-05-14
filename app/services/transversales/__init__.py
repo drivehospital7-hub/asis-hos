@@ -7,6 +7,7 @@ from app.services.transversales.codigo_entidad import (
     detect_codigo_entidad_vs_entidad_afiliacion,
     detect_codigo_entidad_vs_entidad_afiliacion_simple,
 )
+from app.services.transversales.tipo_usuario import detect_tipo_usuario
 
 __all__ = [
     "detect_tipo_documento_edad",
@@ -15,4 +16,5 @@ __all__ = [
     "get_filas_a_eliminar",
     "detect_codigo_entidad_vs_entidad_afiliacion",
     "detect_codigo_entidad_vs_entidad_afiliacion_simple",
+    "detect_tipo_usuario",
 ]
