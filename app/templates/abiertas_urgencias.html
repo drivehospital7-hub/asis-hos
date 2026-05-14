@@ -614,7 +614,7 @@
           <th class="resp-table-col-resp">Responsable</th>
           <th class="resp-table-col-hist">N Historia</th>
           <th class="resp-table-col-pac">Paciente</th>
-          <th class="resp-table-col-hc">HC</th>
+          <th class="resp-table-col-hc">HC Pend</th>
           <th class="resp-table-col-action">Envío</th>
         </tr>
       </thead>
@@ -1057,7 +1057,7 @@ function autoDetectColumns(headers, primeraFila) {
     fechaCreaIdx: -1,
     fechaEgresoIdx: -1,
     facturaIdx: -1,
-    historiaIdx: -1,
+    areaIdx: -1,
     pacienteIdx: -1,
     estadoIdx: -1,
     hcPendienteIdx: -1,
@@ -1071,6 +1071,7 @@ function autoDetectColumns(headers, primeraFila) {
   const numPatt  = /^\d{8,}$/;
   const estadoPatt = /^(Abierta|Pendiente|Cerrada|Anulado)$/i;
   const hcPatt = /^(Si|No|Sí)$/i;
+  const areaPatt = /^(Urgencias|Hospitalización)$/i;
   const namePatt = /^[A-ZÁÉÍÓÚÑ][a-záéíóúñ]+\s+[A-ZÁÉÍÓÚÑ]/;
 
   let dateCount = 0;
@@ -1089,7 +1090,8 @@ function autoDetectColumns(headers, primeraFila) {
       if (val.includes('fecha egreso') || val === 'fechaegreso') { cols.fechaEgresoIdx = i; foundLabels[i] = 'Fecha Egreso'; continue; }
       if (val.includes('n factura') || val.includes('factura'))  { cols.facturaIdx = i; foundLabels[i] = 'N° Factura'; continue; }
       if (val === 'estado') { cols.estadoIdx = i; foundLabels[i] = 'Estado'; continue; }
-      if (val.includes('n historia') || val.includes('historia')) { cols.historiaIdx = i; foundLabels[i] = 'N Historia'; continue; }
+      if (val.includes('area')) { cols.areaIdx = i; foundLabels[i] = 'Área'; continue; }
+      if (val.includes('n historia') || val.includes('historia')) { /* historiaIdx deprecated, usar área */ continue; }
       if (val.includes('paciente')) { cols.pacienteIdx = i; foundLabels[i] = 'Paciente'; continue; }
       if (val.includes('hc pendiente') || val.includes('h.c')) { cols.hcPendienteIdx = i; foundLabels[i] = 'HC Pendiente'; continue; }
     }
@@ -1114,7 +1116,7 @@ function autoDetectColumns(headers, primeraFila) {
         }
       }
     }
-    if (cols.historiaIdx === -1 && numPatt.test(raw)) { cols.historiaIdx = i; foundLabels[i] = 'N Historia'; }
+    if (areaPatt.test(raw)) { cols.areaIdx = i; foundLabels[i] = 'Área'; }
     if (estadoPatt.test(raw) && i !== cols.facturaIdx) { cols.estadoIdx = i; foundLabels[i] = 'Estado'; }
     if (hcPatt.test(raw)) { cols.hcPendienteIdx = i; foundLabels[i] = 'HC Pendiente'; }
   }
@@ -1122,7 +1124,7 @@ function autoDetectColumns(headers, primeraFila) {
   // Paciente: el que no fue detectado como otra cosa y parece nombre
   for (let i = 0; i < primeraFila.length; i++) {
     if (i === cols.fechaCreaIdx || i === cols.fechaEgresoIdx || i === cols.facturaIdx ||
-        i === cols.historiaIdx || i === cols.estadoIdx || i === cols.hcPendienteIdx) continue;
+        i === cols.areaIdx || i === cols.estadoIdx || i === cols.hcPendienteIdx) continue;
     const raw = (primeraFila[i] || '').toString().trim();
     if (raw && namePatt.test(raw) && raw.split(/\s+/).length >= 3) {
       cols.pacienteIdx = i;
@@ -1277,13 +1279,13 @@ function procesarFacturas() {
         if (/^\d+$/.test(nextVal)) factura = factura + nextVal;
       }
       const estado      = cols.estadoIdx >= 0 ? (cells[cols.estadoIdx] || '') : '';
-      const historia    = cols.historiaIdx >= 0 ? (cells[cols.historiaIdx] || '') : '';
+      const area        = cols.areaIdx >= 0 ? (cells[cols.areaIdx] || '') : '';
       const paciente    = cols.pacienteIdx >= 0 ? (cells[cols.pacienteIdx] || '') : '';
       const hcPendiente = cols.hcPendienteIdx >= 0 ? (cells[cols.hcPendienteIdx] || '') : '';
 
       const responsable = calcularResponsable(fechaCrea, fechaEgreso, cronogramaDias);
 
-      results.push({ fechaCrea, fechaEgreso, factura, estado, responsable, historia, paciente, hcPendiente });
+      results.push({ fechaCrea, fechaEgreso, factura, estado, responsable, area, paciente, hcPendiente });
     }
 
     if (results.length === 0) {
@@ -1317,7 +1319,7 @@ function showDetectedCols(foundLabels, firstDataRow) {
     'Fec. Cierre': 'resp-detected-cols__badge--date',
     'Fecha Egreso': 'resp-detected-cols__badge--date',
     'N° Factura': 'resp-detected-cols__badge--fact',
-    'N Historia': 'resp-detected-cols__badge--num',
+    'Área': 'resp-detected-cols__badge--num',
     'Paciente': 'resp-detected-cols__badge--name',
     'Estado': 'resp-detected-cols__badge--num',
     'HC Pendiente': 'resp-detected-cols__badge--num',
@@ -1346,7 +1348,7 @@ function showDetectedCols(foundLabels, firstDataRow) {
 window._envioExistentes = new Set();
 window._envioEnviadas  = new Set();
 
-async function sendToControl(factura, responsable, btnEl) {
+async function sendToControl(factura, responsable, btnEl, area, egreso) {
   if (!factura) return;
 
   // Si ya está en control, pedir confirmación de duplicado
@@ -1360,10 +1362,21 @@ async function sendToControl(factura, responsable, btnEl) {
     }
   }
 
+  // Formatear fecha de egreso (solo dd/mm/yyyy)
+  let egresoShort = '';
+  if (egreso) {
+    const match = egreso.match(/^(\d{2}\/\d{2}\/\d{4})/);
+    egresoShort = match ? match[1] : egreso.substring(0, 10);
+  }
+
+  const observacion = [area, egresoShort, 'Factura abierta con responsable segun cronograma de facturadores']
+    .filter(Boolean)
+    .join(' - ');
+
   const data = {
     tipo_error: 'Factura Abierta',
     factura: factura,
-    observacion: 'Factura abierta con responsable segun cronograma de facturadores',
+    observacion: observacion,
     observacion_facturador: '',
     estado: 'S',
     responsable: responsable || '',
@@ -1468,9 +1481,9 @@ function renderRespTable(results) {
       } else if (yaEnviada) {
         actionHtml = '<span class="action-btn action-btn--sent" title="Enviada a Control">✓ Enviado</span>';
       } else if (yaExiste) {
-        actionHtml = '<button class="action-btn action-btn--exists" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" title="Ya está en Control — Click para duplicar">⚠+</button>';
+        actionHtml = '<button class="action-btn action-btn--exists" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" data-area="' + escapeHtml(r.area || '') + '" data-egreso="' + escapeHtml(r.fechaEgreso || '') + '" title="Ya está en Control — Click para duplicar">⚠+</button>';
       } else {
-        actionHtml = '<button class="action-btn action-btn--add" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" title="Enviar a Control de Errores">+</button>';
+        actionHtml = '<button class="action-btn action-btn--add" data-factura="' + escapeHtml(r.factura) + '" data-responsable="' + escapeHtml(r.responsable) + '" data-area="' + escapeHtml(r.area || '') + '" data-egreso="' + escapeHtml(r.fechaEgreso || '') + '" title="Enviar a Control de Errores">+</button>';
       }
 
       html += '<tr' + (rowClass ? ' class="' + rowClass + '"' : '') + '>';
@@ -1479,7 +1492,7 @@ function renderRespTable(results) {
       html += '<td class="resp-table-col-factura"><strong>' + escapeHtml(r.factura || '—') + '</strong></td>';
       html += '<td class="resp-table-col-estado">' + escapeHtml(r.estado || '—') + '</td>';
       html += '<td class="resp-table-col-resp"><span class="resp-status ' + respClass + '">' + escapeHtml(r.responsable || '—') + '</span></td>';
-      html += '<td class="resp-table-col-hist">' + escapeHtml(r.historia || '—') + '</td>';
+      html += '<td class="resp-table-col-area">' + escapeHtml(r.area || '—') + '</td>';
       html += '<td class="resp-table-col-pac" style="text-align:left;">' + escapeHtml(r.paciente || '—') + '</td>';
       html += '<td class="resp-table-col-hc">' + escapeHtml(r.hcPendiente || '—') + '</td>';
       html += '<td class="resp-table-col-action">' + actionHtml + '</td>';
@@ -1500,7 +1513,9 @@ document.addEventListener('DOMContentLoaded', function() {
     if (!btn) return;
     const factura = btn.dataset.factura;
     const responsable = btn.dataset.responsable;
-    if (factura) sendToControl(factura, responsable, btn);
+    const area = btn.dataset.area;
+    const egreso = btn.dataset.egreso;
+    if (factura) sendToControl(factura, responsable, btn, area, egreso);
   });
 });
 
@@ -1521,7 +1536,7 @@ function copiarResultados() {
     'N° Factura',
     'Estado',
     'Responsable',
-    'N Historia',
+    'Área',
     'Paciente',
     'HC Pendiente',
     'Envío',
@@ -1539,7 +1554,7 @@ function copiarResultados() {
       r.factura || '',
       r.estado || '',
       r.responsable || '',
-      r.historia || '',
+      r.area || '',
       r.paciente || '',
       r.hcPendiente || '',
       envio,
