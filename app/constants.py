@@ -841,6 +841,8 @@ CODIGOS_SALA_OBSERVACION_ACTIVADORES = frozenset({
     "5DSB01",
     "05DSB01",
     "129B02",
+    "38114",  # SOAT > 6h
+    "38915",  # SOAT ≤ 6h
 })
 
 # Códigos obligatorios si tiene sala de observación
@@ -861,14 +863,60 @@ ENTIDADES_ESS_PERMITIDO_05DSB01 = frozenset({"ESS118", "ESSC18"})
 CODIGO_05DSB01_PROHIBIDO_OTRAS = "05DSB01"
 
 # ----- Nueva Regla: Entidades excluidas de reglas de estancia (>6h / ≤6h)
-ENTIDADES_EXCLUIDAS_ESTANCIA = frozenset({
-    "AT1306",  # SOAT AXA COLPATRIA
-    "1327",    # SOAT-SEGUROS-BOLIVAR
-    "AT1317",  # ASIS-SOAT-MUNDIAL-DE-SEGUROS
-    "1318",    # ASIS-SOAT-SURA
-    "AT1324",  # ASIS-SOAT-LAPREVISORA
-    "AT1329",  # ASIS-SOAT-SEGUROS-DEL-ESTADO
-    "MIN001",  # ADRES ADMINISTRADORA DE LOS RECURSOS DEL SISTEMA GENERAL
+# DESACTIVADO: ahora se usa tarifario = "SOAT" en vez de entidad
+# ENTIDADES_EXCLUIDAS_ESTANCIA = frozenset({
+#     "AT1306",  # SOAT AXA COLPATRIA
+#     "1327",    # SOAT-SEGUROS-BOLIVAR
+#     "AT1317",  # ASIS-SOAT-MUNDIAL-DE-SEGUROS
+#     "1318",    # ASIS-SOAT-SURA
+#     "AT1324",  # ASIS-SOAT-LAPREVISORA
+#     "AT1329",  # ASIS-SOAT-SEGUROS-DEL-ESTADO
+#     "MIN001",  # ADRES ADMINISTRADORA DE LOS RECURSOS DEL SISTEMA GENERAL
+# })
+
+# ----- Nueva Regla: Tarifario SOAT excluido de reglas de estancia (>6h / ≤6h)
+VALOR_TARIFARIO_SOAT = "SOAT"
+
+# ----- Nueva Regla: SOAT + Urgencias + Estancia >6h -> código 38114
+CODIGO_SOAT_SALA_OBSERVACION_LARGA = "38114"  # > 6 horas
+
+# ----- Nueva Regla: SOAT + Urgencias + Estancia ≤6h -> código 38915
+CODIGO_SOAT_SALA_OBSERVACION_CORTA = "38915"  # ≤ 6 horas
+
+# ----- Nueva Regla: SOAT + Urgencias + tiene 38114 o 38915 -> debe tener 39145 y 39131
+CODIGOS_SOAT_OBLIGATORIOS_SALA = frozenset({
+    "39145",
+    "39131",
+})
+
+# ----- Nueva Regla: SOAT + Urgencias NO puede tener código 39133
+CODIGO_SOAT_URGENCIAS_PROHIBIDO = "39133"
+
+# ----- Nueva Regla: SOAT + Hospitalización NO puede tener códigos 39145, 38915
+CODIGOS_SOAT_HOSPITALIZACION_PROHIBIDOS = frozenset({
+    "39145",
+    "38915",
+})
+
+# ----- Nueva Regla: SOAT + Urgencias + códigos 39145, 38114, 38915, 39131 -> cantidad debe ser = 1
+CODIGOS_SOAT_CANTIDAD_OBLIGATORIA = frozenset({
+    "39145",
+    "38114",
+    "38915",
+    "39131",
+})
+
+# ----- Nueva Regla: SOAT + Hospitalización códigos 38114 y 39131 con cantidades especiales
+CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD = frozenset({
+    "38114",
+    "39131",
+})
+
+# ----- Nueva Regla: SOAT + Hospitalización debe tener códigos 39133, 38114 y 39131
+CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS = frozenset({
+    "39133",
+    "38114",
+    "39131",
 })
 
 # ----- Nueva Regla: Hospitalización debe tener 129B02, 890601H y 890601

@@ -259,6 +259,16 @@ from app.constants import (
     CODIGO_HOSPITALIZACION_ESTANCIA,
     CODIGO_HOSPITALIZACION_CAMAS,
     HORAS_POR_DIA,
+    # SOAT - Reglas de urgencias y hospitalización
+    VALOR_TARIFARIO_SOAT,
+    CODIGO_SOAT_SALA_OBSERVACION_LARGA,
+    CODIGO_SOAT_SALA_OBSERVACION_CORTA,
+    CODIGOS_SOAT_OBLIGATORIOS_SALA,
+    CODIGO_SOAT_URGENCIAS_PROHIBIDO,
+    CODIGOS_SOAT_HOSPITALIZACION_PROHIBIDOS,
+    CODIGOS_SOAT_CANTIDAD_OBLIGATORIA,
+    CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD,
+    CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS,
 )
 
 from app.utils.formatting import (
@@ -1070,6 +1080,225 @@ def _detect_cantidades_urgencias(
 
     if problemas:
         logger.info("Cantidades Urgencias - Problemas encontrados: %d", len(problemas))
+
+    return problemas
+
+
+def _detect_cantidades_soat_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas SOAT Urgencias con códigos 39145, 38114, 38915, 39131
+    que tienen cantidad != 1.
+
+    Regla: Si Tarifario = "SOAT" y Tipo Factura Descripción = "Urgencias",
+    entonces los códigos 39145, 38114, 38915, 39131 deben tener cantidad = 1.
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+    tarifario_idx = indices.get("tarifario")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx, tarifario_idx):
+        logger.warning("Cantidades SOAT Urgencias - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+    facturas_procesadas: set[str] = set()
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
+        # Verificar si es tarifario SOAT
+        tarifario = data_sheet.cell(row=row, column=tarifario_idx + 1).value
+        tarifario_str = str(tarifario).strip().upper() if tarifario else ""
+        if tarifario_str != VALOR_TARIFARIO_SOAT:
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str or factura_str in facturas_procesadas:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Verificar si el código está en la lista de códigos SOAT con cantidad obligatoria = 1
+        if codigo_str not in CODIGOS_SOAT_CANTIDAD_OBLIGATORIA:
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Validar: cantidad debe ser = 1
+        if cantidad != 1:
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc_value).strip() if proc_value else ""
+
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "tipo_factura": tipo_factura_str,
+            })
+            facturas_procesadas.add(factura_str)
+            logger.warning(
+                "CANTIDAD SOAT URGENCIAS - Factura='%s', Código='%s', Cantidad=%s (debe ser =1)",
+                factura_str, codigo_str, cantidad
+            )
+
+    if problemas:
+        logger.info("Cantidades SOAT Urgencias - Problemas encontrados: %d", len(problemas))
+
+    return problemas
+
+
+def _detect_cantidades_soat_hospitalizacion(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """
+    Detecta facturas SOAT Hospitalización con cantidades incorrectas.
+
+    Regla: Si Tarifario = "SOAT" y Tipo Factura Descripción = "Hospitalización":
+    - Código 38114: cantidad = días_estancia + 1
+        - < 24h → cantidad 1
+        - >= 24h y < 48h (1 día) → cantidad 2
+        - >= 48h y < 72h (2 días) → cantidad 3
+    - Código 39131: cantidad = días_estancia
+        - < 24h → cantidad 0 (no debería existir, pero se permite con cantidad 0)
+        - >= 24h y < 48h (1 día) → cantidad 1
+        - >= 48h y < 72h (2 días) → cantidad 2
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: "factura", "codigo", "procedimiento", "cantidad",
+        "cantidad_esperada", "estancia_dias", "tipo_factura"
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+    fec_factura_idx = indices.get("fec_factura")
+    fecha_cierre_idx = indices.get("fecha_cierre")
+    tarifario_idx = indices.get("tarifario")
+
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx, tarifario_idx):
+        logger.warning("Cantidades SOAT Hospitalización - Columnas necesarias no encontradas")
+        return []
+
+    problemas = []
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Hospitalización"
+        if tipo_factura_str != "Hospitalización":
+            continue
+
+        # Verificar si es tarifario SOAT
+        tarifario = data_sheet.cell(row=row, column=tarifario_idx + 1).value
+        tarifario_str = str(tarifario).strip().upper() if tarifario else ""
+        if tarifario_str != VALOR_TARIFARIO_SOAT:
+            continue
+
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Solo procesar códigos 38114 y 39131
+        if codigo_str not in CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD:
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Calcular estancia en horas y días
+        estancia_horas = 0
+        fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
+        fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
+
+        if fec_factura_cell and fecha_cierre_cell:
+            try:
+                fec_factura_dt = datetime.strptime(str(fec_factura_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                fecha_cierre_dt = datetime.strptime(str(fecha_cierre_cell).strip(), "%Y-%m-%d %H:%M:%S")
+                diferencia = fecha_cierre_dt - fec_factura_dt
+                estancia_horas = diferencia.total_seconds() / 3600
+            except (ValueError, TypeError):
+                estancia_horas = 0
+
+        estancia_dias_floor = int(estancia_horas) // HORAS_POR_DIA  # Días completos
+
+        procedimiento = ""
+        if procedimiento_idx is not None:
+            proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+            procedimiento = str(proc_value).strip() if proc_value else ""
+
+        es_error = False
+        cantidad_esperada = None
+
+        if codigo_str == "38114":
+            # 38114: cantidad = días_completos + 1
+            cantidad_esperada = estancia_dias_floor + 1
+            if cantidad != cantidad_esperada:
+                es_error = True
+                logger.warning(
+                    "CANTIDAD SOAT HOSPITALIZACIÓN 38114 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                    factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                )
+
+        elif codigo_str == "39131":
+            # 39131: cantidad = días_completos (<24h = 0 días → cantidad 0)
+            cantidad_esperada = estancia_dias_floor
+            if cantidad != cantidad_esperada:
+                es_error = True
+                logger.warning(
+                    "CANTIDAD SOAT HOSPITALIZACIÓN 39131 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
+                    factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
+                )
+
+        if es_error:
+            problemas.append({
+                "factura": factura_str,
+                "codigo": codigo_str,
+                "procedimiento": procedimiento,
+                "cantidad": cantidad,
+                "cantidad_esperada": cantidad_esperada,
+                "estancia_dias": estancia_dias_floor,
+                "tipo_factura": tipo_factura_str,
+            })
+
+    if problemas:
+        logger.info("Cantidades SOAT Hospitalización - Problemas encontrados: %d", len(problemas))
 
     return problemas
 
@@ -2042,20 +2271,21 @@ def _get_codigos_no_en_db_ess118(
     # Cargar códigos válidos de la tabla procedimiento relacionados con nota_hoja = 3
     from app.database import SessionLocal
     from app.models import Procedimiento, NotasTecnicas
-    
-    db = SessionLocal()
+
     try:
-        # Obtener cups de procedimiento relacionados con id_nota_hoja = 3
+        db = SessionLocal()
         cups_validos = set(
-            row.cups 
+            row.cups
             for row in db.query(Procedimiento.cups)
             .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
             .filter(NotasTecnicas.id_nota_hoja == 3)
             .distinct()
             .all()
         )
-    finally:
         db.close()
+    except Exception as e:
+        logger.warning("No se pudo conectar a DB para validar códigos: %s", e)
+        return []
     
     if not cups_validos:
         logger.warning("No hay códigos en tabla procedimiento para nota_hoja=3")
@@ -2189,6 +2419,9 @@ def _detect_centro_costo_urgencias(
         CODIGO_12333_HOSPITALIZACION_PROHIBIDO,
         ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
         ENTIDADES_EXCLUIDAS_ESTANCIA,
+        VALOR_TARIFARIO_SOAT,
+        CODIGO_SOAT_SALA_OBSERVACION_LARGA,
+        CODIGO_SOAT_SALA_OBSERVACION_CORTA,
         CENTROS_COSTO_VALIDOS_URGENCIAS,
         VALOR_TARIFARIO_FARMACIA,
         CENTRO_COSTO_FARMACIA,
@@ -2269,6 +2502,14 @@ def _detect_centro_costo_urgencias(
         CODIGOS_HOSPITALIZACION_OBLIGATORIOS,
         CODIGOS_HOSPITALIZACION_PROHIBIDOS,
         ENTIDADES_EXCLUIDAS_ESTANCIA,
+        VALOR_TARIFARIO_SOAT,
+        CODIGO_SOAT_SALA_OBSERVACION_LARGA,
+        CODIGO_SOAT_SALA_OBSERVACION_CORTA,
+        CODIGOS_SOAT_OBLIGATORIOS_SALA,
+        CODIGO_SOAT_URGENCIAS_PROHIBIDO,
+        CODIGOS_SOAT_HOSPITALIZACION_PROHIBIDOS,
+        CODIGOS_SOAT_CANTIDAD_OBLIGATORIA,
+        CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD,
     )
     from datetime import datetime
 
@@ -2340,12 +2581,21 @@ def _detect_centro_costo_urgencias(
                 entidad_cell_hosp = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
                 entidad_hosp = str(entidad_cell_hosp).strip() if entidad_cell_hosp else ""
 
+            # Capturar tarifario para Hospitalización
+            tarifario_hosp = ""
+            if tarifario_idx is not None:
+                tarifario_cell_hosp = data_sheet.cell(row=row, column=tarifario_idx + 1).value
+                tarifario_hosp = str(tarifario_cell_hosp).strip() if tarifario_cell_hosp else ""
+
             if factura_str not in factura_hospitalizacion_data:
                 factura_hospitalizacion_data[factura_str] = {
                     "entidad": entidad_hosp,
+                    "tarifario": tarifario_hosp,
                     "codigos_hospitalizacion": set(),
                     "codigos_prohibidos": set(),
                     "estancia_horas": estancia_horas_hosp,
+                    "tiene_soat_hosp_prohibido": False,
+                    "codigos_soat_hosp_obligatorios": set(),
                 }
             else:
                 # Actualizar estancia si se calculó (usar la mayor)
@@ -2356,12 +2606,21 @@ def _detect_centro_costo_urgencias(
                 # Actualizar entidad si está vacía
                 if not factura_hospitalizacion_data[factura_str].get("entidad") and entidad_hosp:
                     factura_hospitalizacion_data[factura_str]["entidad"] = entidad_hosp
+                # Actualizar tarifario si está vacío
+                if not factura_hospitalizacion_data[factura_str].get("tarifario") and tarifario_hosp:
+                    factura_hospitalizacion_data[factura_str]["tarifario"] = tarifario_hosp
             # Coletar códigos de hospitalización obligatorios
             if codigo_normalized in CODIGOS_HOSPITALIZACION_OBLIGATORIOS:
                 factura_hospitalizacion_data[factura_str]["codigos_hospitalizacion"].add(codigo_normalized)
             # Coletar códigos prohibidos (05DSB01, 5DSB01)
             if codigo_normalized in CODIGOS_HOSPITALIZACION_PROHIBIDOS:
                 factura_hospitalizacion_data[factura_str]["codigos_prohibidos"].add(codigo_normalized)
+            # Coletar códigos prohibidos SOAT Hospitalización (39145, 38915)
+            if tarifario_hosp.upper() == VALOR_TARIFARIO_SOAT and codigo_normalized in CODIGOS_SOAT_HOSPITALIZACION_PROHIBIDOS:
+                factura_hospitalizacion_data[factura_str]["tiene_soat_hosp_prohibido"] = True
+            # Coletar códigos obligatorios SOAT Hospitalización (39133, 38114, 39131)
+            if tarifario_hosp.upper() == VALOR_TARIFARIO_SOAT and codigo_normalized in CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS:
+                factura_hospitalizacion_data[factura_str]["codigos_soat_hosp_obligatorios"].add(codigo_normalized)
             
             # ----- Nueva Regla: Código CUPS 12333 + Tipo Factura=Hospitalización -> Error
             if codigo_normalized == CODIGO_12333_HOSPITALIZACION_PROHIBIDO:
@@ -2391,6 +2650,10 @@ def _detect_centro_costo_urgencias(
             entidad_cell = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value if codigo_entidad_cobrar_idx else None
             entidad_str = str(entidad_cell).strip() if entidad_cell else ""
 
+            # Tarifario
+            tarifario_cell = data_sheet.cell(row=row, column=tarifario_idx + 1).value if tarifario_idx else None
+            tarifario_str = str(tarifario_cell).strip() if tarifario_cell else ""
+
             # Fechas para estancia
             fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
             fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
@@ -2409,9 +2672,12 @@ def _detect_centro_costo_urgencias(
                 "entidad": entidad_str,
                 "tipo_factura": tipo_factura_str,
                 "estancia_horas": estancia_horas,
+                "tarifario": tarifario_str,
                 "codigos_sala": set(),
                 "codigos_urgencias_obligatorios": set(),
+                "codigos_soat_obligatorios": set(),
                 "tiene_890601h": False,
+                "tiene_soat_prohibido": False,
             }
 
         # Recolectar códigos de sala de observación
@@ -2419,7 +2685,7 @@ def _detect_centro_costo_urgencias(
         proc_cell = data_sheet.cell(row=row, column=proc_idx + 1).value if proc_idx else None
         if codigo_cell:
             codigo_normalized = str(codigo_cell).strip()
-            if codigo_normalized in (CODIGO_SALA_OBSERVACION_CORTA, CODIGO_SALA_OBSERVACION_LARGA_ESS, CODIGO_SALA_OBSERVACION_LARGA_OTRAS):
+            if codigo_normalized in (CODIGO_SALA_OBSERVACION_CORTA, CODIGO_SALA_OBSERVACION_LARGA_ESS, CODIGO_SALA_OBSERVACION_LARGA_OTRAS, CODIGO_SOAT_SALA_OBSERVACION_LARGA, CODIGO_SOAT_SALA_OBSERVACION_CORTA):
                 factura_sala_data[factura_str]["codigos_sala"].add(codigo_normalized)
                 # Guardar procedimiento (nombre) para mostrar en el reporte
                 if proc_cell:
@@ -2427,6 +2693,12 @@ def _detect_centro_costo_urgencias(
             # Recolectar códigos obligatorios de urgencias (890701 y 890601)
             if codigo_normalized in CODIGOS_SALA_OBSERVACION_OBLIGATORIOS:
                 factura_sala_data[factura_str]["codigos_urgencias_obligatorios"].add(codigo_normalized)
+            # Recolectar códigos obligatorios SOAT (39145, 39131) si tiene sala SOAT
+            if tarifario_str.upper() == VALOR_TARIFARIO_SOAT and codigo_normalized in CODIGOS_SOAT_OBLIGATORIOS_SALA:
+                factura_sala_data[factura_str]["codigos_soat_obligatorios"].add(codigo_normalized)
+            # Colectar si tiene código prohibido SOAT Urgencias (39133)
+            if tarifario_str.upper() == VALOR_TARIFARIO_SOAT and codigo_normalized == CODIGO_SOAT_URGENCIAS_PROHIBIDO:
+                factura_sala_data[factura_str]["tiene_soat_prohibido"] = True
             # Colectar si tiene 890601H (prohibido en Urgencias)
             if codigo_normalized == CODIGO_URGENCIAS_PROHIBIDO:
                 factura_sala_data[factura_str]["tiene_890601h"] = True
@@ -2437,34 +2709,45 @@ def _detect_centro_costo_urgencias(
         entidad = data["entidad"]
         estancia_horas = data["estancia_horas"]
         codigos_sala = data["codigos_sala"]
+        tarifario = data.get("tarifario", "")
 
         if estancia_horas is None:
             continue
 
-        # ----- Excepción: entidades excluidas de reglas de estancia
-        if entidad in ENTIDADES_EXCLUIDAS_ESTANCIA:
-            continue
-
-        # Determinar código requerido según entidad y estancia
-        codigo_requerido = None
-        if estancia_horas <= 2:
-            codigo_requerido = None
-        elif entidad in ENTIDADES_SALA_OBSERVACION_05DSB01:
-            codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
-        else:
-            codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_OTRAS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
-
         es_problema = False
         accion = ""
+        codigo_requerido = None
 
-        if codigo_requerido is None:
-            codigos_incorrectos = codigos_sala - {CODIGO_SALA_OBSERVACION_CORTA}
-            if codigos_incorrectos:
+        # ----- Regla SOAT: Sala de Observación
+        if tarifario.upper() == VALOR_TARIFARIO_SOAT:
+            # >6h -> 38114, ≤6h -> 38915 (excepción: <2h no requiere código)
+            if estancia_horas <= 2:
+                codigo_requerido = None
+            elif estancia_horas > 6:
+                codigo_requerido = CODIGO_SOAT_SALA_OBSERVACION_LARGA
+            else:
+                codigo_requerido = CODIGO_SOAT_SALA_OBSERVACION_CORTA
+
+            if codigo_requerido is not None and codigo_requerido not in codigos_sala:
                 es_problema = True
-                accion = f"Estancia <2h: no requiere sala observación (si tiene, usar 5DSB01)"
-        elif codigo_requerido not in codigos_sala:
-            es_problema = True
-            accion = f"Usar {codigo_requerido}"
+                accion = f"Usar {codigo_requerido}"
+        else:
+            # ----- Regla no-SOAT: sala de observación según entidad y estancia
+            if estancia_horas <= 2:
+                codigo_requerido = None
+            elif entidad in ENTIDADES_SALA_OBSERVACION_05DSB01:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
+            else:
+                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_OTRAS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
+
+            if codigo_requerido is None:
+                codigos_incorrectos = codigos_sala - {CODIGO_SALA_OBSERVACION_CORTA}
+                if codigos_incorrectos:
+                    es_problema = True
+                    accion = f"Estancia <2h: no requiere sala observación (si tiene, usar 5DSB01)"
+            elif codigo_requerido not in codigos_sala:
+                es_problema = True
+                accion = f"Usar {codigo_requerido}"
 
         # ----- Nueva Regla: Si tiene sala de observación, debe tener 890701 y 890601
         codigos_urgencia_obligatorios = data.get("codigos_urgencias_obligatorios", set())
@@ -2517,6 +2800,36 @@ def _detect_centro_costo_urgencias(
                     "tipo_problema": "urgencia_obligatorios",
                 }
 
+            # ----- Regla SOAT: Si tiene 38114 o 38915 -> debe tener 39145 y 39131
+            codigos_soat_obligatorios = data.get("codigos_soat_obligatorios", set())
+            if codigos_sala & {CODIGO_SOAT_SALA_OBSERVACION_LARGA, CODIGO_SOAT_SALA_OBSERVACION_CORTA}:
+                # Tiene código de sala SOAT (38114 o 38915)
+                if tipo_factura == "Urgencias" and tarifario.upper() == VALOR_TARIFARIO_SOAT:
+                    faltan_soat = CODIGOS_SOAT_OBLIGATORIOS_SALA - codigos_soat_obligatorios
+                    if faltan_soat:
+                        estancia_str = _format_estancia(estancia_horas)
+                        facturas_sala_problema[factura_str] = {
+                            "entidad": entidad, "estancia_horas": estancia_horas,
+                            "estancia_str": estancia_str,
+                            "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                            "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                            "accion": f"SOAT Urgencias debe tener: {', '.join(faltan_soat)}",
+                            "tipo_problema": "soat_obligatorios",
+                        }
+
+            # ----- Regla SOAT: Urgencias NO puede tener código 39133
+            tiene_soat_prohibido = data.get("tiene_soat_prohibido", False)
+            if tipo_factura == "Urgencias" and tarifario.upper() == VALOR_TARIFARIO_SOAT and tiene_soat_prohibido:
+                estancia_str = _format_estancia(estancia_horas)
+                facturas_sala_problema[factura_str] = {
+                    "entidad": entidad, "estancia_horas": estancia_horas,
+                    "estancia_str": estancia_str,
+                    "procedimiento": _build_sala_proc(factura_str, codigos_sala),
+                    "codigos_encontrados": list(codigos_sala), "codigo_requerido": None,
+                    "accion": f"SOAT Urgencias no puede tener {CODIGO_SOAT_URGENCIAS_PROHIBIDO}",
+                    "tipo_problema": "soat_urgencias_prohibido",
+                }
+
         if es_problema:
             estancia_str = _format_estancia(estancia_horas)
             facturas_sala_problema[factura_str] = {
@@ -2539,10 +2852,39 @@ def _detect_centro_costo_urgencias(
         codigos_prohibidos = data.get("codigos_prohibidos", set())
         estancia_horas = data.get("estancia_horas")
         entidad = data.get("entidad", "")
+        tarifario = data.get("tarifario", "")
 
-        # ----- Excepción: entidades excluidas de reglas de estancia
-        if entidad in ENTIDADES_EXCLUIDAS_ESTANCIA:
-            continue
+        # ----- Regla SOAT: Hospitalización debe tener 39133, 38114, 39131 y NO puede tener 39145, 38915
+        if tarifario.upper() == VALOR_TARIFARIO_SOAT:
+            # Check obligatory codes (39133, 38114, 39131)
+            codigos_soat_hosp_obligatorios = data.get("codigos_soat_hosp_obligatorios", set())
+            faltan_soat_oblig = CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS - codigos_soat_hosp_obligatorios
+            if faltan_soat_oblig:
+                estancia_str = _format_estancia(estancia_horas) if estancia_horas is not None else "N/A"
+                problemas_cups_equivalentes.append({
+                    "factura": factura_str,
+                    "codigo": list(codigos_soat_hosp_obligatorios),
+                    "codigo_equiv": "",
+                    "accion": f"SOAT Hospitalización debe tener: {', '.join(sorted(faltan_soat_oblig))}",
+                    "procedimiento": "",
+                    "estancia_str": estancia_str,
+                })
+                facturas_hosp_reportadas.add(factura_str)
+
+            # Check prohibited codes (39145, 38915)
+            tiene_soat_hosp_prohibido = data.get("tiene_soat_hosp_prohibido", False)
+            if tiene_soat_hosp_prohibido:
+                estancia_str = _format_estancia(estancia_horas) if estancia_horas is not None else "N/A"
+                problemas_cups_equivalentes.append({
+                    "factura": factura_str,
+                    "codigo": list(codigos_prohibidos),
+                    "codigo_equiv": "",
+                    "accion": f"SOAT Hospitalización no puede tener: {', '.join(CODIGOS_SOAT_HOSPITALIZACION_PROHIBIDOS)}",
+                    "procedimiento": "",
+                    "estancia_str": estancia_str,
+                })
+                facturas_hosp_reportadas.add(factura_str)
+            continue  # Saltar las reglas no-SOAT de hospitalización
 
         # Si no hay estancia (fecha_cierre vacía), no se puede validar
         if estancia_horas is None:
@@ -4366,7 +4708,9 @@ def _build_urgencias_normalized_rows(
     problemas_cups_equivalentes: list[dict],
     mal_capitado: list[dict],
     cantidades_urgencias: list[dict],
+    cantidades_soat_urgencias: list[dict],
     cantidades_hospitalizacion: list[dict],
+    cantidades_soat_hospitalizacion: list[dict],
     responsables_map: dict[str, str],
     decimales: list[str] | None = None,
     tipo_identificacion_edad: list[dict] | None = None,
@@ -4519,6 +4863,22 @@ def _build_urgencias_normalized_rows(
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
+    # --- Cantidades SOAT Urgencias ---
+    for item in cantidades_soat_urgencias:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        rows.append({
+            "tipo_error": "Cantidades SOAT",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debe ser = 1 (SOAT Urgencias)",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+        })
+
     # --- Cantidades Hospitalización ---
     for item in cantidades_hospitalizacion:
         factura = item.get("factura", "")
@@ -4531,6 +4891,23 @@ def _build_urgencias_normalized_rows(
             "factura": factura,
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": str(cantidad),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+        })
+
+    # --- Cantidades SOAT Hospitalización ---
+    for item in cantidades_soat_hospitalizacion:
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        cantidad = item.get("cantidad", "")
+        cantidad_esperada = item.get("cantidad_esperada", "")
+        rows.append({
+            "tipo_error": "Cantidades SOAT Hospitalización",
+            "factura": factura,
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada} (SOAT Hospitalización)",
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": str(cantidad),
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -4613,7 +4990,7 @@ def _build_urgencias_normalized_rows(
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": "Tipo Usuario no válido",
+                "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",
                 "detalle": tipo_actual,
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -4810,7 +5187,7 @@ def _build_odontologia_normalized_rows(
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": "Tipo Usuario no válido",
+                "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",
                 "detalle": tipo_actual,
             })
@@ -4920,8 +5297,10 @@ def create_revision_sheet(
             problemas_cups_equivalentes=problemas_cups_equivalentes,
             mal_capitado=mal_capitado,
             cantidades_urgencias=cantidades_urgencias,
+            cantidades_soat_urgencias=[],  # No aplica para Odontología
             cantidades_hospitalizacion=cantidades_hospitalizacion,
-            responsable_cierra=responsable_cierra,
+            cantidades_soat_hospitalizacion=[],  # No aplica para Odontología
+            responsables_map=responsable_cierra,
         )
 
         # --- Escribir filas normalizadas en Excel ---
@@ -5186,9 +5565,17 @@ def detect_all_problems(
         cantidades_urgencias = _detect_cantidades_urgencias(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, Cantidades Urgencias encontradas: %d", len(cantidades_urgencias))
 
+        # Validación Cantidades SOAT Urgencias (Tarifario = SOAT + Tipo Factura = Urgencias + códigos 39145, 38114, 38915, 39131 con cantidad != 1)
+        cantidades_soat_urgencias = _detect_cantidades_soat_urgencias(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades SOAT Urgencias encontradas: %d", len(cantidades_soat_urgencias))
+
         # Validación Cantidades Hospitalización (Tipo Factura = "Hospitalización" + códigos 129B02/890601)
         cantidades_hospitalizacion = _detect_cantidades_hospitalizacion(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, Cantidades Hospitalización encontradas: %d", len(cantidades_hospitalizacion))
+
+        # Validación Cantidades SOAT Hospitalización (Tarifario = SOAT + Tipo Factura = Hospitalización + códigos 38114, 39131)
+        cantidades_soat_hospitalizacion = _detect_cantidades_soat_hospitalizacion(data_sheet, indices)
+        logger.info("detect_all_problems - Urgencias, Cantidades SOAT Hospitalización encontradas: %d", len(cantidades_soat_hospitalizacion))
 
         # Validación IDE Contrato REVERSE (sin entidad)
         ide_contrato_reverse = _detect_ide_contrato_reverse_urgencias(data_sheet, indices)
@@ -5268,7 +5655,9 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             problemas_cups_equivalentes=problemas_cups_equivalentes,
             mal_capitado=mal_capitado,
             cantidades_urgencias=cantidades_urgencias,
+            cantidades_soat_urgencias=cantidades_soat_urgencias,
             cantidades_hospitalizacion=cantidades_hospitalizacion,
+            cantidades_soat_hospitalizacion=cantidades_soat_hospitalizacion,
             responsables_map=responsable_cierra,
             decimales=decimales,
             tipo_identificacion_edad=tipo_identificacion_edad,
@@ -5324,7 +5713,9 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "profesionales": profesionales,
                 "mal_capitado": mal_capitado,
                 "cantidades_urgencias": cantidades_urgencias,
+                "cantidades_soat_urgencias": cantidades_soat_urgencias,
                 "cantidades_hospitalizacion": cantidades_hospitalizacion,
+                "cantidades_soat_hospitalizacion": cantidades_soat_hospitalizacion,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -5337,7 +5728,9 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "profesionales": len(profesionales),
                 "mal_capitado": len(mal_capitado),
                 "cantidades_urgencias": len(cantidades_urgencias),
+                "cantidades_soat_urgencias": len(cantidades_soat_urgencias),
                 "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
+                "cantidades_soat_hospitalizacion": len(cantidades_soat_hospitalizacion),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],

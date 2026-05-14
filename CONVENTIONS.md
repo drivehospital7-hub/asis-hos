@@ -130,6 +130,7 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 | **IDE Contrato** | Por código + entidad (EPSI05, EPSIC5, ESS118, ESSC18, EPS037, EPSS41) |
 | **Cantidades (Urgencias)** | Códigos 05DSB01, 5DSB01, 890601, 890701, 129B02, 12333 en Urgencias deben tener cantidad ≤ 1 |
 | **Cantidades (Hospitalización)** | Reglas especiales por código y estancia |
+| **Sala de Observación / Hospitalización** | NO aplicAN si `Tarifario = "SOAT"` |
 
 #### Centro de Costo — Urgencias
 
@@ -151,6 +152,33 @@ La validación se hace por **código CUPS** (columna "Código"), NO por nombre d
 |--------|----------------------|--------|
 | **890201** | **890201** | ERROR - Debe usarse **890701** |
 | **129B01** | **129B02** | ERROR - Debe usarse **129B02** |
+
+#### Sala de Observación — Estancia >6h / ≤6h
+
+**No SOAT:**
+
+| Estancia | ESS118 / ESSC18 | Otras entidades |
+|----------|-----------------|-----------------|
+| **≤ 6 horas** | `5DSB01` | `5DSB01` |
+| **> 6 horas** | `05DSB01` | `129B02` |
+
+**SOAT:**
+
+| Estancia | Código requerido |
+|----------|-----------------|
+| **≤ 6 horas** | `38915` |
+| **> 6 horas** | `38114` |
+
+> **Regla complementaria SOAT**: Si factura tiene código `38114` o `38915` y `Tipo Factura = Urgencias`, entonces debe tener también `39145` y `39131`.
+> **Prohibido SOAT**: Si `Tarifario = SOAT` y `Tipo Factura = Urgencias` → NO puede tener código `39133`.
+> **Prohibido SOAT Hospitalización**: Si `Tarifario = SOAT` y `Tipo Factura = Hospitalización` → NO puede tener códigos `39145` ni `38915`.
+> **Obligatorio SOAT Hospitalización**: Si `Tarifario = SOAT` y `Tipo Factura = Hospitalización` → debe tener códigos `39133`, `38114` y `39131`.
+> **Cantidades SOAT Urgencias**: Si `Tarifario = SOAT` y `Tipo Factura = Urgencias`, los códigos `39145`, `38114`, `38915`, `39131` deben tener cantidad = 1.
+> **Cantidades SOAT Hospitalización**: Si `Tarifario = SOAT` y `Tipo Factura = Hospitalización`:
+>   - Código `38114`: cantidad = días_estancia + 1 (ej: <24h → 1, 26h (1d2h) → 2, 50h (2d2h) → 3)
+>   - Código `39131`: cantidad = días_estancia (ej: <24h → 0, 26h (1d2h) → 1, 50h (2d2h) → 2)
+
+> **Menor a 2h**: No requiere código de sala de observación (tanto SOAT como no-SOAT)
 
 #### IDE Contrato — Urgencias
 
