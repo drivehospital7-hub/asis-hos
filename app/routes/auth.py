@@ -15,8 +15,6 @@ from flask_login import login_user, logout_user, login_required, current_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
-from app.models import User, AREAS_VALIDAS
 from app.utils.auth_session import check_credentials, do_login, do_logout, is_authenticated
 
 logger = logging.getLogger(__name__)
@@ -30,6 +28,23 @@ AREA_ENDPOINT_MAP = {
     "derechos": "derechos.derechos_page",
     "equipos_basicos": "ordenado_facturado.ordenado_facturado_page",
 }
+
+
+def _check_db_available():
+    """Check if DB is available."""
+    try:
+        from app.database import SessionLocal
+        db = SessionLocal()
+        db.close()
+        return True
+    except Exception:
+        return False
+
+
+def _get_db_session():
+    """Get DB session or None if not available."""
+    from app.database import SessionLocal
+    return SessionLocal()
 
 
 # =============================================================================
@@ -95,30 +110,35 @@ def login():
     # Si ya está logueado con cualquiera de los dos sistemas, redirigir
     if is_authenticated() or current_user.is_authenticated:
         return redirect(url_for("home.home_page"))
-    
+
+    if not _check_db_available():
+        flash("Base de datos no disponible", "error")
+        return render_template("login.html")
+
     if request.method == "POST":
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
-        
+
         if not username or not password:
             flash("Usuario y contraseña son requeridos", "error")
             return render_template("login.html")
-        
-        db: Session = SessionLocal()
+
+        db: Session = _get_db_session()
         try:
+            from app.models import User
             user = db.query(User).filter(User.username == username).first()
-            
+
             if user and check_password_hash(user.password_hash, password):
                 login_user(user)
                 do_login()  # Sincronizar con nuestra session
                 flash(f"Bienvenido {user.username}", "success")
                 logger.info("Login exitoso via formulario: %s", username)
-                
+
                 # Redirigir al área por defecto o la primera permitida
                 next_page = request.args.get("next")
                 if next_page:
                     return redirect(next_page)
-                
+
                 if user.rol == "admin":
                     return redirect(url_for("home.home_page"))
                 elif user.areas:
@@ -132,7 +152,7 @@ def login():
                 logger.warning("Intento de login fallido via formulario: %s", username)
         finally:
             db.close()
-    
+
     return render_template("login.html")
 
 
@@ -154,9 +174,14 @@ def listar_usuarios():
     if current_user.rol != "admin":
         flash("Acceso denegado", "error")
         return redirect(url_for("control_errores.control_errores_page"))
-    
-    db: Session = SessionLocal()
+
+    if not _check_db_available():
+        flash("Base de datos no disponible", "error")
+        return redirect(url_for("home.home_page"))
+
+    db: Session = _get_db_session()
     try:
+        from app.models import User, AREAS_VALIDAS
         usuarios = db.query(User).all()
         return render_template("usuarios.html", usuarios=usuarios, areas_validas=AREAS_VALIDAS)
     finally:
@@ -170,40 +195,45 @@ def crear_usuario():
     if current_user.rol != "admin":
         flash("Acceso denegado", "error")
         return redirect(url_for("control_errores.control_errores_page"))
-    
+
+    if not _check_db_available():
+        flash("Base de datos no disponible", "error")
+        return redirect(url_for("home.home_page"))
+
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     rol = request.form.get("rol", "usuario")
     areas = request.form.getlist("areas")
-    
+
     if not username or not password:
         flash("Usuario y contraseña son requeridos", "error")
         return redirect(url_for("auth.listar_usuarios"))
-    
+
     if rol != "admin" and not areas:
         flash("Debe seleccionar al menos un área", "error")
         return redirect(url_for("auth.listar_usuarios"))
-    
-    db: Session = SessionLocal()
+
+    db: Session = _get_db_session()
     try:
+        from app.models import User, AREAS_VALIDAS, UserArea
         # Verificar si existe
         existentes = db.query(User).filter(User.username == username).first()
         if existentes:
             flash(f"El usuario {username} ya existe", "error")
             return redirect(url_for("auth.listar_usuarios"))
-        
+
         # Crear usuario
         password_hash = generate_password_hash(password)
         nuevo_usuario = User(username=username, password_hash=password_hash, rol=rol)
         db.add(nuevo_usuario)
         db.flush()  # Obtener ID
-        
+
         # Agregar áreas
         if rol != "admin":
             for area in areas:
                 if area in AREAS_VALIDAS:
                     db.add(UserArea(user_id=nuevo_usuario.id, area=area))
-        
+
         db.commit()
         flash(f"Usuario {username} creado", "success")
     except Exception as e:
@@ -211,9 +241,5 @@ def crear_usuario():
         flash(f"Error: {str(e)}", "error")
     finally:
         db.close()
-    
+
     return redirect(url_for("auth.listar_usuarios"))
-
-
-# Importar UserArea aquí para evitar circular import
-from app.models import UserArea

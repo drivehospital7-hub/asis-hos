@@ -3,9 +3,26 @@ from datetime import timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, session
-from flask_login import LoginManager, current_user
+from flask_login import LoginManager, current_user, AnonymousUserMixin
+
+
+class GuestUser(AnonymousUserMixin):
+    """Usuario guest cuando no hay base de datos."""
+    @property
+    def is_authenticated(self):
+        return session.get("ce_authenticated", False)
+
+    @property
+    def username(self):
+        return "admin"
+
 
 login_manager = LoginManager()
+
+
+def load_anon_user(user_id=None):
+    """User loader que no depende de DB - retorna guest."""
+    return GuestUser()
 
 # Endpoints públicos que NO requieren sesión
 PUBLIC_ENDPOINTS = frozenset({
@@ -104,20 +121,10 @@ def create_app(config=None):
 
         return render_template("unauthorized.html"), 401
 
-    # Inicializar Flask-Login
+    # Flask-Login con usuario guest (sin DB)
     login_manager.init_app(app)
-    login_manager.login_view = "auth.login"
-
-    # User loader callback
-    @login_manager.user_loader
-    def load_user(user_id):
-        from app.models import User
-        from app.database import SessionLocal
-        db = SessionLocal()
-        try:
-            return db.query(User).filter(User.id == int(user_id)).first()
-        finally:
-            db.close()
+    login_manager.anonymous_user = GuestUser
+    login_manager.user_loader(load_anon_user)
 
     from app.routes.home import home_bp
     from app.routes.excel_headers import excel_headers_bp
