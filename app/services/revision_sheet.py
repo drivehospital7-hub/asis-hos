@@ -91,10 +91,6 @@ from app.constants import (
     CODIGO_IDE_CONTRATO_906340_ESS118,
     ENTIDAD_IDE_CONTRATO_906340_ESS118,
     IDE_CONTRATO_REQUERIDO_906340_ESS118,
-    # Nueva regla ESS118 + Código 861801 -> IDE Contrato debe ser 974
-    CODIGO_IDE_CONTRATO_861801_ESS118,
-    ENTIDAD_IDE_CONTRATO_861801_ESS118,
-    IDE_CONTRATO_REQUERIDO_861801_ESS118,
     # ESS118 + 735301/861801 -> 970 o 974
     CODIGO_IDE_CONTRATO_735301_ESS118,
     CODIGO_IDE_CONTRATO_861801_ESS118,
@@ -3702,27 +3698,6 @@ def _detect_centro_costo_urgencias(
                     codigo_excluir,
                     ide_contrato_str,
                     IDE_CONTRATO_REQUERIDO_906340_ESS118,
-                )
-
-        # ----- Regla 14: Cód Entidad Cobrar=ESS118 + Código=861801 -> IDE Contrato debe ser 974
-        # Urgencias y Contratos
-        if codigo_excluir == CODIGO_IDE_CONTRATO_861801_ESS118 and codigo_entidad_str == ENTIDAD_IDE_CONTRATO_861801_ESS118:
-            if ide_contrato_str != IDE_CONTRATO_REQUERIDO_861801_ESS118:
-                problemas_ide_contrato.append({
-                    "factura": factura_str,
-                    "procedimiento": proc_str,
-                    "codigo": codigo_excluir,
-                    "entidad": codigo_entidad_str,
-                    "ide_contrato_actual": ide_contrato_str,
-                    "ide_contrato_deberia": IDE_CONTRATO_REQUERIDO_861801_ESS118,
-                })
-                logger.debug(
-                    "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
-                    row,
-                    codigo_entidad_str,
-                    codigo_excluir,
-                    ide_contrato_str,
-                    IDE_CONTRATO_REQUERIDO_861801_ESS118,
                 )
 
         # ----- ESS118 + Código=735301 o 861801 -> IDE Contrato puede ser 970 o 974
