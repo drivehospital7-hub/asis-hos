@@ -1075,6 +1075,16 @@ URGENCIAS_CODIGOS_CANTIDAD_MAX_1 = frozenset({
     "12333",
 })
 
+# Códigos CUPS que en SOAT + Urgencias deben tener cantidad <= 1
+URGENCIAS_SOAT_CODIGOS_CANTIDAD_MAX_1 = frozenset({
+    "39133",
+})
+
+# Códigos CUPS que en NO SOAT + Urgencias deben tener cantidad <= 1
+URGENCIAS_NO_SOAT_CODIGOS_CANTIDAD_MAX_1 = frozenset({
+    "890601H",
+})
+
 # =============================================================================
 # HOSPITALIZACIÓN - Reglas de cantidades
 # =============================================================================
@@ -1290,3 +1300,51 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "935304",  # Aplicación o Cambio de Yeso para Inmovilización en Miembro Inferior (Muslo, Pierna o Tobillo)
     "873313",  # Radiografía de Pierna AP y Lateral
 })
+
+# =============================================================================
+# ⚠️ REVISIÓN NECESARIA - Códigos exentos de la regla "Cantidad > 1"
+# =============================================================================
+# Estos códigos NO se marcan aunque cantidad > 1
+CODIGOS_REVISION_CANTIDAD_EXENTOS = frozenset({
+    "890601",  # Manejo Intrahospitalario por Medicina General
+    "129B02",  # Internación Adultos Complejidad Baja Habitación Múltiple
+    "890701",  # Consulta de Urgencias por Medicina General
+    "05DSB01",  # Derechos de Sala de Observación en Urgencias (>6h)
+    "5DSB01",   # Sala de Observación (Urgencias) Complejidad Baja
+    "890601H",  # Valoración Inicial Intrahospitalaria
+    "39145",    # SOAT - Urgencias
+    "38114",    # SOAT - Sala Observación Larga
+    "38915",    # SOAT - Sala Observación Corta
+    "39131",    # SOAT - Urgencias
+    "39133",    # SOAT - Prohibido en Urgencias
+})
+
+# Código Tipo Procedimiento que necesita Laboratorio = "No" como excepción (ambos deben cumplirse)
+CODIGO_TIPO_PROCEDIMIENTO_REVISION_LAB = "02"
+LABORATORIO_REVISION_EXENTO = "No"
+
+# Códigos Tipo Procedimiento con regla de cantidad máxima 20 (columna "Código Tipo Procedimiento")
+CODIGOS_TIPO_PROC_09_12 = frozenset({
+    "09",
+    "12",
+})
+# Código exento de la regla 09/12 (siempre permitido)
+CODIGO_EXENTO_V03AN0101 = "V03AN0101"
+# Cantidad máxima para Tipo Procedimiento 09/12 (excepto V03AN0101)
+CANTIDAD_MAX_09_12 = 20
+
+# Código con regla especial en 02+Lab=No (tiene su propio límite)
+CODIGO_ESPECIAL_02_LAB = "903883"
+# Cantidad máxima para Tipo Procedimiento 02 + Lab=No (general)
+CANTIDAD_MAX_02_LAB = 2
+# Cantidad máxima para Tipo Procedimiento 02 + Lab=No (código 903883)
+CANTIDAD_MAX_02_LAB_903883 = 5
+
+# =============================================================================
+# LÍMITES ESPECÍFICOS POR CÓDIGO
+# =============================================================================
+CODIGOS_LIMITE_ESPECIFICO: dict[str, int] = {
+    "939403": 2,  # Terapia Respiratoria Integral / Radiografía
+    "939402": 8,  # Nebulización
+}
+

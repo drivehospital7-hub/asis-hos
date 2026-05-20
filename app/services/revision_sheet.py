@@ -255,6 +255,8 @@ from app.constants import (
     ENTIDADES_PERMITIDAS_890205,
     # Urgencias - Cantidades max 1 para ciertos códigos
     URGENCIAS_CODIGOS_CANTIDAD_MAX_1,
+    URGENCIAS_SOAT_CODIGOS_CANTIDAD_MAX_1,
+    URGENCIAS_NO_SOAT_CODIGOS_CANTIDAD_MAX_1,
     # Hospitalización - Reglas de cantidades
     CODIGO_HOSPITALIZACION_ESTANCIA,
     CODIGO_HOSPITALIZACION_CAMAS,
@@ -269,6 +271,17 @@ from app.constants import (
     CODIGOS_SOAT_CANTIDAD_OBLIGATORIA,
     CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD,
     CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS,
+    # ⚠️ Revisión Necesaria - Códigos exentos de cantidad
+    CODIGOS_REVISION_CANTIDAD_EXENTOS,
+    LABORATORIO_REVISION_EXENTO,
+    CODIGO_TIPO_PROCEDIMIENTO_REVISION_LAB,
+    CODIGOS_TIPO_PROC_09_12,
+    CODIGO_EXENTO_V03AN0101,
+    CANTIDAD_MAX_09_12,
+    CODIGO_ESPECIAL_02_LAB,
+    CANTIDAD_MAX_02_LAB,
+    CANTIDAD_MAX_02_LAB_903883,
+    CODIGOS_LIMITE_ESPECIFICO,
 )
 
 from app.utils.formatting import (
@@ -1188,6 +1201,7 @@ def _detect_cantidades_soat_hospitalizacion(
         - < 24h → cantidad 0 (no debería existir, pero se permite con cantidad 0)
         - >= 24h y < 48h (1 día) → cantidad 1
         - >= 48h y < 72h (2 días) → cantidad 2
+    - Código 39133: cantidad debe ser ≤ 1
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -1234,8 +1248,8 @@ def _detect_cantidades_soat_hospitalizacion(
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         codigo_str = str(codigo).strip().upper() if codigo else ""
 
-        # Solo procesar códigos 38114 y 39131
-        if codigo_str not in CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD:
+        # Solo procesar códigos 38114, 39131 y los de SOAT + Hospitalización (39133)
+        if codigo_str not in CODIGOS_SOAT_HOSPITALIZACION_CANTIDAD and codigo_str not in URGENCIAS_SOAT_CODIGOS_CANTIDAD_MAX_1:
             continue
 
         cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
@@ -1286,6 +1300,16 @@ def _detect_cantidades_soat_hospitalizacion(
                     factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
                 )
 
+        elif codigo_str in URGENCIAS_SOAT_CODIGOS_CANTIDAD_MAX_1:
+            # 39133: cantidad debe ser ≤ 1
+            if cantidad > 1:
+                es_error = True
+                cantidad_esperada = 1
+                logger.warning(
+                    "CANTIDAD SOAT HOSPITALIZACIÓN 39133 - Factura='%s', Fila=%d, Cantidad=%s (debe ser <=1)",
+                    factura_str, row, cantidad
+                )
+
         if es_error:
             problemas.append({
                 "factura": factura_str,
@@ -1310,8 +1334,7 @@ def _detect_cantidades_hospitalizacion(
     """
     Detecta facturas con cantidades incorrectas en Hospitalización.
 
-    Reglas:
-    - Tipo Factura Descripción = "Hospitalización"
+    Reglas (Tipo Factura Descripción = "Hospitalización"):
     - Código 129B02 (Estancia): cantidad esperada = días_estancia + 1
         - < 24h (0 días) → cantidad 1
         - >= 24h y < 48h (1 día) → cantidad 2
@@ -1320,6 +1343,7 @@ def _detect_cantidades_hospitalizacion(
         - < 24h → ERROR (no puede existir 890601)
         - >= 24h y < 48h (1 día) → cantidad 1
         - >= 48h y < 72h (2 días) → cantidad 2
+    - Código 890601H: cantidad debe ser ≤ 1 (solo cuando Tarifario NO es SOAT)
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -1336,6 +1360,7 @@ def _detect_cantidades_hospitalizacion(
     cantidad_idx = indices.get("cantidad")
     fec_factura_idx = indices.get("fec_factura")
     fecha_cierre_idx = indices.get("fecha_cierre")
+    tarifario_idx = indices.get("tarifario")
 
     if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
         logger.warning("Cantidades Hospitalización - Columnas necesarias no encontradas")
@@ -1359,13 +1384,18 @@ def _detect_cantidades_hospitalizacion(
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
         codigo_str = str(codigo).strip().upper() if codigo else ""
 
-        # Solo procesar códigos 129B02 y 890601
-        if codigo_str not in (CODIGO_HOSPITALIZACION_ESTANCIA, CODIGO_HOSPITALIZACION_CAMAS):
+        # Solo procesar códigos 129B02, 890601 y 890601H
+        codigos_hosp_calculados = {CODIGO_HOSPITALIZACION_ESTANCIA, CODIGO_HOSPITALIZACION_CAMAS}
+        if codigo_str not in codigos_hosp_calculados and codigo_str not in URGENCIAS_NO_SOAT_CODIGOS_CANTIDAD_MAX_1:
             continue
 
         cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
         if not isinstance(cantidad, (int, float)):
             continue
+
+        # Obtener tarifario (necesario para reglas condicionales como 890601H)
+        tarifario = data_sheet.cell(row=row, column=tarifario_idx + 1).value if tarifario_idx is not None else None
+        tarifario_str = str(tarifario).strip().upper() if tarifario else ""
 
         # Calcular estancia en horas y días
         estancia_horas = 0
@@ -1420,6 +1450,16 @@ def _detect_cantidades_hospitalizacion(
                         "CANTIDAD HOSPITALIZACIÓN 890601 - Factura='%s', Fila=%d, Estancia=%.1fh (%d días completos), Cantidad=%s (esperado=%d)",
                         factura_str, row, estancia_horas, estancia_dias_floor, cantidad, cantidad_esperada
                     )
+
+        elif codigo_str in URGENCIAS_NO_SOAT_CODIGOS_CANTIDAD_MAX_1:
+            # 890601H: cantidad debe ser ≤ 1 (solo cuando NO es SOAT)
+            if tarifario_str != VALOR_TARIFARIO_SOAT and cantidad > 1:
+                es_error = True
+                cantidad_esperada = 1
+                logger.warning(
+                    "CANTIDAD HOSPITALIZACIÓN 890601H - Factura='%s', Fila=%d, Cantidad=%s (debe ser <=1, tarifario=%s)",
+                    factura_str, row, cantidad, tarifario_str
+                )
 
         if es_error:
             problemas.append({
@@ -4786,6 +4826,127 @@ def _detect_revision_entidad_86_urgencias(
     return revision_items
 
 
+def _detect_revision_cantidad_urgencias(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, str]]:
+    """
+    Detecta filas con cantidad anómala que requieren revisión manual.
+
+    Reglas:
+    - General: Cantidad > 1 (excepto códigos exentos)
+    - 02+Lab=No: Cantidad > 2 (código 903883: límite 5)
+    - 09/12: Cantidad > 20 (código V03AN0101: siempre permitido)
+
+    Returns:
+        Lista de dicts con keys: 'factura', 'codigo', 'procedimiento',
+        'cantidad', 'tipo_procedimiento', 'laboratorio'
+    """
+    num_fact_idx = indices.get("numero_factura")
+    codigo_idx = indices.get("codigo")
+    procedimiento_idx = indices.get("procedimiento")
+    cantidad_idx = indices.get("cantidad")
+    tipo_proc_idx = indices.get("tipo_procedimiento")
+    laboratorio_idx = indices.get("laboratorio")
+    codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
+
+    if None in (num_fact_idx, codigo_idx, cantidad_idx, tipo_proc_idx, laboratorio_idx):
+        logger.warning(
+            "Revision Cantidad - Columnas necesarias no encontradas: "
+            "numero_factura=%s, codigo=%s, cantidad=%s, "
+            "tipo_procedimiento=%s, laboratorio=%s",
+            num_fact_idx, codigo_idx, cantidad_idx,
+            tipo_proc_idx, laboratorio_idx,
+        )
+        return []
+
+    revision_items: list[dict[str, str]] = []
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = _normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+        codigo_str = str(codigo).strip().upper() if codigo else ""
+
+        # Excepción 1: código está en la lista de exentos
+        if codigo_str in CODIGOS_REVISION_CANTIDAD_EXENTOS:
+            continue
+
+        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
+        if not isinstance(cantidad, (int, float)):
+            continue
+
+        # Excepción 2: código con límite específico
+        if codigo_str in CODIGOS_LIMITE_ESPECIFICO:
+            max_cant = CODIGOS_LIMITE_ESPECIFICO[codigo_str]
+            if cantidad <= max_cant:
+                continue
+            # superó el límite → cae al append (lo marco como revisión)
+
+        tipo_proc = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
+        tipo_proc_str = str(tipo_proc).strip() if tipo_proc else ""
+
+        laboratorio = data_sheet.cell(row=row, column=laboratorio_idx + 1).value
+        laboratorio_str = str(laboratorio).strip() if laboratorio else ""
+
+        # Leer Código Tipo Procedimiento una sola vez
+        codigo_tipo_proc_str = ""
+        if codigo_tipo_proc_idx is not None:
+            codigo_tipo_proc = data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+            codigo_tipo_proc_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
+
+        # --- Regla para 02 + Lab=No: cantidad máxima 2 (903883: máximo 5) ---
+        if (codigo_tipo_proc_str == CODIGO_TIPO_PROCEDIMIENTO_REVISION_LAB
+                and laboratorio_str == LABORATORIO_REVISION_EXENTO):
+            # 903883 tiene límite propio (5)
+            if codigo_str == CODIGO_ESPECIAL_02_LAB:
+                if cantidad <= CANTIDAD_MAX_02_LAB_903883:
+                    continue
+            # General: límite 2
+            elif cantidad <= CANTIDAD_MAX_02_LAB:
+                continue
+            # > límite → cae al append
+
+        # --- Regla para 09/12: cantidad máxima 20 (excepto V03AN0101) ---
+        if codigo_tipo_proc_str in CODIGOS_TIPO_PROC_09_12:
+            # V03AN0101 siempre permitido
+            if codigo_str == CODIGO_EXENTO_V03AN0101:
+                continue
+            # Si cantidad <= 20, está dentro del límite
+            if cantidad <= CANTIDAD_MAX_09_12:
+                continue
+            # cantidad > 20 → cae al append
+
+        # --- Regla general: cantidad > 1 ---
+        else:
+            if cantidad <= 1:
+                continue
+
+        procedimiento = ""
+        if procedimiento_idx is not None:
+            proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+            procedimiento = str(proc_value).strip() if proc_value else ""
+
+        revision_items.append({
+            "factura": factura_str,
+            "codigo": codigo_str,
+            "procedimiento": procedimiento,
+            "cantidad": cantidad,
+            "tipo_procedimiento": tipo_proc_str,
+            "laboratorio": laboratorio_str,
+        })
+
+    logger.info(
+        "Revision Cantidad - Filas procesadas: %d, Items encontrados: %d",
+        data_sheet.max_row - 1,
+        len(revision_items),
+    )
+    return revision_items
+
+
 def _build_urgencias_normalized_rows(
     problemas_centros: list[dict],
     problemas_ide_contrato: list[dict],
@@ -4803,6 +4964,7 @@ def _build_urgencias_normalized_rows(
     fecha_cierre_vacia_map: dict[str, bool] | None = None,
     tipo_usuario: list[dict] | None = None,
     revision_entidad_86: list[dict] | None = None,
+    revision_cantidad: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
@@ -4830,6 +4992,7 @@ def _build_urgencias_normalized_rows(
         entidad_afiliacion_comparison: Lista de errores de entidad vs afiliación (opcional)
         fecha_cierre_vacia_map: Dict {factura: True si Fecha Cierre está vacía} (opcional)
         revision_entidad_86: Lista de revisiones necesarias para entidad 86 (opcional)
+        revision_cantidad: Lista de revisiones necesarias por cantidad > 1 (opcional)
     
     Returns:
         Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
@@ -5095,6 +5258,22 @@ def _build_urgencias_normalized_rows(
                 "descripcion": "Cód Entidad Cobrar = 86 requiere revisión manual",
                 "procedimiento": _build_procedimiento(codigo, proc),
                 "detalle": "86",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+            })
+
+    if revision_cantidad:
+        for item in revision_cantidad:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            cantidad = item.get("cantidad", "")
+            rows.append({
+                "tipo_error": "⚠️ Revisión Necesaria",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": "Cantidad > 1 con código no exento requiere revisión manual",
+                "procedimiento": _build_procedimiento(codigo, proc),
+                "detalle": f"Cant: {cantidad}",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
@@ -5399,6 +5578,13 @@ def create_revision_sheet(
             len(revision_entidad_86),
         )
 
+        # --- ⚠️ Revisión Necesaria: Cantidad > 1 ---
+        revision_cantidad = _detect_revision_cantidad_urgencias(data_sheet, indices)
+        logger.info(
+            "create_revision_sheet - Revision Cantidad encontradas: %d",
+            len(revision_cantidad),
+        )
+
         # --- Normalizar todos los errores a filas de 6 columnas ---
         normalized_rows = _build_urgencias_normalized_rows(
             problemas_centros=problemas_centros,
@@ -5411,6 +5597,7 @@ def create_revision_sheet(
             cantidades_soat_hospitalizacion=[],  # No aplica para Odontología
             responsables_map=responsable_cierra,
             revision_entidad_86=revision_entidad_86,
+            revision_cantidad=revision_cantidad,
         )
 
         # --- Escribir filas normalizadas en Excel ---
@@ -5435,7 +5622,7 @@ def create_revision_sheet(
                 "MAL CAPITADO": len(mal_capitado),
                 "Cantidades": len(cantidades_urgencias),
                 "Cantidades Hospitalización": len(cantidades_hospitalizacion),
-                "⚠️ Revisión Necesaria": len(revision_entidad_86),
+                "⚠️ Revisión Necesaria": len(revision_entidad_86) + len(revision_cantidad),
             },
         }
     else:
@@ -5692,8 +5879,22 @@ def detect_all_problems(
         ide_contrato_reverse = _detect_ide_contrato_reverse_urgencias(data_sheet, indices)
         logger.info("detect_all_problems - Urgencias, IDE Contrato REVERSE encontrados: %d", len(ide_contrato_reverse))
 
-        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d, cantidades_hospitalizacion=%d, ide_contrato_reverse=%d",
-len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias), len(cantidades_hospitalizacion), len(ide_contrato_reverse))
+        # --- ⚠️ Revisión Necesaria: Entidad 86 ---
+        revision_entidad_86 = _detect_revision_entidad_86_urgencias(data_sheet, indices)
+        logger.info(
+            "detect_all_problems - Revision Entidad 86 encontradas: %d",
+            len(revision_entidad_86),
+        )
+
+        # --- ⚠️ Revisión Necesaria: Cantidad > 1 ---
+        revision_cantidad = _detect_revision_cantidad_urgencias(data_sheet, indices)
+        logger.info(
+            "detect_all_problems - Revision Cantidad encontradas: %d",
+            len(revision_cantidad),
+        )
+
+        logger.info("detect_all_problems (Urgencias): problemas_centros=%d, problemas_ide_contrato=%d, decimales=%d, tipo_id_edad=%d, entidad_afiliacion=%d, profesionales=%d, mal_capitado=%d, cantidades_urgencias=%d, cantidades_hospitalizacion=%d, ide_contrato_reverse=%d, revision_entidad_86=%d, revision_cantidad=%d",
+len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_identificacion_edad), len(entidad_afiliacion_comparison), len(profesionales), len(mal_capitado), len(cantidades_urgencias), len(cantidades_hospitalizacion), len(ide_contrato_reverse), len(revision_entidad_86), len(revision_cantidad))
         
         # Filtrar errores: si la misma factura+código tiene prioridad 1 y prioridad 2, mostrar solo prioridad 1
         # Agrupar por factura+código
@@ -5759,13 +5960,6 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
         logger.info("Fecha Cierre vacía detectada para %d facturas", 
                      sum(1 for v in fecha_cierre_vacia.values() if v))
 
-        # --- ⚠️ Revisión Necesaria: Entidad 86 ---
-        revision_entidad_86 = _detect_revision_entidad_86_urgencias(data_sheet, indices)
-        logger.info(
-            "detect_all_problems - Revision Entidad 86 encontradas: %d",
-            len(revision_entidad_86),
-        )
-
         # Build normalized rows for unified 6-column display
         normalized_rows = _build_urgencias_normalized_rows(
             problemas_centros=problemas_centros_filtrados,
@@ -5784,6 +5978,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
             fecha_cierre_vacia_map=fecha_cierre_vacia,
             tipo_usuario=tipo_usuario,
             revision_entidad_86=revision_entidad_86,
+            revision_cantidad=revision_cantidad,
         )
 
         resultado = {
@@ -5836,6 +6031,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "cantidades_hospitalizacion": cantidades_hospitalizacion,
                 "cantidades_soat_hospitalizacion": cantidades_soat_hospitalizacion,
                 "revision_entidad_86": revision_entidad_86,
+                "revision_cantidad": revision_cantidad,
             },
             "totales": {
                 "centros_de_costos": len(problemas_centros),
@@ -5852,6 +6048,7 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
                 "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
                 "cantidades_soat_hospitalizacion": len(cantidades_soat_hospitalizacion),
                 "revision_entidad_86": len(revision_entidad_86),
+                "revision_cantidad": len(revision_cantidad),
             },
             "missing_columns": missing_columns,  # Columnas no encontradas (coincidencia exacta)
             "codigos_sin_db_ide_969": sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else [],
