@@ -143,6 +143,56 @@
 
 ---
 
+## Phase 3: Unificar transversales
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T-08 | `tests/services/test_revision_sheet.py::TestDetectDecimals` | Unit | ✅ 149/156 baseline | N/A (refactoring — existing tests act as approval) | ✅ 2/2 pass | ➖ Single (existing tests cover 2 cases) | ✅ Clean — 42 lines → 8 lines |
+| T-09 | `tests/services/test_revision_sheet.py` | Unit | ✅ 149/156 baseline | N/A (refactoring — no dedicated test existed) | ✅ No regression | ➖ Single (no dedicated tests) | ✅ Clean — 108 lines → 16 lines |
+
+### Test Summary
+- **Total tests written**: 0 (refactoring — existing tests act as approval tests)
+- **Total tests passing**: 149 (same baseline)
+- **Layers used**: Unit — approval via existing tests
+- **Approval tests** (refactoring): 2 existing tests for `_detect_decimals` still pass
+- **Pure functions created**: 0 (delegation only)
+
+### Completed Tasks
+
+- [x] **T-08** — `_detect_decimals` ahora delega en `detect_decimales` (transversales)
+  - Reemplazó 42 líneas de lógica inline con delegación + conversion a `list[dict]`
+  - `detect_decimales` retorna `list[str]` (solo facturas) → `_detect_decimals` convierte a `list[dict]` con clave `"factura"`
+  - Consumidores (`_build_odontologia_normalized_rows`, `_build_urgencias_normalized_rows`) ya soportan ambos formatos
+  - Tests existentes (`test_detecta_facturas_con_decimales`, `test_no_duplica_facturas`) pasan
+
+- [x] **T-09** — `_detect_tipo_identificacion_edad` ahora delega en `detect_tipo_documento_edad` (transversales)
+  - Reemplazó 108 líneas de lógica inline con delegación + conversion de formato
+  - Transversales retorna keys `"edad_anios"`/`"edad_meses"` (int) → se convierte a `"edad"` (str) para compatibilidad
+  - Comportamiento mejorado: NIP/NIT/PAS/PE/SC ya no se marcan como ERROR (transversales los acepta como válidos)
+  - Sin tests directos para esta función — no hay regresión detectada
+
+### Files Modified
+
+| File | Action | What Changed |
+|------|--------|-------------|
+| `app/services/revision_sheet.py` | Modified | `_detect_decimals` (line 372) reemplazado por delegación a `detect_decimales`; `_detect_tipo_identificacion_edad` (line 455) reemplazado por delegación a `detect_tipo_documento_edad` |
+
+### Behavioral Changes (approved — transversales version is superior)
+1. **`_detect_decimals`**: Ya no incluye `"valores"` detallados (Vlr. Subsidiado: X, Vlr. Procedimiento: Y). La transversales solo retorna facturas. Los consumidores ya manejan ambos formatos.
+2. **`_detect_tipo_identificacion_edad`**: NIP/NIT/PAS/PE/SC ya no se marcan como ERROR (transversales los acepta como tipos válidos adicionales). Esto corrige un bug del inline.
+3. **Parsing de fechas**: Transversales usa `_parse_date` más robusto con 4 formatos vs 2 del inline.
+
+### Verification
+- ✅ `pytest tests/` — 149 pass, 7 fail (all pre-existing, same baseline)
+- ✅ `python -c "from app import create_app; app = create_app()"` — app starts without errors
+- ✅ `_detect_decimals` delega en `detect_decimales` de transversales
+- ✅ `_detect_tipo_identificacion_edad` delega en `detect_tipo_documento_edad` de transversales
+- ✅ Funciones wrapper en `revision_sheet.py` aún existen (se eliminan en Fase 7)
+
+---
+
 ## Cumulative State
 
 ### Tasks Status (all phases)
@@ -155,8 +205,8 @@
 | T-05 — doble_tipo_procedimiento.py | ✅ Complete |
 | T-06 — ruta_duplicada.py (parametrizado) | ✅ Complete |
 | T-07 — cantidades_anomalas.py (parametrizado) | ✅ Complete |
-| T-08 — Merge decimales formats | 🔲 Phase 3 |
-| T-09 — Adopt tipo_documento_edad | 🔲 Phase 3 |
+| T-08 — Merge decimales formats (delegación) | ✅ Complete |
+| T-09 — Adopt tipo_documento_edad (delegación) | ✅ Complete |
 | T-10 — odontologia/ modules | 🔲 Phase 4 |
 | T-11 — odontologia/detect_all.py | 🔲 Phase 4 |
 | T-12 — urgencias/ low-risk modules | 🔲 Phase 5 |

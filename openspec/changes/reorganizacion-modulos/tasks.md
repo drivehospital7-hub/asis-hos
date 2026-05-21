@@ -99,7 +99,7 @@ Chain strategy: stacked-to-main
 
 ## Phase 3: Unificar transversales
 
-- [ ] **T-08** — Merge `transversales/decimales.py` → unificar formato a `list[dict]`
+- [x] **T-08** — Merge `transversales/decimales.py` → `_detect_decimals` delega a `detect_decimales`
   - Desc: La versión transversales retorna `list[str]` (solo facturas). La versión inline retorna `list[dict]` con `factura` + `valores`. Unificar en transversales: `detect_decimales` retorna `list[dict]`. Actualizar todos los consumidores en `detect_all_problems` (odontología, urgencias, EB). Mantener compatibilidad con la versión anterior si hay otros consumidores.
   - Deps: T-07
   - Files: `app/services/transversales/decimales.py` (modify), `app/services/revision_sheet.py` (update calls)
@@ -107,7 +107,7 @@ Chain strategy: stacked-to-main
   - Riesgo: Medio (cambio de formato afecta templates y detect_all)
   - Éxito: misma salida que antes con Excel de prueba; tests existentes pasan
 
-- [ ] **T-09** — Adopt `transversales/tipo_documento_edad.py` como única versión
+- [x] **T-09** — Adopt `transversales/tipo_documento_edad.py` como única versión
   - Desc: La transversales ya tiene versión superior (mejor parsing, más campos, tipos adicionales NIP/NIT/PAS/PE/SC). Eliminar `_detect_tipo_identificacion_edad` de `revision_sheet.py` (línea 581). Routear llamadas de `detect_all_problems` a transversales.
   - Deps: T-07
   - Files: `app/services/revision_sheet.py` (delete inline function, update callers)

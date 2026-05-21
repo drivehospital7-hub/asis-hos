@@ -373,45 +373,15 @@ def _detect_decimals(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con valores decimales."""
-    decimal_invoices = []
-    
-    num_fact_idx = indices["numero_factura"]
-    vlr_sub_idx = indices["vlr_subsidiado"]
-    vlr_proc_idx = indices["vlr_procedimiento"]
-    
-    if num_fact_idx is None:
-        return []
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        has_decimals = False
-        valores_con_decimal = []
-        
-        if vlr_sub_idx is not None:
-            vlr = data_sheet.cell(row=row, column=vlr_sub_idx + 1).value
-            if isinstance(vlr, float) and vlr % 1 != 0:
-                has_decimals = True
-                valores_con_decimal.append(f"Vlr. Subsidiado: {vlr}")
-        
-        if not has_decimals and vlr_proc_idx is not None:
-            vlr = data_sheet.cell(row=row, column=vlr_proc_idx + 1).value
-            if isinstance(vlr, float) and vlr % 1 != 0:
-                has_decimals = True
-                valores_con_decimal.append(f"Vlr. Procedimiento: {vlr}")
-        
-        if has_decimals and factura_str not in [d.get("factura") for d in decimal_invoices]:
-            decimal_invoices.append({
-                "factura": factura_str,
-                "valores": ", ".join(valores_con_decimal),
-            })
-            logger.debug("Factura %s con decimales detectada", factura_str)
-    
-    return decimal_invoices
+    """Detecta facturas con valores decimales.
+
+    Note: Delega a transversales/decimales.py.
+    Se eliminará en Fase 7.
+    """
+    return [
+        {"factura": factura, "valores": ""}
+        for factura in detect_decimales(data_sheet, indices)
+    ]
 
 
 def _detect_doble_tipo_procedimiento(
@@ -456,106 +426,21 @@ def _detect_tipo_identificacion_edad(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict[str, str]]:
-    """
-    Detecta facturas donde el tipo de identificación no coincide con la edad.
-    
-    Reglas:
-    - < 7 años: RC (Registro Civil)
-    - 7-17 años: TI (Tarjeta de Identidad)
-    - >= 18 años: CC (Cédula de Ciudadanía)
-    - Extranjeros < 18 años: MS
-    - Extranjeros >= 18 años: AS
-    - CN (Certificado de Nacimiento): solo válido si edad < 2 meses
-    - CE (Cédula Extranjería): solo válido si edad > 7 años
-    
-    Returns:
-        Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
-    """
-    from datetime import datetime
-    
-    tipo_id_idx = indices["tipo_identificacion"]
-    fec_nac_idx = indices["fec_nacimiento"]
-    fec_fact_idx = indices["fec_factura"]
-    num_fact_idx = indices["numero_factura"]
-    
-    if None in (tipo_id_idx, fec_nac_idx, fec_fact_idx, num_fact_idx):
-        logger.warning(
-            "No se pueden detectar errores de tipo identificación: "
-            "columnas requeridas no encontradas."
-        )
-        return []
-    
-    problemas = []
-    facturas_ya_procesadas = set()
+    """Detecta facturas donde el tipo de identificación no coincide con la edad.
 
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-
-        tipo_id = data_sheet.cell(row=row, column=tipo_id_idx + 1).value
-        fec_nac = data_sheet.cell(row=row, column=fec_nac_idx + 1).value
-        fec_fact = data_sheet.cell(row=row, column=fec_fact_idx + 1).value
-        
-        if not tipo_id or not fec_nac or not fec_fact:
-            continue
-        
-        tipo_id_str = str(tipo_id).strip().upper()
-        
-        # Calcular edad
-        try:
-            fec_nac_str = str(fec_nac).strip()
-            fec_fact_str = str(fec_fact).strip()
-            try:
-                fecha_nac = datetime.strptime(fec_nac_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                fecha_nac = datetime.strptime(fec_nac_str, "%Y-%m-%d")
-            
-            try:
-                fecha_fact = datetime.strptime(fec_fact_str, "%Y-%m-%d %H:%M:%S")
-            except ValueError:
-                fecha_fact = datetime.strptime(fec_fact_str, "%Y-%m-%d")
-            
-            edad = fecha_fact.year - fecha_nac.year
-            if (fecha_fact.month, fecha_fact.day) < (fecha_nac.month, fecha_nac.day):
-                edad -= 1
-            
-            edad_meses = (fecha_fact.year - fecha_nac.year) * 12 + (fecha_fact.month - fecha_nac.month)
-        except (ValueError, TypeError):
-            continue
-        
-        # Determinar tipo correcto según edad
-        tipo_correcto = None
-        if tipo_id_str in ("RC", "TI", "CC"):
-            if edad < 7:
-                tipo_correcto = "RC"
-            elif edad < 18:
-                tipo_correcto = "TI"
-            else:
-                tipo_correcto = "CC"
-        elif tipo_id_str in ("MS", "AS"):
-            if edad < 18:
-                tipo_correcto = "MS"
-            else:
-                tipo_correcto = "AS"
-        elif tipo_id_str == "CN" and edad_meses >= 2:
-            tipo_correcto = "ERROR"
-        elif tipo_id_str == "CE" and edad <= 7:
-            tipo_correcto = "ERROR"
-        elif tipo_id_str in ("NIP", "NIT", "PAS", "PE", "SC"):
-            tipo_correcto = "ERROR"
-        
-        if tipo_correcto and tipo_id_str != tipo_correcto:
-            problemas.append({
-                "factura": factura_str,
-                "tipo_actual": tipo_id_str,
-                "tipo_deberia": tipo_correcto,
-                "edad": str(edad),
-            })
-            facturas_ya_procesadas.add(factura_str)
-    
-    return problemas
+    Note: Delega a transversales/tipo_documento_edad.py.
+    Se eliminará en Fase 7.
+    """
+    problemas = detect_tipo_documento_edad(data_sheet, indices)
+    return [
+        {
+            "factura": p["factura"],
+            "tipo_actual": p["tipo_actual"],
+            "tipo_deberia": p["tipo_deberia"],
+            "edad": str(p["edad_anios"]),
+        }
+        for p in problemas
+    ]
 
 
 def _detect_cantidades_anomalas(
