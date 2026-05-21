@@ -193,6 +193,67 @@
 
 ---
 
+## Phase 5a: urgencias/ low-risk modules (cantidades)
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T-12 (cantidades_urgencias) | `tests/services/test_urgencias_cantidades_urgencias.py` | Unit | N/A (new module) | ✅ 6 tests written | ✅ 6/6 passed | ✅ 6 cases (error, ok, no-urgencias, no-restringido, sin-indices, no-duplica) | ➖ None needed |
+| T-12 (cantidades_soat_urgencias) | `tests/services/test_urgencias_cantidades_soat_urgencias.py` | Unit | N/A (new module) | ✅ 5 tests written | ✅ 5/5 passed | ✅ 5 cases (error, ok, no-soat, no-codigo, sin-indices) | ➖ None needed |
+| T-12 (cantidades_soat_hospitalizacion) | `tests/services/test_urgencias_cantidades_soat_hospitalizacion.py` | Unit | N/A (new module) | ✅ 6 tests written | ✅ 6/6 passed | ✅ 6 cases (38114 error, 38114 ok, 39131 error, 39133 error, wrong-type, sin-indices) | ➖ None needed |
+| T-12 (hospitalizacion) | `tests/services/test_urgencias_hospitalizacion.py` | Unit | N/A (new module) | ✅ 7 tests written | ✅ 7/7 passed | ✅ 7 cases (129B02 error, 129B02 ok, 890601 error, 890601H error, 890601 <24h, wrong-type, sin-indices) | ➖ None needed |
+
+### Test Summary
+- **Total tests written**: 24
+- **Total tests passing**: 24
+- **Layers used**: Unit (24)
+- **Approval tests** (refactoring): 24 (behavior preserved from original inline functions)
+- **Pure functions created**: 4 detector functions
+
+### Completed Tasks (Phase 5a)
+- [x] `urgencias/__init__.py` — package init with all 4 module exports
+- [x] `urgencias/cantidades_urgencias.py` — `detect_cantidades_urgencias` extraído + tests
+- [x] `urgencias/cantidades_soat_urgencias.py` — `detect_cantidades_soat_urgencias` extraído + tests
+- [x] `urgencias/cantidades_soat_hospitalizacion.py` — `detect_cantidades_soat_hospitalizacion` extraído + tests
+- [x] `urgencias/hospitalizacion.py` — `detect_cantidades_hospitalizacion` extraído + tests
+- [x] `urgencias/sala_observacion.py` — placeholder (lógica en `_detect_centro_costo_urgencias`, Fase 5b)
+- [x] `revision_sheet.py` — delegación a módulos urgencias/ (4 funciones wrapper reemplazadas)
+
+### Files Created
+| File | Action | Lines | What It Contains |
+|------|--------|-------|------------------|
+| `app/services/urgencias/__init__.py` | Created | 15 | Package init with all 4 module exports |
+| `app/services/urgencias/cantidades_urgencias.py` | Created | 88 | `detect_cantidades_urgencias()` — valida cantidades ≤ 1 en Urgencias |
+| `app/services/urgencias/cantidades_soat_urgencias.py` | Created | 93 | `detect_cantidades_soat_urgencias()` — valida cantidad = 1 en SOAT Urgencias |
+| `app/services/urgencias/cantidades_soat_hospitalizacion.py` | Created | 120 | `detect_cantidades_soat_hospitalizacion()` — valida cantidades SOAT Hospitalización (38114, 39131, 39133) |
+| `app/services/urgencias/hospitalizacion.py` | Created | 145 | `detect_cantidades_hospitalizacion()` — valida cantidades no-SOAT Hospitalización (129B02, 890601, 890601H) |
+| `app/services/urgencias/sala_observacion.py` | Created | 38 | Placeholder — lógica en `_detect_centro_costo_urgencias` (Fase 5b) |
+| `tests/services/test_urgencias_cantidades_urgencias.py` | Created | 117 | 6 tests para cantidades_urgencias |
+| `tests/services/test_urgencias_cantidades_soat_urgencias.py` | Created | 105 | 5 tests para cantidades_soat_urgencias |
+| `tests/services/test_urgencias_cantidades_soat_hospitalizacion.py` | Created | 137 | 6 tests para cantidades_soat_hospitalizacion |
+| `tests/services/test_urgencias_hospitalizacion.py` | Created | 162 | 7 tests para hospitalizacion |
+
+### Files Modified
+| File | Action | What Changed |
+|------|--------|-------------|
+| `app/services/revision_sheet.py` | Modified | Added imports from `urgencias.*` modules; `_detect_cantidades_urgencias`, `_detect_cantidades_soat_urgencias`, `_detect_cantidades_soat_hospitalizacion`, `_detect_cantidades_hospitalizacion` ahora delegan |
+
+### Deviations from Design
+1. **`sala_observacion.py` no extraído**: La lógica de sala de observación está inline en `_detect_centro_costo_urgencias` (~1800 líneas). Se creó un placeholder que documenta que debe extraerse en Fase 5b.
+2. **`normalize_invoice` vs `_normalize_invoice`**: Los nuevos módulos usan `normalize_invoice` de `app.services.transversales.normalize` en lugar de `_normalize_invoice` de `revision_sheet.py`. La función de transversales es la canónica (idéntica lógica).
+
+### Verification
+- ✅ `pytest tests/services/test_urgencias_cantidades_urgencias.py` — 6/6 pass
+- ✅ `pytest tests/services/test_urgencias_cantidades_soat_urgencias.py` — 5/5 pass
+- ✅ `pytest tests/services/test_urgencias_cantidades_soat_hospitalizacion.py` — 6/6 pass
+- ✅ `pytest tests/services/test_urgencias_hospitalizacion.py` — 7/7 pass
+- ✅ `pytest tests/` — 200 pass, 7 fail (all pre-existing, same baseline)
+- ✅ `python -c "from app import create_app; app = create_app()"` — app starts without errors
+- ✅ `revision_sheet.py` wrapper functions still exist (delegation — will be removed in Phase 7)
+- ✅ `from app.services.urgencias import *` — all 4 functions importable
+
+---
 ## Cumulative State
 
 ### Tasks Status (all phases)
@@ -207,11 +268,11 @@
 | T-07 — cantidades_anomalas.py (parametrizado) | ✅ Complete |
 | T-08 — Merge decimales formats (delegación) | ✅ Complete |
 | T-09 — Adopt tipo_documento_edad (delegación) | ✅ Complete |
-| T-10 — odontologia/ modules | 🔲 Phase 4 |
-| T-11 — odontologia/detect_all.py | 🔲 Phase 4 |
-| T-12 — urgencias/ low-risk modules | 🔲 Phase 5 |
-| T-13 — urgencias/ high-risk modules | 🔲 Phase 5 |
-| T-14 — urgencias/detect_all.py | 🔲 Phase 5 |
+| T-10 — odontologia/ modules | ✅ Complete |
+| T-11 — odontologia/detect_all.py | ✅ Complete |
+| T-12 — urgencias/ low-risk modules | ✅ Fase 5a completada |
+| T-13 — urgencias/ high-risk modules | 🔲 Phase 5b |
+| T-14 — urgencias/detect_all.py | 🔲 Phase 5c |
 | T-15 — equipos_basicos/ | 🔲 Phase 6 |
 | T-16 — Cleanup (delete constants.py + revision_sheet.py) | 🔲 Phase 7 |
 

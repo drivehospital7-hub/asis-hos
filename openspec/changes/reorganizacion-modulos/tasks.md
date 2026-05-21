@@ -146,6 +146,14 @@ Chain strategy: stacked-to-main
   - ~300 líneas
   - Riesgo: Bajo (funciones autónomas)
   - Éxito: imports OK; tests con datos mínimos pasan
+  - **Sub-items completados (Fase 5a)**:
+    - [x] `urgencias/__init__.py` — package init con exports
+    - [x] `urgencias/cantidades_urgencias.py` — `detect_cantidades_urgencias` extraído + 6 tests
+    - [x] `urgencias/cantidades_soat_urgencias.py` — `detect_cantidades_soat_urgencias` extraído + 5 tests
+    - [x] `urgencias/cantidades_soat_hospitalizacion.py` — `detect_cantidades_soat_hospitalizacion` extraído + 6 tests
+    - [x] `urgencias/hospitalizacion.py` — `detect_cantidades_hospitalizacion` extraído + 7 tests
+    - [x] `urgencias/sala_observacion.py` — placeholder (lógica en `_detect_centro_costo_urgencias`, Fase 5b)
+    - [x] `revision_sheet.py` — delegación a módulos urgencias/
 
 - [ ] **T-13** — Create urgencias/ high-risk modules: `centro_costo`, `ide_contrato`, `cups_equivalentes`, `sala_observacion`, `hospitalizacion`
   - Desc: **La tarea más crítica del refactor.** Extraer 5 módulos desde `_detect_centro_costo_urgencias` (~1800 líneas que hace 5+ cosas en un solo loop). ESTRATEGIA: (1) Identificar cada sub-regla en el loop original, (2) Copiar el loop completo a cada módulo, (3) Eliminar las líneas de otras reglas de cada copia, (4) Refactorizar cada copia para que sea autónoma. NO refactorizar la lógica interna — solo separar. Preservar TODOS los logs exactos.
