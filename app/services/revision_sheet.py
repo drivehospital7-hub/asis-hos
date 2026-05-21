@@ -301,6 +301,23 @@ from app.services.transversales import (
     detect_cantidades_anomalas,
 )
 
+# Importar módulos de odontología extraídos (Fase 4)
+from app.services.odontologia.profesionales import (
+    detect_profesionales_odontologia,
+)
+from app.services.odontologia.centro_costo import (
+    detect_centro_costo_odontologia as detect_centro_costo_odontologia_ext,
+)
+from app.services.odontologia.ide_contrato import (
+    detect_ide_contrato_odontologia,
+)
+from app.services.odontologia.mal_capitado import (
+    detect_mal_capitado,
+)
+from app.services.odontologia.detect_all import (
+    detect_all_problems_odontologia,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -499,91 +516,10 @@ def _detect_profesionales_odontologia(
     """
     Detecta facturas con profesionales no válidos en Odontología.
 
-    Reglas (Odontología):
-    - "Código Profesional" DEBE estar en PROFESIONALES_ODONTOLOGIA_VALIDACION
-    - HIGIENISTA: Solo puede usar códigos PYP
-    - ODONTOLOGO: Puede usar cualquier código EXCEPTO los PYP
-
-    Args:
-        data_sheet: Hoja de Excel con los datos
-        indices: Índices de columnas
-
-    Returns:
-        Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "profesional_area", "procedimiento", "regla", "problema"
+    NOTA: Ahora delega en app/services/odontologia/profesionales.py.
+    Se eliminará en Fase 7.
     """
-    num_fact_idx = indices.get("numero_factura")
-    cod_prof_idx = indices.get("codigo_profesional")
-    codigo_idx = indices.get("codigo")
-    
-    if num_fact_idx is None or cod_prof_idx is None:
-        return []
-    
-    problemas = []
-    facturas_procesadas: set[str] = set()
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_procesadas:
-            continue
-
-        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
-        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
-
-        if not cod_profesional_str:
-            continue
-
-        # Buscar profesional en el diccionario
-        profesional_info = PROFESIONALES_ODONTOLOGIA_VALIDACION.get(cod_profesional_str)
-
-        if profesional_info is None:
-            problemas.append({
-                "factura": factura_str,
-                "codigo_profesional": cod_profesional_str,
-                "nombre": "",
-                "tipo": "",
-                "profesional_area": "",
-                "procedimiento": "",
-                "regla": "Profesional debe estar en listado",
-                "problema": "Profesional no existe en el listado de Odontología",
-            })
-            facturas_procesadas.add(factura_str)
-            continue
-
-        # Obtener código del procedimiento
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
-        codigo_str = str(codigo).strip() if codigo else ""
-        
-        tipo_profesional = profesional_info.get("tipo", "")
-        
-        # Validar según tipo de profesional
-        if tipo_profesional == "HIGIENISTA" and codigo_str not in PYP_CUPS_CODES:
-            problemas.append({
-                "factura": factura_str,
-                "codigo_profesional": cod_profesional_str,
-                "nombre": profesional_info.get("nombre", ""),
-                "tipo": "HIGIENISTA",
-                "profesional_area": "HIGIENISTA",
-                "procedimiento": codigo_str,
-                "regla": "Solo códigos PYP",
-                "problema": "HIGIENISTA no puede usar código no PYP",
-            })
-            facturas_procesadas.add(factura_str)
-        
-        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA:
-            problemas.append({
-                "factura": factura_str,
-                "codigo_profesional": cod_profesional_str,
-                "nombre": profesional_info.get("nombre", ""),
-                "tipo": "ODONTOLOGO",
-                "profesional_area": "ODONTOLOGO",
-"procedimiento": codigo_str,
-                "regla": "No códigos PYP (excepto 890203)",
-                "problema": "ODONTOLOGO no puede usar código PYP",
-            })
-            facturas_procesadas.add(factura_str)
-    
-    return problemas
+    return detect_profesionales_odontologia(data_sheet, indices)
 
 
 def _detect_mal_capitado(
@@ -593,111 +529,10 @@ def _detect_mal_capitado(
     """
     Detecta facturas con códigos G03XB01 o A02BB01 que NO tienen prefijo FEV en Número Factura.
 
-    Reglas:
-    - Códigos G03XB01 y A02BB01 DEBEN tener Número Factura con prefijo "FEV"
-    - Ejemplos válidos: FEV12345, FEV-001
-    - Ejemplos inválidos: CAP12345, EV12345, 12345
-
-    Args:
-        data_sheet: Hoja de Excel con los datos
-        indices: Índices de columnas
-
-    Returns:
-        Lista de dicts con keys: "factura", "codigo", "procedimiento", "observacion", "ide_contrato_actual"
+    NOTA: Ahora delega en app/services/odontologia/mal_capitado.py.
+    Se eliminará en Fase 7.
     """
-    num_fact_idx = indices.get("numero_factura")
-    codigo_idx = indices.get("codigo")
-    procedimiento_idx = indices.get("procedimiento")
-    ide_contrato_idx = indices.get("ide_contrato")
-
-    if num_fact_idx is None or codigo_idx is None:
-        logger.warning("MAL CAPITADO - Columnas necesarias no encontradas: numero_factura=%s, codigo=%s",
-                      num_fact_idx, codigo_idx)
-        return []
-
-    # Loguear las primeras 5 filas para debug
-    logger.warning("=== DEBUG MAL CAPITADO - Primeras 5 filas ===")
-    for row in range(2, min(7, data_sheet.max_row + 1)):
-        num_fact = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value if procedimiento_idx else None
-        logger.warning(f"  Fila {row}: Numero Factura='{num_fact}', Codigo='{codigo}', Procedimiento='{proc}'")
-
-    problemas = []
-    facturas_procesadas: set[str] = set()
-
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_procesadas:
-            continue
-
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        codigo_str = str(codigo).strip().upper() if codigo else ""
-
-        # Solo verificar si el código es uno de los MAL CAPITADO
-        if codigo_str not in CODIGOS_MAL_CAPITADO:
-            continue
-
-        # Verificar prefijo FEV
-        tiene_prefijo_fev = factura_str.upper().startswith(PREFIJO_FACTURA_MAL_CAPITADO)
-
-        if not tiene_prefijo_fev:
-            # Obtener procedimiento para la observación
-            procedimiento = ""
-            if procedimiento_idx is not None:
-                proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-                procedimiento = str(proc_value).strip() if proc_value else ""
-
-            # Obtener IDE Contrato actual
-            ide_contrato_actual = ""
-            if ide_contrato_idx is not None:
-                ide_val = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
-                ide_contrato_actual = str(ide_val).strip() if ide_val else ""
-
-            problemas.append({
-                "factura": factura_str,
-                "codigo": codigo_str,
-                "procedimiento": procedimiento,
-                "ide_contrato_actual": ide_contrato_actual,
-                "observacion": f"Número Factura debe tener prefijo FEV (ej: FEV12345)",
-            })
-            facturas_procesadas.add(factura_str)
-
-    if problemas:
-        logger.info("MAL CAPITADO - Problemas encontrados: %d", len(problemas))
-        for p in problemas:
-            logger.warning(f"  ERROR: Factura='{p['factura']}', Codigo='{p['codigo']}', Procedimiento='{p['procedimiento']}', Observacion='{p['observacion']}'")
-
-    # ----- Nueva Regla: Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
-    codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
-    if num_fact_idx is not None and codigo_entidad_cobrar_idx is not None:
-        for row in range(2, data_sheet.max_row + 1):
-            numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-            factura_str = _normalize_invoice(numero_factura)
-            if not factura_str:
-                continue
-
-            # Verificar prefijo CAP
-            if factura_str.upper().startswith(PREFIJO_FACTURA_CAP):
-                # Obtener Cód Entidad Cobrar
-                entidad_val = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
-                entidad_str = str(entidad_val).strip() if entidad_val else ""
-
-                if entidad_str != ENTIDAD_REQUERIDA_CAP:
-                    problemas.append({
-                        "factura": factura_str,
-                        "codigo": "",
-                        "procedimiento": "",
-                        "ide_contrato_actual": "",
-                        "observacion": f"Número Factura con prefijo CAP requiere Cód Entidad Cobrar={ENTIDAD_REQUERIDA_CAP} (actual: {entidad_str})",
-                    })
-                    logger.warning(
-                        "MAL CAPITADO (CAP): Factura='%s' tiene prefijo CAP pero Cód Entidad Cobrar='%s' (debe ser %s)",
-                        factura_str, entidad_str, ENTIDAD_REQUERIDA_CAP
-                    )
-
-    return problemas
+    return detect_mal_capitado(data_sheet, indices)
 
 
 def _detect_cantidades_urgencias(
@@ -1599,201 +1434,12 @@ def _detect_ide_contrato_odontologia(
     indices: dict[str, int | None],
 ) -> list[dict[str, str]]:
     """
-    Detenta facturas con problemas de IDE Contrato en Odontología.
-    
-    Reglas:
-    - ESS118 + Código PyP -> IDE debe ser 970 o 974
-    - ESS118 + Código NO PyP -> IDE debe ser 969 o 973
-    - ESSC18 + Código PyP -> IDE debe ser 975
-    - ESSC18 + Código NO PyP -> IDE debe ser 968
-    
-    Args:
-        data_sheet: Hoja de Excel con los datos
-        indices: Índices de columnas
-    
-    Returns:
-        Lista de dicts con keys: "factura", "codigo", "entidad", "ide_contrato_actual", "ide_contrato_deberia", "nota"
+    Detecta facturas con problemas de IDE Contrato en Odontología.
+
+    NOTA: Ahora delega en app/services/odontologia/ide_contrato.py.
+    Se eliminará en Fase 7.
     """
-    num_fact_idx = indices["numero_factura"]
-    codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
-    codigo_idx = indices.get("codigo")
-    ide_contrato_idx = indices.get("ide_contrato")
-    
-    logger.info(
-        "IDE Contrato - Índices: numero_factura=%s, codigo_entidad=%s, codigo=%s, ide_contrato=%s",
-        num_fact_idx,
-        codigo_entidad_idx,
-        codigo_idx,
-        ide_contrato_idx,
-    )
-    
-    if None in (num_fact_idx, codigo_entidad_idx) or codigo_idx is None or ide_contrato_idx is None:
-        logger.warning(
-            "IDE Contrato - Columnas necesarias no encontradas: "
-            "num_factura=%s, codigo_entidad=%s, codigo=%s, ide_contrato=%s",
-            num_fact_idx,
-            codigo_entidad_idx,
-            codigo_idx,
-            ide_contrato_idx,
-        )
-        return []
-    
-    problemas = []
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        ide_contrato = data_sheet.cell(row=row, column=ide_contrato_idx + 1).value
-        
-        if codigo_entidad is None or codigo is None or ide_contrato is None:
-            continue
-        
-        codigo_entidad_str = str(codigo_entidad).strip().upper()
-        codigo_str = str(codigo).strip().upper()
-        ide_str = str(ide_contrato).strip()
-        
-        # Determinar IDE esperado según entidad y código
-        ide_esperado = None
-        nota = ""
-        
-        if codigo_entidad_str == "ESS118":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_PYP
-                nota = "ESS118 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS118_NO_PYP
-                nota = "ESS118 + NO PyP"
-        
-        elif codigo_entidad_str == "ESSC18":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_PYP
-                nota = "ESSC18 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC18_NO_PYP
-                nota = "ESSC18 + NO PyP"
-        
-        elif codigo_entidad_str == "EPSS41":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_PYP
-                nota = "EPSS41 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS41_NO_PYP
-                nota = "EPSS41 + NO PyP"
-        
-        elif codigo_entidad_str == "EPS037":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_PYP
-                nota = "EPS037 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPS037_NO_PYP
-                nota = "EPS037 + NO PyP"
-        
-        elif codigo_entidad_str == "EPSI05":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_PYP
-                nota = "EPSI05 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSI05_NO_PYP
-                nota = "EPSI05 + NO PyP"
-        
-        elif codigo_entidad_str == "EPSIC5":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_PYP
-                nota = "EPSIC5 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP
-                nota = "EPSIC5 + NO PyP"
-        
-        elif codigo_entidad_str == "RES001":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_PYP
-                nota = "RES001 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_RES001_NO_PYP
-                nota = "RES001 + NO PyP"
-        
-        elif codigo_entidad_str == "ESS062":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_PYP
-                nota = "ESS062 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESS062_NO_PYP
-                nota = "ESS062 + NO PyP"
-        
-        elif codigo_entidad_str == "ESSC62":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_PYP
-                nota = "ESSC62 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_ESSC62_NO_PYP
-                nota = "ESSC62 + NO PyP"
-        
-        elif codigo_entidad_str == "0001":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_PYP
-                nota = "0001 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_0001_NO_PYP
-                nota = "0001 + NO PyP"
-        
-        elif codigo_entidad_str == "EPSS005":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_PYP
-                nota = "EPSS005 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSS005_NO_PYP
-                nota = "EPSS005 + NO PyP"
-        
-        elif codigo_entidad_str == "EPSC005":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_PYP
-                nota = "EPSC005 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_EPSC005_NO_PYP
-                nota = "EPSC005 + NO PyP"
-        
-        elif codigo_entidad_str == "86" and codigo_str not in PYP_CUPS_CODES:
-            # Solo aplica para NO PyP (PyP no tiene regla)
-            ide_esperado_set = IDE_CONTRATO_MULTIPLE_86_NO_PYP
-            nota = "86 + NO PyP"
-        
-        elif codigo_entidad_str == "86000":
-            if codigo_str in PYP_CUPS_CODES:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_86000_PYP
-                nota = "86000 + PyP"
-            else:
-                ide_esperado_set = IDE_CONTRATO_MULTIPLE_86000_NO_PYP
-                nota = "86000 + NO PyP"
-        
-        else:
-            # Entidad no tiene regla específica, skip
-            continue
-        
-        if ide_str not in ide_esperado_set:
-            problemas.append({
-                "factura": factura_str,
-                "codigo": codigo_str,
-                "cod_entidad": codigo_entidad_str,
-                "ide_actual": ide_str,
-                "ide_deberia": " o ".join(sorted(ide_esperado_set)),
-                "nota": nota,
-            })
-            logger.debug(
-                "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
-                row,
-                codigo_entidad_str,
-                codigo_str,
-                ide_str,
-                ide_esperado_set,
-            )
-    
-    logger.info("IDE Contrato - Filas procesadas: %d, Problemas encontrados: %d", row - 1, len(problemas))
-    return problemas
+    return detect_ide_contrato_odontologia(data_sheet, indices)
 
 
 def _detect_centro_costo_odontologia(
@@ -1805,181 +1451,17 @@ def _detect_centro_costo_odontologia(
 ) -> list[dict[str, str]]:
     """
     Detecta facturas con problemas de centro de costo en Odontología.
-    
-    Dos modos de operación:
-    
-    1. permitir_todos_centros = True (validación desactivada):
-       - Solo se permiten: "ODONTOLOGIA" y "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
-       - Cualquier otro centro es error
-    
-    2. permitir_todos_centros = False (validación activada con días):
-       - Por defecto: Centro debe ser "ODONTOLOGIA"
-       - Si el profesional (por identificación) tiene días seleccionados en el calendario
-         Y la fecha de factura coincide con uno de esos días -> Centro debe ser "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
-       - Si el centro es diferente a los dos permitidos Y no coincide con fecha+día -> ERROR
-       - Si el centro es diferente a los dos permitidos Y coincide con fecha+día -> ERROR
-       
-    Args:
-        data_sheet: Hoja de Excel con los datos
-        indices: Índices de columnas
-        profesional_dias: Dict {identificacion: [dias]} con los días seleccionados por profesional
-        permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL (sin validación por fecha)
-        centros_validos: Lista personalizada de centros válidos (por defecto: Odontología y Extramural)
-    
-    Returns:
-        Lista de dicts con keys: "factura", "centro_actual", "centro_deberia", "profesional", "fec_factura"
+
+    NOTA: Ahora delega en app/services/odontologia/centro_costo.py.
+    Se eliminará en Fase 7.
     """
-    problemas = []
-    
-    # Valores por defecto
-    if centros_validos is None:
-        centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
-    
-    num_fact_idx = indices["numero_factura"]
-    centro_costo_idx = indices["centro_costo"]
-    fec_factura_idx = indices["fec_factura"]
-    profesional_id_idx = indices["profesional_identificacion"]
-    
-    logger.info("Índices para validación centro costo - numero_fact: %s, centro_costo: %s, fec_factura: %s, profesional_id: %s",
-                num_fact_idx, centro_costo_idx, fec_factura_idx, profesional_id_idx)
-    
-    if num_fact_idx is None or centro_costo_idx is None:
-        logger.warning("Columnas necesarias no encontradas para validar centro de costo")
-        return []
-    
-    for row in range(2, data_sheet.max_row + 1):
-        # Obtener datos de la fila
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        centro_costo = data_sheet.cell(row=row, column=centro_costo_idx + 1).value
-        centro_costo_str = str(centro_costo).strip().upper() if centro_costo else ""
-        
-        # Obtener fecha de factura
-        fec_factura = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx is not None else None
-        dia_factura = None
-        fec_factura_dt = None  # datetime object para usar en strftime
-        
-        # Debug: log de la fecha cruda
-        if row <= 3:  # Solo las primeras 3 filas
-            logger.debug("Fila %s (%s) - fec_factura raw: %s (type: %s)", row, factura_str, fec_factura, type(fec_factura).__name__)
-        
-        if fec_factura:
-            try:
-                if isinstance(fec_factura, datetime):
-                    dia_factura = fec_factura.day
-                    fec_factura_dt = fec_factura
-                elif isinstance(fec_factura, (int, float)):
-                    # Puede ser un número de serie de Excel
-                    try:
-                        from datetime import datetime as dt, timedelta
-                        excel_date = int(fec_factura)
-                        dia_factura = (dt(1900, 1, 1) + timedelta(days=excel_date - 1)).day
-                        fec_factura_dt = (dt(1900, 1, 1) + timedelta(days=excel_date - 1))
-                    except:
-                        pass
-                elif isinstance(fec_factura, str):
-                    # Intentar múltiples formatos de fecha
-                    formatos = [
-                        "%Y-%m-%d %H:%M:%S",  # 2026-04-06 06:40:14
-                        "%Y-%m-%d",            # 2026-04-06
-                        "%d/%m/%Y", "%d-%m-%Y",
-                        "%d-%b-%Y", "%b %d, %Y", "%d %b %Y",
-                        "%m/%d/%Y", "%Y/%m/%d",
-                        "%d.%m.%Y", "%Y.%m.%d",
-                    ]
-                    for fmt in formatos:
-                        try:
-                            fec_factura_dt = datetime.strptime(fec_factura.strip(), fmt)
-                            dia_factura = fec_factura_dt.day
-                            if row <= 3:
-                                logger.debug("Fila %s (%s) - fecha parseada '%s' con formato '%s', día: %s", 
-                                            row, factura_str, fec_factura, fmt, dia_factura)
-                            break
-                        except ValueError:
-                            continue
-                    if dia_factura is None and row <= 3:
-                        logger.debug("Fila %s (%s) - NO se pudo parsear fecha: '%s'", row, factura_str, fec_factura)
-            except Exception as e:
-                if row <= 3:
-                    logger.debug("Fila %s (%s) - error parseando fecha '%s': %s", row, factura_str, fec_factura, e)
-        
-        # Obtener identificación del profesional
-        profesional_id = None
-        if profesional_id_idx is not None:
-            profesional_id = data_sheet.cell(row=row, column=profesional_id_idx + 1).value
-            if profesional_id:
-                profesional_id = str(profesional_id).strip()
-        
-        # Debug: log de la identificación del profesional
-        if row <= 3:
-            logger.debug("Fila %s (%s) - profesional_id raw: %s (index: %s)", row, factura_str, profesional_id, profesional_id_idx)
-        
-        # Determinar centro correcto según el modo
-        if permitir_todos_centros:
-            # Modo simple: solo permitir los dos centros válidos
-            centro_correcto = None  # No hay uno específico, cualquiera de los dos es válido
-        else:
-            # Modo con validación por fecha
-            dias_profesional = []
-            if profesional_dias and profesional_id and profesional_id in profesional_dias:
-                dias_profesional = profesional_dias[profesional_id]
-                if row <= 3:
-                    logger.debug("Fila %s (%s) - profesional_id: %s, dias_profesional: %s, dia_factura: %s", 
-                               row, factura_str, profesional_id, dias_profesional, dia_factura)
-            
-            if dia_factura and dias_profesional and dia_factura in dias_profesional:
-                centro_correcto = CENTRO_COSTO_EXTRAMURAL
-            else:
-                centro_correcto = CENTRO_COSTO_ODONTOLOGIA
-        
-        # Validar - usar centros_validos del parámetro (con valor por defecto)
-        if centros_validos is None:
-            centros_validos = [CENTRO_COSTO_ODONTOLOGIA, CENTRO_COSTO_EXTRAMURAL]
-        
-        # Debug: mostrar info completa para filas con problemas
-        if row == 133 or row == 259 or row == 3:
-            dias_profesional_debug = dias_profesional if permitir_todos_centros is False else "N/A (modo simple)"
-            logger.debug("Fila %s (%s) - DEBUG COMPLETO: profesional_id=%s, fec_factura=%s, dia_factura=%s, dias_profesional=%s, centro_costo_str=%s, centro_correcto=%s, permitir_todos_centros=%s",
-                        row, factura_str, profesional_id, fec_factura, dia_factura, dias_profesional_debug, centro_costo_str, centro_correcto, permitir_todos_centros)
-        
-        # Caso 1: Centro no está en la lista de válidos → siempre error
-        if centro_costo_str not in centros_validos:
-            problema = {
-                "factura": factura_str,
-                "centro_actual": centro_costo_str,
-                "centro_deberia": centro_correcto if centro_correcto else " o ".join(centros_validos),
-                "profesional": profesional_id or "",
-                "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
-            }
-            problemas.append(problema)
-            logger.debug(
-                "Fila %s: Centro de costo inválido (%s, debería ser uno de: %s)",
-                row,
-                centro_costo_str,
-                centros_validos,
-            )
-        # Caso 2: Validación activada Y centro no coincide con el esperado según fecha
-        elif not permitir_todos_centros and centro_correcto and centro_costo_str != centro_correcto:
-            problema = {
-                "factura": factura_str,
-                "centro_actual": centro_costo_str,
-                "centro_deberia": centro_correcto,
-                "profesional": profesional_id or "",
-                "fec_factura": fec_factura_dt.strftime("%Y-%m-%d") if fec_factura_dt else "",
-            }
-            problemas.append(problema)
-            logger.debug(
-                "Fila %s: Centro de costo no coincide con fecha (%s, debería ser %s para día %s)",
-                row,
-                centro_costo_str,
-                centro_correcto,
-                dia_factura,
-            )
-    
-    return problemas
+    return detect_centro_costo_odontologia_ext(
+        data_sheet,
+        indices,
+        profesional_dias=profesional_dias,
+        permitir_todos_centros=permitir_todos_centros,
+        centros_validos=centros_validos,
+    )
 
 
 def _get_codigos_no_en_db_ess118(
@@ -5850,111 +5332,13 @@ len(problemas_centros), len(problemas_ide_contrato), len(decimales), len(tipo_id
         return resultado, responsable_cierra
     else:
 # Odontología estándar: todas las validaciones
-        decimales = _detect_decimals(data_sheet, indices)
-        doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
-        ruta_dup = _detect_ruta_duplicada(data_sheet, indices)
-        tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
-        cantidades = _detect_cantidades_anomalas(data_sheet, indices)
-
-        logger.info("detect_all_problems - Odontología, Llamando _detect_ide_contrato_odontologia")
-        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
-        logger.info("detect_all_problems - Odontología, IDE Contrato encontrados: %d", len(ide_contrato))
-
-        # Validación profesionales (solo Odontología) - Esta función incluye la validación de convenio/procedimiento
-        logger.info("detect_all_problems - Odontología, Llamando _detect_profesionales_odontologia")
-        profesionales = _detect_profesionales_odontologia(data_sheet, indices)
-        logger.info("detect_all_problems - Odontología, Profesionales encontrados: %d", len(profesionales))
-
-        # Validación centro de costo Odontología
-        centro_costo = _detect_centro_costo_odontologia(
+        # NOTA: Ahora delega en app/services/odontologia/detect_all.py.
+        # Se eliminará en Fase 7 cuando se unifique el flujo.
+        resultado, responsable_cierra = detect_all_problems_odontologia(
             data_sheet,
             indices,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
-
-        # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5
-        )
-
-        # Regla transversal: Tipo Usuario
-        tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
-
-        # Build responsable_cierra mapping
-        responsable_cierra = {}
-        responsable_cierra_idx = indices.get("responsable_cierra")
-        num_fact_idx = indices.get("numero_factura")
-        if responsable_cierra_idx is not None and num_fact_idx is not None:
-            for row in range(2, data_sheet.max_row + 1):
-                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-                factura = _normalize_invoice(numero)
-                if not factura:
-                    continue
-                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
-                resp = str(raw).strip() if raw else ""
-                if resp and factura not in responsable_cierra:
-                    responsable_cierra[factura] = resp
-
-        # Build normalized rows for unified 6-column display
-        normalized_rows_od = _build_odontologia_normalized_rows(
-            decimales=decimales,
-            doble_tipo=doble_tipo,
-            ruta_dup=ruta_dup,
-            profesionales=profesionales,
-            cantidades=cantidades,
-            tipo_id_edad=tipo_id_edad,
-            centro_costo=centro_costo,
-            ide_contrato=ide_contrato,
-            responsable_cierra=responsable_cierra,
-            entidad_afiliacion_comparison=entidad_afiliacion_comparison,
-            tipo_usuario=tipo_usuario_od,
-        )
-
-        resultado = {
-            "area": area,
-            "problemas": {
-                "normalizados": normalized_rows_od,
-                "decimales": decimales,
-                "doble_tipo_procedimiento": doble_tipo,
-                "ruta_duplicada": ruta_dup,
-                "profesionales": profesionales,
-                "cantidades_anomalas": cantidades,
-                "tipo_identificacion_edad": tipo_id_edad,
-                "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
-                "tipo_usuario": tipo_usuario_od,
-                "centro_costo": centro_costo,
-                "ide_contrato": ide_contrato,
-            },
-            "totales": {
-                "decimales": len(decimales),
-                "doble_tipo_procedimiento": len(doble_tipo),
-                "ruta_duplicada": len(ruta_dup),
-                "profesionales": len(profesionales),
-                "cantidades_anomalas": len(cantidades),
-                "tipo_identificacion_edad": len(tipo_id_edad),
-                "centro_costo": len(centro_costo),
-                "ide_contrato": len(ide_contrato),
-                "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
-                "tipo_usuario": len(tipo_usuario_od),
-            },
-            "missing_columns": missing_columns,
-        }
-        
-        # Enrich errors with responsable from mapping
-        if responsable_cierra:
-            for problem_type, problems in resultado["problemas"].items():
-                for p in problems:
-                    factura = p.get("factura")
-                    if factura and factura in responsable_cierra:
-                        p["responsable"] = responsable_cierra[factura]
-                    elif "responsable" not in p:
-                        p["responsable"] = ""
-        else:
-            # Ensure all problems have responsable key
-            for problem_type, problems in resultado["problemas"].items():
-                for p in problems:
-                    if "responsable" not in p:
-                        p["responsable"] = ""
-        
+        resultado["missing_columns"] = missing_columns
         return resultado, responsable_cierra
