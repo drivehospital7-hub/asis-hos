@@ -294,6 +294,11 @@ from app.services.transversales import (
     detect_tipo_documento_edad,
     detect_codigo_entidad_vs_entidad_afiliacion,
     detect_tipo_usuario,
+    # Nuevos módulos extraídos (Fase 2)
+    get_column_indices,
+    detect_doble_tipo_procedimiento,
+    detect_ruta_duplicada,
+    detect_cantidades_anomalas,
 )
 
 logger = logging.getLogger(__name__)
@@ -316,49 +321,21 @@ def _normalize_invoice(value: Any) -> str | None:
 def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list[str]]:
     """
     Mapea nombres de columna a sus índices.
-    
+
     REQUIERE COINCIDENCIA EXACTA - NO infiere nombres similares.
     Si una columna no coincide exactamente, retorna None y la reporta en la lista de errores.
-    
+
     Args:
         headers: Lista de nombres de columna del Excel
-        
+
     Returns:
-        Tuple de (dict con nombre de columna -> índice 0-based o None, 
+        Tuple de (dict con nombre de columna -> índice 0-based o None,
                   lista de columnas NO encontradas)
+
+    Note:
+        Esta función ahora delega a transversales/column_indices.py.
+        Se eliminará en Fase 7 cuando todos los consumidores usen get_column_indices directamente.
     """
-    indices: dict[str, int | None] = {
-        "numero_factura": None,
-        "vlr_subsidiado": None,
-        "vlr_procedimiento": None,
-        "codigo_tipo_procedimiento": None,
-        "tipo_procedimiento": None,
-        "codigo": None,
-        "codigo_equiv": None,
-        "procedimiento": None,
-        "identificacion": None,
-        "convenio_facturado": None,
-        "cantidad": None,
-        "laboratorio": None,
-        "centro_costo": None,
-        "codigo_entidad_cobrar": None,
-        "entidad_cobrar": None,
-        "entidad_afiliacion": None,
-        "tipo_factura_descripcion": None,
-        "ide_contrato": None,
-        "tipo_identificacion": None,
-        "fec_nacimiento": None,
-        "fec_factura": None,
-        "fecha_cierre": None,
-        "profesional_identificacion": None,
-        "profesional_atiende": None,
-        "codigo_profesional": None,
-        "responsable_cierra": None,
-        "tipo_usuario": None,
-    }
-    
-    # Nombres EXACTOS requeridos - uno solo por columna, sin variantes
-    # Si no coincide exactamente, NO infiere - reporta error
     required_headers: dict[str, str] = {
         "numero_factura": "Número Factura",
         "vlr_subsidiado": "Vlr. Subsidiado",
@@ -389,35 +366,7 @@ def _get_column_indices(headers: list[Any]) -> tuple[dict[str, int | None], list
         "tarifario": "Tarifario",
         "tipo_usuario": "Tipo Usuario",
     }
-    
-# Normalizar headers del Excel para comparación EXACTA (sin strip para mantener espacios)
-    excel_headers_normalized: dict[str, int] = {}
-    for i, header in enumerate(headers):
-        if header is not None:
-            # Usar el header tal cual viene del Excel
-            normalized = str(header).strip()
-            excel_headers_normalized[normalized] = i
-    
-    # Buscar coincidencia EXACTA para cada columna requerida
-    missing_columns: list[str] = []
-    for key, required_name in required_headers.items():
-        # Buscar con el nombre exacto
-        if required_name in excel_headers_normalized:
-            indices[key] = excel_headers_normalized[required_name]
-            logger.info("COLUMNA MAPEADA: '%s' -> clave '%s' (índice %d)", required_name, key, excel_headers_normalized[required_name])
-        else:
-            # NO encontrado - reportar como faltante
-            missing_columns.append(required_name)
-            logger.warning("COLUMNA FALTANTE: '%s' (clave '%s')", required_name, key)
-    
-    # Log de结果
-    found_columns = [k for k, v in indices.items() if v is not None]
-    if missing_columns:
-        logger.error("Columnas FALTANTES (no hay coincidencia exacta): %s", missing_columns)
-    
-    logger.info("Indices detectados (coincidencia exacta): %d/%d", len(found_columns), len(indices))
-    
-    return indices, missing_columns
+    return get_column_indices(headers, required_headers)
 
 
 def _detect_decimals(
@@ -469,113 +418,38 @@ def _detect_doble_tipo_procedimiento(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con más de un tipo de procedimiento."""
-    num_fact_idx = indices["numero_factura"]
-    tipo_proc_idx = indices["tipo_procedimiento"]
-    
-    if num_fact_idx is None or tipo_proc_idx is None:
-        return []
-    
-    tipo_por_factura: dict[str, set[str]] = {}
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
-        if tipo_value is not None:
-            tipo_str = str(tipo_value).strip()
-            if tipo_str:
-                tipo_por_factura.setdefault(factura_str, set()).add(tipo_str)
-    
-    result = []
-    for fact, tipos in tipo_por_factura.items():
-        if len(tipos) > 1:
-            result.append({
-                "factura": fact,
-                "tipos": ", ".join(sorted(tipos)),
-            })
-    return result
+    """Detecta facturas con más de un tipo de procedimiento.
+
+    Note: Delega a transversales/doble_tipo_procedimiento.py.
+    Se eliminará en Fase 7.
+    """
+    return detect_doble_tipo_procedimiento(data_sheet, indices)
 
 
 def _detect_ruta_duplicada(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta pacientes con múltiples facturas en PyP."""
-    num_fact_idx = indices["numero_factura"]
-    ident_idx = indices["identificacion"]
-    contrato_idx = indices["convenio_facturado"]
-    
-    if None in (num_fact_idx, ident_idx, contrato_idx):
-        return []
-    
-    conteo_ident: dict[str, set[str]] = defaultdict(set)
-    
-    for row in range(2, data_sheet.max_row + 1):
-        contrato = data_sheet.cell(row=row, column=contrato_idx + 1).value
-        if contrato != CONVENIO_PYP:
-            continue
-        
-        ident = data_sheet.cell(row=row, column=ident_idx + 1).value
-        factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        
-        if ident is not None and factura is not None:
-            ident_str = str(ident).strip()
-            factura_str = str(factura).strip()
-            if ident_str and factura_str:
-                conteo_ident[ident_str].add(factura_str)
-    
-    result = []
-    for ident, facturas in conteo_ident.items():
-        if len(facturas) >= RUTA_DUPLICADA_THRESHOLD:
-            result.append({
-                "identificacion": ident,
-                "facturas": ", ".join(sorted(facturas)),
-                "cantidad": len(facturas),
-            })
-    return result
+    """Detecta pacientes con múltiples facturas en PyP.
+
+    Note: Delega a transversales/ruta_duplicada.py.
+    Se eliminará en Fase 7.
+    """
+    from app.constants import RUTA_DUPLICADA_THRESHOLD
+    return detect_ruta_duplicada(data_sheet, indices, threshold=RUTA_DUPLICADA_THRESHOLD)
 
 
 def _detect_ruta_duplicada_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta pacientes con múltiples facturas en PyP (Equipos Básicos - reglas independientes)."""
-    num_fact_idx = indices["numero_factura"]
-    ident_idx = indices["identificacion"]
-    contrato_idx = indices["convenio_facturado"]
-    
-    if None in (num_fact_idx, ident_idx, contrato_idx):
-        return []
-    
-    conteo_ident: dict[str, set[str]] = defaultdict(set)
-    
-    for row in range(2, data_sheet.max_row + 1):
-        contrato = data_sheet.cell(row=row, column=contrato_idx + 1).value
-        if contrato != CONVENIO_PYP:
-            continue
-        
-        ident = data_sheet.cell(row=row, column=ident_idx + 1).value
-        factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        
-        if ident is not None and factura is not None:
-            ident_str = str(ident).strip()
-            factura_str = str(factura).strip()
-            if ident_str and factura_str:
-                conteo_ident[ident_str].add(factura_str)
-    
-    result = []
-    for ident, facturas in conteo_ident.items():
-        if len(facturas) >= EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD:
-            result.append({
-                "identificacion": ident,
-                "facturas": ", ".join(sorted(facturas)),
-                "cantidad": len(facturas),
-            })
-    return result
+    """Detecta pacientes con múltiples facturas en PyP (Equipos Básicos).
+
+    Note: Delega a transversales/ruta_duplicada.py.
+    Se eliminará en Fase 7.
+    """
+    from app.constants import EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
+    return detect_ruta_duplicada(data_sheet, indices, threshold=EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD)
 
 
 def _detect_tipo_identificacion_edad(
@@ -688,115 +562,49 @@ def _detect_cantidades_anomalas(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con cantidades anómalas."""
+    """Detecta facturas con cantidades anómalas.
+
+    Note: Delega a transversales/cantidades_anomalas.py.
+    Se eliminará en Fase 7.
+    """
     from app.constants import (
         CANTIDAD_CONSULTAS_MIN,
         CANTIDAD_MAX,
         CANTIDAD_PYP_MIN,
-        CONVENIO_PYP,
     )
-    
-    num_fact_idx = indices["numero_factura"]
-    tipo_proc_idx = indices["tipo_procedimiento"]
-    cantidad_idx = indices["cantidad"]
-    conveniencia_idx = indices["convenio_facturado"]
-    
-    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, conveniencia_idx):
-        return []
-    
-    problemas = []
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
-        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
-        conveniencia = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
-        
-        if not isinstance(cantidad, (int, float)):
-            continue
-        
-        # Reglas de cantidad anómala
-        is_anomaly = (
-            # Consultas >= 2
-            (tipo_value == "Consultas" and cantidad >= CANTIDAD_CONSULTAS_MIN)
-            # Cualquier cantidad > 10
-            or cantidad > CANTIDAD_MAX
-            # PyP >= 3
-            or (conveniencia == CONVENIO_PYP and cantidad >= CANTIDAD_PYP_MIN)
-        )
-        
-        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
-            problema_tipo = f"Consultas con cantidad {cantidad}" if tipo_value == "Consultas" else f"Cantidad {cantidad}"
-            problemas.append({
-                "factura": factura_str,
-                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
-                "cantidad": cantidad,
-                "convenio": str(conveniencia) if conveniencia else "",
-                "problema": problema_tipo,
-            })
-    
-    return problemas
+    return detect_cantidades_anomalas(
+        data_sheet,
+        indices,
+        cantidad_consultas_min=CANTIDAD_CONSULTAS_MIN,
+        cantidad_max_general=CANTIDAD_MAX,
+        cantidad_pyp_min=CANTIDAD_PYP_MIN,
+    )
 
 
 def _detect_cantidades_anomalas_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict]:
-    """Detecta facturas con cantidades anómalas (Equipos Básicos - reglas independientes)."""
+    """Detecta facturas con cantidades anómalas (Equipos Básicos).
+
+    Note: Delega a transversales/cantidades_anomalas.py.
+    Se eliminará en Fase 7.
+    """
     from app.constants import (
         EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
         EQUIPOS_BASICOS_CANTIDAD_MAX,
         EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
-        CONVENIO_PYP,
     )
-    
-    num_fact_idx = indices["numero_factura"]
-    tipo_proc_idx = indices["tipo_procedimiento"]
-    cantidad_idx = indices["cantidad"]
-    procedimiento_idx = indices["procedimiento"]
-    conveniencia_idx = indices["convenio_facturado"]
-    
-    if None in (num_fact_idx, tipo_proc_idx, cantidad_idx, procedimiento_idx, conveniencia_idx):
+    # Equipos Básicos requiere columna procedimiento (más estricto)
+    if indices.get("procedimiento") is None:
         return []
-    
-    problemas = []
-    
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str:
-            continue
-        
-        tipo_value = data_sheet.cell(row=row, column=tipo_proc_idx + 1).value
-        cantidad = data_sheet.cell(row=row, column=cantidad_idx + 1).value
-        procedimiento = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
-        conveniencia = data_sheet.cell(row=row, column=conveniencia_idx + 1).value
-        
-        if not isinstance(cantidad, (int, float)):
-            continue
-        
-        # Reglas de cantidad anómala (Equipos Básicos - configurables)
-        is_anomaly = (
-            tipo_value == "Consultas" and cantidad >= EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN
-            or cantidad > EQUIPOS_BASICOS_CANTIDAD_MAX
-            or (conveniencia == CONVENIO_PYP and cantidad >= EQUIPOS_BASICOS_CANTIDAD_PYP_MIN)
-        )
-        
-        if is_anomaly and factura_str not in [p.get("factura") for p in problemas]:
-            problema_tipo = f"Consultas con cantidad {cantidad}" if tipo_value == "Consultas" else f"Cantidad {cantidad}"
-            problemas.append({
-                "factura": factura_str,
-                "tipo_procedimiento": str(tipo_value) if tipo_value else "",
-                "cantidad": cantidad,
-                "convenio": str(conveniencia) if conveniencia else "",
-                "problema": problema_tipo,
-            })
-    
-    return problemas
+    return detect_cantidades_anomalas(
+        data_sheet,
+        indices,
+        cantidad_consultas_min=EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
+        cantidad_max_general=EQUIPOS_BASICOS_CANTIDAD_MAX,
+        cantidad_pyp_min=EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
+    )
 
 
 def _detect_profesionales_odontologia(

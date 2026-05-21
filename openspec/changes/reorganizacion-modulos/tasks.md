@@ -62,35 +62,36 @@ Chain strategy: stacked-to-main
 
 ## Phase 2: transversales/ nuevos
 
-- [ ] **T-04** — Create `transversales/column_indices.py`
+- [x] **T-04** — Create `transversales/column_indices.py`
   - Desc: Extraer `_get_column_indices` de `revision_sheet.py` a nuevo módulo. Copia exacta (se eliminará la original en Fase 7). Agregar test unitario.
   - Deps: T-03
   - Files: `app/services/transversales/column_indices.py` (new), `app/services/transversales/__init__.py` (re-export), `tests/services/test_column_indices.py` (new)
   - ~80 líneas + tests
   - Riesgo: Bajo
   - Éxito: `test_column_indices.py` pasa; misma salida que original
+  - **Nota**: El archivo se llamó `doble_tipo_procedimiento.py` (no `doble_tipo.py` como sugería el plan) para mantener consistencia con el nombre de la función.
 
-- [ ] **T-05** — Create `transversales/doble_tipo.py`
+- [x] **T-05** — Create `transversales/doble_tipo_procedimiento.py`
   - Desc: Extraer `_detect_doble_tipo_procedimiento`. Función autónoma, sin dependencia de área.
   - Deps: T-03
-  - Files: `app/services/transversales/doble_tipo.py` (new), `app/services/transversales/__init__.py` (re-export), `tests/services/test_doble_tipo.py` (new)
-  - ~50 líneas + tests
+  - Files: `app/services/transversales/doble_tipo_procedimiento.py` (new), `app/services/transversales/__init__.py` (re-export), `tests/services/test_doble_tipo_procedimiento.py` (new)
+  - ~60 líneas + tests
   - Riesgo: Bajo
   - Éxito: test pasa con casos: factura con 2 tipos diferentes → detectado; factura con 1 tipo → ignorado
 
-- [ ] **T-06** — Create `transversales/ruta_duplicada.py` (parametrizado)
+- [x] **T-06** — Create `transversales/ruta_duplicada.py` (parametrizado)
   - Desc: Unificar `_detect_ruta_duplicada` (odontología, threshold=3) y `_detect_ruta_duplicada_equipos_basicos` (threshold distinto) en UNA función con parámetro `threshold: int = 3`. Agregar tests para ambos thresholds.
   - Deps: T-03
   - Files: `app/services/transversales/ruta_duplicada.py` (new), `app/services/transversales/__init__.py` (re-export), `tests/services/test_ruta_duplicada.py` (new)
-  - ~80 líneas + tests
+  - ~71 líneas + tests
   - Riesgo: Medio (parametrización cambia firma)
   - Éxito: test con threshold=3 detecta ≥3 facturas; test con threshold=2 detecta ≥2; convenios no-PyP ignorados
 
-- [ ] **T-07** — Create `transversales/cantidades_anomalas.py` (parametrizado)
-  - Desc: Unificar `_detect_cantidades_anomalas` y `_detect_cantidades_anomalas_equipos_basicos`. Parámetros: `cantidad_consultas_min: int = 2`, `cantidad_max_general: int = 10`, `cantidad_pyp_min: int = 3`. Agregar columna `procedimiento_idx` opcional.
+- [x] **T-07** — Create `transversales/cantidades_anomalas.py` (parametrizado)
+  - Desc: Unificar `_detect_cantidades_anomalas` y `_detect_cantidades_anomalas_equipos_basicos`. Parámetros: `cantidad_consultas_min: int = 2`, `cantidad_max_general: int = 10`, `cantidad_pyp_min: int = 3`.
   - Deps: T-03
   - Files: `app/services/transversales/cantidades_anomalas.py` (new), `app/services/transversales/__init__.py` (re-export), `tests/services/test_cantidades_anomalas.py` (new)
-  - ~120 líneas + tests
+  - ~91 líneas + tests
   - Riesgo: Medio
   - Éxito: tests para consultas ≥2, general >10, PyP ≥3; ambas áreas (odonto/EB) usando misma función
 
