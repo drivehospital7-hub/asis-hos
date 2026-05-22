@@ -164,7 +164,7 @@ Chain strategy: stacked-to-main
   - Éxito: mismo output que original con Excel de urgencias real. Comparar archivo generado con línea base de producción.
   - Notas: Se recomienda tener un archivo Excel real de urgencias con casos conocidos para validar. Validar CONTRA el original antes de Phase 7. Los tests deben incluir casos de borde: centro costo, IDE contrato, cups equivalentes, sala observación (>6h/≤6h), hospitalización (SOAT/no-SOAT).
 
-- [ ] **T-14** — Create `urgencias/detect_all.py` + wire into `revision_sheet.py`
+- [x] **T-14** — Create `urgencias/detect_all.py` + wire into `revision_sheet.py`
   - Desc: Orquestador de urgencias que llama transversales + 11 módulos. MODIFICAR `revision_sheet.py::detect_all_problems` en rama `area == URGENCIAS` para delegar. El loop original de _detect_centro_costo_urgencias se reemplaza por 5 llamadas separadas a los nuevos módulos.
   - Deps: T-13
   - Files: `app/services/urgencias/detect_all.py` (new), `app/services/revision_sheet.py` (modify dispatcher)

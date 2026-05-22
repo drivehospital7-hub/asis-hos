@@ -254,6 +254,51 @@
 - ✅ `from app.services.urgencias import *` — all 4 functions importable
 
 ---
+## Phase 5c: urgencias/detect_all.py
+
+### TDD Cycle Evidence
+
+| Task | Test File | Layer | Safety Net | RED | GREEN | TRIANGULATE | REFACTOR |
+|------|-----------|-------|------------|-----|-------|-------------|----------|
+| T-14 | `tests/services/test_urgencias_detect_all.py` | Unit | ✅ 200/207 baseline | ✅ 5 tests written | ✅ 5/5 passed | ➖ Skipped (purely structural — orchestrator without branching) | ✅ Clean — 300 líneas → ~6 líneas en detect_all_problems |
+
+### Test Summary
+- **Total tests written**: 5 (structural tests for the new orchestrator)
+- **Total tests passing**: 205 (200 baseline + 5 new)
+- **Layers used**: Unit (5)
+- **Approval tests** (refactoring): existing test suite (200 tests) — unchanged pass rate
+- **Pure functions created**: 1 (`detect_all_problems_urgencias`)
+
+### Completed Tasks
+- [x] **T-14** — Created `app/services/urgencias/detect_all.py` with `detect_all_problems_urgencias(data_sheet, indices)`
+  - Orquesta 7 transversales + 9 urgencias-specific + 1 sala_observación detectores
+  - Incluye filtro de centros por prioridad, maps de responsable_cierra/fecha_cierre_vacia
+  - Construye resultado dict con problemas, totales, y normalizados
+  - Lazy imports para `_build_urgencias_normalized_rows` y funciones aún en revision_sheet.py
+
+### Files Created
+| File | Action | Lines | What It Contains |
+|------|--------|-------|------------------|
+| `app/services/urgencias/detect_all.py` | Created | 292 | `detect_all_problems_urgencias` — orquestador completo de urgencias |
+| `tests/services/test_urgencias_detect_all.py` | Created | 91 | 5 tests estructurales (problemas, totales, area, normalizados, missing_columns) |
+
+### Files Modified
+| File | Action | What Changed |
+|------|--------|-------------|
+| `app/services/urgencias/__init__.py` | Modified | Added import/export of `detect_all_problems_urgencias` |
+| `app/services/revision_sheet.py` | Modified | Rama URGENCIAS de `detect_all_problems` ahora delega en `detect_all_problems_urgencias` (~300 líneas → ~6 líneas) |
+| `openspec/changes/reorganizacion-modulos/tasks.md` | Modified | T-14 marcada como [x] |
+
+### Deviations from Design
+None — implementation matches tasks.md spec.
+
+### Verification
+- ✅ `pytest tests/services/test_urgencias_detect_all.py` — 5/5 pass
+- ✅ `pytest tests/` — 205/212 pass (7 pre-existing failures unchanged)
+- ✅ `python run_dev.py` — app starts without errors
+
+---
+
 ## Cumulative State
 
 ### Tasks Status (all phases)
@@ -271,8 +316,8 @@
 | T-10 — odontologia/ modules | ✅ Complete |
 | T-11 — odontologia/detect_all.py | ✅ Complete |
 | T-12 — urgencias/ low-risk modules | ✅ Fase 5a completada |
-| T-13 — urgencias/ high-risk modules | 🔲 Phase 5b |
-| T-14 — urgencias/detect_all.py | 🔲 Phase 5c |
+| T-13 — urgencias/ high-risk modules | ✅ Fase 5b completada |
+| T-14 — urgencias/detect_all.py | ✅ Fase 5c completada |
 | T-15 — equipos_basicos/ | 🔲 Phase 6 |
 | T-16 — Cleanup (delete constants.py + revision_sheet.py) | 🔲 Phase 7 |
 
