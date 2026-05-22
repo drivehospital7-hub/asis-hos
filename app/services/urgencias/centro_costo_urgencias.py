@@ -72,8 +72,6 @@ def detect_centro_costo_urgencias(
         return []
 
     problemas_centros: list[dict[str, Any]] = []
-    problemas_reverse9_pendientes: list[dict[str, Any]] = []
-    facturas_con_sumins_en_farmacia: set[str] = set()
 
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
@@ -141,7 +139,7 @@ def detect_centro_costo_urgencias(
                 row, centro_costo_str,
             )
 
-        # ----- Regla 9: Tarifario="Suministros, Medicamentos" -> Centro debe ser FARMACIA
+        # ----- Regla 9: Tarifario="Suminstros, Medicamentos" -> Centro debe ser FARMACIA
         if tarifario_str == VALOR_TARIFARIO_FARMACIA:
             if centro_costo_str != CENTRO_COSTO_FARMACIA:
                 problemas_centros.append({
@@ -158,9 +156,6 @@ def detect_centro_costo_urgencias(
                     "REGLA9: Fila %s: Tarifario=%s, Centro=%s (debe ser %s)",
                     row, tarifario_str, centro_costo_str, CENTRO_COSTO_FARMACIA,
                 )
-            else:
-                # Centro FARMACIA correcto -> justifica el centro para esta factura
-                facturas_con_sumins_en_farmacia.add(factura_str)
 
         # ----- Regla 1: Código=02 + Laboratorio=No + Centro != IMAGENOLOGIA
         regla_1_activa = (
@@ -353,11 +348,9 @@ def detect_centro_costo_urgencias(
                 )
 
         # ----- Regla 9 REVERSE: Centro=FARMACIA -> Tarifario debe ser farmacia
-        # Se recolecta pendiente y se filtra post-loop: solo si NINGÚN procedimiento
-        # de esta factura tiene tarifario Suministros se marca como error.
         if centro_costo_str == CENTRO_COSTO_FARMACIA:
             if tarifario_str != VALOR_TARIFARIO_FARMACIA:
-                problemas_reverse9_pendientes.append({
+                problemas_centros.append({
                     "factura": factura_str,
                     "tipo_factura": tipo_factura_str,
                     "centro_actual": centro_costo_str,
@@ -367,6 +360,10 @@ def detect_centro_costo_urgencias(
                     "prioridad": 1,
                     "regla": "REVERSE9",
                 })
+                logger.info(
+                    "REGLA9-REVERSE: Fila %s: Centro=FARMACIA pero Tarifario=%s (debe ser %s)",
+                    row, tarifario_str, VALOR_TARIFARIO_FARMACIA,
+                )
 
         # ----- Regla: Tipo=Intramural + Cód Entidad != ESS118 -> Centro LABORATORIO
         if tipo_factura_str == "Intramural" and codigo_entidad_str and codigo_entidad_str != "ESS118":
@@ -444,15 +441,6 @@ def detect_centro_costo_urgencias(
                 "procedimiento": proc_str,
                 "prioridad": 2,
             })
-
-    # Filtrar REVERSE9: solo marcar si la factura NO tiene ningún row con Suministros en FARMACIA
-    for p in problemas_reverse9_pendientes:
-        if p["factura"] not in facturas_con_sumins_en_farmacia:
-            problemas_centros.append(p)
-            logger.info(
-                "REGLA9-REVERSE: Factura=%s: Centro=FARMACIA pero Tarifario=%s (debe ser %s) - sin ningun row que justifique el centro",
-                p["factura"], p.get("centro_deberia", ""), VALOR_TARIFARIO_FARMACIA,
-            )
 
     if problemas_centros:
         logger.info("Centro Costo Urgencias - Problemas encontrados: %d", len(problemas_centros))

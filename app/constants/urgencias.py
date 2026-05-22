@@ -102,8 +102,8 @@ CODIGOS_LABORATORIO_URGENCIAS_REVERSE = frozenset({
 
 CENTRO_COSTO_LABORATORIO_URGENCIAS = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
 
-# Tarifario="Suministros, Medicamentos" -> Centro de costo "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
-VALOR_TARIFARIO_FARMACIA = "Suministros, Medicamentos"
+# Tarifario="Suminstros, Medicamentos" -> Centro de costo "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
+VALOR_TARIFARIO_FARMACIA = "Suminstros, Medicamentos"
 CENTRO_COSTO_FARMACIA = "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
 
 # =============================================================================
