@@ -317,14 +317,15 @@ if "Código Tipo Procedimiento" in headers:
 ## Ubicación de los mapeos
 
 El mapeo de columnas está en:
-- `app/services/revision_sheet.py` → `_get_column_indices()` (líneas ~185-276)
-- `app/services/transversales/estructura_excel.py` → `EXPECTED_HEADERS_LIMPIO` (líneas ~23-156)
+- `app/services/transversales/column_indices.py` → `get_column_indices()` (función parametrizada)
+- `app/services/transversales/estructura_excel.py` → `EXPECTED_HEADERS_LIMPIO`
+- `app/constants/columnas.py` → definiciones de columnas y headers por área
 
 **Para agregar nuevas columnas**:
 1. Verificar que existe en este catálogo
-2. Agregar el nombre EXACTO del Excel en `constants.py` si es una constante
-3. Agregar el mapeo en `_get_column_indices` de `revision_sheet.py`
-4. Agregar la columna a `COLUMNS_TO_KEEP` o `URGENCIA_COLUMNS_TO_KEEP` si debe mostrarse
+2. Agregar el nombre EXACTO del Excel en `app/constants/columnas.py` si es una constante
+3. La función `get_column_indices` de `transversales/column_indices.py` es genérica — pasarle los `required_headers` que necesite el detector
+4. Agregar la columna a `COLUMNS_TO_KEEP` o `URGENCIA_COLUMNS_TO_KEEP` en `app/constants/columnas.py` si debe mostrarse
 
 ---
 
@@ -332,17 +333,15 @@ El mapeo de columnas está en:
 
 ```bash
 # Ver encabezados actuales del sistema
-python3 -c "from app.services.excel_column_headers import get_excel_column_headers; print(get_excel_column_headers('app/data/input/tu_archivo.xlsx'))"
-
-# Ver mapeos en constants.py
-grep -E "(COLUMNS|CODIGO|URGENCIA)" app/constants.py
+python -c "from app.services.excel_column_headers import get_excel_column_headers; print(get_excel_column_headers('app/data/input/tu_archivo.xlsx'))"
 ```
 
 ---
 
 ## Resources
 
-- **Archivo de reglas**: `app/services/revision_sheet.py` - `_get_column_indices()`
-- **Constantes**: `app/constants.py` - secciones COLUMNS, URGENCIAS
+- **Función de mapeo**: `app/services/transversales/column_indices.py` - `get_column_indices()`
+- **Constantes de columnas**: `app/constants/columnas.py`
 - **Headers esperados**: `app/services/transversales/estructura_excel.py` - `EXPECTED_HEADERS_LIMPIO`
 - **Lectura de headers**: `app/services/excel_column_headers.py`
+- **Patrón de detectores**: skill `asis-hos-detector-pattern`

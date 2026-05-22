@@ -20,22 +20,32 @@
 
 ```
 app/
-├── routes/       # Endpoints HTTP (SOLO delegan)
-├── services/     # Lógica de negocio (SRP)
-├── utils/        # Helpers reutilizables
-├── constants.py  # Valores compartidos (ÚNICO lugar)
+├── constants/       # Constantes por dominio (5 módulos: base, columnas, colores, odontologia, urgencias)
+├── routes/          # Endpoints HTTP (SOLO delegan)
+├── services/
+│   ├── transversales/     # Reglas compartidas entre áreas (decimales, tipo_doc, etc.)
+│   │   └── detectores parametrizados (ruta_duplicada, cantidades_anomalas, etc.)
+│   ├── odontologia/       # Detectores + orquestador detect_all.py
+│   ├── urgencias/         # Detectores + orquestador detect_all.py
+│   ├── equipos_basicos/   # Detectores + orquestador detect_all.py
+│   ├── exporter.py        # Orquestador de exportación
+│   ├── cruce_sheet.py     # Hoja CruceFacturas
+│   └── ...                # Otros servicios (genderize, derechos, etc.)
+├── utils/           # Helpers reutilizables
 └── data/
-    ├── input/    # Excel de entrada
-    └── output/   # Excel procesados
+    ├── input/       # Excel de entrada
+    └── output/      # Excel procesados
 ```
 
 ### Reglas (NO NEGOCIABLES)
 
-| Regla                    | Descripción                                                          |
-| ------------------------ | -------------------------------------------------------------------- |
-| **Routes = delegadores** | Reciben request → llaman servicio → retornan respuesta. CERO lógica. |
-| **Services = SRP**       | Una responsabilidad por servicio. Si hace dos cosas, dividir.        |
-| **No hardcodear**        | Valores compartidos van en `constants.py`                            |
+| Regla                          | Descripción                                                               |
+| ------------------------------ | ------------------------------------------------------------------------- |
+| **Routes = delegadores**       | Reciben request → llaman servicio → retornan respuesta. CERO lógica.      |
+| **Services = SRP**             | Una responsabilidad por servicio. Si hace dos cosas, dividir.             |
+| **No hardcodear**              | Valores compartidos van en `app/constants/` (package, no archivo suelto) |
+| **Detectores por dominio**     | Un archivo por detector, en el package de su área. NO monolito.         |
+| **Orquestador por package**    | Cada área tiene su `detect_all.py` que une todos los detectores.         |
 
 ---
 
@@ -135,7 +145,9 @@ from app.constants import CRUCE_FACTURAS_SHEET
 | -------------------------------------- | -------------------------- | ------ |
 | `app/services/exporter.py`             | Orquestador de exportación | ✅     |
 | `app/services/cruce_sheet.py`          | Hoja CruceFacturas         | ✅     |
-| `app/services/revision_sheet.py`       | Detección de problemas     | ✅     |
+| `app/services/odontologia/detect_all.py`  | Detección odontología      | ✅     |
+| `app/services/urgencias/detect_all.py`    | Detección urgencias        | ✅     |
+| `app/services/equipos_basicos/detect_all.py` | Detección equipos básicos | ✅     |
 | `app/utils/column_filter.py`           | Filtrado de columnas       | ✅     |
 | `app/utils/formatting.py`              | Formato condicional        | ✅     |
 | `app/services/excel_column_headers.py` | Lee headers Excel (Polars) | ✅     |
@@ -159,4 +171,3 @@ python run_prod.py
 
 - **CONVENTIONS.md** → Reglas de NEGOCIO (validaciones, procedimientos, colores)
 - **.atl/skill-registry.md** → Skills para sub-agentes
-- **Engram** → `sdd/reorganizacion-control-system/` para plan de refactor
