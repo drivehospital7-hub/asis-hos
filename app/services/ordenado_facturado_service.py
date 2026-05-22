@@ -32,7 +32,6 @@ REPORTE_REQUIRED_HEADERS: dict[str, str] = {
     "fec_factura": "Fec. Factura",
 }
 
-# Columnas requeridas para AYUDAS DIAGNÓSTICAS (Excel nuevo)
 # Columnas requeridas para AYUDAS DIAGNÓSTICAS (obligatorias)
 AYUDAS_REQUIRED_HEADERS: dict[str, str] = {
     "numero_factura": "N° Factura",
@@ -284,70 +283,6 @@ def _procesar_notas_enfermeria(path_notas: Path) -> dict[str, Any]:
         },
     }
 
-    # Opcionales
-    opt_indices, _ = get_column_indices(headers, NOTAS_OPTIONAL_HEADERS)
-    idx_entidad = opt_indices.get("entidad_administradora")
-    idx_ident = opt_indices.get("identificacion")
-    idx_fecha_nota = opt_indices.get("fecha_nota")
-
-    idx_fact = indices["numero_factura"]
-    idx_nota = indices["nota_enfermeria"]
-
-    ocf066_rows: list[dict[str, Any]] = []
-    data_start = header_row + 1
-
-    for row in range(data_start, len(rows)):
-        factura = _normalizar_factura(rows[row][idx_fact + 1])
-        nota = str(rows[row][idx_nota + 1] or "").upper()
-
-        if not factura:
-            continue
-
-        if "OCF066" not in nota:
-            continue
-
-        # Determinar si es EMSSANAR
-        es_emssanar = (
-            idx_entidad is not None
-            and idx_ident is not None
-            and str(rows[row][idx_entidad + 1] or "").strip().upper()
-            == EMSSANAR_ENTIDAD.upper()
-        )
-
-        paciente = ""
-        if es_emssanar:
-            paciente = str(rows[row][idx_ident + 1] or "").strip().upper()
-
-        ocf066_rows.append({
-            "factura": factura,
-            "paciente": paciente,
-            "es_emssanar": es_emssanar,
-        })
-
-    # Conjuntos únicos para conteo
-    facturas_unicas = sorted(set(r["factura"] for r in ocf066_rows if not r["es_emssanar"]))
-    pacientes_unicos = sorted(set(r["paciente"] for r in ocf066_rows if r["es_emssanar"] and r["paciente"]))
-    total = len(facturas_unicas) + len(pacientes_unicos)
-
-    logger.info(
-        "Notas Enfermería: %d filas OCF066 (%d regulares, %d emssanar)",
-        len(ocf066_rows), len(facturas_unicas), len(pacientes_unicos),
-    )
-
-    # Fecha máxima de Notas
-    max_fecha_nota = _max_date_col(rows, idx_fecha_nota + 1, data_start) if idx_fecha_nota is not None else None
-
-    return {
-        "status": "success",
-        "data": {
-            "traslados_count": total,
-            "ocf066_rows": ocf066_rows,
-            "traslados_facturas": facturas_unicas,
-            "traslados_emssanar_pacientes": pacientes_unicos,
-            "max_fecha_nota": max_fecha_nota.isoformat() if max_fecha_nota else None,
-        },
-    }
-
 
 def procesar_cruce(
     path_reporte: Path,
@@ -397,7 +332,6 @@ def procesar_cruce(
         # ══════════════════════════════════════════════
         rows_ayudas = _leer_como_raw(path_ayudas)
 
-        # Detectar fila de headers (puede no estar en fila 1)
         # Detectar fila de headers (solo columnas obligatorias)
         header_row = _detectar_fila_headers(rows_ayudas, AYUDAS_REQUIRED_HEADERS)
         if header_row is None:
@@ -464,7 +398,6 @@ def procesar_cruce(
 
         logger.info("Códigos detectados en Reporte: %s", dict(sorted(conteo_reporte.items())))
 
-        # Construir set de pares facturados en reporte (necesario para totalizado)
         # Construir pares facturados en reporte (normal + emssanar por paciente)
         pares_normal: set[tuple[str, str]] = set()
         pares_emssanar: set[tuple[str, str]] = set()
