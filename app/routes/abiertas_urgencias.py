@@ -2,14 +2,14 @@
 
 import logging
 
-from flask import Blueprint, jsonify, render_template, request, session
-from flask_login import current_user
+from flask import Blueprint, jsonify, render_template, request
 
 from app.services.abiertas_urgencias_service import (
     delete_horario,
     get_horario,
     save_horario,
 )
+from app.utils.auth import permiso_requerido
 
 logger = logging.getLogger(__name__)
 
@@ -22,10 +22,10 @@ abiertas_urgencias_bp = Blueprint("abiertas_urgencias", __name__)
 
 
 @abiertas_urgencias_bp.get("/")
+@permiso_requerido("facturas_abiertas")
 def abiertas_urgencias_page():
     """Página de horarios de abiertas urgencias."""
-    is_auth = current_user.is_authenticated or session.get("ce_authenticated")
-    return render_template("abiertas_urgencias.html", is_auth=is_auth)
+    return render_template("abiertas_urgencias.html", is_auth=True)
 
 
 # ═══════════════════════════════════════════════
@@ -34,6 +34,7 @@ def abiertas_urgencias_page():
 
 
 @abiertas_urgencias_bp.get("/api/schedule")
+@permiso_requerido("facturas_abiertas")
 def api_get_schedule():
     """Obtener el horario guardado."""
     return jsonify(get_horario())
@@ -45,6 +46,7 @@ def api_get_schedule():
 
 
 @abiertas_urgencias_bp.post("/api/schedule")
+@permiso_requerido("facturas_abiertas")
 def api_save_schedule():
     """Guardar el horario parseado."""
     data = request.get_json() or {}
@@ -58,6 +60,7 @@ def api_save_schedule():
 
 
 @abiertas_urgencias_bp.delete("/api/schedule")
+@permiso_requerido("facturas_abiertas")
 def api_delete_schedule():
     """Eliminar el horario guardado."""
     return jsonify(delete_horario())

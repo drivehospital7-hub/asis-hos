@@ -4,7 +4,7 @@ import logging
 from typing import Any
 
 from flask import session
-from flask_login import current_user
+# from flask_login import current_user  # Eliminado: auth es via session
 
 from app.utils.errores_storage import (
     listar_errores,
@@ -107,7 +107,7 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
         # Sin autenticación: solo permitir estado y observación del facturador
-        authed = session.get("ce_authenticated") or current_user.is_authenticated
+        authed = session.get("ce_authenticated")
         if not authed:
             prohibited = set(data.keys()) - {"estado", "observacion_facturador"}
             if prohibited:

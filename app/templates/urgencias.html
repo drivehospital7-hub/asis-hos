@@ -60,16 +60,6 @@
         <span class="btn__label">Procesar</span>
       </button>
       
-      <button
-        class="btn btn--secondary"
-        type="button"
-        id="btn-descargar"
-        disabled
-        data-loading-text="Descargando..."
-      >
-        <span class="btn__spinner"></span>
-        <span class="btn__label">Descargar Excel</span>
-      </button>
     </div>
   </form>
 
@@ -82,7 +72,7 @@
   {# ── Success ── #}
   <div id="success-container" class="alert alert--success" style="display: none;">
     <p class="alert__title">Archivo procesado correctamente</p>
-    <p>Puedes descargar el Excel o revisar los errores arriba.</p>
+    <p>Revisá los errores arriba.</p>
   </div>
 
 {% endblock %}
@@ -155,14 +145,11 @@ async function enviarAControl(tipoError, factura, tipoKey, observacion, responsa
 
 document.addEventListener('DOMContentLoaded', function() {
   const btnProcesar = document.getElementById('btn-procesar');
-  const btnDescargar = document.getElementById('btn-descargar');
   const form = document.getElementById('main-form');
   const erroresContainer = document.getElementById('errores-container');
   const erroresList = document.getElementById('errores-list');
   const successContainer = document.getElementById('success-container');
   
-  let downloadUrl = null;
-
   // Escapar HTML
   function escapeHtml(text) {
     if (text == null) return '';
@@ -193,8 +180,6 @@ document.addEventListener('DOMContentLoaded', function() {
     // Ocultar mensajes previos
     erroresContainer.style.display = 'none';
     successContainer.style.display = 'none';
-    btnDescargar.disabled = true;
-    downloadUrl = null;
     
     try {
       const formData = new FormData(form);
@@ -207,15 +192,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const result = await response.json();
       
       if (result.status === 'success') {
-        // Guardar URL de descarga
-        downloadUrl = result.data.download_url;
-        console.log('Download URL:', downloadUrl);
-        
         // Mostrar success
         successContainer.style.display = 'block';
-        
-        // Habilitar botón descargar
-        btnDescargar.disabled = false;
         
         // Mostrar errores si hay
         const errores = result.data.errores || [];
@@ -718,12 +696,6 @@ document.addEventListener('DOMContentLoaded', function() {
       btnProcesar.disabled = false;
     }
   });
-
-  btnDescargar.addEventListener('click', function() {
-    if (downloadUrl) {
-      window.location.href = downloadUrl;
-    }
-  });
 });
 </script>
 {% endblock %}
@@ -737,15 +709,8 @@ document.addEventListener('DOMContentLoaded', function() {
       const result = await response.json();
       
       if (result.status === 'success') {
-        // Guardar URL de descarga
-        downloadUrl = result.data.download_url;
-        console.log('Download URL:', downloadUrl);
-        
         // Mostrar success
         successContainer.style.display = 'block';
-        
-        // Habilitar botón descargar
-        btnDescargar.disabled = false;
         
         // Mostrar errores si hay
         const errores = result.data.errores || [];
@@ -1275,12 +1240,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  btnDescargar.addEventListener('click', function() {
-    if (downloadUrl) {
-      window.location.href = downloadUrl;
-    }
-  });
-
   // Función para enviar error a control-errores
   async function enviarAControl(tipoError, factura, tipoKey, observacion, responsable) {
     // Mapear tipoKey al tipo de Control Errores
@@ -1326,13 +1285,10 @@ document.addEventListener('DOMContentLoaded', function() {
   document.addEventListener('DOMContentLoaded', function() {
     // Declarar elementos primero
     const btnProcesar = document.getElementById('btn-procesar');
-    const btnDescargar = document.getElementById('btn-descargar');
     const form = document.getElementById('main-form');
     const erroresContainer = document.getElementById('errores-container');
     const erroresList = document.getElementById('errores-list');
     const successContainer = document.getElementById('success-container');
-    
-    let downloadUrl = null;
 
     // Escapar HTML
     function escapeHtml(text) {

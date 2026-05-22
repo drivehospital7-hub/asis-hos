@@ -1,34 +1,45 @@
-"""Módulo de autenticación server-side con Flask session.
+"""Autenticación via Flask session (sin DB, sin Flask-Login).
 
-Usa Flask session nativa (NO Flask-Login) para mantenerlo simple
-y no depender de la base de datos.
+Almacena datos del usuario en la sesión:
+  - ce_authenticated : bool
+  - username          : str
+  - rol               : str  ("admin" | "usuario")
+  - permisos          : list[str]
 
-Las credenciales están hardcodeadas (admin / admin$) para mantener
-compatibilidad con el easter egg del frontend.
+Las funciones check_credentials / do_login / do_logout / is_authenticated
+reemplazan completamente el viejo módulo que usaba credenciales hardcodeadas.
 """
 
-from flask import session, jsonify, render_template, request
-from functools import wraps
+from typing import Optional
 
-# Único lugar donde están las credenciales
-ADMIN_USER = "admin"
-ADMIN_PASS = "admin$"
+from flask import session
 
-
-def check_credentials(user: str, passwd: str) -> bool:
-    """Valida credenciales contra los valores hardcodeados."""
-    return user == ADMIN_USER and passwd == ADMIN_PASS
+from app.utils import users_store
 
 
-def do_login() -> None:
-    """Marca la sesión como autenticada (cookie persistente 30 días)."""
+def check_credentials(username: str, password: str) -> Optional[dict]:
+    """Valida credenciales contra el store local (JSON).
+
+    Returns:
+        dict con username, rol, permisos si es válido.
+        None si las credenciales son incorrectas.
+    """
+    return users_store.check_credentials(username, password)
+
+
+def do_login(user_data: dict) -> None:
+    """Marca la sesión como autenticada y guarda datos del usuario."""
     session["ce_authenticated"] = True
+    session["username"] = user_data["username"]
+    session["rol"] = user_data["rol"]
+    session["permisos"] = user_data["permisos"]
     session.permanent = True
 
 
 def do_logout() -> None:
-    """Elimina la marca de autenticación de la sesión."""
-    session.pop("ce_authenticated", None)
+    """Limpia los datos de autenticación de la sesión."""
+    for key in ("ce_authenticated", "username", "rol", "permisos"):
+        session.pop(key, None)
 
 
 def is_authenticated() -> bool:
@@ -36,23 +47,12 @@ def is_authenticated() -> bool:
     return session.get("ce_authenticated", False)
 
 
-def login_required(f):
-    """Decorador para rutas que requieren autenticación.
+def has_permission(*requeridos: str) -> bool:
+    """Verifica si el usuario tiene AL MENOS UNO de los permisos requeridos.
 
-    Si no hay sesión:
-    - Requests JSON → devuelve 401 JSON
-    - Requests HTML → renderiza unauthorized.html
+    Admin (permiso '*') automáticamente pasa cualquier verificación.
     """
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if not is_authenticated():
-            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
-                return jsonify({
-                    "status": "error",
-                    "data": {},
-                    "errors": ["No autenticado"],
-                }), 401
-            return render_template("unauthorized.html"), 401
-        return f(*args, **kwargs)
-
-    return decorated
+    user_permisos = session.get("permisos", [])
+    if "*" in user_permisos:
+        return True
+    return any(p in user_permisos for p in requeridos)

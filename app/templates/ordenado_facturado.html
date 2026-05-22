@@ -5,6 +5,11 @@
 {% block content %}
   <h1>Ordenado y Facturado</h1>
 
+  <p style="color: var(--color-text-muted); font-size: var(--font-size-sm); margin-bottom: var(--space-md);">
+    Revisa que cada (Factura, CUPS) de Ayudas Diagnósticas esté facturado en el Reporte.
+    Los que falten se listan como no facturados.
+  </p>
+
   {# ── Upload error ── #}
   {% if upload_error is defined %}
   <div class="alert alert--error">
@@ -22,50 +27,55 @@
     enctype="multipart/form-data"
   >
     <div class="form-group">
-      <label class="form-group__label" for="archivo_1">Archivo 1</label>
+      <label class="form-group__label" for="archivo_reporte">
+        Reporte <span class="form-group__badge">Excel Estándar</span>
+      </label>
       <input
         class="form-input"
-        id="archivo_1"
-        name="archivo_1"
+        id="archivo_reporte"
+        name="archivo_reporte"
         type="file"
         accept=".xlsx,.xls,.xlsm,.xlsb"
         required
       >
-      <p class="form-group__hint">Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
     </div>
 
     <div class="form-group">
-      <label class="form-group__label" for="archivo_2">Archivo 2</label>
+      <label class="form-group__label" for="archivo_ayudas">
+        Reporte Ayudas Diagnósticas
+      </label>
       <input
         class="form-input"
-        id="archivo_2"
-        name="archivo_2"
+        id="archivo_ayudas"
+        name="archivo_ayudas"
         type="file"
         accept=".xlsx,.xls,.xlsm,.xlsb"
         required
       >
-      <p class="form-group__hint">Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
     </div>
 
-    <div class="form-group">
-      <label class="form-group__label" for="archivo_3">Archivo 3</label>
-      <input
-        class="form-input"
-        id="archivo_3"
-        name="archivo_3"
-        type="file"
-        accept=".xlsx,.xls,.xlsm,.xlsb"
-        required
-      >
-      <p class="form-group__hint">Formatos: .xlsx, .xls, .xlsm, .xlsb</p>
-    </div>
-
-    <div class="alert alert--info mb-lg">
-      <p class="alert__title">Importante</p>
-      <p>Sube los 3 archivos Excel en el orden correcto.</p>
-    </div>
-
-    
+    {# ── Opcional (desplegable) ── #}
+    <details style="margin-top: var(--space-md);">
+      <summary style="cursor: pointer; display: inline-block; padding: 0.25rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md, 6px); color: var(--color-text-muted); font-size: var(--font-size-sm); font-weight: 500; background: var(--color-bg); user-select: none;">
+        + Opcional
+      </summary>
+      <div style="margin-top: var(--space-sm); padding: var(--space-sm); border: 1px dashed var(--color-border); border-radius: var(--radius-md, 6px);">
+        <label style="display: block; margin-bottom: var(--space-xs); font-weight: 500; font-size: var(--font-size-sm);" for="archivo_notas">
+          Notas Enfermería
+        </label>
+        <input
+          class="form-input"
+          id="archivo_notas"
+          name="archivo_notas"
+          type="file"
+          accept=".xlsx,.xls,.xlsm,.xlsb"
+          style="padding: 0.35rem 0.5rem; font-size: var(--font-size-sm);"
+        >
+        <p style="font-size: var(--font-size-xs); color: var(--color-text-muted); margin-top: 2px;">
+          Busca <strong>OCF066</strong> para filtrar traslados.
+        </p>
+      </div>
+    </details>
 
     <div class="btn-group">
       <button
@@ -77,32 +87,54 @@
         <span class="btn__spinner"></span>
         <span class="btn__label">Procesar</span>
       </button>
-      
-      <button
-        class="btn btn--secondary"
-        type="button"
-        id="btn-descargar"
-        disabled
-        data-loading-text="Descargando..."
-      >
-        <span class="btn__spinner"></span>
-        <span class="btn__label">Descargar Excel</span>
-      </button>
     </div>
   </form>
 
   {# ── Errores ── #}
   <div id="errores-container" class="card" style="display: none;">
-    <h3 class="mb-md">Errores Detectados</h3>
+    <h3 class="mb-md">Error</h3>
     <div id="errores-list"></div>
   </div>
 
-  {# ── Success ── #}
-  <div id="success-container" class="alert alert--success" style="display: none;">
-    <p class="alert__title">Archivos procesados correctamente</p>
-    <p>Puedes descargar el Excel o revisar los errores arriba.</p>
-  </div>
+  {# ── Resultados ── #}
+  <div id="resultados-container" class="card" style="display: none;">
+    <h3 class="mb-md">Resultado del Cruce</h3>
 
+    {# ── Totalizado por código ── #}
+    <div id="totalizado-container" class="mb-lg">
+      <h4>Totalizado por Código</h4>
+      <div class="table-responsive">
+        <table class="table" id="tabla-totalizado">
+          <thead>
+            <tr>
+              <th>Código</th>
+              <th>Procedimiento</th>
+              <th>Total Reporte</th>
+              <th>Total Ordenadas</th>
+              <th>Total No Facturadas</th>
+            </tr>
+          </thead>
+          <tbody id="totalizado-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    {# ── Advertencia de fechas ── #}
+    <div id="fecha-warning-container" class="mb-md" style="display: none;">
+      <p id="fecha-warning-text" style="color: var(--color-text-muted); font-size: var(--font-size-sm); font-style: italic; margin: 0;"></p>
+    </div>
+
+    {# ── Detalle de no facturados ── #}
+    <div id="tabla-container" style="display: none;">
+      <h4 style="margin-bottom: var(--space-md);">Detalle de No Facturados</h4>
+      <button class="btn btn--secondary" id="btn-copiar" type="button">
+        📋 Copiar individuales
+      </button>
+      <div id="copy-feedback" style="display:none; color: var(--color-success, #28a745); margin-bottom: var(--space-sm); font-weight: 600;">
+        ✅ Copiado al portapapeles
+      </div>
+    </div>
+  </div>
 {% endblock %}
 
 {% block scripts %}
@@ -110,21 +142,24 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   const btnProcesar = document.getElementById('btn-procesar');
-  const btnDescargar = document.getElementById('btn-descargar');
+  const btnCopiar = document.getElementById('btn-copiar');
   const form = document.getElementById('main-form');
   const erroresContainer = document.getElementById('errores-container');
   const erroresList = document.getElementById('errores-list');
-  const successContainer = document.getElementById('success-container');
-  
-  let downloadUrl = null;
+  const resultadosContainer = document.getElementById('resultados-container');
+  const resumenContainer = document.getElementById('resumen-container');
+  const tablaContainer = document.getElementById('tabla-container');
+  const tablaBody = document.getElementById('tabla-body');
+  const copyFeedback = document.getElementById('copy-feedback');
+
+  let noFacturadosData = [];
 
   btnProcesar.addEventListener('click', async function() {
-    const archivo1 = document.getElementById('archivo_1');
-    const archivo2 = document.getElementById('archivo_2');
-    const archivo3 = document.getElementById('archivo_3');
-    
-    if (!archivo1.files.length || !archivo2.files.length || !archivo3.files.length) {
-      alert('Debes seleccionar los 3 archivos');
+    const file1 = document.getElementById('archivo_reporte');
+    const file2 = document.getElementById('archivo_ayudas');
+
+    if (!file1.files.length || !file2.files.length) {
+      alert('Debes seleccionar los 2 archivos');
       return;
     }
 
@@ -134,30 +169,66 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Ocultar mensajes previos
     erroresContainer.style.display = 'none';
-    successContainer.style.display = 'none';
-    btnDescargar.disabled = true;
-    downloadUrl = null;
+    resultadosContainer.style.display = 'none';
 
     try {
       const formData = new FormData(form);
-      
+
       const response = await fetch('{{ url_for("ordenado_facturado.procesar_ordenado_facturado") }}', {
         method: 'POST',
         body: formData,
       });
-      
+
       const result = await response.json();
-      
+
       if (result.status === 'success') {
-        // Guardar URL de descarga
-        downloadUrl = result.data.download_url;
-        
-        // Mostrar success
-        successContainer.style.display = 'block';
-        
-        // Habilitar botón descargar
-        btnDescargar.disabled = false;
-        
+        const data = result.data;
+
+        // ── Traslados ──
+        // (se muestran en la fila TRASLADOS del totalizado)
+
+        // ── Totalizado ──
+        const totalizadoBody = document.getElementById('totalizado-body');
+        totalizadoBody.innerHTML = '';
+        if (data.totalizado && data.totalizado.length > 0) {
+          data.totalizado.forEach(function(item) {
+            const tr = document.createElement('tr');
+            if (item.es_notas) {
+              tr.classList.add('table__row--notas');
+            }
+            tr.innerHTML = `
+              <td>${item.codigo || ''}</td>
+              <td>${item.procedimiento || ''}</td>
+              <td>${item.total_reporte}</td>
+              <td>${item.total_ordenadas}</td>
+              <td>${item.total_no_facturado}</td>
+            `;
+            totalizadoBody.appendChild(tr);
+          });
+        }
+
+        // ── Detalle no facturados ──
+        noFacturadosData = data.no_facturados || [];
+
+        if (noFacturadosData.length > 0) {
+          tablaContainer.style.display = 'block';
+          copyFeedback.style.display = 'none';
+        } else {
+          tablaContainer.style.display = 'none';
+        }
+
+        // ── Advertencia de fechas ──
+        const fechaWarningText = document.getElementById('fecha-warning-text');
+        const fechaWarningContainer = document.getElementById('fecha-warning-container');
+        if (data.fecha_warning) {
+          fechaWarningText.textContent = data.fecha_warning;
+          fechaWarningContainer.style.display = 'block';
+        } else {
+          fechaWarningContainer.style.display = 'none';
+        }
+
+        resultadosContainer.style.display = 'block';
+
       } else {
         // Mostrar errores del servidor
         let html = '<div class="alert alert--error">';
@@ -171,7 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
         erroresList.innerHTML = html;
         erroresContainer.style.display = 'block';
       }
-      
+
     } catch (error) {
       console.error('Error:', error);
       let html = '<div class="alert alert--error">';
@@ -186,11 +257,50 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   });
 
-  btnDescargar.addEventListener('click', function() {
-    if (downloadUrl) {
-      window.location.href = downloadUrl;
-    }
+  // ── Copiar individuales al portapapeles ──
+  btnCopiar.addEventListener('click', function() {
+    if (noFacturadosData.length === 0) return;
+
+    // Encabezados
+    const headers = [
+      'N° Factura', 'Paciente', 'Nº Identificación',
+      'Tipo Factura (Servicio)', 'Entidad Administradora',
+      'Profesional Solicitó', 'CUPS', 'Procedimiento Solicitado',
+      'Fecha Solicitud'
+    ];
+
+    // Filas de datos
+    const rows = noFacturadosData.map(function(item) {
+      return [
+        item.factura || '',
+        item.paciente || '',
+        item.identificacion || '',
+        item.tipo_factura_servicio || '',
+        item.entidad_administradora || '',
+        item.profesional_solicito || '',
+        item.cups || '',
+        item.procedimiento_solicitado || '',
+        item.fecha_solicitud || '',
+      ];
+    });
+
+    // Armar TSV (tab-separated) para Excel
+    const lines = [headers.join('\t')];
+    rows.forEach(function(row) {
+      lines.push(row.join('\t'));
+    });
+    const text = lines.join('\n');
+
+    navigator.clipboard.writeText(text).then(function() {
+      copyFeedback.style.display = 'block';
+      setTimeout(function() {
+        copyFeedback.style.display = 'none';
+      }, 3000);
+    }).catch(function() {
+      alert('No se pudo copiar al portapapeles');
+    });
   });
+
 });
 </script>
 {% endblock %}

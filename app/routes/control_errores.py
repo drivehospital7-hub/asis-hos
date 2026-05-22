@@ -18,6 +18,7 @@ from app.services.control_errores_service import (
 )
 
 from app.constants import IMAGENES_DIR
+from app.utils.auth import permiso_requerido
 
 logger = logging.getLogger(__name__)
 
@@ -25,16 +26,16 @@ control_errores_bp = Blueprint("control_errores", __name__)
 
 
 @control_errores_bp.get("/")
+@permiso_requerido("control_urgencias")
 def control_errores_page():
     """Página principal del control de errores."""
     from flask import render_template
-    from flask_login import login_required
-    from flask_login.utils import login_required
 
     return render_template("control_errores.html")
 
 
 @control_errores_bp.get("/api/control-errores/opciones")
+@permiso_requerido("control_urgencias")
 def listar_opciones():
     """Obtener opciones para los selects."""
     opciones = get_opciones()
@@ -42,6 +43,7 @@ def listar_opciones():
 
 
 @control_errores_bp.get("/api/control-errores")
+@permiso_requerido("control_urgencias")
 def listar_errores():
     """Listar errores con filtros."""
     tipo_error = request.args.get("tipo_error")
@@ -52,6 +54,7 @@ def listar_errores():
 
 
 @control_errores_bp.get("/api/control-errores/changes")
+@permiso_requerido("control_urgencias")
 def check_changes():
     """Verificar si hubo cambios desde el último poll."""
     since = request.args.get("since")
@@ -67,6 +70,7 @@ def check_changes():
 
 
 @control_errores_bp.post("/api/control-errores")
+@permiso_requerido("control_urgencias:write")
 def crear_error():
     """Crear un nuevo error."""
     data = request.get_json() or {}
@@ -74,6 +78,7 @@ def crear_error():
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")
+@permiso_requerido("control_urgencias:write")
 def actualizar_error(error_id: str):
     """Actualizar un error existente."""
     data = request.get_json() or {}
@@ -81,6 +86,7 @@ def actualizar_error(error_id: str):
 
 
 @control_errores_bp.delete("/api/control-errores/<error_id>")
+@permiso_requerido("control_urgencias:write")
 def eliminar_error(error_id: str):
     """Eliminar un error."""
     return jsonify(delete_error(error_id))
@@ -91,12 +97,14 @@ def eliminar_error(error_id: str):
 # =============================================================================
 
 @control_errores_bp.get("/api/control-errores/<error_id>/imagenes")
+@permiso_requerido("control_urgencias")
 def listar_imagenes(error_id: str):
     """Listar imágenes."""
     return jsonify(get_imagenes(error_id))
 
 
 @control_errores_bp.post("/api/control-errores/<error_id>/imagenes")
+@permiso_requerido("control_urgencias:write")
 def subir_imagen(error_id: str):
     """Subir imagen."""
     if "imagen" not in request.files:
@@ -108,6 +116,7 @@ def subir_imagen(error_id: str):
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/", methods=["DELETE"])
+@permiso_requerido("control_urgencias:write")
 def eliminar_imagen(error_id: str):
     """Eliminar imagen."""
     import urllib.parse
@@ -119,6 +128,7 @@ def eliminar_imagen(error_id: str):
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/<path:filename>")
+@permiso_requerido("control_urgencias")
 def servir_imagen(error_id: str, filename: str):
     """Servir imagen."""
     from pathlib import Path

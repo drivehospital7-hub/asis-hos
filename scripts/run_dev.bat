@@ -1,14 +1,16 @@
 @echo off
-title Asis-HOS Development Server
+title Control System - Dev Server
 color 0A
 
 echo ========================================
-echo   Asis-HOS - Modo Desarrollo
+echo   Control System - Modo Desarrollo
 echo ========================================
 echo.
 
-cd /d %~dp0
+cd /d %~dp0..
+echo URL: http://127.0.0.1:5000
+echo.
 
-wsl -e bash -c "cd /home/papsivi/asis-hos && source venv/bin/activate && python run_dev.py"
+python run_dev.py
 
 pause

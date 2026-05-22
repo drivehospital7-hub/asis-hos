@@ -43,7 +43,7 @@
     </div>
     
     <h1>Administración de Usuarios</h1>
-    <p><a href="{{ url_for('home.home') }}">← Volver al inicio</a></p>
+    <p><a href="{{ url_for('home.home_page') }}">← Volver al inicio</a></p>
     
     <!-- Crear usuario -->
     <div class="card">
@@ -62,21 +62,43 @@
         <div class="form-row">
           <div class="form-group">
             <label>Rol</label>
-            <select name="rol">
+            <select name="rol" id="rol-select" onchange="togglePermisos()">
               <option value="usuario">Usuario</option>
               <option value="admin">Admin</option>
             </select>
           </div>
         </div>
-        <div class="form-group">
-          <label>Áreas (seleccionar una o más)</label>
+        <div class="form-group" id="permisos-group">
+          <label>Permisos (seleccionar uno o más)</label>
           <div class="checkbox-group">
-            {% for area in areas_validas %}
-              <label class="checkbox-item">
-                <input type="checkbox" name="areas" value="{{ area }}">
-                {{ area }}
-              </label>
-            {% endfor %}
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="odontologia">
+              Odontología
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="urgencias">
+              Urgencias
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="control_urgencias">
+              Control de Urgencias (lectura)
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="control_urgencias:write">
+              Control de Urgencias (modificar)
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="facturas_abiertas">
+              Facturas Abiertas
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="equipos_basicos">
+              Equipos Básicos
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="permisos" value="derechos">
+              Derechos
+            </label>
           </div>
         </div>
         <button type="submit" class="btn">Crear usuario</button>
@@ -91,7 +113,7 @@
           <tr>
             <th>Usuario</th>
             <th>Rol</th>
-            <th>Áreas</th>
+            <th>Permisos</th>
           </tr>
         </thead>
         <tbody>
@@ -101,10 +123,10 @@
               <td>{{ usuario.rol }}</td>
               <td>
                 {% if usuario.rol == 'admin' %}
-                  <span class="badge">TODAS</span>
+                  <span class="badge">TODOS</span>
                 {% else %}
-                  {% for ua in usuario.areas %}
-                    <span class="badge">{{ ua.area }}</span>
+                  {% for permiso in usuario.permisos %}
+                    <span class="badge">{{ permiso }}</span>
                   {% endfor %}
                 {% endif %}
               </td>
@@ -114,5 +136,14 @@
       </table>
     </div>
   </div>
+
+  <script>
+    function togglePermisos() {
+      const select = document.getElementById('rol-select');
+      const group = document.getElementById('permisos-group');
+      group.style.display = select.value === 'admin' ? 'none' : '';
+    }
+    togglePermisos();
+  </script>
 </body>
 </html>

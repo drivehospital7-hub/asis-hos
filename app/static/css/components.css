@@ -231,6 +231,14 @@
   background-color: var(--color-hover-bg);
 }
 
+/* Tabla: fila con datos de Notas Enfermería */
+.table__row--notas {
+  background-color: #d1e7ff !important;
+}
+.table__row--notas:hover {
+  background-color: #b8daff !important;
+}
+
 /* --- Section header ----------------------------------------- */
 .section-header {
   display: flex;

@@ -1,60 +1,28 @@
-"""Routes de autenticación (login/logout).
+"""Routes de autenticación unificada (sin DB, sin Flask-Login).
 
-Sistema DUAL:
-- API endpoints (JSON) → usado por el easter egg del frontend (admin / admin$)
-- Flask-Login routes → usado por el formulario /auth/login tradicional (DB)
-
-Ambos setean `session['ce_authenticated']` para que el `before_request`
-en __init__.py funcione con cualquiera de los dos.
+Login, logout y gestión de usuarios contra el store local (JSON).
 """
 
 import logging
 
-from flask import Blueprint, jsonify, render_template, redirect, url_for, flash, request
-from flask_login import login_user, logout_user, login_required, current_user
-from werkzeug.security import check_password_hash, generate_password_hash
-from sqlalchemy.orm import Session
+from flask import Blueprint, jsonify, render_template, redirect, url_for, flash, request, session
 
-from app.utils.auth_session import check_credentials, do_login, do_logout, is_authenticated
+from app.utils import auth_session, users_store
+from app.utils.auth import admin_requerido
 
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
 
-# Mapeo de áreas a endpoints
-AREA_ENDPOINT_MAP = {
-    "odontologia": "excel_headers.excel_headers_page",
-    "urgencias": "urgencias.urgencias_page",
-    "derechos": "derechos.derechos_page",
-    "equipos_basicos": "ordenado_facturado.ordenado_facturado_page",
-}
-
-
-def _check_db_available():
-    """Check if DB is available."""
-    try:
-        from app.database import SessionLocal
-        db = SessionLocal()
-        db.close()
-        return True
-    except Exception:
-        return False
-
-
-def _get_db_session():
-    """Get DB session or None if not available."""
-    from app.database import SessionLocal
-    return SessionLocal()
-
 
 # =============================================================================
-# API endpoints (JSON) — usados por el easter egg del frontend
+# API endpoints (JSON) — usados por el modal del frontend
 # =============================================================================
 
 
 @auth_bp.route("/api/login", methods=["POST"])
 def api_login():
-    """Login vía JSON (usado por el modal del frontend)."""
+    """Login vía JSON."""
     data = request.get_json(silent=True)
     if not data:
         return jsonify({"status": "error", "data": {}, "errors": ["Cuerpo JSON inválido"]}), 400
@@ -65,12 +33,17 @@ def api_login():
     if not user or not passwd:
         return jsonify({"status": "error", "data": {}, "errors": ["Usuario y contraseña requeridos"]}), 400
 
-    if check_credentials(user, passwd):
-        do_login()
+    user_data = auth_session.check_credentials(user, passwd)
+    if user_data:
+        auth_session.do_login(user_data)
         logger.info("Login exitoso via API: %s", user)
         return jsonify({
             "status": "success",
-            "data": {"authenticated": True},
+            "data": {
+                "authenticated": True,
+                "username": user,
+                "rol": user_data["rol"],
+            },
             "errors": [],
         })
 
@@ -85,35 +58,35 @@ def api_login():
 @auth_bp.route("/api/logout", methods=["POST"])
 def api_logout():
     """Logout vía JSON."""
-    do_logout()
-    logger.info("Logout exitoso via API")
-    return jsonify({
-        "status": "success",
-        "data": {},
-        "errors": [],
-    })
+    auth_session.do_logout()
+    return jsonify({"status": "success", "data": {}, "errors": []})
 
 
 @auth_bp.route("/api/status")
 def api_status():
     """Devuelve el estado de autenticación actual."""
+    authed = auth_session.is_authenticated()
     return jsonify({
         "status": "success",
-        "data": {"authenticated": is_authenticated()},
+        "data": {
+            "authenticated": authed,
+            "username": session.get("username", "") if authed else "",
+        },
         "errors": [],
     })
 
 
+# =============================================================================
+# Formulario de login (HTML)
+# =============================================================================
+
+
 @auth_bp.route("/login", methods=["GET", "POST"])
 def login():
-    """Página de login (Flask-Login tradicional)."""
-    # Si ya está logueado con cualquiera de los dos sistemas, redirigir
-    if is_authenticated() or current_user.is_authenticated:
+    """Página de login tradicional."""
+    # Si ya está logueado, redirigir al dashboard
+    if auth_session.is_authenticated():
         return redirect(url_for("home.home_page"))
-
-    if not _check_db_available():
-        flash("Base de datos no disponible", "error")
-        return render_template("login.html")
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -123,123 +96,65 @@ def login():
             flash("Usuario y contraseña son requeridos", "error")
             return render_template("login.html")
 
-        db: Session = _get_db_session()
-        try:
-            from app.models import User
-            user = db.query(User).filter(User.username == username).first()
+        user_data = auth_session.check_credentials(username, password)
+        if user_data:
+            auth_session.do_login(user_data)
+            flash(f"Bienvenido {username}", "success")
+            logger.info("Login exitoso: %s", username)
 
-            if user and check_password_hash(user.password_hash, password):
-                login_user(user)
-                do_login()  # Sincronizar con nuestra session
-                flash(f"Bienvenido {user.username}", "success")
-                logger.info("Login exitoso via formulario: %s", username)
+            next_page = request.args.get("next")
+            if next_page:
+                return redirect(next_page)
 
-                # Redirigir al área por defecto o la primera permitida
-                next_page = request.args.get("next")
-                if next_page:
-                    return redirect(next_page)
+            return redirect(url_for("home.home_page"))
 
-                if user.rol == "admin":
-                    return redirect(url_for("home.home_page"))
-                elif user.areas:
-                    area = user.areas[0].area
-                    endpoint = AREA_ENDPOINT_MAP.get(area, "home.home_page")
-                    return redirect(url_for(endpoint))
-                else:
-                    return redirect(url_for("home.home_page"))
-            else:
-                flash("Usuario o contraseña incorrectos", "error")
-                logger.warning("Intento de login fallido via formulario: %s", username)
-        finally:
-            db.close()
+        flash("Usuario o contraseña incorrectos", "error")
+        logger.warning("Intento de login fallido: %s", username)
 
     return render_template("login.html")
 
 
 @auth_bp.route("/logout")
-@login_required
 def logout():
-    """Cerrar sesión (Flask-Login)."""
-    logout_user()
-    do_logout()  # Sincronizar con nuestra session
+    """Cerrar sesión."""
+    auth_session.do_logout()
     flash("Sesión cerrada", "success")
-    logger.info("Logout exitoso via formulario")
-    return redirect(url_for("home.home_page"))
+    logger.info("Logout exitoso")
+    return redirect(url_for("auth.login"))
+
+
+# =============================================================================
+# Gestión de usuarios (admin only)
+# =============================================================================
 
 
 @auth_bp.route("/usuarios")
-@login_required
+@admin_requerido
 def listar_usuarios():
-    """Listar usuarios (solo admin)."""
-    if current_user.rol != "admin":
-        flash("Acceso denegado", "error")
-        return redirect(url_for("control_errores.control_errores_page"))
-
-    if not _check_db_available():
-        flash("Base de datos no disponible", "error")
-        return redirect(url_for("home.home_page"))
-
-    db: Session = _get_db_session()
-    try:
-        from app.models import User, AREAS_VALIDAS
-        usuarios = db.query(User).all()
-        return render_template("usuarios.html", usuarios=usuarios, areas_validas=AREAS_VALIDAS)
-    finally:
-        db.close()
+    """Listar usuarios desde el store local."""
+    usuarios = users_store.list_users()
+    return render_template("usuarios.html", usuarios=usuarios)
 
 
 @auth_bp.route("/usuarios/crear", methods=["POST"])
-@login_required
+@admin_requerido
 def crear_usuario():
-    """Crear usuario (solo admin)."""
-    if current_user.rol != "admin":
-        flash("Acceso denegado", "error")
-        return redirect(url_for("control_errores.control_errores_page"))
-
-    if not _check_db_available():
-        flash("Base de datos no disponible", "error")
-        return redirect(url_for("home.home_page"))
-
+    """Crear usuario en el store local."""
     username = request.form.get("username", "").strip()
     password = request.form.get("password", "")
     rol = request.form.get("rol", "usuario")
-    areas = request.form.getlist("areas")
+    permisos_raw = request.form.getlist("permisos")
 
     if not username or not password:
         flash("Usuario y contraseña son requeridos", "error")
         return redirect(url_for("auth.listar_usuarios"))
 
-    if rol != "admin" and not areas:
-        flash("Debe seleccionar al menos un área", "error")
+    if rol != "admin" and not permisos_raw:
+        flash("Debe seleccionar al menos un permiso", "error")
         return redirect(url_for("auth.listar_usuarios"))
 
-    db: Session = _get_db_session()
-    try:
-        from app.models import User, AREAS_VALIDAS, UserArea
-        # Verificar si existe
-        existentes = db.query(User).filter(User.username == username).first()
-        if existentes:
-            flash(f"El usuario {username} ya existe", "error")
-            return redirect(url_for("auth.listar_usuarios"))
+    permisos = ["*"] if rol == "admin" else permisos_raw
 
-        # Crear usuario
-        password_hash = generate_password_hash(password)
-        nuevo_usuario = User(username=username, password_hash=password_hash, rol=rol)
-        db.add(nuevo_usuario)
-        db.flush()  # Obtener ID
-
-        # Agregar áreas
-        if rol != "admin":
-            for area in areas:
-                if area in AREAS_VALIDAS:
-                    db.add(UserArea(user_id=nuevo_usuario.id, area=area))
-
-        db.commit()
-        flash(f"Usuario {username} creado", "success")
-    except Exception as e:
-        db.rollback()
-        flash(f"Error: {str(e)}", "error")
-    finally:
-        db.close()
-
+    ok, msg = users_store.create_user(username, password, rol, permisos)
+    flash(msg, "success" if ok else "error")
     return redirect(url_for("auth.listar_usuarios"))

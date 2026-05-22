@@ -106,17 +106,6 @@
         <span class="btn__spinner"></span>
         <span class="btn__label">Procesar</span>
       </button>
-      
-      <button
-        class="btn btn--secondary"
-        type="button"
-        id="btn-descargar"
-        disabled
-        data-loading-text="Descargando..."
-      >
-        <span class="btn__spinner"></span>
-        <span class="btn__label">Descargar Excel</span>
-      </button>
     </div>
     
     <button
@@ -179,7 +168,7 @@
   {# ── Success ── #}
   <div id="success-container" class="alert alert--success" style="display: none;">
     <p class="alert__title">Archivo procesado correctamente</p>
-    <p>Puedes descargar el Excel o revisar los errores arriba.</p>
+    <p>Revisá los errores arriba.</p>
   </div>
 
 {% endblock %}
@@ -360,7 +349,6 @@ function renderCalendar(diasSeleccionados) {
 
 document.addEventListener('DOMContentLoaded', function() {
   const btnProcesar = document.getElementById('btn-procesar');
-  const btnDescargar = document.getElementById('btn-descargar');
   const form = document.getElementById('main-form');
   const erroresContainer = document.getElementById('errores-container');
   const erroresList = document.getElementById('errores-list');
@@ -369,7 +357,6 @@ document.addEventListener('DOMContentLoaded', function() {
   const btnSelectAll = document.getElementById('select-all-days');
   const btnClearAll = document.getElementById('clear-all-days');
   
-  let downloadUrl = null;
   let diasSeleccionados = [];
   
   // Cargar profesional guardado (último seleccionado)
@@ -456,8 +443,6 @@ diasSeleccionados = [];
     // Ocultar mensajes previos
     erroresContainer.style.display = 'none';
     successContainer.style.display = 'none';
-    btnDescargar.disabled = true;
-    downloadUrl = null;
 
     try {
       console.log('Enviando formulario...');
@@ -473,14 +458,8 @@ diasSeleccionados = [];
       const result = await response.json();
       
       if (result.status === 'success') {
-        // Guardar URL de descarga
-        downloadUrl = result.data.download_url;
-        
         // Mostrar success
         successContainer.style.display = 'block';
-        
-        // Habilitar botón descargar
-        btnDescargar.disabled = false;
         
         // Mostrar errores si hay
         const errores = result.data.errores || [];
@@ -665,11 +644,6 @@ diasSeleccionados = [];
     }
   });
 
-  btnDescargar.addEventListener('click', function() {
-    if (downloadUrl) {
-      window.location.href = downloadUrl;
-    }
-  });
 });
 
 // Función para mostrar todos los errores al hacer click en "Ver todos"

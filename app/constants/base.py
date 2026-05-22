@@ -12,7 +12,6 @@ ALLOWED_EXCEL_SUFFIXES = frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
 # SHEETS - Nombres de hojas
 # =============================================================================
 
-CRUCE_FACTURAS_SHEET = "CruceFacturas"
 REVISION_SHEET = "Revision"
 
 # =============================================================================
@@ -38,7 +37,7 @@ TIPO_USUARIO_VALORES = frozenset({
 # ENTIDADES
 # =============================================================================
 
-ENTIDAD_MALLAMAS = "MALLAMAS EPS INDIGENA"
+
 
 # =============================================================================
 # AREAS - Áreas del sistema de facturación

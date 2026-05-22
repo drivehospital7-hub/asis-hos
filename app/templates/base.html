@@ -13,9 +13,9 @@
     <header class="layout__header">
       <div class="layout__header-content">
         <a href="{{ url_for('control_errores.control_errores_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
-        {% if current_user.is_authenticated or session.get('ce_authenticated') %}
-          <span class="layout__user">{{ current_user.username if current_user.is_authenticated else 'admin' }}</span>
-          <a href="#" id="logout-btn" class="layout__logout">Cerrar sesión</a>
+        {% if session.get('ce_authenticated') %}
+          <span class="layout__user">{{ session.get('username', '') }}</span>
+          <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
         {% endif %}
         <!-- Sesion Iniciada indicator (visible via JS when localStorage auth is set) -->
         <span id="sesion-indicator" class="layout__sesion-iniciada" style="display:none">Sesión Iniciada</span>
@@ -130,7 +130,7 @@
         }
         localStorage.removeItem(CE_AUTH_KEY);
         updateUI();
-        window.location.href = '/';
+        window.location.href = '/auth/login';
       }
 
       // ── Sincronizar localStorage con el servidor al cargar la página ──

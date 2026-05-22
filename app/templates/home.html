@@ -3,6 +3,7 @@
 {% block title %}Control de Facturas — EPS MALLAMAS{% endblock %}
 
 {% block content %}
+{% set permisos = session.get('permisos', []) %}
 <div class="home" id="home-content">
   <header class="home__header">
     <h1 class="home__title">Control de Facturas</h1>
@@ -10,6 +11,7 @@
   </header>
 
   <section class="home__areas">
+    {% if '*' in permisos or 'odontologia' in permisos %}
     <a href="{{ url_for('excel_headers.excel_headers_page') }}" class="area-card">
       <div class="area-card__icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -31,7 +33,9 @@
         </svg>
       </div>
     </a>
+    {% endif %}
 
+    {% if '*' in permisos or 'urgencias' in permisos %}
     <a href="{{ url_for('urgencias.urgencias_page') }}" class="area-card">
       <div class="area-card__icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -53,7 +57,31 @@
         </svg>
       </div>
     </a>
+    {% endif %}
 
+    {% if '*' in permisos or 'control_urgencias' in permisos %}
+    <a href="{{ url_for('control_errores.control_errores_page') }}" class="area-card">
+      <div class="area-card__icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
+          <rect x="9" y="3" width="6" height="4" rx="1"/>
+          <path d="M9 14l2 2 4-4"/>
+        </svg>
+      </div>
+      <div class="area-card__content">
+        <h2 class="area-card__title">Control Urgencias</h2>
+        <p class="area-card__description">Registro y seguimiento de novedades del servicio de urgencias</p>
+      </div>
+      <div class="area-card__arrow">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="5" y1="12" x2="19" y2="12"/>
+          <polyline points="12 5 19 12 12 19"/>
+        </svg>
+      </div>
+    </a>
+    {% endif %}
+
+    {% if '*' in permisos or 'equipos_basicos' in permisos %}
     <a href="{{ url_for('ordenado_facturado.ordenado_facturado_page') }}" class="area-card">
       <div class="area-card__icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -75,8 +103,10 @@
         </svg>
       </div>
     </a>
+    {% endif %}
 
-    <a href="{{ url_for('import_facturas.import_facturas_page') }}" class="area-card">
+    {% if '*' in permisos or 'facturas_abiertas' in permisos %}
+    <a href="{{ url_for('abiertas_urgencias.abiertas_urgencias_page') }}" class="area-card">
       <div class="area-card__icon">
         <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
@@ -87,8 +117,8 @@
         </svg>
       </div>
       <div class="area-card__content">
-        <h2 class="area-card__title">Verificar Sexo</h2>
-        <p class="area-card__description">Verificar sexo con API Genderize</p>
+        <h2 class="area-card__title">Facturas Abiertas</h2>
+        <p class="area-card__description">Gestión de horarios de abiertas urgencias</p>
       </div>
       <div class="area-card__arrow">
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -97,23 +127,7 @@
         </svg>
       </div>
     </a>
+    {% endif %}
   </section>
 </div>
-
-<script>
-  // Mostrar contenido solo si localStorage tiene auth
-  // (el servidor ya verificó la sesion antes de renderizar)
-  (function() {
-    function checkAuth() {
-      const authed = window.ceAuth && window.ceAuth.isAuth();
-      const content = document.getElementById('home-content');
-      if (content) {
-        content.style.display = authed ? '' : 'none';
-      }
-    }
-    checkAuth();
-    // Re-verificar cuando se sincronice con el servidor
-    window.addEventListener('ce-auth-change', checkAuth);
-  })();
-</script>
 {% endblock %}

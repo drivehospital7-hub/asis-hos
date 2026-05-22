@@ -3,26 +3,7 @@ from datetime import timedelta
 from pathlib import Path
 
 from flask import Flask, jsonify, render_template, request, session
-from flask_login import LoginManager, current_user, AnonymousUserMixin
 
-
-class GuestUser(AnonymousUserMixin):
-    """Usuario guest cuando no hay base de datos."""
-    @property
-    def is_authenticated(self):
-        return session.get("ce_authenticated", False)
-
-    @property
-    def username(self):
-        return "admin"
-
-
-login_manager = LoginManager()
-
-
-def load_anon_user(user_id=None):
-    """User loader que no depende de DB - retorna guest."""
-    return GuestUser()
 
 # Endpoints públicos que NO requieren sesión
 PUBLIC_ENDPOINTS = frozenset({
@@ -33,20 +14,6 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.login",
     # Static — CSS, JS, imágenes
     "static",
-    # Control de errores (raíz /) — página + APIs de LECTURA son públicas
-    "control_errores.control_errores_page",
-    # Abiertas Urgencias — horarios + API
-    "abiertas_urgencias.abiertas_urgencias_page",
-    "abiertas_urgencias.api_get_schedule",
-    "abiertas_urgencias.api_save_schedule",
-    "abiertas_urgencias.api_delete_schedule",
-    "control_errores.listar_opciones",
-    "control_errores.listar_errores",
-    "control_errores.check_changes",
-    "control_errores.listar_imagenes",
-    "control_errores.servir_imagen",
-    # Escritura — PUT para actualizar campos individuales (estado sobre todo)
-    "control_errores.actualizar_error",
 })
 
 
@@ -59,7 +26,7 @@ def _ensure_secret_key(app: Flask) -> None:
     3. Genera una nueva y la persiste en instance/secret.key
     """
     if app.config.get("SECRET_KEY"):
-        return  # Ya está seteada desde env var o default
+        return
 
     key_path = Path(app.instance_path) / "secret.key"
 
@@ -74,7 +41,7 @@ def _ensure_secret_key(app: Flask) -> None:
         key_path.parent.mkdir(parents=True, exist_ok=True)
         key_path.write_text(new_key)
     except OSError:
-        pass  # Si no puede escribir, la clave en memoria funciona igual
+        pass
 
 
 def create_app(config=None):
@@ -95,6 +62,17 @@ def create_app(config=None):
     app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
 
     # ──────────────────────────────────────────────
+    # Context processor: expone datos de sesión a todas las templates
+    # ──────────────────────────────────────────────
+    @app.context_processor
+    def inject_session_user():
+        return {
+            "session_username": session.get("username"),
+            "session_rol": session.get("rol"),
+            "session_permisos": session.get("permisos", []),
+        }
+
+    # ──────────────────────────────────────────────
     # Middleware global: verifica auth en cada request
     # ──────────────────────────────────────────────
     @app.before_request
@@ -103,12 +81,8 @@ def create_app(config=None):
         if request.endpoint in PUBLIC_ENDPOINTS:
             return
 
-        # Si ya tiene session nuestra → OK
+        # Si tiene sesión activa → OK
         if session.get("ce_authenticated"):
-            return
-
-        # Si tiene Flask-Login activo → también OK
-        if current_user.is_authenticated:
             return
 
         # No autenticado
@@ -120,11 +94,6 @@ def create_app(config=None):
             }), 401
 
         return render_template("unauthorized.html"), 401
-
-    # Flask-Login con usuario guest (sin DB)
-    login_manager.init_app(app)
-    login_manager.anonymous_user = GuestUser
-    login_manager.user_loader(load_anon_user)
 
     from app.routes.home import home_bp
     from app.routes.excel_headers import excel_headers_bp

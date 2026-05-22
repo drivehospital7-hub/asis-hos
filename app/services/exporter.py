@@ -1,59 +1,68 @@
-"""Servicio orquestador de exportación Excel.
+"""Servicio orquestador de exportación Excel (solo detección).
 
-Este módulo es el punto de entrada principal para la exportación de archivos
-Excel con hoja de cruce de facturas. Coordina los demás módulos:
-- validators: Validación de paths
-- column_filter: Filtrado de columnas
-- cruce_sheet: Creación de hoja CruceFacturas
-- formatting: Formato condicional
+Actualmente solo se usa detect_problems_only() — lee un Excel con Polars,
+ejecuta detectores y retorna JSON con problemas. Sin exportación ni hojas.
 """
 
 from __future__ import annotations
 
 import logging
-import shutil
 from pathlib import Path
 from typing import Any
 
-from openpyxl import load_workbook
+import polars as pl
 
 from app.constants import (
-    CRUCE_FACTURAS_SHEET,
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
     AREA_EQUIPOS_BASICOS,
-    COLUMNS_TO_KEEP,
     PROFESIONALES_ODONTOLOGIA,
 )
-from app.services.cruce_sheet import create_cruce_facturas_sheet
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
 from app.services.transversales.column_indices import get_column_indices
-from app.services.transversales.estructura_excel import detectar_estructura_excel
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
-from app.utils.column_filter import filter_columns
-from app.utils.formatting import apply_all_conditional_formatting
 from app.utils.input_data import (
     resolve_safe_excel_absolute,
     resolve_safe_excel_in_input,
-    resolve_safe_excel_in_output,
 )
 from app.utils.validators import validate_excel_path
 
 logger = logging.getLogger(__name__)
 
 
-def _copy_file(source: Path, destination: Path) -> None:
-    """Copia el archivo fuente al destino."""
-    shutil.copy2(source, destination)
-    logger.info("Archivo copiado: %s -> %s", source.name, destination.name)
+class _CellValue:
+    """Celda mínima — solo el valor, sin style, font, border ni metadata."""
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any) -> None:
+        self.value = value
 
 
-def export_excel_with_cruce_facturas(
+class _SimpleSheet:
+    """Hoja liviana de solo valores en lista 2D 1-based.
+
+    Interface compatible con openpyxl Worksheet (cell, max_row, max_column)
+    pero sin objetos Cell, estilos ni metadata.
+    """
+    __slots__ = ("_rows", "max_row", "max_column")
+
+    def __init__(self, rows: list[list[Any]]) -> None:
+        self._rows = rows  # rows[row][col], 1-based, row=0 y col=0 sin usar
+        self.max_row = len(rows) - 1 if rows else 0
+        self.max_column = max((len(r) - 1 for r in rows), default=0)
+
+    def cell(self, row: int, column: int) -> _CellValue:
+        try:
+            return _CellValue(self._rows[row][column])
+        except IndexError:
+            return _CellValue(None)
+
+
+def detect_problems_only(
     *,
     filename: str,
     sheet_name: str | None = None,
-    header_row: int = 0,
     area: str = AREA_ODONTOLOGIA,
     profesional: str = "",
     dias: list[int] | None = None,
@@ -62,234 +71,158 @@ def export_excel_with_cruce_facturas(
     equipos_basicos: bool = False,
 ) -> dict[str, Any]:
     """
-    Exporta un archivo Excel con hoja de cruce de facturas.
-    
-    Este es el orquestador principal que:
-    1. Valida el archivo de entrada
-    2. Copia el archivo a output
-    3. Filtra columnas de la hoja de datos
-    4. Crea hoja CruceFacturas con headers
-    5. Aplica formato condicional
-    6. Guarda el archivo
+    Solo detecta problemas en un Excel, SIN exportar ni crear archivos.
+
+    Lee el Excel con Polars, extrae los encabezados, ejecuta los detectores
+    y retorna los problemas. No crea hojas, no aplica formato,
+    no guarda nada en output/.
     
     Args:
-        filename: Nombre del archivo en input/
-        sheet_name: Nombre de la hoja a procesar (None = hoja activa)
-        header_row: Fila de headers (no usado actualmente, reservado para futuro)
-        area: Área del sistema ("odontologia" o "urgencias")
-        profesional: Código del profesional seleccionado (para validación centro costo)
-        dias: Lista de días seleccionados para el profesional (para validación centro costo)
-        todos_profesionales_dias: Dict {codigo: [dias]} con todos los profesionales y sus días
-        validar_centro_costo: Si True, valida centros de costo según días
+        filename: Ruta al archivo Excel
+        sheet_name: Nombre de la hoja (None = activa)
+        area: Área del sistema
+        profesional: Código del profesional (odontología)
+        dias: Días seleccionados (odontología)
+        todos_profesionales_dias: Todos los profesionales y días
+        validar_centro_costo: Validar centro de costo por días
+        equipos_basicos: Usar detectores de equipos básicos
     
     Returns:
-        Dict con formato estándar:
-        {
-            "status": "success" | "error",
-            "data": {...},
-            "errors": [...]
-        }
+        Dict con formato estándar {status, data: {problemas, responsables_map}, errors}
     """
-    logger.info("Iniciando exportación: %s", filename)
+    logger.info("Detectando problemas (sin exportar): %s", filename)
     
-    # Determinar el área efectiva (si equipos_basicos está activo, usar reglas independientes)
-    area_effective = AREA_EQUIPOS_BASICOS if equipos_basicos else area
-    logger.info("Área efectiva: %s (equipos_basicos: %s)", area_effective, equipos_basicos)
-    
-    # Construir datos para validación de centro costo según el área
+    # Construir datos para validación de centro costo (odontología/equipos básicos)
     profesional_dias = {}
-    permitir_todos_centros = False  # Por defecto: solo ODONTOLOGIA y EXTRAMURAL
+    permitir_todos_centros = False
+    area_effective = AREA_EQUIPOS_BASICOS if equipos_basicos else area
     
-    if area_effective == AREA_ODONTOLOGIA or area_effective == AREA_EQUIPOS_BASICOS:
+    if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS):
         if validar_centro_costo and todos_profesionales_dias:
-            # Activado: usar todos los profesionales y sus días desde localStorage
             for prof_codigo, dias_list in todos_profesionales_dias.items():
-                if dias_list:  # Solo incluir profesionales con días seleccionados
+                if dias_list:
                     profesional_info = PROFESIONALES_ODONTOLOGIA.get(prof_codigo)
                     if profesional_info:
                         profesional_id = profesional_info.get("identificacion")
                         if profesional_id:
                             profesional_dias[profesional_id] = dias_list
-                            logger.info("Validación centro costo ACTIVADA - Profesional %s (%s), días: %s",
-                                       prof_codigo, profesional_id, dias_list)
-            
             if not profesional_dias:
-                # Si no hay días para ningún profesional, permitir todos los centros
                 permitir_todos_centros = True
-                logger.info("No hay días seleccionados para ningún profesional - Solo se permiten ODONTOLOGIA y EXTRAMURAL")
         elif validar_centro_costo and profesional and dias:
-            # Fallback: solo el profesional seleccionado (para compatibilidad)
             profesional_info = PROFESIONALES_ODONTOLOGIA.get(profesional)
             if profesional_info:
                 profesional_id = profesional_info.get("identificacion")
                 if profesional_id:
                     profesional_dias[profesional_id] = dias
-                    logger.info("Validación centro costo ACTIVADA (fallback) - Profesional %s (%s), días: %s",
-                               profesional, profesional_id, dias)
         else:
-            # No activado: permitir solo ODONTOLOGIA y EXTRAMURAL (cualquier profesional)
             permitir_todos_centros = True
-            logger.info("Validación centro costo NO activada - Solo se permiten ODONTOLOGIA y EXTRAMURAL")
     
-    # 1. Resolver y validar path de entrada (soporta repo o archivo subido)
+    # Resolver path
     source_path, source_error = resolve_safe_excel_absolute(filename)
     if source_error:
-        logger.error("Error resolviendo archivo de entrada: %s", source_error)
         return {"status": "error", "data": {}, "errors": [source_error]}
     assert source_path is not None
     
     validation_error = validate_excel_path(source_path)
     if validation_error:
-        logger.error("Error de validación: %s", validation_error)
         return {"status": "error", "data": {}, "errors": [validation_error]}
     
-    # 2. Resolver path de salida
-    # Usar nombre original del archivo (sin el UUID del temp upload)
-    original_filename = Path(filename).name
-    if "_" in original_filename:
-        # Es un archivo temporal: extraer nombre original despues del UUID
-        parts = original_filename.split("_", 1)
-        if len(parts) == 2 and len(parts[0]) == 32:  # UUID es 32 hex chars
-            original_filename = parts[1]
+    # Leer Excel con Polars/Calamine — sin overhead de objetos Cell
+    try:
+        df = pl.read_excel(
+            source_path,
+            engine="calamine",
+            has_header=False,
+            sheet_name=sheet_name if sheet_name else None,
+        )
+    except Exception as exc:
+        logger.exception("Error leyendo el Excel con Polars")
+        return {"status": "error", "data": {}, "errors": [str(exc)]}
+
+    if df.width == 0:
+        return {"status": "error", "data": {}, "errors": ["El Excel no tiene columnas"]}
+
+    max_col = df.width
+
+    # Convertir a lista 2D 1-based (formato _SimpleSheet)
+    rows: list[list[Any]] = [[None]]  # row=0 sin usar, col=0 sin usar
+    for row_data in df.rows():
+        row_vals: list[Any] = [None]  # col=0 sin usar
+        row_vals.extend(row_data)
+        rows.append(row_vals)
+
+    del df
     
-    output_path, output_error = resolve_safe_excel_in_output(original_filename)
-    if output_error:
-        logger.error("Error resolviendo archivo de salida: %s", output_error)
-        return {"status": "error", "data": {}, "errors": [output_error]}
-    assert output_path is not None
+    # Construir hoja liviana con solo los valores crudos
+    sheet = _SimpleSheet(rows)
+    
+    # Leer headers de la primera fila
+    headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
+    
+    required_headers: dict[str, str] = {
+        "numero_factura": "Número Factura",
+        "vlr_subsidiado": "Vlr. Subsidiado",
+        "vlr_procedimiento": "Vlr. Procedimiento",
+        "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
+        "tipo_procedimiento": "Tipo Procedimiento",
+        "codigo": "Código",
+        "codigo_equiv": "Cód. Equivalente CUPS",
+        "procedimiento": "Procedimiento",
+        "identificacion": "Nº Identificación",
+        "convenio_facturado": "Convenio Facturado",
+        "cantidad": "Cantidad",
+        "laboratorio": "Laboratorio",
+        "centro_costo": "Centro Costo",
+        "codigo_entidad_cobrar": "Cód Entidad Cobrar",
+        "entidad_cobrar": "Entidad Cobrar",
+        "entidad_afiliacion": "Entidad Afiliación",
+        "tipo_factura_descripcion": "Tipo Factura Descripción",
+        "ide_contrato": "IDE Contrato",
+        "tipo_identificacion": "Tipo Identificación",
+        "fec_nacimiento": "Fec. Nacimiento",
+        "fec_factura": "Fec. Factura",
+        "fecha_cierre": "Fecha Cierre",
+        "profesional_identificacion": "Identificación Profesional",
+        "profesional_atiende": "Profesional Atiende",
+        "codigo_profesional": "Código Profesional",
+        "responsable_cierra": "Responsable Cierra Facturar",
+        "tarifario": "Tarifario",
+        "tipo_usuario": "Tipo Usuario",
+    }
+    indices, missing_columns = get_column_indices(headers, required_headers)
     
     try:
-        # 3. Copiar archivo a output
-        _copy_file(source_path, output_path)
-        
-        # 4. Cargar workbook
-        workbook = load_workbook(output_path)
-        
-        # 5. Obtener hoja de datos
-        if sheet_name and sheet_name in workbook.sheetnames:
-            data_sheet = workbook[sheet_name]
-        else:
-            data_sheet = workbook.active
-        
-        # 6. Detectar estructura del Excel (cuántas filas eliminar)
-        estructura_result = detectar_estructura_excel(output_path)
-        if estructura_result["status"] == "success":
-            filas_a_eliminar = estructura_result["data"]["filas_a_eliminar"]
-            logger.info(
-                "Estructura detectada: %s - filas a eliminar: %d",
-                estructura_result["data"]["estructura"],
-                filas_a_eliminar,
-            )
-        else:
-            # Si falla la detección, asumir comportamiento por defecto (2 filas)
-            filas_a_eliminar = 2
-            logger.warning("Error detectando estructura, usando默认值: %d", filas_a_eliminar)
-        
-        # 7. Filtrar columnas (según el área)
-        if area_effective == AREA_URGENCIAS:
-            # Urgencias: no ocultar columnas (None = mantener todas)
-            columns_to_keep = None
-        else:
-            columns_to_keep = COLUMNS_TO_KEEP
-        
-        filter_result = filter_columns(
-            data_sheet, 
-            columns_to_keep=columns_to_keep,
-            delete_first_rows=filas_a_eliminar,
-        )
-        logger.info("Columnas filtradas: %s", filter_result)
-        
-        # 7. Detectar problemas para mostrar en HTML (sin crear hoja)
-        headers = [
-            data_sheet.cell(row=1, column=col).value
-            for col in range(1, data_sheet.max_column + 1)
-        ]
-        required_headers: dict[str, str] = {
-            "numero_factura": "Número Factura",
-            "vlr_subsidiado": "Vlr. Subsidiado",
-            "vlr_procedimiento": "Vlr. Procedimiento",
-            "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
-            "tipo_procedimiento": "Tipo Procedimiento",
-            "codigo": "Código",
-            "codigo_equiv": "Cód. Equivalente CUPS",
-            "procedimiento": "Procedimiento",
-            "identificacion": "Nº Identificación",
-            "convenio_facturado": "Convenio Facturado",
-            "cantidad": "Cantidad",
-            "laboratorio": "Laboratorio",
-            "centro_costo": "Centro Costo",
-            "codigo_entidad_cobrar": "Cód Entidad Cobrar",
-            "entidad_cobrar": "Entidad Cobrar",
-            "entidad_afiliacion": "Entidad Afiliación",
-            "tipo_factura_descripcion": "Tipo Factura Descripción",
-            "ide_contrato": "IDE Contrato",
-            "tipo_identificacion": "Tipo Identificación",
-            "fec_nacimiento": "Fec. Nacimiento",
-            "fec_factura": "Fec. Factura",
-            "fecha_cierre": "Fecha Cierre",
-            "profesional_identificacion": "Identificación Profesional",
-            "profesional_atiende": "Profesional Atiende",
-            "codigo_profesional": "Código Profesional",
-            "responsable_cierra": "Responsable Cierra Facturar",
-            "tarifario": "Tarifario",
-            "tipo_usuario": "Tipo Usuario",
-        }
-        indices, missing_columns = get_column_indices(headers, required_headers)
-        if missing_columns:
-            logger.error("Columnas faltantes en el Excel: %s", missing_columns)
-
         if area_effective == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
-                data_sheet, indices,
+                sheet, indices,
             )
         elif area_effective == AREA_EQUIPOS_BASICOS:
             problemas_detectados, responsables_map = detect_all_problems_equipos_basicos(
-                data_sheet,
-                indices,
+                sheet, indices,
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros or equipos_basicos,
             )
         else:
             problemas_detectados, responsables_map = detect_all_problems_odontologia(
-                data_sheet,
-                indices,
+                sheet, indices,
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros,
             )
+        
         problemas_detectados["missing_columns"] = missing_columns
         
-        # 8. Crear hoja CruceFacturas
-        cruce_sheet, cruce_info = create_cruce_facturas_sheet(workbook)
-        
-        # 9. Aplicar formato condicional
-        formatting_results = apply_all_conditional_formatting(cruce_sheet, data_sheet)
-        
-        # 10. Guardar
-        workbook.save(output_path)
-        logger.info("Archivo guardado: %s", output_path.name)
-        
     except Exception as exc:
-        logger.exception("Error exportando Excel")
+        logger.exception("Error detectando problemas")
         return {"status": "error", "data": {}, "errors": [str(exc)]}
-    
-    logger.info("Exportación completada: %s", output_path.name)
+    finally:
+        del sheet
+        del rows
     
     return {
         "status": "success",
         "data": {
-            "input_file": source_path.name,
-            "output_file": output_path.name,
-            "output_path": str(output_path),
-            "sheet": CRUCE_FACTURAS_SHEET,
-            "headers_written": ["B1", "D1", "F1"],
-            "estructura_excel": estructura_result.get("data", {}),
-            "filter_result": filter_result,
             "problemas": problemas_detectados,
             "responsables_map": responsables_map,
-            "applied_rules": [
-                cruce_info,
-                *formatting_results,
-            ],
         },
         "errors": [],
     }

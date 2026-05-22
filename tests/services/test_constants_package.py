@@ -40,10 +40,7 @@ from app.constants import (  # noqa: E402
     COLUMNS_TO_KEEP,
     CONVENIO_ASISTENCIAL,
     CONVENIO_PYP,
-    CRUCE_FACTURAS_SHEET,
-    CRUCE_HEADERS,
     DATA_ROW_BACKGROUND_COLOR,
-    ENTIDAD_MALLAMAS,
     ENTIDAD_REQUERIDA_CAP,
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
@@ -125,7 +122,6 @@ class TestConstantsAPI:
         assert ALLOWED_EXCEL_SUFFIXES == frozenset({".xlsx", ".xls", ".xlsm", ".xlsb"})
 
     def test_sheets(self):
-        assert CRUCE_FACTURAS_SHEET == "CruceFacturas"
         assert REVISION_SHEET == "Revision"
 
     def test_convenios(self):
@@ -169,10 +165,6 @@ class TestConstantsAPI:
         assert CENTRO_COSTO_ODONTOLOGIA == "ODONTOLOGIA"
         assert CENTRO_COSTO_EXTRAMURAL == "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
         assert CENTRO_COSTO_EQUIPOS_BASICOS == "EQUIPOS BASICOS ODONTOLOGIA"
-
-    def test_cruce_headers(self):
-        assert CRUCE_HEADERS["B2"] == "Cruce Facturas"
-        assert CRUCE_HEADERS["D2"] == "Cruce Identificación"
 
     def test_revision_headers(self):
         assert REVISION_HEADERS[1] == "Tipo de error"
@@ -265,5 +257,4 @@ class TestConstantsAPI:
         assert "03764" in PROFESIONALES_EQUIPOS_BASICOS
         assert PROFESIONALES_EQUIPOS_BASICOS["03764"]["tipo"] == "ODONTOLOGO"
 
-    def test_entidad_mallamas(self):
-        assert ENTIDAD_MALLAMAS == "MALLAMAS EPS INDIGENA"
+

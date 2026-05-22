@@ -1,60 +1,89 @@
-"""Decorators para autenticación y control de áreas."""
+"""Decorators para control de permisos via sesión.
+
+Reemplaza el viejo sistema con Flask-Login y area_required.
+Usa session['permisos'] para verificar acceso.
+"""
 
 from functools import wraps
-from flask import flash, redirect, url_for
-from flask_login import current_user
+
+from flask import flash, jsonify, redirect, render_template, request, url_for, session
+from app.utils.auth_session import is_authenticated
 
 
-def area_required(area: str):
+def login_requerido(f):
+    """Decorator: verifica que el usuario tenga sesión activa.
+
+    Si no hay sesión redirige al login o devuelve 401 JSON.
     """
-    Decorator que verifica que el usuario tenga acceso al área especificada.
-    
-    Usage:
-        @area_required("odontologia")
-        def mi_ruta():
-            ...
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not is_authenticated():
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "status": "error",
+                    "data": {},
+                    "errors": ["No autenticado"],
+                }), 401
+            flash("Debe iniciar sesión", "error")
+            return redirect(url_for("auth.login", next=request.url))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def permiso_requerido(*permisos):
+    """Decorator: verifica que el usuario tenga AL MENOS UNO de los permisos.
+
+    Admin (permiso '*') pasa cualquier verificación automáticamente.
+
+    Uso:
+        @permiso_requerido('odontologia')
+        def ruta_protegida(): ...
+
+        @permiso_requerido('control_urgencias:write')
+        def modificar(): ...
     """
     def decorator(f):
         @wraps(f)
-        def decorated_function(*args, **kwargs):
-            # Verificar que esté logueado
-            if not current_user.is_authenticated:
-                flash("Debe iniciar sesión", "error")
-                return redirect(url_for("auth.login", next=request.url))
-            
-            # Admin tiene acceso a todo
-            if current_user.rol == "admin":
+        def decorated(*args, **kwargs):
+            user_permisos = session.get("permisos", [])
+
+            # Admin pasa todo
+            if "*" in user_permisos:
                 return f(*args, **kwargs)
-            
-            # Verificar si tiene acceso al área
-            user_areas = [ua.area for ua in current_user.areas]
-            
-            if area not in user_areas:
-                flash(f"No tiene acceso al área {area}", "error")
-                # Redirigir a su área permitida
-                if user_areas:
-                    first_area = user_areas[0]
-                    return redirect(url_for(f"{first_area}.home"))
-                return redirect(url_for("auth.login"))
-            
-            return f(*args, **kwargs)
-        return decorated_function
+
+            # Verificar al menos un permiso requerido
+            if any(p in user_permisos for p in permisos):
+                return f(*args, **kwargs)
+
+            # Sin permiso
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "status": "error",
+                    "data": {},
+                    "errors": ["Permiso denegado"],
+                }), 403
+
+            flash("No tiene permiso para acceder a esta sección", "error")
+            return redirect(url_for("home.home_page"))
+        return decorated
     return decorator
 
 
-def admin_required(f):
-    """
-    Decorator que verifica que el usuario sea-admin.
+def admin_requerido(f):
+    """Decorator: solo usuarios con rol admin pueden acceder.
+
+    Admin se define como tener permiso '*' en la sesión.
     """
     @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated:
-            flash("Debe iniciar sesión", "error")
-            return redirect(url_for("auth.login", next=request.url))
-        
-        if current_user.rol != "admin":
+    def decorated(*args, **kwargs):
+        if "*" not in session.get("permisos", []):
+            if request.is_json or request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({
+                    "status": "error",
+                    "data": {},
+                    "errors": ["Permiso denegado"],
+                }), 403
             flash("Acceso denegado", "error")
-            return redirect(url_for("home.home"))
-        
+            return redirect(url_for("home.home_page"))
         return f(*args, **kwargs)
-    return decorated_function
+    return decorated

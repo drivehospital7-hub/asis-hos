@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 import polars as pl
+from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import ALLOWED_EXCEL_SUFFIXES
 
@@ -362,3 +363,77 @@ def get_filas_a_eliminar(
     # Si hay error, retornar默认值 (asumir que tiene encabezados)
     logger.warning("Error detectando estructura, usando默认值: %d", rows_to_eliminar_default)
     return rows_to_eliminar_default
+
+
+def detectar_estructura_desde_worksheet(
+    worksheet: Worksheet,
+    umbral: float = UMBRAL_COINCIDENCIA,
+) -> dict[str, Any]:
+    """
+    Detecta la estructura del Excel usando un Worksheet de openpyxl ya cargado.
+    
+    Alternativa a detectar_estructura_excel() que evita leer el archivo con Polars.
+    Útil cuando ya tenés el workbook cargado en memoria.
+    
+    Args:
+        worksheet: Worksheet de openpyxl (ya cargado)
+        umbral: Porcentaje de coincidencia para considerar Excel limpio (default: 0.70)
+    
+    Returns:
+        Dict con misma estructura que detectar_estructura_excel()
+    """
+    # Leer headers de la primera fila del worksheet
+    headers = []
+    for col in range(1, worksheet.max_column + 1):
+        val = worksheet.cell(row=1, column=col).value
+        if val is not None:
+            headers.append(str(val).strip())
+        else:
+            headers.append("")
+    
+    if not headers:
+        return {
+            "status": "error",
+            "data": {},
+            "errors": ["El worksheet no tiene headers en la primera fila"],
+        }
+    
+    # Normalizar headers esperados y encontrados
+    normalized_expected = {_normalize_header(h) for h in EXPECTED_HEADERS_LIMPIO}
+    normalized_found = {_normalize_header(h) for h in headers}
+    
+    # Calcular intersección
+    interseccion = normalized_expected & normalized_found
+    coincidencia = len(interseccion) / len(normalized_expected) if normalized_expected else 0
+    
+    logger.info(
+        "Coincidencia de headers (desde worksheet): %.1f%% (%d/%d headers esperados)",
+        coincidencia * 100,
+        len(interseccion),
+        len(normalized_expected),
+    )
+    
+    if coincidencia >= umbral:
+        estructura = "limpia"
+        filas_a_eliminar = 0
+    else:
+        estructura = "con_encabezados"
+        filas_a_eliminar = 2
+    
+    logger.info(
+        "Estructura detectada (desde worksheet): %s - filas a eliminar: %d",
+        estructura,
+        filas_a_eliminar,
+    )
+    
+    return {
+        "status": "success",
+        "data": {
+            "estructura": estructura,
+            "filas_a_eliminar": filas_a_eliminar,
+            "headers_encontrados": headers[:10],
+            "headers_coincidentes": list(interseccion)[:20],
+            "coincidencia": round(coincidencia, 3),
+        },
+        "errors": [],
+    }

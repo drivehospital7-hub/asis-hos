@@ -252,6 +252,10 @@ PROFESIONALES_EQUIPOS_BASICOS: dict[str, dict[str, str]] = {
         "nombre": "HERRERA CANO ALEXANDER",
         "tipo": "ODONTOLOGO",
     },
+    "03848": {
+        "nombre": "BURBANO SALAZAR ANAYIBE LORENA",
+        "tipo": "HIGIENISTA",
+    },
 }
 
 # =============================================================================

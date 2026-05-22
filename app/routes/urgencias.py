@@ -5,15 +5,14 @@ from flask import (
     jsonify,
     render_template,
     request,
-    send_file,
-    url_for,
 )
 
 from app.services.excel_headers_page import build_excel_headers_form_context
-from app.services.exporter import export_excel_with_cruce_facturas
+from app.services.exporter import detect_problems_only
 from app.services.responsables import obtener_responsable
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 from app.constants import AREA_URGENCIAS, PROFESIONALES_URGENCIAS
+from app.utils.auth import permiso_requerido
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +20,7 @@ urgencias_bp = Blueprint("urgencias", __name__)
 
 
 @urgencias_bp.get("/")
+@permiso_requerido("urgencias")
 def urgencias_page():
     """Pagina principal del formulario de urgencias."""
     ctx = build_excel_headers_form_context(
@@ -73,10 +73,9 @@ def export_urgencias():
     )
     ctx["profesionales"] = PROFESIONALES_URGENCIAS
 
-    export_result = export_excel_with_cruce_facturas(
+    export_result = detect_problems_only(
         filename=filename,
         sheet_name=sheet_name,
-        header_row=header_row,
         area=AREA_URGENCIAS,
     )
 
@@ -117,9 +116,6 @@ def export_urgencias():
         logger.info("DATOS FINALES - centros_de_costos: %d, ide_contrato: %d, cups_equivalentes: %d", len(centros), len(ide_contrato), len(cups_equivalentes))
 
     if export_result["status"] == "success":
-        output_path = export_result["data"]["output_path"]
-        output_name = export_result["data"]["output_file"]
-        
         # Extraer info de problemas - formato NORMALIZADO 6 columnas
         problemas_data = export_result["data"].get("problemas", {})
         problemas_dict = problemas_data.get("problemas", {})
@@ -165,8 +161,6 @@ def export_urgencias():
         return jsonify({
             "status": "success",
             "data": {
-                "output_file": output_name,
-                "download_url": url_for("urgencias.download_urgencias", filename=output_name),
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
                 "columnas": [
@@ -188,16 +182,3 @@ def export_urgencias():
     })
 
 
-@urgencias_bp.get("/download/<path:filename>")
-def download_urgencias(filename: str):
-    """Descarga el archivo Excel procesado de urgencias."""
-    from flask import send_from_directory
-    from pathlib import Path
-    
-    output_dir = Path(__file__).parent.parent / "data" / "output"
-    return send_from_directory(
-        output_dir,
-        filename,
-        as_attachment=True,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )

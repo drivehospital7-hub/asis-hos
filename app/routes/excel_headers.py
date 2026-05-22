@@ -5,13 +5,12 @@ from flask import (
     jsonify,
     render_template,
     request,
-    send_file,
-    url_for,
 )
 
 from app.constants import PROFESIONALES_ODONTOLOGIA
 from app.services.excel_headers_page import build_excel_headers_form_context
-from app.services.exporter import export_excel_with_cruce_facturas
+from app.utils.auth import permiso_requerido
+from app.services.exporter import detect_problems_only
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 
 logger = logging.getLogger(__name__)
@@ -20,6 +19,7 @@ excel_headers_bp = Blueprint("excel_headers", __name__)
 
 
 @excel_headers_bp.get("/")
+@permiso_requerido("odontologia")
 def excel_headers_page():
     """Pagina principal del formulario de consumos y servicios."""
     ctx = build_excel_headers_form_context(
@@ -92,10 +92,9 @@ def export_cruce_facturas():
     )
     ctx["profesionales"] = PROFESIONALES_ODONTOLOGIA
 
-    export_result = export_excel_with_cruce_facturas(
+    export_result = detect_problems_only(
         filename=filename,
         sheet_name=sheet_name,
-        header_row=header_row,
         profesional=profesional,
         dias=dias,
         todos_profesionales_dias=todos_profesionales_dias,
@@ -127,9 +126,6 @@ def export_cruce_facturas():
         })
 
     if export_result["status"] == "success":
-        output_path = export_result["data"]["output_path"]
-        output_name = export_result["data"]["output_file"]
-        
         # Extraer info de problemas - formato NORMALIZADO 6 columnas
         problemas_data = export_result["data"].get("problemas", {})
         problemas_dict = problemas_data.get("problemas", {})
@@ -170,8 +166,6 @@ def export_cruce_facturas():
         return jsonify({
             "status": "success",
             "data": {
-                "output_file": output_name,
-                "download_url": url_for("excel_headers.download_excel", filename=output_name),
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
                 "columnas": [
@@ -192,17 +186,3 @@ def export_cruce_facturas():
         "errors": export_result.get("errors", []),
     })
 
-
-@excel_headers_bp.get("/download/<path:filename>")
-def download_excel(filename: str):
-    """Descarga el archivo Excel procesado."""
-    from flask import send_from_directory
-    from pathlib import Path
-    
-    output_dir = Path(__file__).parent.parent / "data" / "output"
-    return send_from_directory(
-        output_dir,
-        filename,
-        as_attachment=True,
-        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )

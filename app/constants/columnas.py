@@ -74,11 +74,6 @@ CENTRO_COSTO_EQUIPOS_BASICOS = "EQUIPOS BASICOS ODONTOLOGIA"
 # HEADERS - Headers de hojas especiales
 # =============================================================================
 
-CRUCE_HEADERS: dict[str, str] = {
-    "B2": "Cruce Facturas",
-    "D2": "Cruce Identificación",
-}
-
 # Headers para hoja Revision ODONTOLOGIA (formato normalizado - 6 columnas fijas)
 REVISION_HEADERS: dict[int, str] = {
     1: "Tipo de error",
