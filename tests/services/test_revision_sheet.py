@@ -1,31 +1,29 @@
-"""Tests para app/services/revision_sheet.py."""
+"""Tests para servicios de detección de problemas."""
 
 from __future__ import annotations
 
 import pytest
 from openpyxl import Workbook
 
-from app.services.revision_sheet import (
-    _normalize_header,
-    _normalize_invoice,
-    _get_column_indices,
-    _detect_decimals,
-    _detect_doble_tipo_procedimiento,
-    _detect_ruta_duplicada,
-    _detect_cantidades_anomalas,
-    _write_column,
-    _build_urgencias_normalized_rows,
-    create_revision_sheet,
-    REVISION_HEADERS,
-    URGENCIA_REVISION_HEADERS,
-)
 from app.constants import (
     CONVENIO_ASISTENCIAL,
     CONVENIO_PYP,
+    PYP_CUPS_CODES,
+    REVISION_HEADERS,
     REVISION_SHEET,
     TARGET_PROCEDURES,
-    PYP_CUPS_CODES,
 )
+from app.services.transversales.column_indices import get_column_indices
+from app.services.transversales.create_revision_sheet import (
+    _write_column,
+    create_revision_sheet,
+)
+from app.services.transversales.decimales import detect_decimales
+from app.services.transversales.doble_tipo_procedimiento import detect_doble_tipo_procedimiento
+from app.services.transversales.normalize import normalize_header, normalize_invoice
+from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
+from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
+from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
 
 
 @pytest.fixture
@@ -79,44 +77,44 @@ def add_invoice_row(
 
 
 class TestNormalizeHeader:
-    """Tests para _normalize_header."""
+    """Tests para normalize_header."""
 
     def test_normaliza_a_minusculas(self) -> None:
         """Debe convertir a minúsculas."""
-        assert _normalize_header("NUMERO FACTURA") == "numero factura"
+        assert normalize_header("NUMERO FACTURA") == "numero factura"
 
     def test_elimina_espacios_extra(self) -> None:
         """Debe eliminar espacios al inicio y final."""
-        assert _normalize_header("  header  ") == "header"
+        assert normalize_header("  header  ") == "header"
 
     def test_none_retorna_string_vacio(self) -> None:
         """None debe retornar string vacío."""
-        assert _normalize_header(None) == ""
+        assert normalize_header(None) == ""
 
 
 class TestNormalizeInvoice:
-    """Tests para _normalize_invoice."""
+    """Tests para normalize_invoice."""
 
     def test_convierte_float_entero_a_string(self) -> None:
         """Float sin decimales debe convertirse a string entero."""
-        assert _normalize_invoice(12345.0) == "12345"
+        assert normalize_invoice(12345.0) == "12345"
 
     def test_mantiene_string(self) -> None:
         """String debe mantenerse (strippeado)."""
-        assert _normalize_invoice("FAC-001") == "FAC-001"
-        assert _normalize_invoice("  FAC-002  ") == "FAC-002"
+        assert normalize_invoice("FAC-001") == "FAC-001"
+        assert normalize_invoice("  FAC-002  ") == "FAC-002"
 
     def test_none_retorna_none(self) -> None:
         """None debe retornar None."""
-        assert _normalize_invoice(None) is None
+        assert normalize_invoice(None) is None
 
     def test_string_vacio_retorna_none(self) -> None:
         """String vacío debe retornar None."""
-        assert _normalize_invoice("") is None
+        assert normalize_invoice("") is None
 
 
 class TestGetColumnIndices:
-    """Tests para _get_column_indices."""
+    """Tests para get_column_indices."""
 
     def test_mapea_headers_conocidos(self) -> None:
         """Debe mapear headers conocidos a sus índices."""
@@ -126,8 +124,14 @@ class TestGetColumnIndices:
             "Vlr. Procedimiento",
             "Tipo Procedimiento",
         ]
+        required = {
+            "numero_factura": "Número Factura",
+            "vlr_subsidiado": "Vlr. Subsidiado",
+            "vlr_procedimiento": "Vlr. Procedimiento",
+            "tipo_procedimiento": "Tipo Procedimiento",
+        }
 
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
         assert indices["numero_factura"] == 0
         assert indices["vlr_subsidiado"] == 1
@@ -137,8 +141,12 @@ class TestGetColumnIndices:
     def test_headers_no_encontrados_son_none(self) -> None:
         """Headers no encontrados deben ser None."""
         headers = ["Columna Rara", "Otra Columna"]
+        required = {
+            "numero_factura": "Número Factura",
+            "vlr_subsidiado": "Vlr. Subsidiado",
+        }
 
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
         assert indices["numero_factura"] is None
         assert indices["vlr_subsidiado"] is None
@@ -146,15 +154,19 @@ class TestGetColumnIndices:
     def test_requiere_coincidencia_exacta(self) -> None:
         """Requiere coincidencia EXACTA, no infiere."""
         headers = ["Número Factura", "Nº Identificación"]
+        required = {
+            "numero_factura": "Número Factura",
+            "identificacion": "Nº Identificación",
+        }
 
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
         assert indices["numero_factura"] == 0
         assert indices["identificacion"] == 1
 
 
 class TestDetectDecimals:
-    """Tests para _detect_decimals."""
+    """Tests para detect_decimales."""
 
     def test_detecta_facturas_con_decimales(
         self, workbook_with_invoice_data: Workbook
@@ -165,16 +177,16 @@ class TestDetectDecimals:
         add_invoice_row(ws, 3, "FAC-002", vlr_sub=1000.00)  # Entero
         add_invoice_row(ws, 4, "FAC-003", vlr_proc=500.25)  # Decimal en vlr_proc
 
+        required = {"numero_factura": "Número Factura", "vlr_subsidiado": "Vlr. Subsidiado", "vlr_procedimiento": "Vlr. Procedimiento"}
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_decimals(ws, indices)
+        result = detect_decimales(ws, indices)
 
         assert len(result) == 2
-        facturas = [r["factura"] for r in result]
-        assert "FAC-001" in facturas
-        assert "FAC-002" not in facturas
-        assert "FAC-003" in facturas
+        assert "FAC-001" in result
+        assert "FAC-002" not in result
+        assert "FAC-003" in result
 
     def test_no_duplica_facturas(
         self, workbook_with_invoice_data: Workbook
@@ -183,17 +195,18 @@ class TestDetectDecimals:
         ws = workbook_with_invoice_data.active
         add_invoice_row(ws, 2, "FAC-001", vlr_sub=1000.50, vlr_proc=500.25)
 
+        required = {"numero_factura": "Número Factura", "vlr_subsidiado": "Vlr. Subsidiado", "vlr_procedimiento": "Vlr. Procedimiento"}
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_decimals(ws, indices)
+        result = detect_decimales(ws, indices)
 
         assert len(result) == 1
-        assert result[0]["factura"] == "FAC-001"
+        assert result[0] == "FAC-001"
 
 
 class TestDetectDobleTipoProcedimiento:
-    """Tests para _detect_doble_tipo_procedimiento."""
+    """Tests para detect_doble_tipo_procedimiento."""
 
     def test_detecta_factura_con_multiples_tipos(
         self, workbook_with_invoice_data: Workbook
@@ -205,10 +218,11 @@ class TestDetectDobleTipoProcedimiento:
         add_invoice_row(ws, 4, "FAC-002", tipo_proc="Consultas")
         add_invoice_row(ws, 5, "FAC-002", tipo_proc="Consultas")
 
+        required = {"numero_factura": "Número Factura", "tipo_procedimiento": "Tipo Procedimiento"}
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_doble_tipo_procedimiento(ws, indices)
+        result = detect_doble_tipo_procedimiento(ws, indices)
 
         facturas = [r["factura"] for r in result]
         assert "FAC-001" in facturas
@@ -216,7 +230,7 @@ class TestDetectDobleTipoProcedimiento:
 
 
 class TestDetectRutaDuplicada:
-    """Tests para _detect_ruta_duplicada."""
+    """Tests para detect_ruta_duplicada."""
 
     def test_detecta_paciente_con_multiples_facturas_pyp(
         self, workbook_with_invoice_data: Workbook
@@ -229,10 +243,15 @@ class TestDetectRutaDuplicada:
         add_invoice_row(ws, 5, "FAC-004", identificacion="PAC-002", convenio=CONVENIO_PYP)
         add_invoice_row(ws, 6, "FAC-005", identificacion="PAC-002", convenio=CONVENIO_PYP)
 
+        required = {
+            "numero_factura": "Número Factura",
+            "identificacion": "Nº Identificación",
+            "convenio_facturado": "Convenio Facturado",
+        }
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_ruta_duplicada(ws, indices)
+        result = detect_ruta_duplicada(ws, indices)
 
         identificaciones = [r["identificacion"] for r in result]
         assert "PAC-001" in identificaciones
@@ -247,16 +266,21 @@ class TestDetectRutaDuplicada:
         add_invoice_row(ws, 3, "FAC-002", identificacion="PAC-001", convenio=CONVENIO_ASISTENCIAL)
         add_invoice_row(ws, 4, "FAC-003", identificacion="PAC-001", convenio=CONVENIO_ASISTENCIAL)
 
+        required = {
+            "numero_factura": "Número Factura",
+            "identificacion": "Nº Identificación",
+            "convenio_facturado": "Convenio Facturado",
+        }
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_ruta_duplicada(ws, indices)
+        result = detect_ruta_duplicada(ws, indices)
 
         assert len(result) == 0
 
 
 class TestDetectCantidadesAnomalas:
-    """Tests para _detect_cantidades_anomalas."""
+    """Tests para detect_cantidades_anomalas."""
 
     def test_detecta_consultas_con_cantidad_mayor_igual_2(
         self, workbook_with_invoice_data: Workbook
@@ -266,10 +290,16 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", tipo_proc="Consultas", cantidad=2)
         add_invoice_row(ws, 3, "FAC-002", tipo_proc="Consultas", cantidad=1)
 
+        required = {
+            "numero_factura": "Número Factura",
+            "tipo_procedimiento": "Tipo Procedimiento",
+            "cantidad": "Cantidad",
+            "convenio_facturado": "Convenio Facturado",
+        }
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_cantidades_anomalas(ws, indices)
+        result = detect_cantidades_anomalas(ws, indices)
 
         facturas = [r["factura"] for r in result]
         assert "FAC-001" in facturas
@@ -283,10 +313,16 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", tipo_proc="Otros", cantidad=11)
         add_invoice_row(ws, 3, "FAC-002", tipo_proc="Otros", cantidad=10)
 
+        required = {
+            "numero_factura": "Número Factura",
+            "tipo_procedimiento": "Tipo Procedimiento",
+            "cantidad": "Cantidad",
+            "convenio_facturado": "Convenio Facturado",
+        }
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_cantidades_anomalas(ws, indices)
+        result = detect_cantidades_anomalas(ws, indices)
 
         facturas = [r["factura"] for r in result]
         assert "FAC-001" in facturas
@@ -300,10 +336,16 @@ class TestDetectCantidadesAnomalas:
         add_invoice_row(ws, 2, "FAC-001", tipo_proc="Procedimientos", convenio=CONVENIO_PYP, cantidad=3)
         add_invoice_row(ws, 3, "FAC-002", tipo_proc="Procedimientos", convenio=CONVENIO_PYP, cantidad=2)
 
+        required = {
+            "numero_factura": "Número Factura",
+            "tipo_procedimiento": "Tipo Procedimiento",
+            "cantidad": "Cantidad",
+            "convenio_facturado": "Convenio Facturado",
+        }
         headers = [ws.cell(row=1, column=c).value for c in range(1, 10)]
-        indices, _ = _get_column_indices(headers)
+        indices, _ = get_column_indices(headers, required)
 
-        result = _detect_cantidades_anomalas(ws, indices)
+        result = detect_cantidades_anomalas(ws, indices)
 
         facturas = [r["factura"] for r in result]
         assert "FAC-001" in facturas
@@ -327,11 +369,11 @@ class TestWriteColumn:
 
 
 class TestBuildUrgenciasNormalizedRows:
-    """Tests para _build_urgencias_normalized_rows."""
+    """Tests para build_urgencias_normalized_rows."""
 
     def test_centros_de_costo(self) -> None:
         """Debe normalizar centros de costo."""
-        rows = _build_urgencias_normalized_rows(
+        rows = build_urgencias_normalized_rows(
             problemas_centros=[{
                 "factura": "F001",
                 "codigo": "890405",
@@ -343,8 +385,10 @@ class TestBuildUrgenciasNormalizedRows:
             problemas_cups_equivalentes=[],
             mal_capitado=[],
             cantidades_urgencias=[],
+            cantidades_soat_urgencias=[],
             cantidades_hospitalizacion=[],
-            responsable_cierra={"F001": "JUAN"},
+            cantidades_soat_hospitalizacion=[],
+            responsables_map={"F001": "JUAN"},
         )
 
         assert len(rows) == 1
@@ -358,7 +402,7 @@ class TestBuildUrgenciasNormalizedRows:
 
     def test_ide_contrato(self) -> None:
         """Debe normalizar IDE Contrato."""
-        rows = _build_urgencias_normalized_rows(
+        rows = build_urgencias_normalized_rows(
             problemas_centros=[],
             problemas_ide_contrato=[{
                 "factura": "F002",
@@ -370,8 +414,10 @@ class TestBuildUrgenciasNormalizedRows:
             problemas_cups_equivalentes=[],
             mal_capitado=[],
             cantidades_urgencias=[],
+            cantidades_soat_urgencias=[],
             cantidades_hospitalizacion=[],
-            responsable_cierra={},
+            cantidades_soat_hospitalizacion=[],
+            responsables_map={},
         )
 
         assert len(rows) == 1
@@ -384,7 +430,7 @@ class TestBuildUrgenciasNormalizedRows:
 
     def test_cantidades_urgencias(self) -> None:
         """Debe normalizar cantidades de Urgencias."""
-        rows = _build_urgencias_normalized_rows(
+        rows = build_urgencias_normalized_rows(
             problemas_centros=[],
             problemas_ide_contrato=[],
             problemas_cups_equivalentes=[],
@@ -395,8 +441,10 @@ class TestBuildUrgenciasNormalizedRows:
                 "procedimiento": "MANEJO INTRAHOSP",
                 "cantidad": 3,
             }],
+            cantidades_soat_urgencias=[],
             cantidades_hospitalizacion=[],
-            responsable_cierra={},
+            cantidades_soat_hospitalizacion=[],
+            responsables_map={},
         )
 
         assert len(rows) == 1

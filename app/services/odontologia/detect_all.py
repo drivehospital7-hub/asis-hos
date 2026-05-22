@@ -93,9 +93,8 @@ def detect_all_problems_odontologia(
                 responsable_cierra[factura] = resp
 
     # Build normalized rows for unified 6-column display
-    # Lazy import para evitar circular import con revision_sheet
-    from app.services.revision_sheet import _build_odontologia_normalized_rows
-    normalized_rows_od = _build_odontologia_normalized_rows(
+    from app.services.odontologia.normalized_rows import build_odontologia_normalized_rows
+    normalized_rows_od = build_odontologia_normalized_rows(
         decimales=decimales,
         doble_tipo=doble_tipo,
         ruta_dup=ruta_dup,

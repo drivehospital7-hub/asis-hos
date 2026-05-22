@@ -41,6 +41,12 @@ from app.services.urgencias.hospitalizacion import (
     detect_hospitalizacion_codes,
 )
 from app.services.odontologia.mal_capitado import detect_mal_capitado
+from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
+from app.services.urgencias.ide_contrato_reverse import detect_ide_contrato_reverse_urgencias
+from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
+from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
+from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
+from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 
 logger = logging.getLogger(__name__)
 
@@ -62,9 +68,7 @@ def detect_all_problems_urgencias(
         (resultado_dict, responsables_map)
     """
     # 1. Códigos sin DB (ESS118 + IDE=969)
-    from app.services.revision_sheet import _get_codigos_no_en_db_ess118
-
-    problemas_codigos_no_en_db = _get_codigos_no_en_db_ess118(data_sheet, indices)
+    problemas_codigos_no_en_db = get_codigos_no_en_db_ess118(data_sheet, indices)
     codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
 
     if problemas_codigos_no_en_db:
@@ -105,15 +109,7 @@ def detect_all_problems_urgencias(
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
 
     # 5. Detectores específicos de urgencias
-    # (import lazy para evitar circular imports con revision_sheet.py)
-    from app.services.revision_sheet import (
-        _detect_profesionales_urgencias,
-        _detect_ide_contrato_reverse_urgencias,
-        _detect_revision_entidad_86_urgencias,
-        _detect_revision_cantidad_urgencias,
-    )
-
-    profesionales = _detect_profesionales_urgencias(data_sheet, indices)
+    profesionales = detect_profesionales_urgencias(data_sheet, indices)
     logger.info(
         "detect_all_problems_urgencias - Profesionales encontrados: %d",
         len(profesionales),
@@ -153,7 +149,7 @@ def detect_all_problems_urgencias(
         len(cantidades_soat_hospitalizacion),
     )
 
-    ide_contrato_reverse = _detect_ide_contrato_reverse_urgencias(
+    ide_contrato_reverse = detect_ide_contrato_reverse_urgencias(
         data_sheet, indices
     )
     logger.info(
@@ -161,7 +157,7 @@ def detect_all_problems_urgencias(
         len(ide_contrato_reverse),
     )
 
-    revision_entidad_86 = _detect_revision_entidad_86_urgencias(
+    revision_entidad_86 = detect_revision_entidad_86_urgencias(
         data_sheet, indices
     )
     logger.info(
@@ -169,7 +165,7 @@ def detect_all_problems_urgencias(
         len(revision_entidad_86),
     )
 
-    revision_cantidad = _detect_revision_cantidad_urgencias(data_sheet, indices)
+    revision_cantidad = detect_revision_cantidad_urgencias(data_sheet, indices)
     logger.info(
         "detect_all_problems_urgencias - Revision Cantidad encontradas: %d",
         len(revision_cantidad),
@@ -234,9 +230,7 @@ def detect_all_problems_urgencias(
                 fecha_cierre_vacia[factura] = False
 
     # 9. Build normalized rows
-    from app.services.revision_sheet import _build_urgencias_normalized_rows
-
-    normalized_rows = _build_urgencias_normalized_rows(
+    normalized_rows = build_urgencias_normalized_rows(
         problemas_centros=problemas_centros_filtrados,
         problemas_ide_contrato=problemas_ide_contrato,
         problemas_cups_equivalentes=problemas_cups_equivalentes,

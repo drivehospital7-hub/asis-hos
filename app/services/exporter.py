@@ -23,12 +23,14 @@ from app.constants import (
     AREA_URGENCIAS,
     AREA_EQUIPOS_BASICOS,
     COLUMNS_TO_KEEP,
-    URGENCIA_COLUMNS_TO_KEEP,
     PROFESIONALES_ODONTOLOGIA,
 )
 from app.services.cruce_sheet import create_cruce_facturas_sheet
-from app.services.revision_sheet import detect_all_problems
+from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
+from app.services.odontologia.detect_all import detect_all_problems_odontologia
+from app.services.transversales.column_indices import get_column_indices
 from app.services.transversales.estructura_excel import detectar_estructura_excel
+from app.services.urgencias.detect_all import detect_all_problems_urgencias
 from app.utils.column_filter import filter_columns
 from app.utils.formatting import apply_all_conditional_formatting
 from app.utils.input_data import (
@@ -198,12 +200,63 @@ def export_excel_with_cruce_facturas(
         logger.info("Columnas filtradas: %s", filter_result)
         
         # 7. Detectar problemas para mostrar en HTML (sin crear hoja)
-        problemas_detectados, responsables_map = detect_all_problems(
-            data_sheet, 
-            area=area_effective,
-            profesional_dias=profesional_dias if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else None,
-            permitir_todos_centros=(permitir_todos_centros or equipos_basicos) if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS) else False,
-        )
+        headers = [
+            data_sheet.cell(row=1, column=col).value
+            for col in range(1, data_sheet.max_column + 1)
+        ]
+        required_headers: dict[str, str] = {
+            "numero_factura": "Número Factura",
+            "vlr_subsidiado": "Vlr. Subsidiado",
+            "vlr_procedimiento": "Vlr. Procedimiento",
+            "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
+            "tipo_procedimiento": "Tipo Procedimiento",
+            "codigo": "Código",
+            "codigo_equiv": "Cód. Equivalente CUPS",
+            "procedimiento": "Procedimiento",
+            "identificacion": "Nº Identificación",
+            "convenio_facturado": "Convenio Facturado",
+            "cantidad": "Cantidad",
+            "laboratorio": "Laboratorio",
+            "centro_costo": "Centro Costo",
+            "codigo_entidad_cobrar": "Cód Entidad Cobrar",
+            "entidad_cobrar": "Entidad Cobrar",
+            "entidad_afiliacion": "Entidad Afiliación",
+            "tipo_factura_descripcion": "Tipo Factura Descripción",
+            "ide_contrato": "IDE Contrato",
+            "tipo_identificacion": "Tipo Identificación",
+            "fec_nacimiento": "Fec. Nacimiento",
+            "fec_factura": "Fec. Factura",
+            "fecha_cierre": "Fecha Cierre",
+            "profesional_identificacion": "Identificación Profesional",
+            "profesional_atiende": "Profesional Atiende",
+            "codigo_profesional": "Código Profesional",
+            "responsable_cierra": "Responsable Cierra Facturar",
+            "tarifario": "Tarifario",
+            "tipo_usuario": "Tipo Usuario",
+        }
+        indices, missing_columns = get_column_indices(headers, required_headers)
+        if missing_columns:
+            logger.error("Columnas faltantes en el Excel: %s", missing_columns)
+
+        if area_effective == AREA_URGENCIAS:
+            problemas_detectados, responsables_map = detect_all_problems_urgencias(
+                data_sheet, indices,
+            )
+        elif area_effective == AREA_EQUIPOS_BASICOS:
+            problemas_detectados, responsables_map = detect_all_problems_equipos_basicos(
+                data_sheet,
+                indices,
+                profesional_dias=profesional_dias,
+                permitir_todos_centros=permitir_todos_centros or equipos_basicos,
+            )
+        else:
+            problemas_detectados, responsables_map = detect_all_problems_odontologia(
+                data_sheet,
+                indices,
+                profesional_dias=profesional_dias,
+                permitir_todos_centros=permitir_todos_centros,
+            )
+        problemas_detectados["missing_columns"] = missing_columns
         
         # 8. Crear hoja CruceFacturas
         cruce_sheet, cruce_info = create_cruce_facturas_sheet(workbook)

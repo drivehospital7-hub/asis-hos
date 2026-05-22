@@ -13,8 +13,8 @@ from pathlib import Path
 # =============================================================================
 # Approval test: from app.constants import X (current API — siempre funciona)
 # =============================================================================
-# NOTA: Mientras app/constants.py exista, Python resuelve app.constants al
-# archivo, NO al package. Este test verifica la API pública que preservamos.
+# NOTA: Ahora app/constants.py fue eliminado (Fase 7 cleanup).
+# Python resuelve app.constants al package app/constants/.
 
 from app.constants import (  # noqa: E402
     ALLOWED_EXCEL_SUFFIXES,
