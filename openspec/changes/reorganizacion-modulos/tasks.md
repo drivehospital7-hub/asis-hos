@@ -119,7 +119,7 @@ Chain strategy: stacked-to-main
 
 ## Phase 4: odontologia/
 
-- [ ] **T-10** — Create `odontologia/profesionales.py`, `centro_costo.py`, `ide_contrato.py`
+- [x] **T-10** — Create `odontologia/profesionales.py`, `centro_costo.py`, `ide_contrato.py`
   - Desc: Extraer las 3 funciones específicas de odontología desde `revision_sheet.py`. Copia exacta 1:1. Cada función independiente sigue firma `def detect_*(data_sheet, indices, **kwargs) → list[dict]`.
   - Deps: T-09
   - Files: `app/services/odontologia/__init__.py` (new), `app/services/odontologia/profesionales.py` (new), `app/services/odontologia/centro_costo.py` (new), `app/services/odontologia/ide_contrato.py` (new), `tests/services/odontologia/test_profesionales.py` (new)
@@ -127,7 +127,7 @@ Chain strategy: stacked-to-main
   - Riesgo: Bajo (copia exacta)
   - Éxito: import de `odontologia.profesionales.detect_profesionales_odontologia` funciona
 
-- [ ] **T-11** — Create `odontologia/detect_all.py` + wire into `revision_sheet.py`
+- [x] **T-11** — Create `odontologia/detect_all.py` + wire into `revision_sheet.py`
   - Desc: Nuevo orquestador que llama transversales + odontología modules. MODIFICAR `revision_sheet.py::detect_all_problems` en la rama `area == ODONTOLOGIA` para delegar a `odontologia.detect_all`. Ambos caminos coexisten (viejo código inline aún presente pero inactivo para odonto).
   - Deps: T-10
   - Files: `app/services/odontologia/detect_all.py` (new), `app/services/revision_sheet.py` (modify dispatcher)
@@ -139,7 +139,7 @@ Chain strategy: stacked-to-main
 
 ## Phase 5: urgencias/
 
-- [ ] **T-12** — Create urgencias/ low-risk modules: `mal_capitado`, `profesionales`, `revision`, `codigos_db`, `ide_contrato_reverse`, `cantidades`
+- [x] **T-12** — Create urgencias/ low-risk modules: `mal_capitado`, `profesionales`, `revision`, `codigos_db`, `ide_contrato_reverse`, `cantidades`
   - Desc: Extraer funciones independientes y autónomas desde `revision_sheet.py`. Cada una en su propio archivo con tests. Son las funciones de comportamiento simple (sin dependencias entre sí) que hacen una cosa bien definida.
   - Deps: T-09
   - Files: `app/services/urgencias/__init__.py` (new), `*mal_capitado.py`, `*profesionales.py`, `*revision.py`, `*codigos_db.py`, `*ide_contrato_reverse.py`, `*cantidades.py`, +tests
@@ -155,7 +155,7 @@ Chain strategy: stacked-to-main
     - [x] `urgencias/sala_observacion.py` — placeholder (lógica en `_detect_centro_costo_urgencias`, Fase 5b)
     - [x] `revision_sheet.py` — delegación a módulos urgencias/
 
-- [ ] **T-13** — Create urgencias/ high-risk modules: `centro_costo`, `ide_contrato`, `cups_equivalentes`, `sala_observacion`, `hospitalizacion`
+- [x] **T-13** — Create urgencias/ high-risk modules: `centro_costo`, `ide_contrato`, `cups_equivalentes`, `sala_observacion`, `hospitalizacion`
   - Desc: **La tarea más crítica del refactor.** Extraer 5 módulos desde `_detect_centro_costo_urgencias` (~1800 líneas que hace 5+ cosas en un solo loop). ESTRATEGIA: (1) Identificar cada sub-regla en el loop original, (2) Copiar el loop completo a cada módulo, (3) Eliminar las líneas de otras reglas de cada copia, (4) Refactorizar cada copia para que sea autónoma. NO refactorizar la lógica interna — solo separar. Preservar TODOS los logs exactos.
   - Deps: T-12
   - Files: `app/services/urgencias/centro_costo.py`, `ide_contrato.py`, `cups_equivalentes.py`, `sala_observacion.py`, `hospitalizacion.py` + tests
@@ -176,7 +176,7 @@ Chain strategy: stacked-to-main
 
 ## Phase 6: equipos_basicos/
 
-- [ ] **T-15** — Create `equipos_basicos/profesionales.py` + `detect_all.py` + wire
+- [x] **T-15** — Create `equipos_basicos/profesionales.py` + `detect_all.py` + wire
   - Desc: Módulo de profesionales EB (similar a odontología pero con diferentes constantes). Orquestador reusa transversales parametrizados (ruta_duplicada con threshold EB, cantidades_anomalas con constantes EB). MODIFICAR `revision_sheet.py` dispatcher para delegar.
   - Deps: T-11, T-14
   - Files: `app/services/equipos_basicos/__init__.py` (new), `*profesionales.py`, `*detect_all.py` (new), `app/services/revision_sheet.py` (modify dispatcher), tests

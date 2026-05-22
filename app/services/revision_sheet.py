@@ -50,10 +50,8 @@ from app.constants import (
     CENTRO_COSTO_LABORATORIO_URGENCIAS,
     CENTRO_COSTO_ODONTOLOGIA,
     CENTRO_COSTO_EXTRAMURAL,
-    CENTRO_COSTO_EQUIPOS_BASICOS,
     PROFESIONALES_ODONTOLOGIA,
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
-    PROFESIONALES_EQUIPOS_BASICOS,
     PROFESIONALES_URGENCIAS,
     CODIGOS_TRABAJADORA_SOCIAL,
     CODIGOS_PSICOLOGA,
@@ -238,8 +236,6 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
-    PYP_CODES_ONLY_ODONTOLOGO,
-    PYP_CODES_HIGIENISTA,
     # MAL CAPITADO - Códigos que requieren prefijo FEV en Número Factura
     CODIGOS_MAL_CAPITADO,
     PREFIJO_FACTURA_MAL_CAPITADO,
@@ -333,6 +329,14 @@ from app.services.urgencias.detect_all import (
 )
 from app.services.urgencias.hospitalizacion import (
     detect_cantidades_hospitalizacion as detect_cantidades_hospitalizacion_ext,
+)
+
+# Importar módulos de equipos básicos extraídos (Fase 6)
+from app.services.equipos_basicos.profesionales import (
+    detect_profesionales_equipos_basicos as detect_profesionales_equipos_basicos_ext,
+)
+from app.services.equipos_basicos.detect_all import (
+    detect_all_problems_equipos_basicos,
 )
 
 logger = logging.getLogger(__name__)
@@ -953,10 +957,8 @@ def _detect_profesionales_equipos_basicos(
     """
     Detecta facturas con profesionales no válidos o procedimientos no permitidos.
 
-    Reglas (Equipos Básicos):
-    - "Código Profesional" DEBE estar en PROFESIONALES_EQUIPOS_BASICOS
-    - HIGIENISTA: Solo puede usar códigos PYP (excepto 890203)
-    - ODONTOLOGO: Puede usar cualquier código EXCEPTO los PYP (excepto 890203)
+    NOTA: Ahora delega en app/services/equipos_basicos/profesionales.py.
+    Se eliminará en Fase 7.
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -965,68 +967,7 @@ def _detect_profesionales_equipos_basicos(
     Returns:
         Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo", "problema"
     """
-    num_fact_idx = indices["numero_factura"]
-    cod_prof_idx = indices["codigo_profesional"]
-    codigo_idx = indices["codigo"]
-
-    if None in (num_fact_idx, cod_prof_idx) or codigo_idx is None:
-        return []
-
-    problemas = []
-    facturas_procesadas: set[str] = set()
-
-    for row in range(2, data_sheet.max_row + 1):
-        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-        factura_str = _normalize_invoice(numero_factura)
-        if not factura_str or factura_str in facturas_procesadas:
-            continue
-
-        cod_profesional = data_sheet.cell(row=row, column=cod_prof_idx + 1).value
-        cod_profesional_str = str(cod_profesional).strip() if cod_profesional else ""
-
-        if not cod_profesional_str:
-            continue
-
-        codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
-        codigo_str = str(codigo).strip() if codigo else ""
-
-        # Buscar profesional en el diccionario
-        profesional_info = PROFESIONALES_EQUIPOS_BASICOS.get(cod_profesional_str)
-
-        if profesional_info is None:
-            problemas.append({
-                "factura": factura_str,
-                "codigo_profesional": cod_profesional_str,
-                "nombre": "",
-                "tipo": "",
-                "problema": "Profesional no existe en el listado de Equipos Básicos",
-            })
-            facturas_procesadas.add(factura_str)
-        elif profesional_info.get("tipo") == "HIGIENISTA":
-            # Higienista: solo puede usar códigos de PYP_CODES_HIGIENISTA
-            if codigo_str and codigo_str not in PYP_CODES_HIGIENISTA:
-                problemas.append({
-                    "factura": factura_str,
-                    "codigo_profesional": cod_profesional_str,
-                    "nombre": profesional_info.get("nombre", ""),
-                    "tipo": "HIGIENISTA",
-                    "problema": f"Higienista con código no permitido ({codigo_str})",
-                })
-                facturas_procesadas.add(factura_str)
-        elif profesional_info.get("tipo") == "ODONTOLOGO":
-            # Odontólogo: no puede usar códigos de PYP_CODES_HIGIENISTA
-            # (pero SÍ puede usar 890203)
-            if codigo_str and codigo_str in PYP_CODES_HIGIENISTA:
-                problemas.append({
-                    "factura": factura_str,
-                    "codigo_profesional": cod_profesional_str,
-                    "nombre": profesional_info.get("nombre", ""),
-                    "tipo": "ODONTOLOGO",
-                    "problema": f"Odontólogo con código PYP no permitido ({codigo_str})",
-                })
-                facturas_procesadas.add(factura_str)
-
-    return problemas
+    return detect_profesionales_equipos_basicos_ext(data_sheet, indices)
 
 
 def _detect_ide_contrato_odontologia(
@@ -2780,108 +2721,15 @@ def detect_all_problems(
         resultado["missing_columns"] = missing_columns
         return resultado, responsable_cierra
     elif area == AREA_EQUIPOS_BASICOS:
-        # Equipos Básicos: usar reglas independientes configurables
-        decimales = _detect_decimals(data_sheet, indices)
-        doble_tipo = _detect_doble_tipo_procedimiento(data_sheet, indices)
-        ruta_dup = _detect_ruta_duplicada_equipos_basicos(data_sheet, indices)
-        # Nota: La validación de "convenio incorrecto" ya está incluida en _detect_profesionales_equipos_basicos
-        cantidades = _detect_cantidades_anomalas_equipos_basicos(data_sheet, indices)
-        tipo_id_edad = _detect_tipo_identificacion_edad(data_sheet, indices)
-        
-        logger.info("create_revision_sheet - Equipos Básicos, Llamando _detect_ide_contrato_odontologia")
-        ide_contrato = _detect_ide_contrato_odontologia(data_sheet, indices)
-        logger.info("create_revision_sheet - Equipos Básicos, IDE Contrato encontrados: %d", len(ide_contrato))
-        
-        # Validación profesionales (solo Equipos Básicos)
-        profesionales = _detect_profesionales_equipos_basicos(data_sheet, indices)
-        logger.info("create_revision_sheet - Equipos Básicos, Profesionales encontrados: %d", len(profesionales))
-        
-        # Regla transversal: Cód Entidad Cobrar vs Entidad Afiliación
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5
-        )
-        
-        # Validación centro de costo (solo EQUIPOS BASICOS ODONTOLOGIA)
-        centro_costo = _detect_centro_costo_odontologia(
-            data_sheet, 
-            indices, 
+        # NOTA: Ahora delega en app/services/equipos_basicos/detect_all.py.
+        # Se eliminará en Fase 7.
+        resultado, responsable_cierra = detect_all_problems_equipos_basicos(
+            data_sheet,
+            indices,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
-            centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
         )
-        
-        # Build responsable_cierra mapping
-        responsable_cierra = {}
-        responsable_cierra_idx = indices.get("responsable_cierra")
-        num_fact_idx = indices.get("numero_factura")
-        if responsable_cierra_idx is not None and num_fact_idx is not None:
-            for row in range(2, data_sheet.max_row + 1):
-                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-                factura = _normalize_invoice(numero)
-                if not factura:
-                    continue
-                raw = data_sheet.cell(row=row, column=responsable_cierra_idx + 1).value
-                resp = str(raw).strip() if raw else ""
-                if resp and factura not in responsable_cierra:
-                    responsable_cierra[factura] = resp
-        
-        # Build normalized rows for unified 6-column display
-        normalized_rows_eb = _build_odontologia_normalized_rows(
-            decimales=decimales,
-            doble_tipo=doble_tipo,
-            ruta_dup=ruta_dup,
-            profesionales=profesionales,
-            cantidades=cantidades,
-            tipo_id_edad=tipo_id_edad,
-            centro_costo=centro_costo,
-            ide_contrato=ide_contrato,
-            responsable_cierra=responsable_cierra,
-        )
-
-        resultado = {
-            "area": area,
-            "problemas": {
-                "normalizados": normalized_rows_eb,
-                "decimales": decimales,
-                "doble_tipo_procedimiento": doble_tipo,
-                "ruta_duplicada": ruta_dup,
-                "cantidades_anomalas": cantidades,
-                "tipo_identificacion_edad": tipo_id_edad,
-                "centro_costo": centro_costo,
-                "ide_contrato": ide_contrato,
-                "profesionales": profesionales,
-            },
-            "totales": {
-                "decimales": len(decimales),
-                "doble_tipo_procedimiento": len(doble_tipo),
-                "ruta_duplicada": len(ruta_dup),
-                "cantidades_anomalas": len(cantidades),
-                "tipo_identificacion_edad": len(tipo_id_edad),
-                "centro_costo": len(centro_costo),
-                "ide_contrato": len(ide_contrato),
-                "profesionales": len(profesionales),
-                "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
-            },
-            "es_equipos_basicos": True,
-            "missing_columns": missing_columns,
-        }
-        
-        # Enrich errors with responsable from mapping
-        if responsable_cierra:
-            for problem_type, problems in resultado["problemas"].items():
-                for p in problems:
-                    factura = p.get("factura")
-                    if factura and factura in responsable_cierra:
-                        p["responsable"] = responsable_cierra[factura]
-                    elif "responsable" not in p:
-                        p["responsable"] = ""
-        else:
-            # Ensure all problems have responsable key
-            for problem_type, problems in resultado["problemas"].items():
-                for p in problems:
-                    if "responsable" not in p:
-                        p["responsable"] = ""
-        
+        resultado["missing_columns"] = missing_columns
         return resultado, responsable_cierra
     else:
 # Odontología estándar: todas las validaciones
