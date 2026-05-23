@@ -40,7 +40,7 @@ class ProdConfig:
 
     SECRET_KEY = _prod_secret_key()
 
-    MAX_CONTENT_LENGTH = None  # Sin límite de tamaño
+    MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB
 
     LOG_LEVEL = "INFO"
     LOG_FILE = "logs/prod.log"
