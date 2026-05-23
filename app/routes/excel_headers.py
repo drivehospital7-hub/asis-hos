@@ -9,8 +9,9 @@ from flask import (
 
 from app.constants import PROFESIONALES_ODONTOLOGIA
 from app.services.excel_headers_page import build_excel_headers_form_context
-from app.utils.auth import permiso_requerido
 from app.services.exporter import detect_problems_only
+from app.services.processor_gate import rate_limit
+from app.utils.auth import permiso_requerido
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ def excel_headers_page():
 
 
 @excel_headers_bp.post("/")
+@rate_limit(10, 60)
 def export_cruce_facturas():
     """Procesa el archivo - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")
@@ -92,7 +94,7 @@ def export_cruce_facturas():
     )
     ctx["profesionales"] = PROFESIONALES_ODONTOLOGIA
 
-    export_result = detect_problems_only(
+    export_result, status_code = detect_problems_only(
         filename=filename,
         sheet_name=sheet_name,
         profesional=profesional,
@@ -123,7 +125,7 @@ def export_cruce_facturas():
                 f"Verifica que el archivo tenga los encabezados correctos."
             ],
             "missing_columns": missing_columns,  # Para mostrar al usuario qué falta
-        })
+        }), 200
 
     if export_result["status"] == "success":
         # Extraer info de problemas - formato NORMALIZADO 6 columnas
@@ -178,11 +180,11 @@ def export_cruce_facturas():
                 ],
             },
             "errors": [],
-        })
+        }), status_code
 
     return jsonify({
         "status": "error",
         "data": {},
         "errors": export_result.get("errors", []),
-    })
+    }), status_code
 

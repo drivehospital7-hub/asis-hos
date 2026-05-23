@@ -9,6 +9,7 @@ from flask import (
 
 from app.services.excel_headers_page import build_excel_headers_form_context
 from app.services.exporter import detect_problems_only
+from app.services.processor_gate import rate_limit
 from app.services.responsables import obtener_responsable
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 from app.constants import AREA_URGENCIAS, PROFESIONALES_URGENCIAS
@@ -34,6 +35,7 @@ def urgencias_page():
 
 
 @urgencias_bp.post("/")
+@rate_limit(10, 60)
 def export_urgencias():
     """Procesa el archivo de urgencias - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")
@@ -73,7 +75,7 @@ def export_urgencias():
     )
     ctx["profesionales"] = PROFESIONALES_URGENCIAS
 
-    export_result = detect_problems_only(
+    export_result, status_code = detect_problems_only(
         filename=filename,
         sheet_name=sheet_name,
         area=AREA_URGENCIAS,
@@ -97,7 +99,7 @@ def export_urgencias():
                 f"Verifica que el archivo tenga los encabezados correctos."
             ],
             "missing_columns": missing_columns,  # Para mostrar al usuario qué falta
-        })
+        }), 200
 
     # Debug: logging de la estructura completa
     logger.info("Export result keys: %s", list(export_result.keys()))
@@ -173,12 +175,12 @@ def export_urgencias():
                 ],
             },
             "errors": [],
-        })
+        }), status_code
 
     return jsonify({
         "status": "error",
         "data": {},
         "errors": export_result.get("errors", []),
-    })
+    }), status_code
 
 
