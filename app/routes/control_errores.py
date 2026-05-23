@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 control_errores_bp = Blueprint("control_errores", __name__)
 
 
-@control_errores_bp.get("/")
+@control_errores_bp.get("/control-errores")
 @permiso_requerido("control_urgencias")
 def control_errores_page():
     """Página principal del control de errores."""
@@ -78,11 +78,14 @@ def crear_error():
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias")
 def actualizar_error(error_id: str):
     """Actualizar un error existente."""
     data = request.get_json() or {}
-    return jsonify(update_error(error_id, data))
+    result = update_error(error_id, data)
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 @control_errores_bp.delete("/api/control-errores/<error_id>")

@@ -1081,6 +1081,37 @@
     padding-top: 1.25rem;
     border-top: 1px solid #f1f5f9;
   }
+
+  /* Toast notification */
+  .ce-toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 99999;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    max-width: 400px;
+    word-wrap: break-word;
+  }
+  .ce-toast--error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #dc2626;
+  }
+  .ce-toast--success {
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    color: #16a34a;
+  }
+  .ce-toast--info {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #2563eb;
+  }
 </style>
 {% endblock %}
 
@@ -1668,16 +1699,9 @@
   // ====== EDITOR GLOBAL ======
   function handleCellClick(td) {
     const field = td.dataset.field;
-    const authed = window.ceAuth && window.ceAuth.isAuth();
 
-    // Sin auth: observacion muestra tooltip readonly, con auth: puede editar
-    if (!authed && field === 'observacion') {
-      showObservacionReadOnly(td);
-      return;
-    }
-
-    // Factura sin auth: tooltip readonly
-    if (!authed && field === 'factura') {
+    // Sin permiso de escritura: observacion/factura muestran tooltip readonly
+    if (!window._canWrite && (field === 'observacion' || field === 'factura')) {
       showObservacionReadOnly(td);
       return;
     }
@@ -1783,9 +1807,8 @@
     const field = td.dataset.field;
     const id = td.dataset.id;
 
-    // Sin auth: solo estado, observacion_facturador, observacion y factura son editables
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed && field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') return;
+    // Sin permiso de escritura: solo estado y observacion_facturador son editables
+    if (!window._canWrite && field !== 'estado' && field !== 'observacion_facturador') return;
 
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
@@ -2135,36 +2158,84 @@
     setTimeout(callback, 10);
   }
 
+  // ====== TOAST NOTIFICATION ======
+  function showToast(message, type) {
+    var existing = document.querySelector('.ce-toast');
+    if (existing) existing.remove();
+    var toast = document.createElement('div');
+    toast.className = 'ce-toast ce-toast--' + (type || 'error');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(function() {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(-10px)';
+      setTimeout(function() { toast.remove(); }, 300);
+    }, 4000);
+  }
+
   async function updateBackend(id, field, value) {
     // Forzar mayúsculas en factura y observación
     if (field === 'factura' || field === 'observacion') {
       value = value.toUpperCase();
     }
-    try { var error = cachedErrores.find(function(e){return e.id===id}); if (!error) return;
-      
-      // Actualizar cache inmediatamente
-      error[field] = value;
-      
-      // Actualizar lastUpdate para bloquear el polling
-      lastUpdate = new Date().toISOString();
-      
-      // Enviar SOLO el campo que cambió (fire-and-forget)
+    var error = cachedErrores.find(function(e){return e.id===id});
+    if (!error) return;
+    
+    // Guardar valor original ANTES de la actualización optimista
+    var originalValue = error[field];
+    
+    // Actualizar cache inmediatamente (optimista)
+    error[field] = value;
+    
+    try {
+      // Enviar SOLO el campo que cambió
       const data = {};
       data[field] = value;
-      fetch(`/api/control-errores/${id}`, {
+      const res = await fetch(`/api/control-errores/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
+      
+      if (res.ok) {
+        // Éxito: actualizar lastUpdate para bloquear el polling
+        lastUpdate = new Date().toISOString();
+      } else if (res.status === 404) {
+        // Fila eliminada por otro usuario
+        _revertCacheValue(id, field, originalValue);
+        cachedErrores = cachedErrores.filter(function(e){return e.id!==id});
+        showToast('La fila fue eliminada por otro usuario', 'error');
+        if (!currentEditId && !isAdding) renderFilteredByMonth();
+      } else if (res.status === 403) {
+        // Permiso denegado
+        _revertCacheValue(id, field, originalValue);
+        showToast('Permiso denegado', 'error');
+        if (!currentEditId && !isAdding) renderFilteredByMonth();
+      } else {
+        // Otro error (500, etc.)
+        _revertCacheValue(id, field, originalValue);
+        showToast('Error del servidor: tu cambio no se guardó', 'error');
+        if (!currentEditId && !isAdding) renderFilteredByMonth();
+      }
     } catch (e) {
-      console.error('Error:', e);
+      console.error('Error en updateBackend:', e);
+      // Error de red: revertir
+      _revertCacheValue(id, field, originalValue);
+      showToast('Error de red: tu cambio no se guardó', 'error');
+      if (!currentEditId && !isAdding) renderFilteredByMonth();
+    }
+  }
+  
+  function _revertCacheValue(id, field, originalValue) {
+    var err = cachedErrores.find(function(e){return e.id===id});
+    if (err) {
+      err[field] = originalValue;
     }
   }
 
   // ====== NUEVA FILA ======
   function addNewRow() { 
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     if (isAdding || currentEditId) return;
     isAdding = true;
     currentEditId = 'new';
@@ -2242,8 +2313,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   // ====== ELIMINAR ======
   async function deleteError(id) { 
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     if (!confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
@@ -2389,8 +2459,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
   
   function exportToCSV() {
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       alert('No hay datos para exportar');
       return;
@@ -2477,10 +2546,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const dropzone = document.getElementById('modal-dropzone');
     const fileInput = document.getElementById('file-input');
 
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-
-    // Sin auth: ocultar dropzone (solo visualización)
-    if (!authed) {
+    // Sin permiso de escritura: ocultar dropzone (solo visualización)
+    if (!window._canWrite) {
       dropzone.style.display = 'none';
     }
 
@@ -2490,14 +2557,14 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (result.status === 'success') {
       listEl.innerHTML = result.data.imagenes.map(filename => {
         const isPdf = filename.toLowerCase().endsWith('.pdf');
-        if (isPdf) return _renderPdfThumb(errorId, filename, authed);
+        if (isPdf) return _renderPdfThumb(errorId, filename, window._canWrite);
         return `<div style="position:relative;width:120px;height:90px;">
           <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
-          ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
+          ${window._canWrite ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
         </div>`;
       }).join('');
-      // Solo mostrar dropzone si está autenticado y hay espacio
-      if (authed) {
+      // Solo mostrar dropzone si tiene permiso de escritura y hay espacio
+      if (window._canWrite) {
         dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
       }
     } else {
@@ -2506,8 +2573,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     modal.classList.add('open');
 
-    // Event listeners (solo si está autenticado)
-    if (authed) {
+    // Event listeners (solo si tiene permiso de escritura)
+    if (window._canWrite) {
       dropzone.onclick = () => fileInput.click();
       fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
       dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
@@ -2529,8 +2596,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   });
 
   async function uploadImages(errorId, files) {
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     for (const file of files) {
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       if (!file.type.startsWith('image/') && !isPdf) continue;
@@ -2545,8 +2611,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   async function deleteImage(errorId, filename) {
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     if (!confirm('¿Eliminar imagen?')) return;
     const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
     const result = await res.json();
@@ -2870,8 +2935,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== FLUJO PRINCIPAL CARGA MASIVA ======
 
   function openCargaMasiva() {
-    const authed = window.ceAuth && window.ceAuth.isAuth();
-    if (!authed) return;
+    if (!window._canWrite) return;
     document.getElementById('cargaModal').classList.add('open');
     document.getElementById('cargaStep1').classList.remove('hidden');
     document.getElementById('cargaStep2').classList.add('hidden');
@@ -3154,6 +3218,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   let lastUpdate = null;
 
   setInterval(async () => {
+    // NO hacer polling si hay un editor abierto — proteger la edición en curso
+    if (currentEditId || isAdding) return;
     try {
       const res = await fetch(`/api/control-errores/changes?since=${encodeURIComponent(lastUpdate || '')}`);
       const result = await res.json();
@@ -3167,9 +3233,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }, 3000);
 
   // ====== AUTH DISABLED STATE ======
-  // Escuchar evento de auth desde base.html
+  // Permiso de escritura desde el server (control_urgencias:write o admin *)
+  window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+
   function updateDisabledState() {
-    const authed = window.ceAuth && window.ceAuth.isAuth();
+    const authed = window._canWrite;
     const body = document.body;
 
     if (authed) {

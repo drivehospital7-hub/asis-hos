@@ -106,20 +106,22 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
-        # Sin autenticación: solo permitir estado y observación del facturador
-        authed = session.get("ce_authenticated")
-        if not authed:
+        # Permisos de escritura: "*" o "control_urgencias:write" = full access
+        user_permisos = session.get("permisos", [])
+        is_full_write = "*" in user_permisos or "control_urgencias:write" in user_permisos
+
+        if not is_full_write:
             prohibited = set(data.keys()) - {"estado", "observacion_facturador"}
             if prohibited:
                 return {
                     "status": "error",
                     "data": {},
                     "errors": [
-                        f"No autorizado. Sin sesión solo puede cambiar 'estado' y "
+                        f"No autorizado. Solo puede cambiar 'estado' y "
                         f"'observacion_facturador'. "
                         f"Campos rechazados: {', '.join(sorted(prohibited))}"
                     ],
-                }
+                }, 403
 
         # Solo procesar campos que vienen en el request
         kwargs = {}

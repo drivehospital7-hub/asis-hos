@@ -12,7 +12,7 @@
   <div class="layout">
     <header class="layout__header">
       <div class="layout__header-content">
-        <a href="{{ url_for('control_errores.control_errores_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
+        <a href="{{ url_for('home.home_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
         {% if session.get('ce_authenticated') %}
           <span class="layout__user">{{ session.get('username', '') }}</span>
           <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
