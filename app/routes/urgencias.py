@@ -35,7 +35,7 @@ def urgencias_page():
 
 
 @urgencias_bp.post("/")
-@rate_limit(10, 60)
+@rate_limit(1, 120)
 def export_urgencias():
     """Procesa el archivo de urgencias - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")

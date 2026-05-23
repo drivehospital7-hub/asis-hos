@@ -197,28 +197,27 @@ class TestStackedIntegration:
         ) as mock_acquire:
             mock_acquire.return_value = False
 
-            # N requests within rate limit window (limit=10)
-            for i in range(10):
-                resp = app_client.post(
-                    "/odontologia/",
-                    data={
-                        "file_upload": (
-                            BytesIO(b"small content"),
-                            f"test_{i}.xlsx",
-                        )
-                    },
-                    content_type="multipart/form-data",
-                )
-                # These should be 200 or error — but not 429 (under limit)
-                # Note: without a valid Excel, the route may return 200 with
-                # error body or redirect to HTML form. We just verify it's not
-                # 429 or 413.
-                assert resp.status_code not in (413, 429, 503), (
-                    f"Request {i + 1} (under limit) should not be rate limited, "
-                    f"got {resp.status_code}"
-                )
+            # 1 request within rate limit window (limit=1, window=120)
+            resp = app_client.post(
+                "/odontologia/",
+                data={
+                    "file_upload": (
+                        BytesIO(b"small content"),
+                        "test_1.xlsx",
+                    )
+                },
+                content_type="multipart/form-data",
+            )
+            # Should be 200 or error — but not 429 (under limit)
+            # Note: without a valid Excel, the route may return 200 with
+            # error body or redirect to HTML form. We just verify it's not
+            # 429 or 413.
+            assert resp.status_code not in (413, 429, 503), (
+                f"Request (under limit) should not be rate limited, "
+                f"got {resp.status_code}"
+            )
 
-            # N+1 request should be 429 (rate limit exceeded)
+            # 2nd request should be 429 (rate limit exceeded)
             resp = app_client.post(
                 "/odontologia/",
                 data={
@@ -244,20 +243,19 @@ class TestStackedIntegration:
 
         app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
-        # Exhaust rate limit
-        for i in range(10):
-            app_client.post(
-                "/odontologia/",
-                data={
-                    "file_upload": (
-                        BytesIO(b"data"),
-                        f"rate_test_{i}.xlsx",
-                    )
-                },
-                content_type="multipart/form-data",
-            )
+        # Send 1 request (within limit)
+        app_client.post(
+            "/odontologia/",
+            data={
+                "file_upload": (
+                    BytesIO(b"data"),
+                    "rate_test_1.xlsx",
+                )
+            },
+            content_type="multipart/form-data",
+        )
 
-        # N+1 should be 429
+        # 2nd should be 429
         resp = app_client.post(
             "/odontologia/",
             data={
@@ -321,20 +319,19 @@ class TestStackedIntegration:
         self._authenticate(app_client)
         app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
-        # Exhaust rate limit
-        for i in range(10):
-            app_client.post(
-                "/odontologia/",
-                data={
-                    "file_upload": (
-                        BytesIO(b"data"),
-                        f"back_test_{i}.xlsx",
-                    )
-                },
-                content_type="multipart/form-data",
-            )
+        # Send 1 request within limit
+        app_client.post(
+            "/odontologia/",
+            data={
+                "file_upload": (
+                    BytesIO(b"data"),
+                    "back_test_1.xlsx",
+                )
+            },
+            content_type="multipart/form-data",
+        )
 
-        # Trigger rate limit
+        # 2nd request triggers rate limit (limit=1, window=120)
         app_client.post(
             "/odontologia/",
             data={

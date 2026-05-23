@@ -74,7 +74,7 @@ def release_semaphore() -> None:
     )
 
 
-def rate_limit(limit: int = 10, window: int = 60):
+def rate_limit(limit: int = 1, window: int = 120):
     """Decorator: limita a ``limit`` requests POST en una ventana de ``window`` segundos.
 
     Usa ``session["_rate_limiter"]`` = lista de timestamps (``time.time()``).

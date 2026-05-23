@@ -34,7 +34,7 @@ def excel_headers_page():
 
 
 @excel_headers_bp.post("/")
-@rate_limit(10, 60)
+@rate_limit(1, 120)
 def export_cruce_facturas():
     """Procesa el archivo - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")
