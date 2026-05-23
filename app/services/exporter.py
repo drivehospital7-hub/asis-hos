@@ -22,6 +22,11 @@ from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
+from app.services.processor_gate import (
+    SEMAPHORE_TIMEOUT,
+    acquire_semaphore,
+    release_semaphore,
+)
 from app.utils.input_data import (
     resolve_safe_excel_absolute,
     resolve_safe_excel_in_input,
@@ -69,13 +74,16 @@ def detect_problems_only(
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
     equipos_basicos: bool = False,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], int]:
     """
     Solo detecta problemas en un Excel, SIN exportar ni crear archivos.
 
     Lee el Excel con Polars, extrae los encabezados, ejecuta los detectores
     y retorna los problemas. No crea hojas, no aplica formato,
     no guarda nada en output/.
+    
+    Adquiere el semáforo de concurrencia antes de procesar y lo libera
+    en un bloque ``finally`` — nunca lo retiene si ocurre una excepción.
     
     Args:
         filename: Ruta al archivo Excel
@@ -88,7 +96,62 @@ def detect_problems_only(
         equipos_basicos: Usar detectores de equipos básicos
     
     Returns:
-        Dict con formato estándar {status, data: {problemas, responsables_map}, errors}
+        Tupla (result_dict, status_code) donde status_code es:
+        200 en éxito, 503 en timeout del semáforo, 500 en error interno.
+    """
+    # Adquirir semáforo de concurrencia — si timeout, retornar 503
+    if not acquire_semaphore(timeout=SEMAPHORE_TIMEOUT):
+        return (
+            {
+                "status": "error",
+                "data": {},
+                "errors": [
+                    "Servidor ocupado. Intente nuevamente en unos momentos."
+                ],
+            },
+            503,
+        )
+
+    try:
+        result = _do_detect_problems(
+            filename=filename,
+            sheet_name=sheet_name,
+            area=area,
+            profesional=profesional,
+            dias=dias,
+            todos_profesionales_dias=todos_profesionales_dias,
+            validar_centro_costo=validar_centro_costo,
+            equipos_basicos=equipos_basicos,
+        )
+        return (result, 200)
+    except Exception:
+        logger.exception("Error no capturado en detect_problems_only")
+        return (
+            {
+                "status": "error",
+                "data": {},
+                "errors": ["Error interno del servidor al procesar el archivo."],
+            },
+            500,
+        )
+    finally:
+        release_semaphore()
+
+
+def _do_detect_problems(
+    *,
+    filename: str,
+    sheet_name: str | None = None,
+    area: str = AREA_ODONTOLOGIA,
+    profesional: str = "",
+    dias: list[int] | None = None,
+    todos_profesionales_dias: dict[str, list[int]] | None = None,
+    validar_centro_costo: bool = False,
+    equipos_basicos: bool = False,
+) -> dict[str, Any]:
+    """
+    Implementación interna de la detección de problemas.
+    Separada para que detect_problems_only() pueda envolverla con el semáforo.
     """
     logger.info("Detectando problemas (sin exportar): %s", filename)
     
