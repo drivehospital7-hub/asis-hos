@@ -28,8 +28,8 @@ Chain strategy: size-exception
 
 ## Phase 3: Dashboard (`app/templates/home.html`)
 
-- [ ] 3.1 Add `{% if 'derechos' in permisos %}` card for Derechos — endpoint `derechos.derechos_page`
-- [ ] 3.2 Add `{% if permisos %}` card for Import/Genderize — endpoint `import_facturas.import_facturas_page`
+- [x] 3.1 Add `{% if 'derechos' in permisos %}` card for Derechos — endpoint `derechos.derechos_page`
+- [x] 3.2 Add `{% if permisos %}` card for Import/Genderize — endpoint `import_facturas.import_facturas_page`
 
 ## Phase 4: Verification (Manual)
 
