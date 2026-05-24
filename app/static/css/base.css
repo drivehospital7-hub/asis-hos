@@ -200,6 +200,34 @@ body {
   font-size: var(--font-size-sm);
 }
 
+/* Footer clickable — triggers easter-egg login modal on dblclick */
+.layout__footer--clickable {
+  cursor: pointer;
+  user-select: none;
+}
+
+/* --- Nav ---------------------------------------------------- */
+.layout__nav {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+}
+
+.layout__nav a {
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+  white-space: nowrap;
+}
+
+.layout__nav a:hover {
+  color: var(--color-accent);
+  background-color: var(--color-hover-bg);
+}
+
 /* --- Header ------------------------------------------------- */
 .header {
   display: flex;

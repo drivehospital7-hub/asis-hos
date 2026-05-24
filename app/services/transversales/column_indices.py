@@ -7,6 +7,7 @@ Función parametrizada que acepta cualquier conjunto de headers requeridos.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -32,23 +33,32 @@ def get_column_indices(
     """
     indices: dict[str, int | None] = {k: None for k in required_headers}
 
-    # Normalizar headers del Excel para comparación EXACTA
+    # Normalizar headers del Excel: NFC + limpiar espacios no separables
     excel_headers_normalized: dict[str, int] = {}
     for i, header in enumerate(headers):
         if header is not None:
-            normalized = str(header).strip()
+            normalized = (
+                unicodedata.normalize("NFC", str(header))
+                .strip()
+                .replace("\u00a0", " ")
+            )
             excel_headers_normalized[normalized] = i
 
-    # Buscar coincidencia EXACTA para cada columna requerida
+    # Buscar coincidencia EXACTA (con normalización NFC en ambos lados)
     missing_columns: list[str] = []
     for key, required_name in required_headers.items():
-        if required_name in excel_headers_normalized:
-            indices[key] = excel_headers_normalized[required_name]
+        required_norm = (
+            unicodedata.normalize("NFC", required_name)
+            .strip()
+            .replace("\u00a0", " ")
+        )
+        if required_norm in excel_headers_normalized:
+            indices[key] = excel_headers_normalized[required_norm]
             logger.info(
                 "COLUMNA MAPEADA: '%s' -> clave '%s' (índice %d)",
                 required_name,
                 key,
-                excel_headers_normalized[required_name],
+                excel_headers_normalized[required_norm],
             )
         else:
             missing_columns.append(required_name)
