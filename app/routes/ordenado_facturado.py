@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint, jsonify, render_template, request
 
 from app.services.ordenado_facturado_service import procesar_cruce
+from app.utils.auth import permiso_requerido
 
 logger = logging.getLogger(__name__)
 
@@ -19,12 +20,14 @@ ordenado_facturado_bp = Blueprint("ordenado_facturado", __name__)
 
 
 @ordenado_facturado_bp.get("/")
+@permiso_requerido("equipos_basicos")
 def ordenado_facturado_page():
     """Página de Ordenado y Facturado."""
     return render_template("ordenado_facturado.html")
 
 
 @ordenado_facturado_bp.post("/procesar")
+@permiso_requerido("equipos_basicos")
 def procesar_ordenado_facturado():
     """Procesa los 2 archivos Excel y cruza datos."""
     archivo_reporte = request.files.get("archivo_reporte")

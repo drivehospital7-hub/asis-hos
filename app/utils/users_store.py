@@ -48,8 +48,9 @@ DEFAULT_USERS = [
             "control_urgencias:write",
             "facturas_abiertas",
             "facturas_abiertas:write",
+            "equipos_basicos",
         ],
-        "descripcion": "Control urgencias + facturas abiertas (con modificación)",
+        "descripcion": "Control urgencias + facturas abiertas + cruce reportes (con modificación)",
     },
 ]
 
