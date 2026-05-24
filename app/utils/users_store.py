@@ -7,10 +7,13 @@ primer intento de lectura.
 
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
 from werkzeug.security import generate_password_hash, check_password_hash
+
+from app.constants.base import ALLOWED_PERMISOS
 
 logger = logging.getLogger(__name__)
 
@@ -68,10 +71,17 @@ def _load_users() -> list:
 
 
 def _save_users(users: list) -> None:
-    """Guarda usuarios al archivo JSON."""
+    """Guarda usuarios al archivo JSON (escritura atómica).
+
+    Escribe a un archivo temporal y luego usa os.replace() para
+    reemplazar el archivo original. Esto previene corrupción
+    por crash durante la escritura.
+    """
     USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with open(USERS_FILE, "w", encoding="utf-8") as f:
+    tmp = USERS_FILE.with_suffix(".json.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(users, f, indent=2, ensure_ascii=False)
+    os.replace(tmp, USERS_FILE)
 
 
 def _create_default_users() -> None:
@@ -157,12 +167,84 @@ def create_user(
     return True, f"Usuario '{username}' creado"
 
 
+def update_user(username: str, updates: dict) -> tuple:
+    """Actualiza parcialmente un usuario.
+
+    Los campos en `updates` son opcionales:
+      - password: str|None — Si es None o "", se omite (no cambia).
+      - rol: str — Debe ser "admin" o "usuario".
+      - permisos: list — Cada elemento debe estar en ALLOWED_PERMISOS.
+
+    Returns:
+        (True, mensaje) si se actualizó, (False, mensaje) si hay error.
+    """
+    users = _load_users()
+    target = None
+    for u in users:
+        if u["username"] == username:
+            target = u
+            break
+
+    if target is None:
+        return False, f"Usuario '{username}' no encontrado"
+
+    # Construir dict actualizado
+    updated = dict(target)
+
+    # Password opcional
+    password = updates.get("password")
+    if password and isinstance(password, str) and password.strip():
+        updated["password_hash"] = generate_password_hash(password)
+
+    # Rol con validación
+    if "rol" in updates:
+        rol = updates["rol"]
+        if rol not in ("admin", "usuario"):
+            return False, "Rol inválido: debe ser admin o usuario"
+        updated["rol"] = rol
+
+    # Permisos con validación
+    if "permisos" in updates:
+        nuevos_permisos = updates["permisos"]
+        if not isinstance(nuevos_permisos, list):
+            return False, "Permisos debe ser una lista"
+
+        # Validar contra lista permitida
+        for p in nuevos_permisos:
+            if p not in ALLOWED_PERMISOS:
+                return False, f"Permiso inválido: {p}"
+
+        # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
+        if "*" in target.get("permisos", []) and "*" not in nuevos_permisos:
+            return (
+                False,
+                "No puedes remover el permiso de administrador de este usuario",
+            )
+
+        updated["permisos"] = nuevos_permisos
+
+    # Reemplazar en la lista
+    for i, u in enumerate(users):
+        if u["username"] == username:
+            users[i] = updated
+            break
+
+    _save_users(users)
+    return True, f"Usuario '{username}' actualizado"
+
+
 def delete_user(username: str) -> tuple:
     """Elimina un usuario.
 
+    El usuario 'admin' NO puede ser eliminado.
+
     Returns:
-        (True, mensaje) si se eliminó, (False, mensaje) si no existe.
+        (True, mensaje) si se eliminó, (False, mensaje) si no existe
+        o si es admin.
     """
+    if username == "admin":
+        return False, "No se puede eliminar el usuario admin"
+
     users = _load_users()
     filtered = [u for u in users if u["username"] != username]
     if len(filtered) == len(users):

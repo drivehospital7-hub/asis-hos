@@ -48,6 +48,23 @@ AREA_URGENCIAS = "urgencias"
 AREA_EQUIPOS_BASICOS = "equipos_basicos"
 
 # =============================================================================
+# PERMISOS - Valores de permiso válidos
+# =============================================================================
+
+ALLOWED_PERMISOS = frozenset({
+    "*",
+    "odontologia",
+    "urgencias",
+    "control_urgencias",
+    "control_urgencias:write",
+    "facturas_abiertas",
+    "facturas_abiertas:write",
+    "equipos_basicos",
+    "cruce_facturas",
+    "derechos",
+})
+
+# =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
 # =============================================================================
 

@@ -133,7 +133,11 @@ def logout():
 def listar_usuarios():
     """Listar usuarios desde el store local."""
     usuarios = users_store.list_users()
-    return render_template("usuarios.html", usuarios=usuarios)
+    return render_template(
+        "usuarios.html",
+        usuarios=usuarios,
+        session_username=session.get("username"),
+    )
 
 
 @auth_bp.route("/usuarios/crear", methods=["POST"])
@@ -156,5 +160,45 @@ def crear_usuario():
     permisos = ["*"] if rol == "admin" else permisos_raw
 
     ok, msg = users_store.create_user(username, password, rol, permisos)
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("auth.listar_usuarios"))
+
+
+@auth_bp.route("/usuarios/<username>/editar", methods=["POST"])
+@admin_requerido
+def editar_usuario(username):
+    """Editar un usuario existente.
+
+    Password es opcional — si se envía vacío, no cambia.
+    """
+    form_username = request.form.get("username", "").strip()
+    password = request.form.get("password", "")
+    rol = request.form.get("rol", "usuario")
+    permisos_raw = request.form.getlist("permisos")
+
+    # Protección: admin no puede removerse * a sí mismo
+    session_username = session.get("username")
+    if session_username == username and "*" not in permisos_raw:
+        flash("No puedes remover tus propios permisos de administrador", "error")
+        return redirect(url_for("auth.listar_usuarios"))
+
+    updates = {"rol": rol, "permisos": permisos_raw}
+    if password:
+        updates["password"] = password
+
+    ok, msg = users_store.update_user(username, updates)
+    flash(msg, "success" if ok else "error")
+    return redirect(url_for("auth.listar_usuarios"))
+
+
+@auth_bp.route("/usuarios/<username>/eliminar", methods=["POST"])
+@admin_requerido
+def eliminar_usuario(username):
+    """Eliminar un usuario (excepto admin)."""
+    if username == "admin":
+        flash("No se puede eliminar el usuario admin", "error")
+        return redirect(url_for("auth.listar_usuarios"))
+
+    ok, msg = users_store.delete_user(username)
     flash(msg, "success" if ok else "error")
     return redirect(url_for("auth.listar_usuarios"))

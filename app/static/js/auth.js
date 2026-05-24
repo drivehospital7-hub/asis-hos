@@ -2,19 +2,13 @@
  * Módulo de autenticación - Control de Facturación
  * Sin auth: elementos se ven normales pero no funcionan (clase is-disabled)
  * Con auth: todo habilitado
+ *
+ * Escucha el evento 'ce-auth-change' del sistema moderno (base.html).
+ * No usa localStorage.
  */
-
-const AUTH_KEY = 'admin_authenticated';
-
-function isAuthenticated() {
-  return localStorage.getItem(AUTH_KEY) === 'true';
-}
-
-function initAuthUI() {
-  const authenticated = isAuthenticated();
-
+function initAuthUI(authenticated) {
   // ----- .require-auth (botón Agregar Error) -----
-  document.querySelectorAll('.require-auth').forEach(el => {
+  document.querySelectorAll('.require-auth').forEach(function(el) {
     if (!authenticated) {
       el.classList.add('is-disabled');
     } else {
@@ -23,7 +17,7 @@ function initAuthUI() {
   });
 
   // ----- .action-icon--delete (botones eliminar) -----
-  document.querySelectorAll('.action-icon--delete').forEach(btn => {
+  document.querySelectorAll('.action-icon--delete').forEach(function(btn) {
     if (!authenticated) {
       btn.classList.add('is-disabled');
     } else {
@@ -32,10 +26,10 @@ function initAuthUI() {
   });
 
   // ----- .editable-cell (EXCEPTO data-field="estado") -----
-  document.querySelectorAll('.editable-cell').forEach(cell => {
-    const field = cell.dataset.field;
+  document.querySelectorAll('.editable-cell').forEach(function(cell) {
+    var field = cell.dataset.field;
     if (field === 'estado') return; // NO tocar columna estado
-    
+
     if (!authenticated) {
       cell.classList.add('is-disabled');
     } else {
@@ -44,22 +38,23 @@ function initAuthUI() {
   });
 
   // ----- ÁREAS EN HOME -----
-  const areasSection = document.getElementById('areas-section');
+  var areasSection = document.getElementById('areas-section');
   if (areasSection) {
     areasSection.style.display = authenticated ? 'block' : 'none';
   }
 }
 
-// Inicializar
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initAuthUI);
-} else {
-  initAuthUI();
-}
-
-// Escuchar cambios en localStorage (si se loguea en otra pestaña)
-window.addEventListener('storage', function(e) {
-  if (e.key === AUTH_KEY) {
-    initAuthUI();
-  }
+// Escuchar evento moderno ce-auth-change (disparado por base.html)
+document.addEventListener('ce-auth-change', function(e) {
+  var authed = e.detail && e.detail.auth;
+  initAuthUI(!!authed);
 });
+
+// Fallback: inicializar con false si el evento nunca se disparó
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', function() {
+    initAuthUI(false);
+  });
+} else {
+  initAuthUI(false);
+}
