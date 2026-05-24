@@ -13,6 +13,33 @@
     <header class="layout__header">
       <div class="layout__header-content">
         <a href="{{ url_for('home.home_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
+        {% set nav_items = {
+          'odontologia':        {'label': 'Odontología',        'endpoint': 'excel_headers.excel_headers_page'},
+          'urgencias':          {'label': 'Urgencias',          'endpoint': 'urgencias.urgencias_page'},
+          'control_urgencias':  {'label': 'Control Urgencias',  'endpoint': 'control_errores.control_errores_page'},
+          'equipos_basicos':    {'label': 'Ordenado y Facturado','endpoint': 'ordenado_facturado.ordenado_facturado_page'},
+          'facturas_abiertas':  {'label': 'Facturas Abiertas',  'endpoint': 'abiertas_urgencias.abiertas_urgencias_page'},
+          'derechos':           {'label': 'Derechos',           'endpoint': 'derechos.derechos_page'},
+          '*':                  {'label': 'Usuarios',           'endpoint': 'auth.listar_usuarios'},
+        } %}
+        <nav class="layout__nav">
+          {% if '*' in session_permisos %}
+            {% for key, item in nav_items.items() %}
+              <a href="{{ url_for(item.endpoint) }}">{{ item.label }}</a>
+            {% endfor %}
+          {% else %}
+            {% for permiso in session_permisos %}
+              {% set key = permiso.split(':')[0] if ':' in permiso else permiso %}
+              {% if key in nav_items %}
+                {% set item = nav_items[key] %}
+                <a href="{{ url_for(item.endpoint) }}">{{ item.label }}</a>
+              {% endif %}
+            {% endfor %}
+          {% endif %}
+          {% if session_permisos %}
+            <a href="{{ url_for('import_facturas.import_facturas_page') }}">Importar Facturas</a>
+          {% endif %}
+        </nav>
         {% if session.get('ce_authenticated') %}
           <span class="layout__user">{{ session.get('username', '') }}</span>
           <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
@@ -36,6 +63,10 @@
     <main class="layout__main">
       {% block content %}{% endblock %}
     </main>
+
+    <footer class="layout__footer layout__footer--clickable">
+      <span id="version-text">Mini.local v1.0 — Doble clic para acceso directo</span>
+    </footer>
   </div>
 
   <!-- Login Modal (Easter Egg) -->
@@ -62,9 +93,6 @@
     // Sistema de autenticación con servidor real + localStorage para UI
     (function() {
       const CE_AUTH_KEY = 'ce_auth';
-      let clickCount = 0;
-      let clickTimer = null;
-      const title = document.querySelector('.layout__title--clickable');
       const modal = document.getElementById('login-modal');
       const sesionIndicator = document.getElementById('sesion-indicator');
       const loginUser = document.getElementById('login-user');
@@ -180,20 +208,6 @@
         modal.style.display = 'none';
       }
 
-      // ── Click en "Mini.local": 3 clicks abre el modal ──
-      title.addEventListener('click', function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if (isAuth()) return;
-        clickCount++;
-        if (clickTimer) clearTimeout(clickTimer);
-        clickTimer = setTimeout(() => { clickCount = 0; }, 1000);
-        if (clickCount >= 3) {
-          clickCount = 0;
-          openModal();
-        }
-      });
-
       // ── Escape cierra modal ──
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal.style.display !== 'none') {
@@ -207,6 +221,14 @@
       loginPass.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') attemptLogin();
       });
+
+      // ── Doble-click en footer: easter egg abre modal login ──
+      const footer = document.querySelector('.layout__footer--clickable');
+      if (footer) {
+        footer.addEventListener('dblclick', function(e) {
+          openModal();
+        });
+      }
 
       // ── Escuchar cambios en localStorage (otra pestaña) ──
       window.addEventListener('storage', function(e) {

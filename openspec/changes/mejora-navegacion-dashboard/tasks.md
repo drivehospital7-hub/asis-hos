@@ -17,14 +17,14 @@ Chain strategy: size-exception
 
 ## Phase 1: CSS Foundation (`app/static/css/base.css`)
 
-- [ ] 1.1 Add `.layout__nav` — horizontal flexbox, items inline, hover highlight, no wrapping
-- [ ] 1.2 Add `.layout__footer--clickable` — cursor pointer for dblclick easter-egg target
+- [x] 1.1 Add `.layout__nav` — horizontal flexbox, items inline, hover highlight, no wrapping
+- [x] 1.2 Add `.layout__footer--clickable` — cursor pointer for dblclick easter-egg target
 
 ## Phase 2: Core Template (`app/templates/base.html`)
 
-- [ ] 2.1 Remove easter-egg JS from `.layout__title--clickable`: delete `addEventListener` that intercepts click (~lines 184-195), keep `<a>` tag with existing `href`
-- [ ] 2.2 Add `<footer class="layout__footer layout__footer--clickable">` with version text + `dblclick` listener calling `openModal()`
-- [ ] 2.3 Add `<nav class="layout__nav">` with `{% set nav_items = {...} %}` permission-to-route mapping and loop filtering against `session_permisos`
+- [x] 2.1 Remove easter-egg JS from `.layout__title--clickable`: delete `addEventListener` that intercepts click (~lines 184-195), keep `<a>` tag with existing `href`
+- [x] 2.2 Add `<footer class="layout__footer layout__footer--clickable">` with version text + `dblclick` listener calling `openModal()`
+- [x] 2.3 Add `<nav class="layout__nav">` with `{% set nav_items = {...} %}` permission-to-route mapping and loop filtering against `session_permisos`
 
 ## Phase 3: Dashboard (`app/templates/home.html`)
 
