@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title | default("Control de Facturación") }} — React</title>
+
+  {# ── Tailwind v4 CDN ── #}
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  {# ── Google Fonts: Sora + Manrope ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+
+  {# ── Custom CSS (tokens + utilities) ── #}
+  <link rel="stylesheet" href="/static/css/main.css">
+
+  {% if entry_css %}
+  <link rel="stylesheet" crossorigin href="/static/react-dist/{{ entry_css }}">
+  {% endif %}
+</head>
+<body>
+  <div id="root"></div>
+  <noscript>
+    <div style="padding: 2rem; text-align: center; color: var(--muted);">
+      <p style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">JavaScript requerido</p>
+      <p>Esta página necesita JavaScript para funcionar. Por favor, habilitá JavaScript en tu navegador.</p>
+    </div>
+  </noscript>
+  <script>
+    window.__INITIAL_DATA__ = {{ initial_data | tojson | safe }};
+  </script>
+  <script type="module" crossorigin src="/static/react-dist/{{ entry_js }}"></script>
+</body>
+</html>

@@ -1,8 +1,10 @@
 """Routes para control de errores de urgencias."""
 
+import json
 import logging
+from pathlib import Path
 
-from flask import Blueprint, jsonify, request, send_from_directory
+from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory, session
 
 from app.services.control_errores_service import (
     get_opciones,
@@ -25,13 +27,25 @@ logger = logging.getLogger(__name__)
 control_errores_bp = Blueprint("control_errores", __name__)
 
 
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
+
 @control_errores_bp.get("/control-errores")
 @permiso_requerido("control_urgencias")
 def control_errores_page():
-    """Página principal del control de errores."""
-    from flask import render_template
+    """Página principal del control de errores (Jinja2)."""
+    from flask import url_for
 
-    return render_template("control_errores.html")
+    breadcrumbs = [
+        ("Inicio", url_for("home.home_react")),
+        ("Control Novedades", None),
+    ]
+    return render_template("control_errores.html", breadcrumbs=breadcrumbs)
 
 
 @control_errores_bp.get("/api/control-errores/opciones")

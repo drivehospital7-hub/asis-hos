@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  /* ============================================================
+     oklch token system — sinced with app/static/css/main.css
+     ============================================================ */
+
+  /* Verde Salud — paleta institucional */
+  --color-background: oklch(0.975 0.012 85);
+  --color-foreground: oklch(0.22 0.03 165);
+
+  --color-surface: oklch(1 0 0);
+  --color-surface-foreground: oklch(0.22 0.03 165);
+
+  --color-card: oklch(1 0 0);
+  --color-card-foreground: oklch(0.22 0.03 165);
+
+  --color-popover: oklch(1 0 0);
+  --color-popover-foreground: oklch(0.22 0.03 165);
+
+  --color-primary: oklch(0.32 0.055 165);
+  --color-primary-foreground: oklch(0.975 0.012 85);
+
+  --color-secondary: oklch(0.42 0.07 162);
+  --color-secondary-foreground: oklch(0.98 0 0);
+
+  --color-muted: oklch(0.94 0.012 100);
+  --color-muted-foreground: oklch(0.45 0.025 160);
+
+  --color-accent: oklch(0.92 0.025 155);
+  --color-accent-foreground: oklch(0.32 0.055 165);
+
+  --color-destructive: oklch(0.5 0.18 25);
+  --color-destructive-foreground: oklch(0.98 0 0);
+
+  --color-border: oklch(0.88 0.015 130);
+  --color-input: oklch(0.88 0.015 130);
+  --color-ring: oklch(0.42 0.07 162);
+
+  /* Estados semánticos */
+  --color-success: oklch(0.55 0.13 160);
+  --color-success-foreground: oklch(0.98 0 0);
+  --color-warning: oklch(0.72 0.14 75);
+  --color-warning-foreground: oklch(0.25 0.05 60);
+  --color-danger: oklch(0.45 0.13 20);
+  --color-danger-foreground: oklch(0.98 0 0);
+  --color-info: oklch(0.55 0.1 230);
+  --color-info-foreground: oklch(0.98 0 0);
+
+  /* Sidebar */
+  --color-sidebar: oklch(0.28 0.045 165);
+  --color-sidebar-foreground: oklch(0.92 0.02 130);
+  --color-sidebar-primary: oklch(0.55 0.13 160);
+  --color-sidebar-primary-foreground: oklch(0.98 0 0);
+  --color-sidebar-accent: oklch(0.36 0.05 165);
+  --color-sidebar-accent-foreground: oklch(0.98 0 0);
+  --color-sidebar-border: oklch(0.36 0.05 165);
+  --color-sidebar-ring: oklch(0.55 0.13 160);
+
+  /* Charts */
+  --color-chart-1: oklch(0.42 0.07 162);
+  --color-chart-2: oklch(0.55 0.13 160);
+  --color-chart-3: oklch(0.72 0.14 75);
+  --color-chart-4: oklch(0.55 0.1 230);
+  --color-chart-5: oklch(0.45 0.13 20);
+
+  /* Radius */
+  --radius: 0.5rem;
+}
+
+/* Font setup */
+:root {
+  --font-heading: "Sora", system-ui, sans-serif;
+  --font-body: "Sora", system-ui, sans-serif;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
+}

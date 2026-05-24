@@ -1,28 +1,55 @@
 """Ruta para extraer nombres del Excel."""
 
+import json
 import logging
 import os
 import tempfile
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, session
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.services import genderize_extractor, genderize_service, genderize_verifier
+from app.utils.auth import admin_requerido
 
 logger = logging.getLogger(__name__)
 
 import_facturas_bp = Blueprint("import_facturas", __name__)
 
 
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
+
 @import_facturas_bp.route("/import-facturas")
-def import_facturas_page():
-    """Página para subir Excel y extraer nombres."""
-    return render_template("import_facturas.html")
+@admin_requerido
+def import_facturas_react():
+    """React shell for Genderize / Import Facturas."""
+    permisos = session.get("permisos", [])
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/genderize/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+    return render_template(
+        "react_shell.html",
+        page_title="Verificar Sexo — Genderize",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "username": session.get("username", ""),
+            "permisos": permisos,
+        },
+    )
+
+
 
 
 @import_facturas_bp.route("/api/import/facturas-nombres", methods=["POST"])
+@admin_requerido
 def extract_facturas_nombres():
     """Extrae Numero Factura - Primer Nombre - Sexo del Excel de facturas."""
     if "file" not in request.files:
@@ -87,6 +114,7 @@ def extract_facturas_nombres():
 # ============================================================================
 
 @import_facturas_bp.route("/api/import/facturas-stats", methods=["POST"])
+@admin_requerido
 def get_facturas_stats():
     """Obtiene estadísticas sin gastar tokens."""
     if "file" not in request.files:
@@ -137,6 +165,7 @@ def get_facturas_stats():
 # ============================================================================
 
 @import_facturas_bp.route("/api/import/cache-corregir", methods=["POST"])
+@admin_requerido
 def corregir_genero():
     """Sobrescribe el género de un nombre en el cache."""
     data = request.get_json(silent=True)
@@ -192,6 +221,7 @@ def corregir_genero():
 # ============================================================================
 
 @import_facturas_bp.route("/api/import/facturas-verify", methods=["POST"])
+@admin_requerido
 def verify_facturas():
     """Verifica sexo del Excel contra API Genderize."""
     if "file" not in request.files:

@@ -1,0 +1,9 @@
+/* ============================================================
+   legacy/urgencias.css — Extracted from urgencias.html inline <style>
+   Phase 6 Cleanup: migrated from template inline to legacy file.
+   Preserved exactly for backward compatibility.
+   ============================================================ */
+
+.row-fecha-cierre-vacia {
+  background-color: #fff3cd !important;
+}

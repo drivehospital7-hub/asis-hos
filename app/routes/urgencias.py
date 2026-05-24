@@ -1,10 +1,14 @@
+import json
 import logging
+from pathlib import Path
 
 from flask import (
     Blueprint,
+    current_app,
     jsonify,
     render_template,
     request,
+    session,
 )
 
 from app.services.excel_headers_page import build_excel_headers_form_context
@@ -20,18 +24,40 @@ logger = logging.getLogger(__name__)
 urgencias_bp = Blueprint("urgencias", __name__)
 
 
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
+
 @urgencias_bp.get("/")
 @permiso_requerido("urgencias")
-def urgencias_page():
-    """Pagina principal del formulario de urgencias."""
-    ctx = build_excel_headers_form_context(
-        file="",
-        sheet_name=request.args.get("sheet_name"),
-        sheet_id_raw=request.args.get("sheet_id"),
-        header_row_raw=request.args.get("header_row"),
+def urgencias_react():
+    """React shell for Urgencias."""
+    permisos = session.get("permisos", [])
+    can_write = "*" in permisos or "urgencias:write" in permisos
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/urgencias/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+
+    return render_template(
+        "react_shell.html",
+        page_title="Urgencias",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "can_write": can_write,
+            "username": session.get("username", ""),
+            "permisos": permisos,
+            "errores": [],
+            "total_errores": 0,
+        },
     )
-    ctx["profesionales"] = PROFESIONALES_URGENCIAS
-    return render_template("urgencias.html", **ctx)
+
+
+
 
 
 @urgencias_bp.post("/")

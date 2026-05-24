@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ page_title | default("Control de Facturación") }} — React</title>
+
+  {# ── Tailwind v4 CDN ── #}
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  {# ── Google Fonts: Sora + Manrope ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+
+  {# ── Lucide Icons CDN ── #}
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    @theme {
+      --font-heading: 'Sora', system-ui, sans-serif;
+      --font-body: 'Manrope', system-ui, sans-serif;
+    }
+  </style>
+
+  {% if entry_css %}
+  <link rel="stylesheet" crossorigin href="{{ url_for('static', filename='react-dist/' + entry_css) }}">
+  {% endif %}
+</head>
+<body class="min-h-screen bg-[var(--background)] font-body text-[var(--foreground)]"
+      style="background: oklch(0.96 0.01 80); font-family: 'Manrope', system-ui, sans-serif;">
+
+  <div id="root"></div>
+  <noscript>
+    <div style="padding: 2rem; text-align: center; color: oklch(0.55 0.04 160);">
+      <p style="font-size: 1.125rem; font-weight: 600; margin-bottom: 0.5rem;">JavaScript requerido</p>
+      <p>Esta página necesita JavaScript para funcionar. Por favor, habilita JavaScript en tu navegador.</p>
+    </div>
+  </noscript>
+  <script>
+    window.__INITIAL_DATA__ = {{ initial_data | tojson | safe }};
+  </script>
+  <script type="module" crossorigin src="{{ url_for('static', filename='react-dist/' + entry_js) }}"></script>
+</body>
+</html>

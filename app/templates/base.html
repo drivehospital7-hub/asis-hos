@@ -4,72 +4,183 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block title %}Control Facturacion{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/base.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/components.css') }}">
+
+  {# ── Tailwind v4 CDN ── #}
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  {# ── Google Fonts: Sora + Manrope ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  {# ── Lucide Icons CDN ── #}
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  {# ── Custom CSS (tokens + utilities) ── #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
+
   {% block head_extra %}{% endblock %}
 </head>
 <body>
-  <div class="layout">
-    <header class="layout__header">
-      <div class="layout__header-content">
-        <a href="{{ url_for('home.home_page') }}" class="layout__title layout__title--clickable">Mini.local</a>
+
+  {# ═══════════════════════════════════════════ #}
+  {# LAYOUT: sidebar fixed + main with margin    #}
+  {# ═══════════════════════════════════════════ #}
+  <div class="min-h-screen bg-[var(--background)] font-body" id="layoutRoot">
+
+    {# ── SIDEBAR (default collapsed 4rem, JS expands if needed) ── #}
+    <aside id="sidebar" class="fixed left-0 top-0 h-screen z-40 flex flex-col overflow-y-auto transition-all duration-200" style="width: 4rem; background-color:var(--sidebar); color:var(--sidebar-foreground); border-right:1px solid var(--sidebar-border);">
+      {# HO logo + toggle #}
+      <div class="flex items-center justify-between px-3 py-4" style="border-bottom:1px solid var(--sidebar-border);">
+        <div class="flex items-center gap-3 min-w-0">
+          <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-md font-heading font-bold text-sm" style="background-color:var(--sidebar-primary); color:var(--sidebar-primary-foreground);">HO</div>
+          <div class="flex flex-col min-w-0 sidebar-label" style="display:none;">
+            <span class="font-heading text-sm font-semibold truncate" style="color:var(--sidebar-foreground);">Hospital Orito</span>
+            <span class="text-[11px] uppercase tracking-wider" style="color:var(--sidebar-foreground); opacity:0.6;">Facturación</span>
+          </div>
+        </div>
+        <button id="sidebarToggle" onclick="toggleSidebar()" class="flex items-center justify-center p-1 rounded-md hover:bg-white/10 transition-colors flex-shrink-0" style="color:var(--sidebar-foreground); opacity:0.7;">
+          <i data-lucide="panel-left-open" class="lucide w-4 h-4"></i>
+        </button>
+      </div>
+
+      {# Navigation items #}
+      <nav class="flex-1 py-2 overflow-y-auto">
         {% set nav_items = {
-          'odontologia':        {'label': 'Odontología',        'endpoint': 'excel_headers.excel_headers_page'},
-          'urgencias':          {'label': 'Urgencias',          'endpoint': 'urgencias.urgencias_page'},
-          'control_urgencias':  {'label': 'Control Urgencias',  'endpoint': 'control_errores.control_errores_page'},
-          'equipos_basicos':    {'label': 'Ordenado y Facturado','endpoint': 'ordenado_facturado.ordenado_facturado_page'},
-          'facturas_abiertas':  {'label': 'Facturas Abiertas',  'endpoint': 'abiertas_urgencias.abiertas_urgencias_page'},
-          'derechos':           {'label': 'Derechos',           'endpoint': 'derechos.derechos_page'},
-          '*':                  {'label': 'Usuarios',           'endpoint': 'auth.listar_usuarios'},
+          'home.home_react':               {'label': 'Panel principal', 'icon': 'LayoutDashboard'},
+          'excel_headers.excel_headers_react': {'label': 'Odontología', 'icon': 'FileText'},
+          'urgencias.urgencias_react':     {'label': 'Urgencias',       'icon': 'Ambulance'},
+          'control_errores.control_errores_page': {'label': 'Control de Novedades', 'icon': 'ClipboardCheck'},
+          'abiertas_urgencias.abiertas_urgencias_react': {'label': 'Abiertas Urgencias', 'icon': 'CalendarClock'},
+          'ordenado_facturado.ordenado_facturado_react': {'label': 'Ordenado y Facturado', 'icon': 'FileSpreadsheet'},
+          'derechos.derechos_react':       {'label': 'Derechos',        'icon': 'Scale'},
+          'auth.usuarios_react':           {'label': 'Usuarios',        'icon': 'Users'},
         } %}
-        <nav class="layout__nav">
+
+        <div class="px-2 space-y-0.5">
           {% if '*' in session_permisos %}
-            {% for key, item in nav_items.items() %}
-              <a href="{{ url_for(item.endpoint) }}">{{ item.label }}</a>
+            {% for endpoint, item in nav_items.items() %}
+              {% set is_active = request.endpoint == endpoint %}
+              {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
+              {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
+              {% set op = 1 if is_active else 0.8 %}
+              <a href="{{ url_for(endpoint) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
+                <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
+                <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
+              </a>
             {% endfor %}
           {% else %}
             {% for permiso in session_permisos %}
               {% set key = permiso.split(':')[0] if ':' in permiso else permiso %}
-              {% if key in nav_items %}
-                {% set item = nav_items[key] %}
-                <a href="{{ url_for(item.endpoint) }}">{{ item.label }}</a>
+              {% set endpoint_map = {
+                'odontologia':        'excel_headers.excel_headers_react',
+                'urgencias':          'urgencias.urgencias_react',
+                'control_urgencias':  'control_errores.control_errores_react',
+                'equipos_basicos':    'ordenado_facturado.ordenado_facturado_react',
+                'facturas_abiertas':  'abiertas_urgencias.abiertas_urgencias_react',
+                'derechos':           'derechos.derechos_react',
+                '*':                  'auth.usuarios_react',
+              } %}
+              {% if key in endpoint_map %}
+                {% set ep = endpoint_map[key] %}
+                {% set item = nav_items.get(ep) %}
+                {% if item %}
+                  {% set is_active = request.endpoint == ep %}
+                  {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
+                  {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
+                  {% set op = 1 if is_active else 0.8 %}
+                  <a href="{{ url_for(ep) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
+                    <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
+                    <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
+                  </a>
+                {% endif %}
               {% endif %}
             {% endfor %}
           {% endif %}
-          {% if session_permisos %}
-            <a href="{{ url_for('import_facturas.import_facturas_page') }}">Importar Facturas</a>
+
+          {% if '*' in session_permisos %}
+            <a href="{{ url_for('import_facturas.import_facturas_react') }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="color:var(--sidebar-foreground); opacity:0.8;" onmouseover="this.style.backgroundColor='var(--sidebar-accent)';this.style.opacity='1'" onmouseout="this.style.backgroundColor='transparent';this.style.opacity='0.8'" title="Importar Facturas">
+              <i data-lucide="upload" class="lucide w-4 h-4 shrink-0"></i>
+              <span class="sidebar-label whitespace-nowrap" style="display:none;">Importar Facturas</span>
+            </a>
           {% endif %}
-        </nav>
-        {% if session.get('ce_authenticated') %}
-          <span class="layout__user">{{ session.get('username', '') }}</span>
-          <a href="{{ url_for('auth.logout') }}" class="layout__logout">Cerrar sesión</a>
-        {% endif %}
-        <!-- Sesion Iniciada indicator (visible via JS when localStorage auth is set) -->
-        <span id="sesion-indicator" class="layout__sesion-iniciada" style="display:none">Sesión Iniciada</span>
-      </div>
-    </header>
-
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div class="flash-messages">
-          {% for category, message in messages %}
-            <div class="flash flash--{{ category }}">{{ message }}</div>
-          {% endfor %}
         </div>
+      </nav>
+
+      {# Bottom: user info + logout #}
+      <div class="p-2" style="border-top:1px solid var(--sidebar-border);">
+        {% if session.get('ce_authenticated') %}
+          <a href="{{ url_for('auth.logout') }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="color:var(--sidebar-foreground); opacity:0.7;" onmouseover="this.style.backgroundColor='var(--sidebar-accent)';this.style.opacity='1'" onmouseout="this.style.backgroundColor='transparent';this.style.opacity='0.7'">
+            <i data-lucide="log-out" class="lucide w-4 h-4 shrink-0"></i>
+            <span class="sidebar-label" style="display:none;">Cerrar sesión</span>
+          </a>
+        {% endif %}
+      </div>
+    </aside>
+
+    {# ── MAIN CONTENT AREA (default collapsed margin) ── #}
+    <div class="flex flex-col min-h-screen" id="mainContent" style="margin-left: 4rem; transition: margin-left 0.2s ease;">
+      {# ── HEADER ── #}
+      <header class="h-14 min-h-[3.5rem] flex items-center justify-between px-6 bg-white border-b border-[var(--muted\/20)] fixed top-0 right-0 z-30" id="mainHeader" style="left: 4rem; transition: left 0.2s ease;">
+        <div class="flex items-center gap-3">
+          <h1 class="text-base font-semibold font-heading text-[var(--foreground)] tracking-tight">
+            <span class="text-[var(--primary)]">HOR</span>
+            <span class="text-[var(--muted)] mx-1">·</span>
+            <span class="font-body font-normal">Hospital Orito · Facturación</span>
+          </h1>
+        </div>
+        <div class="flex items-center gap-3" id="header-auth-status" style="display: none;">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold"
+                style="background:var(--success\/15);color:var(--success)">
+            <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+            Sesión iniciada
+          </span>
+          <span class="text-sm text-[var(--muted)] font-body" id="header-username"></span>
+        </div>
+      </header>
+
+      {# ── BREADCRUMBS ── #}
+      {% if breadcrumbs is defined and breadcrumbs %}
+      <nav class="flex items-center gap-1 text-sm text-[var(--muted)] px-6 pt-4 pb-2 bg-[var(--background)]" style="margin-top: 3.5rem;">
+        {% for crumb in breadcrumbs %}
+          {% if crumb[1] is not none %}
+            <a href="{{ crumb[1] }}" class="hover:text-[var(--foreground)] transition-colors">{{ crumb[0] }}</a>
+            <span class="breadcrumb-separator">
+              <i data-lucide="chevron-right" class="lucide w-3.5 h-3.5 inline"></i>
+            </span>
+          {% else %}
+            <span class="text-[var(--foreground)] font-medium">{{ crumb[0] }}</span>
+          {% endif %}
+        {% endfor %}
+      </nav>
       {% endif %}
-    {% endwith %}
 
-    <main class="layout__main">
-      {% block content %}{% endblock %}
-    </main>
+      {# ── FLASH MESSAGES ── #}
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="px-6 pt-3">
+            {% for category, message in messages %}
+              <div class="flash flash--{{ category }} mb-2 px-4 py-2.5 rounded-lg text-sm font-medium border"
+                   style="background:var(--{{ 'success' if category == 'success' else 'danger' }}\/15);color:var(--{{ 'success' if category == 'success' else 'danger' }});border-color:color-mix(in srgb, var(--{{ 'success' if category == 'success' else 'danger' }}) 30%, transparent)">
+                {{ message }}
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
-    <footer class="layout__footer layout__footer--clickable">
-      <span id="version-text">Mini.local v1.0 — Doble clic para acceso directo</span>
-    </footer>
+      {# ── MAIN CONTENT ── #}
+      <main class="flex-1 pb-8 pt-4">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+          {% block content %}{% endblock %}
+        </div>
+      </main>
+    </div>
   </div>
 
-  <!-- Login Modal (Easter Egg) -->
+  {# ═══════════════════════════════════════════ #}
+  {# LOGIN MODAL (Easter Egg) — kept intact     #}
+  {# ═══════════════════════════════════════════ #}
   <div id="login-modal" class="login-modal-overlay" style="display:none">
     <div class="login-modal">
       <h2 class="login-modal__title">Iniciar Sesión</h2>
@@ -89,12 +200,106 @@
     </div>
   </div>
 
+  {# ═══════════════════════════════════════════ #}
+  {# SCRIPTS                                     #}
+  {# ═══════════════════════════════════════════ #}
   <script>
-    // Sistema de autenticación con servidor real + localStorage para UI
+    // ── Sidebar collapse with localStorage persistence ──
+    const SIDEBAR_KEY = 'sidebar-collapsed';
+
+    function toggleSidebar() {
+      const sidebar = document.getElementById('sidebar');
+      const mainContent = document.getElementById('mainContent');
+      const mainHeader = document.getElementById('mainHeader');
+      const toggleBtn = document.getElementById('sidebarToggle');
+      const labels = document.querySelectorAll('.sidebar-label');
+      const brand = document.getElementById('sidebarBrand');
+      const subtitle = document.getElementById('sidebarSubtitle');
+      const isCollapsed = sidebar.style.width === '4rem' || sidebar.style.width === '64px';
+
+      if (isCollapsed) {
+        // Expand
+        sidebar.style.width = '16rem';
+        mainContent.style.marginLeft = '16rem';
+        mainHeader.style.left = '16rem';
+        labels.forEach(el => el.style.display = '');
+        if (brand) brand.style.display = '';
+        if (subtitle) subtitle.style.display = '';
+        if (toggleBtn) toggleBtn.innerHTML = '<i data-lucide="panel-left-close" class="lucide w-5 h-5"></i>';
+        localStorage.setItem(SIDEBAR_KEY, 'false');
+      } else {
+        // Collapse
+        sidebar.style.width = '4rem';
+        mainContent.style.marginLeft = '4rem';
+        mainHeader.style.left = '4rem';
+        labels.forEach(el => el.style.display = 'none');
+        if (brand) brand.style.display = 'none';
+        if (subtitle) subtitle.style.display = 'none';
+        if (toggleBtn) toggleBtn.innerHTML = '<i data-lucide="panel-left-open" class="lucide w-5 h-5"></i>';
+        localStorage.setItem(SIDEBAR_KEY, 'true');
+      }
+      // Re-create Lucide icons for the new icon
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    }
+
+    // Restore sidebar state from localStorage
+    // HTML default is COLLAPSED (4rem) — expand only if needed
+    function restoreSidebar() {
+      const isMobile = window.innerWidth < 768;
+      const shouldExpand = !isMobile && localStorage.getItem(SIDEBAR_KEY) !== 'true';
+      const sidebar = document.getElementById('sidebar');
+      const mainContent = document.getElementById('mainContent');
+      const mainHeader = document.getElementById('mainHeader');
+      const toggleBtn = document.getElementById('sidebarToggle');
+      const labels = document.querySelectorAll('.sidebar-label');
+      const brand = document.getElementById('sidebarBrand');
+      const subtitle = document.getElementById('sidebarSubtitle');
+      if (shouldExpand) {
+        sidebar.style.width = '16rem';
+        mainContent.style.marginLeft = '16rem';
+        mainHeader.style.left = '16rem';
+        labels.forEach(el => el.style.display = '');
+        if (brand) brand.style.display = '';
+        if (subtitle) subtitle.style.display = '';
+        if (toggleBtn) toggleBtn.innerHTML = '<i data-lucide="panel-left-close" class="lucide w-5 h-5"></i>';
+      }
+      // else: stays collapsed (HTML default) — no flash, no DOM changes needed
+    }
+    restoreSidebar();
+
+    // ── Responsive: auto-collapse sidebar on window resize ──
+    let resizeTimer;
+    window.addEventListener('resize', function() {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(function() {
+        const sidebar = document.getElementById('sidebar');
+        const isCollapsed = sidebar.style.width === '4rem' || sidebar.style.width === '64px';
+        const isMobile = window.innerWidth < 768;
+        if (isMobile && !isCollapsed) {
+          toggleSidebar();
+        }
+      }, 250);
+    });
+
+    // ── Mobile: adjust sidebar toggle title ──
+    (function() {
+      const toggleBtn = document.getElementById('sidebarToggle');
+      if (toggleBtn) {
+        toggleBtn.title = window.innerWidth < 768 ? 'Menú' : 'Colapsar sidebar';
+      }
+    })();
+  </script>
+
+  <script>
+    // ── Sistema de autenticación con servidor real + localStorage para UI ──
     (function() {
       const CE_AUTH_KEY = 'ce_auth';
       const modal = document.getElementById('login-modal');
       const sesionIndicator = document.getElementById('sesion-indicator');
+      const headerAuthStatus = document.getElementById('header-auth-status');
+      const headerUsername = document.getElementById('header-username');
       const loginUser = document.getElementById('login-user');
       const loginPass = document.getElementById('login-pass');
       const loginError = document.getElementById('login-error');
@@ -102,43 +307,40 @@
       const loginSubmit = document.getElementById('login-submit');
       const logoutBtn = document.getElementById('logout-btn');
 
-      // ── Verificar estado en localStorage ──
       function isAuth() {
         return localStorage.getItem(CE_AUTH_KEY) === 'true';
       }
 
-      // ── Guardar estado en localStorage ──
       function setAuth(value) {
         localStorage.setItem(CE_AUTH_KEY, value ? 'true' : 'false');
         updateUI();
       }
 
-      // ── Actualizar UI según localStorage ──
       function updateUI() {
         const authed = isAuth();
-        sesionIndicator.style.display = authed ? '' : 'none';
-        // Dispatch para que otros templates (control_errores.html) escuchen
+        if (sesionIndicator) {
+          sesionIndicator.style.display = authed ? '' : 'none';
+        }
+        if (headerAuthStatus) {
+          headerAuthStatus.style.display = authed ? 'flex' : 'none';
+        }
         window.dispatchEvent(new CustomEvent('ce-auth-change', { detail: { auth: authed } }));
       }
 
-      // ── Login real contra el servidor ──
       async function attemptLogin() {
         const user = loginUser.value;
         const pass = loginPass.value;
-
         try {
           const res = await fetch('/auth/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ user, pass }),
           });
-
           const data = await res.json();
-
           if (data.status === 'success') {
+            if (headerUsername) headerUsername.textContent = user;
             setAuth(true);
             closeModal();
-            // Recargar para que el servidor renderice contenido real
             window.location.reload();
           } else {
             loginError.classList.add('login-modal__error--visible');
@@ -149,7 +351,6 @@
         }
       }
 
-      // ── Logout real contra el servidor ──
       async function logout() {
         try {
           await fetch('/auth/api/logout', { method: 'POST' });
@@ -161,33 +362,28 @@
         window.location.href = '/auth/login';
       }
 
-      // ── Sincronizar localStorage con el servidor al cargar la página ──
       async function syncAuthWithServer() {
         try {
           const res = await fetch('/auth/api/status');
           const data = await res.json();
           if (data.status === 'success' && data.data.authenticated) {
-            // El servidor dice que está autenticado → asegurar localStorage
             if (!isAuth()) {
+              if (headerUsername) headerUsername.textContent = data.data.username || '';
               setAuth(true);
             }
           } else {
-            // El servidor dice que NO está autenticado → limpiar localStorage
             if (isAuth()) {
               setAuth(false);
             }
           }
         } catch (err) {
-          // Si no podemos contactar el servidor, mantener estado actual
           console.warn('No se pudo sincronizar auth con el servidor:', err);
         }
       }
 
-      // ── Cargar estado inicial ──
       updateUI();
       syncAuthWithServer();
 
-      // ── Logout button ──
       if (logoutBtn) {
         logoutBtn.addEventListener('click', function(e) {
           e.preventDefault();
@@ -195,7 +391,7 @@
         });
       }
 
-      // ── Abrir modal (easter egg) ──
+      // ── Easter egg: open login modal ──
       function openModal() {
         modal.style.display = 'flex';
         loginUser.value = '';
@@ -208,21 +404,19 @@
         modal.style.display = 'none';
       }
 
-      // ── Escape cierra modal ──
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && modal.style.display !== 'none') {
           closeModal();
         }
       });
 
-      // ── Eventos del modal ──
       loginCancel.addEventListener('click', closeModal);
       loginSubmit.addEventListener('click', attemptLogin);
       loginPass.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') attemptLogin();
       });
 
-      // ── Doble-click en footer: easter egg abre modal login ──
+      // Double-click on version text opens login modal
       const footer = document.querySelector('.layout__footer--clickable');
       if (footer) {
         footer.addEventListener('dblclick', function(e) {
@@ -230,20 +424,27 @@
         });
       }
 
-      // ── Escuchar cambios en localStorage (otra pestaña) ──
       window.addEventListener('storage', function(e) {
         if (e.key === CE_AUTH_KEY) {
           updateUI();
         }
       });
 
-      // ── Exponer para otros templates ──
       window.ceAuth = {
         isAuth: isAuth,
         setAuth: setAuth,
         logout: logout,
       };
     })();
+  </script>
+
+  {# ── Lucide icon initialization ── #}
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    });
   </script>
 
   {% block scripts %}{% endblock %}

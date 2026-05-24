@@ -1,3 +1,35 @@
 {% extends "base.html" %}
+
 {% block title %}Acceso Restringido{% endblock %}
-{% block content %}{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-[60vh]">
+  <div class="text-center max-w-md">
+    <div class="w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6" style="background: oklch(0.45 0.18 25 / 0.1);">
+      <i data-lucide="shield-alert" class="w-10 h-10" style="color: oklch(0.45 0.18 25);"></i>
+    </div>
+    <h1 class="text-2xl font-bold font-heading mb-2" style="color: oklch(0.15 0.02 160); letter-spacing: -0.02em;">
+      Acceso Restringido
+    </h1>
+    <p class="text-sm mb-6" style="color: oklch(0.55 0.04 160);">
+      No tenés permisos para acceder a esta sección. Si creés que esto es un error, contactá al administrador del sistema.
+    </p>
+    <a href="{{ url_for('home.home_react') }}"
+       class="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold no-underline transition-all duration-150"
+       style="background: oklch(0.25 0.06 160); color: oklch(0.97 0.01 160);"
+       onmouseover="this.style.background='oklch(0.35 0.07 160)'"
+       onmouseout="this.style.background='oklch(0.25 0.06 160)'">
+      <i data-lucide="home" class="w-4 h-4"></i>
+      Volver al inicio
+    </a>
+  </div>
+</div>
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  });
+</script>
+{% endblock %}

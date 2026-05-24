@@ -100,6 +100,16 @@ scripts/output/
 *:Zone.Identifier
 
 # =========================
+# Frontend (Vite / React / npm)
+# =========================
+frontend/node_modules/
+frontend/dist/
+
+# =========================
+# React build output served by Flask (keep tracked)
+# app/static/react-dist/
+
+# =========================
 # Agent / SDD artifacts
 # =========================
 .atl/

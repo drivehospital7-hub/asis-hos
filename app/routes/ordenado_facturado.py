@@ -5,11 +5,12 @@ para detectar procedimientos no facturados.
 Opcional: Excel de Notas Enfermería para detectar traslados.
 """
 
+import json
 import logging
 import tempfile
 from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, current_app, jsonify, render_template, request, session
 
 from app.services.ordenado_facturado_service import procesar_cruce
 from app.utils.auth import permiso_requerido
@@ -19,11 +20,37 @@ logger = logging.getLogger(__name__)
 ordenado_facturado_bp = Blueprint("ordenado_facturado", __name__)
 
 
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
+
 @ordenado_facturado_bp.get("/")
 @permiso_requerido("equipos_basicos")
-def ordenado_facturado_page():
-    """Página de Ordenado y Facturado."""
-    return render_template("ordenado_facturado.html")
+def ordenado_facturado_react():
+    """React shell for Ordenado y Facturado."""
+    permisos = session.get("permisos", [])
+    can_write = "*" in permisos or "equipos_basicos:write" in permisos
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/ordenado-facturado/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+
+    return render_template(
+        "react_shell.html",
+        page_title="Ordenado y Facturado",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "can_write": can_write,
+            "username": session.get("username", ""),
+            "permisos": permisos,
+        },
+    )
+
+
 
 
 @ordenado_facturado_bp.post("/procesar")

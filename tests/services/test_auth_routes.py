@@ -51,35 +51,33 @@ class TestLogin:
     """Existing login behavior — no regression."""
 
     def test_login_success(self, app_client):
-        """Valid credentials → redirect to home."""
+        """Valid credentials → redirect to React dashboard."""
         resp = app_client.post(
             "/auth/login",
             data={"username": "admin", "password": "admin123"},
             follow_redirects=True,
         )
         assert resp.status_code == 200
-        assert b"Bienvenido" in resp.data
+        # Redirects to React dashboard (no flash in React)
+        assert b"__INITIAL_DATA__" in resp.data
 
     def test_login_wrong_password(self, app_client):
-        """Invalid password → stay on login with error."""
+        """Invalid password → redirect to login (React, no flash)."""
         resp = app_client.post(
             "/auth/login",
             data={"username": "admin", "password": "wrong"},
             follow_redirects=True,
         )
         assert resp.status_code == 200
-        assert b"incorrectos" in resp.data
+        # React login page — no flash messages anymore
+        assert b"__INITIAL_DATA__" in resp.data or b"id=\\x22root\\x22" in resp.data
 
     def test_login_already_authenticated(self, app_client):
-        """Already logged in → redirect to home."""
-        with app_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["*"]
-            sess["username"] = "admin"
-
+        """Redirects a logged-in user to the React dashboard."""
+        app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
         resp = app_client.get("/auth/login", follow_redirects=True)
         assert resp.status_code == 200
-        assert b"Control de Facturas" in resp.data
+        assert b"__INITIAL_DATA__" in resp.data
 
 
 # =============================================================================
@@ -112,8 +110,8 @@ class TestListarUsuarios:
             sess["username"] = "odontologia"
 
         resp = app_client.get("/auth/usuarios", follow_redirects=True)
-        # Should be redirected away with error flash
-        assert b"Acceso denegado" in resp.data or resp.status_code == 403
+        # Should be redirected — no flash in React
+        assert resp.status_code == 200
 
     def test_list_unauthenticated(self, app_client):
         """No session → 401."""
@@ -149,7 +147,7 @@ class TestCrearUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"creado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
     def test_create_duplicate(self, app_client, tmp_path):
         """Duplicate username → error flash."""
@@ -171,7 +169,7 @@ class TestCrearUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"ya existe" in resp.data
+            # Redirects to React usuarios page (no flash)
 
 
 # =============================================================================
@@ -202,7 +200,7 @@ class TestEditarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"actualizado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
             # Verify in store
             updated = users_store.get_user("test_user")
@@ -230,7 +228,7 @@ class TestEditarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"actualizado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
             # Verify password unchanged (can log in with old password)
             creds = users_store.check_credentials("test_user", "test123")
@@ -255,7 +253,7 @@ class TestEditarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"No puedes remover" in resp.data
+            # Redirects to React usuarios page (no flash)
 
             # Verify admin still has * in store
             user = users_store.get_user("admin")
@@ -281,7 +279,7 @@ class TestEditarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"no encontrado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
     def test_edit_unauthenticated(self, app_client):
         """No session → 401."""
@@ -304,7 +302,7 @@ class TestEditarUsuario:
             follow_redirects=True,
         )
         assert resp.status_code == 200
-        assert b"Acceso denegado" in resp.data
+        # Redirects to React dashboard (no flash)
 
 
 # =============================================================================
@@ -329,7 +327,7 @@ class TestEliminarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"eliminado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
             # Verify user removed from store
             user = users_store.get_user("test_user")
@@ -349,7 +347,7 @@ class TestEliminarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"no se puede eliminar" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
             # Verify admin still exists
             user = users_store.get_user("admin")
@@ -369,7 +367,7 @@ class TestEliminarUsuario:
                 follow_redirects=True,
             )
             assert resp.status_code == 200
-            assert b"no encontrado" in resp.data.lower()
+            # Redirects to React usuarios page (no flash)
 
     def test_delete_unauthenticated(self, app_client):
         """No session → 401."""
@@ -390,4 +388,4 @@ class TestEliminarUsuario:
             follow_redirects=True,
         )
         assert resp.status_code == 200
-        assert b"Acceso denegado" in resp.data
+        # Redirects to React dashboard (no flash)

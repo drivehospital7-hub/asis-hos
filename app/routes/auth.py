@@ -3,9 +3,11 @@
 Login, logout y gestión de usuarios contra el store local (JSON).
 """
 
+import json
 import logging
+from pathlib import Path
 
-from flask import Blueprint, jsonify, render_template, redirect, url_for, flash, request, session
+from flask import Blueprint, current_app, jsonify, render_template, redirect, url_for, flash, request, session
 
 from app.utils import auth_session, users_store
 from app.utils.auth import admin_requerido
@@ -13,6 +15,103 @@ from app.utils.auth import admin_requerido
 logger = logging.getLogger(__name__)
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
+
+# =============================================================================
+# React shell pages
+# =============================================================================
+
+
+@auth_bp.route("/login", methods=["GET", "POST"])
+def login():
+    """Página de login — React para GET, form legacy para POST."""
+    if auth_session.is_authenticated():
+        return redirect(url_for("home.home_react"))
+
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+
+        if not username or not password:
+            flash("Usuario y contraseña son requeridos", "error")
+            return redirect(url_for("auth.login"))
+
+        user_data = auth_session.check_credentials(username, password)
+        if user_data:
+            auth_session.do_login(user_data)
+            logger.info("Login exitoso: %s", username)
+
+            next_page = request.args.get("next")
+            if next_page:
+                return redirect(next_page)
+
+            return redirect(url_for("home.home_react"))
+
+        flash("Usuario o contraseña incorrectos", "error")
+        logger.warning("Intento de login fallido: %s", username)
+        return redirect(url_for("auth.login"))
+
+    # GET: serve React
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/login/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+    return render_template(
+        "react_standalone.html",
+        page_title="Iniciar Sesión",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={},
+    )
+
+
+
+
+@auth_bp.get("/usuarios")
+@admin_requerido
+def usuarios_react():
+    """React shell for Usuarios."""
+    permisos = session.get("permisos", [])
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/usuarios/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+    usuarios = users_store.list_users()
+    return render_template(
+        "react_shell.html",
+        page_title="Usuarios del Sistema",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "username": session.get("username", ""),
+            "permisos": permisos,
+            "usuarios": usuarios,
+            "session_username": session.get("username", ""),
+        },
+    )
+
+
+
+
+@auth_bp.get("/unauthorized")
+def unauthorized_react():
+    """React shell for Unauthorized (no auth required)."""
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/unauthorized/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+    return render_template(
+        "react_standalone.html",
+        page_title="No autorizado",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={},
+    )
 
 
 # =============================================================================
@@ -76,44 +175,6 @@ def api_status():
     })
 
 
-# =============================================================================
-# Formulario de login (HTML)
-# =============================================================================
-
-
-@auth_bp.route("/login", methods=["GET", "POST"])
-def login():
-    """Página de login tradicional."""
-    # Si ya está logueado, redirigir al dashboard
-    if auth_session.is_authenticated():
-        return redirect(url_for("home.home_page"))
-
-    if request.method == "POST":
-        username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
-
-        if not username or not password:
-            flash("Usuario y contraseña son requeridos", "error")
-            return render_template("login.html")
-
-        user_data = auth_session.check_credentials(username, password)
-        if user_data:
-            auth_session.do_login(user_data)
-            flash(f"Bienvenido {username}", "success")
-            logger.info("Login exitoso: %s", username)
-
-            next_page = request.args.get("next")
-            if next_page:
-                return redirect(next_page)
-
-            return redirect(url_for("home.home_page"))
-
-        flash("Usuario o contraseña incorrectos", "error")
-        logger.warning("Intento de login fallido: %s", username)
-
-    return render_template("login.html")
-
-
 @auth_bp.route("/logout")
 def logout():
     """Cerrar sesión."""
@@ -128,16 +189,8 @@ def logout():
 # =============================================================================
 
 
-@auth_bp.route("/usuarios")
-@admin_requerido
-def listar_usuarios():
-    """Listar usuarios desde el store local."""
-    usuarios = users_store.list_users()
-    return render_template(
-        "usuarios.html",
-        usuarios=usuarios,
-        session_username=session.get("username"),
-    )
+# Note: GET /usuarios is handled by usuarios_react() above
+# The legacy Jinja2 route is at /usuarios/legacy
 
 
 @auth_bp.route("/usuarios/crear", methods=["POST"])
@@ -151,17 +204,17 @@ def crear_usuario():
 
     if not username or not password:
         flash("Usuario y contraseña son requeridos", "error")
-        return redirect(url_for("auth.listar_usuarios"))
+        return redirect(url_for("auth.usuarios_react"))
 
     if rol != "admin" and not permisos_raw:
         flash("Debe seleccionar al menos un permiso", "error")
-        return redirect(url_for("auth.listar_usuarios"))
+        return redirect(url_for("auth.usuarios_react"))
 
     permisos = ["*"] if rol == "admin" else permisos_raw
 
     ok, msg = users_store.create_user(username, password, rol, permisos)
     flash(msg, "success" if ok else "error")
-    return redirect(url_for("auth.listar_usuarios"))
+    return redirect(url_for("auth.usuarios_react"))
 
 
 @auth_bp.route("/usuarios/<username>/editar", methods=["POST"])
@@ -180,7 +233,7 @@ def editar_usuario(username):
     session_username = session.get("username")
     if session_username == username and "*" not in permisos_raw:
         flash("No puedes remover tus propios permisos de administrador", "error")
-        return redirect(url_for("auth.listar_usuarios"))
+        return redirect(url_for("auth.usuarios_react"))
 
     updates = {"rol": rol, "permisos": permisos_raw}
     if password:
@@ -188,7 +241,7 @@ def editar_usuario(username):
 
     ok, msg = users_store.update_user(username, updates)
     flash(msg, "success" if ok else "error")
-    return redirect(url_for("auth.listar_usuarios"))
+    return redirect(url_for("auth.usuarios_react"))
 
 
 @auth_bp.route("/usuarios/<username>/eliminar", methods=["POST"])
@@ -197,8 +250,8 @@ def eliminar_usuario(username):
     """Eliminar un usuario (excepto admin)."""
     if username == "admin":
         flash("No se puede eliminar el usuario admin", "error")
-        return redirect(url_for("auth.listar_usuarios"))
+        return redirect(url_for("auth.usuarios_react"))
 
     ok, msg = users_store.delete_user(username)
     flash(msg, "success" if ok else "error")
-    return redirect(url_for("auth.listar_usuarios"))
+    return redirect(url_for("auth.usuarios_react"))

@@ -64,7 +64,7 @@ def permiso_requerido(*permisos):
                 }), 403
 
             flash("No tiene permiso para acceder a esta sección", "error")
-            return redirect(url_for("home.home_page"))
+            return redirect(url_for("home.home_react"))
         return decorated
     return decorator
 
@@ -84,6 +84,6 @@ def admin_requerido(f):
                     "errors": ["Permiso denegado"],
                 }), 403
             flash("Acceso denegado", "error")
-            return redirect(url_for("home.home_page"))
+            return redirect(url_for("home.home_react"))
         return f(*args, **kwargs)
     return decorated

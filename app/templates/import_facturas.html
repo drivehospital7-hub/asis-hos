@@ -1,217 +1,252 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verificar Sexo - Genderize</title>
-    <style>
-        body { font-family: Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; }
-        .drop-zone { border: 2px dashed #ccc; padding: 40px; text-align: center; margin: 20px 0; cursor: pointer; }
-        .drop-zone.dragover { border-color: #007bff; background: #f0f8ff; }
-        .drop-zone p { margin: 0; }
-        button { background: #007bff; color: white; padding: 10px 20px; border: none; cursor: pointer; margin: 5px; }
-        button:disabled { background: #ccc; }
-        button.secondary { background: #28a745; }
-        #result { margin-top: 20px; }
-        .success { color: green; }
-        .error { color: red; }
-        .stats-box { background: #f8f9fa; padding: 15px; margin: 10px 0; border-radius: 5px; }
-        .stats-box h3 { margin-top: 0; }
-        .stats-box .stat { display: inline-block; margin-right: 20px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 14px; }
-        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-        th { background: #f5f5f5; }
-        .warning-row { background: #fff3cd; }
-        .danger-row { background: #f8d7da; }
-        .corrected-row { background: #d4edda; }
-        .btn-corregir {
-            background: #ffc107;
-            color: #000;
-            padding: 4px 10px;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .btn-corregir:hover { background: #e0a800; }
-        .btn-corregir:disabled { background: #6c757d; cursor: not-allowed; }
-        .name-part { 
-            display: inline-block;
-            background: #e9ecef;
-            padding: 1px 6px;
-            border-radius: 3px;
-            font-size: 13px;
-        }
-        .compound-sep {
-            color: #6c757d;
-            margin: 0 4px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verificar Sexo - Genderize</title>
+
+  {# ── Tailwind v4 CDN ── #}
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+
+  {# ── Google Fonts: Sora + Manrope ── #}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=Manrope:wght@400;500;600&display=swap" rel="stylesheet">
+
+  {# ── Lucide Icons CDN ── #}
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+  <style>
+    :root {
+      --primary: oklch(0.25 0.06 160);
+      --primary-foreground: oklch(0.97 0.01 160);
+      --secondary: oklch(0.35 0.07 160);
+      --muted: oklch(0.55 0.04 160);
+      --background: oklch(0.96 0.01 80);
+      --foreground: oklch(0.15 0.02 160);
+      --success: oklch(0.55 0.15 145);
+      --warning: oklch(0.75 0.15 85);
+      --danger: oklch(0.45 0.18 25);
+      --info: oklch(0.55 0.12 240);
+    }
+  </style>
 </head>
-<body>
-    <h1>Verificar Sexo con Genderize</h1>
-    <p>Sube el Excel de facturas para verificar el sexo contra la API Genderize</p>
-    
-    <form id="uploadForm" enctype="multipart/form-data">
-        <div class="drop-zone" id="dropZone">
-            <p>Arrastra el archivo Excel aquí o haz click para seleccionar</p>
-            <input type="file" id="fileInput" name="file" accept=".xlsx,.xls" style="display:none">
+<body class="bg-[var(--background)] font-body text-[var(--foreground)] min-h-screen">
+  <div class="max-w-4xl mx-auto px-4 py-8">
+    {# ── Page header ── #}
+    <div class="mb-6">
+      <h1 class="text-2xl font-bold font-heading tracking-tight text-[var(--foreground)] mb-1">Verificar Sexo con Genderize</h1>
+      <p class="text-sm text-[var(--muted)] font-body">Sube el Excel de facturas para verificar el sexo contra la API Genderize</p>
+    </div>
+
+    {# ── Upload card ── #}
+    <div class="bg-white rounded-xl border p-6 mb-6" style="border-color:oklch(0.55 0.04 160 / 0.1)">
+      <form id="uploadForm" enctype="multipart/form-data">
+        <div id="dropZone" class="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 hover:border-[var(--primary)] hover:bg-[var(--primary)]/5 mb-4"
+             style="border-color:oklch(0.55 0.04 160 / 0.3)">
+          <div class="flex flex-col items-center gap-2">
+            <i data-lucide="upload" class="w-12 h-12 text-[var(--muted)]"></i>
+            <p class="text-[var(--muted)] font-body" id="drop-text">Arrastrá tu archivo Excel aquí o haz click para seleccionar</p>
+            <p class="text-xs text-[var(--muted)]">.xlsx, .xls</p>
+          </div>
+          <input type="file" id="fileInput" name="file" accept=".xlsx,.xls" class="hidden">
         </div>
-        <div>
-            <button type="button" id="statsBtn" disabled>Ver Estadísticas</button>
-            <button type="button" id="verifyBtn" class="secondary" disabled>Verificar y Comparar</button>
+
+        <div class="flex gap-3">
+          <button type="button" id="statsBtn" disabled
+                  class="px-5 py-2.5 bg-[var(--primary)] text-[var(--primary-foreground)] rounded-lg font-semibold text-sm hover:bg-[var(--secondary)] transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            Ver Estadísticas
+          </button>
+          <button type="button" id="verifyBtn" disabled
+                  class="px-5 py-2.5 rounded-lg font-semibold text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  style="background:oklch(0.55 0.15 145);color:white;hover:background:oklch(0.45 0.15 145)">
+            Verificar y Comparar
+          </button>
         </div>
-    </form>
-    
-    <div id="result"></div>
-    
-    <script>
-        const dropZone = document.getElementById('dropZone');
-        const fileInput = document.getElementById('fileInput');
-        const statsBtn = document.getElementById('statsBtn');
-        const verifyBtn = document.getElementById('verifyBtn');
-        const uploadForm = document.getElementById('uploadForm');
-        const resultDiv = document.getElementById('result');
-        
-        let selectedFile = null;
-        
-        dropZone.addEventListener('click', () => fileInput.click());
-        
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
-            dropZone.addEventListener(evt, e => { e.preventDefault(); });
+      </form>
+    </div>
+
+    {# ── Results ── #}
+    <div id="result" class="bg-white rounded-xl border p-6 hidden" style="border-color:oklch(0.55 0.04 160 / 0.1)"></div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const statsBtn = document.getElementById('statsBtn');
+    const verifyBtn = document.getElementById('verifyBtn');
+    const uploadForm = document.getElementById('uploadForm');
+    const resultDiv = document.getElementById('result');
+
+    let selectedFile = null;
+
+    // ── Drop zone events ──
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(evt => {
+      dropZone.addEventListener(evt, e => { e.preventDefault(); });
+    });
+
+    dropZone.addEventListener('dragover', () => {
+      dropZone.classList.add('border-[var(--primary)]', 'bg-[var(--primary)]/5');
+    });
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('border-[var(--primary)]', 'bg-[var(--primary)]/5');
+    });
+
+    dropZone.addEventListener('drop', e => {
+      dropZone.classList.remove('border-[var(--primary)]', 'bg-[var(--primary)]/5');
+      if (e.dataTransfer.files.length) {
+        selectFile(e.dataTransfer.files[0]);
+      }
+    });
+
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) selectFile(e.target.files[0]);
+    });
+
+    function selectFile(file) {
+      selectedFile = file;
+      document.getElementById('drop-text').textContent = file.name;
+      statsBtn.disabled = false;
+      verifyBtn.disabled = false;
+    }
+
+    async function doRequest(endpoint, btn, btnText) {
+      if (!selectedFile) return;
+      btn.disabled = true;
+      btn.textContent = 'Procesando...';
+      resultDiv.innerHTML = '<p class="text-[var(--muted)] font-body">Cargando...</p>';
+      resultDiv.classList.remove('hidden');
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      try {
+        const response = await fetch(endpoint, {
+          method: 'POST',
+          body: formData
         });
-        
-        dropZone.addEventListener('dragover', () => dropZone.classList.add('dragover'));
-        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
-        
-        dropZone.addEventListener('drop', e => {
-            dropZone.classList.remove('dragover');
-            if (e.dataTransfer.files.length) {
-                selectFile(e.dataTransfer.files[0]);
-            }
+
+        const data = await response.json();
+
+        if (data.status === 'success') {
+          showResult(data.data, endpoint.includes('stats'));
+        } else {
+          resultDiv.innerHTML = '<p class="text-[var(--danger)] font-body">✗ Error: ' + data.errors.join(', ') + '</p>';
+        }
+      } catch (err) {
+        resultDiv.innerHTML = '<p class="text-[var(--danger)] font-body">✗ Error: ' + err.message + '</p>';
+      }
+
+      btn.disabled = false;
+      btn.textContent = btnText;
+    }
+
+    function showResult(data, isStats) {
+      let html = '';
+
+      if (data.stats || isStats) {
+        const stats = data.stats || data;
+        html += '<div class="bg-gray-50 rounded-lg p-4 mb-4">';
+        html += '<h3 class="text-sm font-semibold text-[var(--foreground)] mb-3">Estadísticas</h3>';
+        html += '<div class="grid grid-cols-2 sm:grid-cols-4 gap-4">';
+        html += '<div><strong class="text-sm">Total Excel:</strong><br><span class="text-[var(--muted)] text-sm">' + stats.total_excel + '</span></div>';
+        html += '<div><strong class="text-sm">Nombres únicos:</strong><br><span class="text-[var(--muted)] text-sm">' + stats.nombres_unicos + '</span></div>';
+        html += '<div><strong class="text-sm">En cache:</strong><br><span class="text-[var(--muted)] text-sm">' + stats.cache_hits + '</span></div>';
+        html += '<div><strong class="text-sm">API calls:</strong><br><span class="text-[var(--muted)] text-sm">' + stats.api_calls_necesarias + '</span></div>';
+        html += '</div></div>';
+      }
+
+      if (data.discrepancies) {
+        html += '<p class="mb-3"><strong class="text-sm">Discrepancias encontradas:</strong> <span class="text-[var(--danger)]">' + data.total_discrepancies + '</span></p>';
+
+        if (data.discrepancies.length > 0) {
+          html += '<div class="overflow-x-auto rounded-lg border" style="border-color:oklch(0.55 0.04 160 / 0.1)">';
+          html += '<table class="w-full text-sm">';
+          html += '<thead><tr class="bg-gray-50 text-[var(--muted)] text-xs font-semibold uppercase tracking-wider">';
+          html += '<th class="py-3 px-4 text-left">Número Factura</th><th class="py-3 px-4 text-left">Nombre Completo</th>';
+          html += '<th class="py-3 px-4 text-left">Nombres Evaluados</th><th class="py-3 px-4 text-left">Sexo Excel</th>';
+          html += '<th class="py-3 px-4 text-left">Sexo API</th><th class="py-3 px-4 text-left">Acción</th></tr></thead>';
+          html += '<tbody>';
+
+          data.discrepancies.forEach((d, i) => {
+            const namesEval = d.segundo_nombre
+              ? '<span class="inline-block bg-gray-100 rounded px-1.5 py-0.5 text-xs">' + escapeHtml(d.primer_nombre) + '</span><span class="text-[var(--muted)] mx-1">+</span><span class="inline-block bg-gray-100 rounded px-1.5 py-0.5 text-xs">' + escapeHtml(d.segundo_nombre) + '</span>'
+              : '<span class="inline-block bg-gray-100 rounded px-1.5 py-0.5 text-xs">' + escapeHtml(d.primer_nombre) + '</span>';
+            html += '<tr class="border-b" style="background:oklch(0.45 0.18 25 / 0.08);border-color:oklch(0.55 0.04 160 / 0.05)" id="disc-row-' + i + '">';
+            html += '<td class="py-3 px-4">' + escapeHtml(d.numero_factura) + '</td>';
+            html += '<td class="py-3 px-4"><strong>' + escapeHtml(d.nombre_completo) + '</strong></td>';
+            html += '<td class="py-3 px-4">' + namesEval + '</td>';
+            html += '<td class="py-3 px-4">' + escapeHtml(d.sexo_excel) + '</td>';
+            html += '<td class="py-3 px-4">' + escapeHtml(d.sexo_api) + '</td>';
+            html += '<td class="py-3 px-4"><button class="btn-corregir px-3 py-1 text-xs font-medium rounded-lg transition-colors" style="background:oklch(0.75 0.15 85);color:#000;hover:background:oklch(0.65 0.15 85)" onclick="corregirGenero(\'' + escapeHtml(d.nombre_normalizado) + '\', \'' + escapeHtml(d.sexo_excel) + '\', ' + i + ')">Corregir → ' + escapeHtml(d.sexo_excel) + '</button></td>';
+            html += '</tr>';
+          });
+
+          html += '</tbody></table></div>';
+        }
+      }
+
+      resultDiv.innerHTML = html;
+      resultDiv.classList.remove('hidden');
+    }
+
+    function escapeHtml(text) {
+      if (text == null) return '';
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    async function corregirGenero(nombreNormalizado, sexoExcel, rowIndex) {
+      const btn = document.querySelector('#disc-row-' + rowIndex + ' .btn-corregir');
+      if (!btn || btn.disabled) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Corrigiendo...';
+
+      try {
+        const resp = await fetch('/api/import/cache-corregir', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            nombre_normalizado: nombreNormalizado,
+            genero: sexoExcel,
+          }),
         });
-        
-        fileInput.addEventListener('change', e => {
-            if (e.target.files.length) selectFile(e.target.files[0]);
-        });
-        
-        function selectFile(file) {
-            selectedFile = file;
-            dropZone.querySelector('p').textContent = file.name;
-            statsBtn.disabled = false;
-            verifyBtn.disabled = false;
+        const data = await resp.json();
+
+        if (data.status === 'success') {
+          const row = document.getElementById('disc-row-' + rowIndex);
+          row.style.background = 'oklch(0.55 0.15 145 / 0.15)';
+          btn.textContent = '✓ Corregido';
+          btn.style.background = 'oklch(0.55 0.15 145)';
+          btn.style.color = '#fff';
+        } else {
+          alert('Error: ' + data.errors.join(', '));
+          btn.disabled = false;
+          btn.textContent = 'Corregir → ' + sexoExcel;
         }
-        
-        async function doRequest(endpoint, btn, btnText) {
-            if (!selectedFile) return;
-            btn.disabled = true;
-            btn.textContent = 'Procesando...';
-            resultDiv.innerHTML = '<p>Cargando...</p>';
-            
-            const formData = new FormData();
-            formData.append('file', selectedFile);
-            
-            try {
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.status === 'success') {
-                    showResult(data.data, endpoint.includes('stats'));
-                } else {
-                    resultDiv.innerHTML = `<p class="error">✗ Error: ${data.errors.join(', ')}</p>`;
-                }
-            } catch (err) {
-                resultDiv.innerHTML = `<p class="error">✗ Error: ${err.message}</p>`;
-            }
-            
-            btn.disabled = false;
-            btn.textContent = btnText;
-        }
-        
-        function showResult(data, isStats) {
-            let html = '';
-            
-            if (data.stats || isStats) {
-                const stats = data.stats || data;
-                html += '<div class="stats-box">';
-                html += '<h3>Estadísticas</h3>';
-                html += `<div class="stat"><strong>Total Excel:</strong> ${stats.total_excel}</div>`;
-                html += `<div class="stat"><strong>Nombres únicos:</strong> ${stats.nombres_unicos}</div>`;
-                html += `<div class="stat"><strong>En cache:</strong> ${stats.cache_hits}</div>`;
-                html += `<div class="stat"><strong>API calls:</strong> ${stats.api_calls_necesarias}</div>`;
-                html += '</div>';
-            }
-            
-            if (data.discrepancies) {
-                html += `<p><strong>Discrepancias encontradas:</strong> ${data.total_discrepancies}</p>`;
-                
-                if (data.discrepancies.length > 0) {
-                    html += '<table id="discTable">';
-                    html += '<tr><th>Número Factura</th><th>Nombre Completo</th><th>Nombres Evaluados</th><th>Sexo Excel</th><th>Sexo API</th><th>Acción</th></tr>';
-                    
-                    data.discrepancies.forEach((d, i) => {
-                        const namesEval = d.segundo_nombre 
-                            ? `<span class="name-part">${d.primer_nombre}</span><span class="compound-sep">+</span><span class="name-part">${d.segundo_nombre}</span>`
-                            : `<span class="name-part">${d.primer_nombre}</span>`;
-                        html += `<tr class="danger-row" id="disc-row-${i}">`;
-                        html += `<td>${d.numero_factura}</td>`;
-                        html += `<td><strong>${d.nombre_completo}</strong></td>`;
-                        html += `<td>${namesEval}</td>`;
-                        html += `<td>${d.sexo_excel}</td>`;
-                        html += `<td>${d.sexo_api}</td>`;
-                        html += `<td><button class="btn-corregir" onclick="corregirGenero('${d.nombre_normalizado}', '${d.sexo_excel}', ${i})">Corregir → ${d.sexo_excel}</button></td>`;
-                        html += '</tr>';
-                    });
-                    
-                    html += '</table>';
-                }
-            }
-            
-            resultDiv.innerHTML = html;
-        }
-        
-        async function corregirGenero(nombreNormalizado, sexoExcel, rowIndex) {
-            const btn = document.querySelector(`#disc-row-${rowIndex} .btn-corregir`);
-            if (!btn || btn.disabled) return;
-            
-            btn.disabled = true;
-            btn.textContent = 'Corrigiendo...';
-            
-            try {
-                const resp = await fetch('/api/import/cache-corregir', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        nombre_normalizado: nombreNormalizado,
-                        genero: sexoExcel,
-                    }),
-                });
-                const data = await resp.json();
-                
-                if (data.status === 'success') {
-                    const row = document.getElementById(`disc-row-${rowIndex}`);
-                    row.className = 'corrected-row';
-                    btn.textContent = '✓ Corregido';
-                    btn.style.background = '#28a745';
-                    btn.style.color = '#fff';
-                } else {
-                    alert('Error: ' + data.errors.join(', '));
-                    btn.disabled = false;
-                    btn.textContent = 'Corregir → ' + sexoExcel;
-                }
-            } catch (err) {
-                alert('Error de red: ' + err.message);
-                btn.disabled = false;
-                btn.textContent = 'Corregir → ' + sexoExcel;
-            }
-        }
-        
-        statsBtn.addEventListener('click', () => doRequest('/api/import/facturas-stats', statsBtn, 'Ver Estadísticas'));
-        verifyBtn.addEventListener('click', () => doRequest('/api/import/facturas-verify', verifyBtn, 'Verificar y Comparar'));
-    </script>
+      } catch (err) {
+        alert('Error de red: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Corregir → ' + sexoExcel;
+      }
+    }
+
+    statsBtn.addEventListener('click', () => doRequest('/api/import/facturas-stats', statsBtn, 'Ver Estadísticas'));
+    verifyBtn.addEventListener('click', () => doRequest('/api/import/facturas-verify', verifyBtn, 'Verificar y Comparar'));
+
+    // ── Lucide icons ──
+    document.addEventListener('DOMContentLoaded', function() {
+      if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+      }
+    });
+  </script>
 </body>
 </html>

@@ -1,12 +1,23 @@
+import json
 import logging
 import os
 import re
+from pathlib import Path
 
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, current_app, render_template, request, jsonify, session
 
 logger = logging.getLogger(__name__)
 
 derechos_bp = Blueprint("derechos", __name__)
+
+
+def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
+    """Extract a field from Vite's manifest.json for the given entry."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    return manifest.get(entry_key, {}).get(field, "")
+
 
 # Intentar importar extractor de PDFs
 try:
@@ -77,9 +88,26 @@ def buscar_archivos_pde(ruta_base, extraer_datos: bool = True):
 
 
 @derechos_bp.get("/derechos")
-def derechos_page():
-    """Pagina principal del modulo Derechos."""
-    return render_template("derechos.html")
+def derechos_react():
+    """React shell for Derechos."""
+    permisos = session.get("permisos", [])
+    can_write = "*" in permisos or "derechos:write" in permisos
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/derechos/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+
+    return render_template(
+        "react_shell.html",
+        page_title="Derechos",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "can_write": can_write,
+            "username": session.get("username", ""),
+            "permisos": permisos,
+        },
+    )
+
 
 
 @derechos_bp.get("/texto")

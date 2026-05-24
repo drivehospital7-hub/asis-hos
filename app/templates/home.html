@@ -1,200 +1,185 @@
 {% extends "base.html" %}
 
-{% block title %}Control de Facturas — EPS MALLAMAS{% endblock %}
+{% block title %}Dashboard — Control de Facturación{% endblock %}
 
 {% block content %}
 {% set permisos = session.get('permisos', []) %}
-<div class="home" id="home-content">
-  <header class="home__header">
-    <h1 class="home__title">Control de Facturas</h1>
-    <p class="home__subtitle">Selecciona el area de trabajo</p>
-  </header>
 
-  <section class="home__areas">
-    {% if '*' in permisos or 'odontologia' in permisos %}
-    <a href="{{ url_for('excel_headers.excel_headers_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <line x1="10" y1="9" x2="8" y2="9"/>
-        </svg>
+{# ═══════════════════════════════════════════ #}
+{# KPIs Rápidos                              #}
+{# ═══════════════════════════════════════════ #}
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+  <div class="bg-white rounded-xl border p-4" style="border-color: oklch(0.55 0.04 160 / 0.1);">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color: oklch(0.55 0.04 160);">Facturas del mes</span>
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: oklch(0.55 0.12 240 / 0.1);">
+        <i data-lucide="file-text" class="w-5 h-5" style="color: oklch(0.55 0.12 240);"></i>
       </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Odontologia</h2>
-        <p class="area-card__description">Procesamiento de facturas odontologicas</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
+    </div>
+    <p class="text-3xl font-bold font-heading" style="color: oklch(0.15 0.02 160);" id="kpi-total">156</p>
+    <p class="text-xs mt-1" style="color: oklch(0.55 0.04 160);">+12 respecto al mes anterior</p>
+  </div>
 
-    {% if '*' in permisos or 'urgencias' in permisos %}
-    <a href="{{ url_for('urgencias.urgencias_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <line x1="10" y1="9" x2="8" y2="9"/>
-        </svg>
+  <div class="bg-white rounded-xl border p-4" style="border-color: oklch(0.55 0.04 160 / 0.1);">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color: oklch(0.55 0.04 160);">Pendientes</span>
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: oklch(0.75 0.15 85 / 0.15);">
+        <i data-lucide="clock" class="w-5 h-5" style="color: oklch(0.75 0.15 85);"></i>
       </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Urgencias</h2>
-        <p class="area-card__description">Procesamiento de facturas de urgencias</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
+    </div>
+    <p class="text-3xl font-bold font-heading" style="color: oklch(0.15 0.02 160);" id="kpi-pendientes">23</p>
+    <p class="text-xs mt-1" style="color: oklch(0.55 0.04 160);">Requieren acción</p>
+  </div>
 
-    {% if '*' in permisos or 'control_urgencias' in permisos %}
-    <a href="{{ url_for('control_errores.control_errores_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/>
-          <rect x="9" y="3" width="6" height="4" rx="1"/>
-          <path d="M9 14l2 2 4-4"/>
-        </svg>
+  <div class="bg-white rounded-xl border p-4" style="border-color: oklch(0.55 0.04 160 / 0.1);">
+    <div class="flex items-center justify-between mb-2">
+      <span class="text-xs font-semibold uppercase tracking-wider" style="color: oklch(0.55 0.04 160);">Resueltas</span>
+      <div class="w-10 h-10 rounded-xl flex items-center justify-center" style="background: oklch(0.55 0.15 145 / 0.15);">
+        <i data-lucide="check-circle" class="w-5 h-5" style="color: oklch(0.55 0.15 145);"></i>
       </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Control Urgencias</h2>
-        <p class="area-card__description">Registro y seguimiento de novedades del servicio de urgencias</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if '*' in permisos or 'equipos_basicos' in permisos %}
-    <a href="{{ url_for('ordenado_facturado.ordenado_facturado_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <line x1="10" y1="9" x2="8" y2="9"/>
-        </svg>
-      </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Ordenado y Facturado</h2>
-        <p class="area-card__description">Procesamiento de facturas ordenadas y facturadas</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if '*' in permisos or 'facturas_abiertas' in permisos %}
-    <a href="{{ url_for('abiertas_urgencias.abiertas_urgencias_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="16" y1="13" x2="8" y2="13"/>
-          <line x1="16" y1="17" x2="8" y2="17"/>
-          <line x1="10" y1="9" x2="8" y2="9"/>
-        </svg>
-      </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Facturas Abiertas</h2>
-        <p class="area-card__description">Gestión de horarios de abiertas urgencias</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if '*' in permisos or 'derechos' in permisos %}
-    <a href="{{ url_for('derechos.derechos_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-          <polyline points="14 2 14 8 20 8"/>
-          <line x1="9" y1="15" x2="15" y2="15"/>
-          <line x1="9" y1="11" x2="13" y2="11"/>
-          <line x1="9" y1="19" x2="15" y2="19"/>
-        </svg>
-      </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Derechos</h2>
-        <p class="area-card__description">Gesti&oacute;n de derechos de petici&oacute;n</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if permisos %}
-    <a href="{{ url_for('import_facturas.import_facturas_page') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-          <polyline points="17 8 12 3 7 8"/>
-          <line x1="12" y1="3" x2="12" y2="15"/>
-        </svg>
-      </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Importar Facturas</h2>
-        <p class="area-card__description">Importaci&oacute;n de facturas y asignaci&oacute;n de g&eacute;nero</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-
-    {% if '*' in permisos %}
-    <a href="{{ url_for('auth.listar_usuarios') }}" class="area-card">
-      <div class="area-card__icon">
-        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
-      </div>
-      <div class="area-card__content">
-        <h2 class="area-card__title">Usuarios</h2>
-        <p class="area-card__description">Administración de usuarios y permisos</p>
-      </div>
-      <div class="area-card__arrow">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-          <polyline points="12 5 19 12 12 19"/>
-        </svg>
-      </div>
-    </a>
-    {% endif %}
-  </section>
+    </div>
+    <p class="text-3xl font-bold font-heading" style="color: oklch(0.15 0.02 160);" id="kpi-resueltas">133</p>
+    <p class="text-xs mt-1" style="color: oklch(0.55 0.04 160);">85% de resolución</p>
+  </div>
 </div>
+
+{# ═══════════════════════════════════════════ #}
+{# Áreas de Trabajo                          #}
+{# ═══════════════════════════════════════════ #}
+<h2 class="text-lg font-heading font-semibold mb-4" style="color: oklch(0.15 0.02 160); letter-spacing: -0.02em;">
+  Áreas de Trabajo
+</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  {% if '*' in permisos or 'odontologia' in permisos %}
+   <a href="{{ url_for('excel_headers.excel_headers_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="tooth" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <div class="flex items-center justify-between">
+        <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Odontología</h3>
+      </div>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Procesamiento de facturas odontológicas</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos or 'urgencias' in permisos %}
+  <a href="{{ url_for('urgencias.urgencias_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="ambulance" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Urgencias</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Procesamiento de facturas de urgencias</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos or 'control_urgencias' in permisos %}
+  <a href="{{ url_for('control_errores.control_errores_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="clipboard-check" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Control Urgencias</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Registro y seguimiento de novedades</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos or 'equipos_basicos' in permisos %}
+  <a href="{{ url_for('ordenado_facturado.ordenado_facturado_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="file-spreadsheet" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Ordenado y Facturado</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Cruce de facturas y ayudas diagnósticas</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos or 'facturas_abiertas' in permisos %}
+  <a href="{{ url_for('abiertas_urgencias.abiertas_urgencias_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="calendar-clock" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Facturas Abiertas</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Gestión de horarios de urgencias</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos or 'derechos' in permisos %}
+  <a href="{{ url_for('derechos.derechos_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="scale" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Derechos</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Gestión de derechos de petición</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos %}
+  <a href="{{ url_for('import_facturas.import_facturas_page') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="upload" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Importar Facturas</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Importación y asignación de género</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
+  {% if '*' in permisos %}
+  <a href="{{ url_for('auth.listar_usuarios') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="users" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Usuarios</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Administración de usuarios y permisos</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+</div>
+
+{# Lucide icon init #}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    if (typeof lucide !== 'undefined') {
+      lucide.createIcons();
+    }
+  });
+</script>
 {% endblock %}

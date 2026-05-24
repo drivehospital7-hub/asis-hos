@@ -12,6 +12,8 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.api_logout",
     "auth.api_status",
     "auth.login",
+    "auth.login_legacy",
+    "auth.unauthorized_react",
     # Static — CSS, JS, imágenes
     "static",
 })
