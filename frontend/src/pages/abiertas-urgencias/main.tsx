@@ -5,7 +5,7 @@ import { AbiertasUrgenciasPage } from "./page";
 import { AppLayout } from "@/components/app-layout";
 import "@/styles/globals.css";
 
-const data = (window as unknown as { __INITIAL_DATA__?: { username?: string; permisos?: string[] } }).__INITIAL_DATA__;
+const data = (window as unknown as { __INITIAL_DATA__?: { username?: string; permisos?: string[]; can_write?: boolean } }).__INITIAL_DATA__;
 
 const root = document.getElementById("root");
 if (!root) throw new Error("Root element #root not found");
@@ -13,7 +13,7 @@ if (!root) throw new Error("Root element #root not found");
 createRoot(root).render(
   <StrictMode>
     <AppLayout username={data?.username} permisos={data?.permisos}>
-      <AbiertasUrgenciasPage />
+      <AbiertasUrgenciasPage can_write={data?.can_write ?? false} />
     </AppLayout>
   </StrictMode>,
 );

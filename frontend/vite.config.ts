@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
@@ -8,6 +9,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
+  test: {
+    environment: "node",
+    include: ["src/**/*.test.ts"],
+  },
   plugins: [react(), tailwindcss()],
   base: "/static/react-dist/",
   build: {
@@ -21,6 +26,7 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/control-novedades/index.html"),
         path.resolve(__dirname, "src/pages/urgencias/index.html"),
         path.resolve(__dirname, "src/pages/odontologia/index.html"),
+        path.resolve(__dirname, "src/pages/odontologia-equipos-basicos/index.html"),
         path.resolve(__dirname, "src/pages/derechos/index.html"),
         path.resolve(__dirname, "src/pages/ordenado-facturado/index.html"),
         path.resolve(__dirname, "src/pages/usuarios/index.html"),
