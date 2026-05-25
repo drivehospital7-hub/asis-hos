@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Usuarios — Control Facturación</title>
+  <title>Usuarios · Hospital Orito</title>
+
+  {# ── Favicon ── #}
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
   {# ── Tailwind v4 CDN ── #}
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
@@ -81,6 +85,14 @@
                   style="border-color:oklch(0.55 0.04 160 / 0.2)">
             <option value="usuario">Usuario</option>
             <option value="admin">Admin</option>
+          </select>
+        </div>
+        <div class="mb-4" id="template-select-create" style="display:none">
+          <label class="block text-sm font-medium text-[var(--muted)] mb-1">Basado en plantilla</label>
+          <select id="template-select" onchange="applyTemplatePermisos(this)"
+                  class="w-full max-w-xs px-4 py-2.5 border rounded-lg text-sm mb-3"
+                  style="border-color:oklch(0.55 0.04 160 / 0.2)">
+            <option value="">-- Seleccionar --</option>
           </select>
         </div>
         <div class="mb-4" id="permisos-group">
@@ -213,13 +225,21 @@
                style="border-color:oklch(0.55 0.04 160 / 0.2)">
 
         <label class="block text-sm font-medium text-[var(--muted)] mb-1">Rol</label>
-        <select name="rol" id="edit-rol"
+        <select name="rol" id="edit-rol" onchange="toggleEditTemplateSelect()"
                 class="w-full px-4 py-2.5 border rounded-lg text-sm mb-4"
                 style="border-color:oklch(0.55 0.04 160 / 0.2)">
           <option value="usuario">Usuario</option>
           <option value="admin">Admin</option>
         </select>
 
+        <div class="mb-4" id="template-select-edit" style="display:none">
+          <label class="block text-sm font-medium text-[var(--muted)] mb-1">Basado en plantilla</label>
+          <select id="template-select-edit-dropdown" onchange="applyTemplatePermisosEdit(this)"
+                  class="w-full px-4 py-2.5 border rounded-lg text-sm mb-3"
+                  style="border-color:oklch(0.55 0.04 160 / 0.2)">
+            <option value="">-- Seleccionar --</option>
+          </select>
+        </div>
         <fieldset class="mb-4">
           <legend class="text-sm font-medium text-[var(--muted)] mb-2">Permisos</legend>
           <div class="flex flex-wrap gap-3">
@@ -277,14 +297,74 @@
       if (typeof lucide !== 'undefined') {
         lucide.createIcons();
       }
+
+      // Fetch templates and populate both selects
+      fetch('/auth/api/templates')
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+          if (data.status === 'success') {
+            TEMPLATES_DATA = data.data.templates || [];
+            populateTemplateSelect(document.getElementById('template-select'));
+            populateTemplateSelect(document.getElementById('template-select-edit-dropdown'));
+          }
+        })
+        .catch(function() {
+          // Silently fail — templates are optional
+        });
     });
 
     const SESSION_USERNAME = "{{ session_username }}";
 
+    // ── Templates data (fetched from API) ──
+    let TEMPLATES_DATA = [];
+
+    function populateTemplateSelect(selectEl) {
+      selectEl.innerHTML = '<option value="">-- Seleccionar --</option>';
+      TEMPLATES_DATA.forEach(function(t) {
+        var opt = document.createElement('option');
+        opt.value = t.nombre;
+        opt.textContent = t.nombre.charAt(0).toUpperCase() + t.nombre.slice(1);
+        selectEl.appendChild(opt);
+      });
+    }
+
+    function applyTemplatePermisos(selectEl) {
+      var value = selectEl.value;
+      var checkboxes = document.querySelectorAll('#permisos-group input[name="permisos"]');
+      checkboxes.forEach(function(cb) { cb.checked = false; });
+      if (!value) return;
+      var tmpl = TEMPLATES_DATA.find(function(t) { return t.nombre === value; });
+      if (tmpl) {
+        checkboxes.forEach(function(cb) {
+          if (tmpl.permisos.indexOf(cb.value) !== -1) {
+            cb.checked = true;
+          }
+        });
+      }
+    }
+
+    function applyTemplatePermisosEdit(selectEl) {
+      var value = selectEl.value;
+      var checkboxes = document.querySelectorAll('#editUserForm input[name="permisos"]');
+      checkboxes.forEach(function(cb) { cb.checked = false; });
+      if (!value) return;
+      var tmpl = TEMPLATES_DATA.find(function(t) { return t.nombre === value; });
+      if (tmpl) {
+        checkboxes.forEach(function(cb) {
+          if (tmpl.permisos.indexOf(cb.value) !== -1) {
+            cb.checked = true;
+          }
+        });
+      }
+    }
+
     function togglePermisos() {
       const select = document.getElementById('rol-select');
       const group = document.getElementById('permisos-group');
-      group.style.display = select.value === 'admin' ? 'none' : '';
+      const tmplGroup = document.getElementById('template-select-create');
+      var isAdmin = select.value === 'admin';
+      group.style.display = isAdmin ? 'none' : '';
+      tmplGroup.style.display = isAdmin ? 'none' : '';
     }
     togglePermisos();
 
@@ -307,7 +387,24 @@
         cb.checked = permisosList.indexOf(cb.value) !== -1;
       });
 
+      // Reset template dropdown
+      var editTmplSelect = document.getElementById('template-select-edit-dropdown');
+      if (editTmplSelect) editTmplSelect.value = '';
+
+      // Show/hide template dropdown based on rol
+      var editTmplGroup = document.getElementById('template-select-edit');
+      if (editTmplGroup) {
+        editTmplGroup.style.display = rol === 'admin' ? 'none' : '';
+      }
+
       modal.style.display = 'flex';
+    }
+
+    function toggleEditTemplateSelect() {
+      var editTmplGroup = document.getElementById('template-select-edit');
+      if (editTmplGroup) {
+        editTmplGroup.style.display = editRol.value === 'admin' ? 'none' : '';
+      }
     }
 
     function closeEditModal() {

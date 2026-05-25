@@ -10,6 +10,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, jsonify, render_template, redirect, url_for, flash, request, session
 
 from app.utils import auth_session, users_store
+from app.utils import templates_store
 from app.utils.auth import admin_requerido
 
 logger = logging.getLogger(__name__)
@@ -83,6 +84,7 @@ def usuarios_react():
     entry_js = _get_manifest_asset(manifest_path, "src/pages/usuarios/index.html", "file")
     entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
     usuarios = users_store.list_users()
+    templates = templates_store.list_templates()
     return render_template(
         "react_shell.html",
         page_title="Usuarios del Sistema",
@@ -92,6 +94,7 @@ def usuarios_react():
             "username": session.get("username", ""),
             "permisos": permisos,
             "usuarios": usuarios,
+            "templates": templates,
             "session_username": session.get("username", ""),
         },
     )
@@ -171,6 +174,18 @@ def api_status():
             "authenticated": authed,
             "username": session.get("username", "") if authed else "",
         },
+        "errors": [],
+    })
+
+
+@auth_bp.route("/api/templates")
+@admin_requerido
+def api_list_templates():
+    """Retorna JSON con todas las plantillas de permisos."""
+    templates = templates_store.list_templates()
+    return jsonify({
+        "status": "success",
+        "data": {"templates": templates},
         "errors": [],
     })
 

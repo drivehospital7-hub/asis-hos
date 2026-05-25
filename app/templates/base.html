@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Control Facturacion{% endblock %}</title>
+  <title>{% block title %}Hospital Orito · Control de Facturación{% endblock %}</title>
+
+  {# ── Favicon ── #}
+  <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg') }}">
+  <link rel="alternate icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
   {# ── Tailwind v4 CDN ── #}
   <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>

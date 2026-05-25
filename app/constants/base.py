@@ -65,6 +65,34 @@ ALLOWED_PERMISOS = frozenset({
 })
 
 # =============================================================================
+# DEFAULT_TEMPLATES - Plantillas de permisos predefinidas
+# =============================================================================
+
+DEFAULT_TEMPLATES = [
+    {
+        "nombre": "odontologia",
+        "descripcion": "Solo módulo de odontología",
+        "permisos": ["odontologia"],
+    },
+    {
+        "nombre": "urgencias",
+        "descripcion": "Urgencias + control + facturas abiertas (solo lectura)",
+        "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
+    },
+    {
+        "nombre": "auditor",
+        "descripcion": "Control urgencias + facturas abiertas + equipos básicos (con modificación)",
+        "permisos": [
+            "control_urgencias",
+            "control_urgencias:write",
+            "facturas_abiertas",
+            "facturas_abiertas:write",
+            "equipos_basicos",
+        ],
+    },
+]
+
+# =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
 # =============================================================================
 

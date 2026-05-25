@@ -7,6 +7,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/breadcrumbs";
@@ -22,6 +23,7 @@ interface ErrorGroup {
     descripcion: string;
     procedimiento: string;
     detalle: string;
+    fecha_cierre_vacia?: boolean;
   }>;
 }
 
@@ -181,7 +183,7 @@ export function UrgenciasPage() {
                   </thead>
                   <tbody className="divide-y divide-border">
                     {grupo.facturas.map((f, i) => (
-                      <tr key={`${f.factura}-${i}`} className="hover:bg-muted/30 transition-colors">
+                      <tr key={`${f.factura}-${i}`} className={cn("hover:bg-muted/30 transition-colors", f.fecha_cierre_vacia && "bg-amber-50")}>
                         <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
                         <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra}</td>
                         <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>

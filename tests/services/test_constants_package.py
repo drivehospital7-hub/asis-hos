@@ -257,4 +257,19 @@ class TestConstantsAPI:
         assert "03764" in PROFESIONALES_EQUIPOS_BASICOS
         assert PROFESIONALES_EQUIPOS_BASICOS["03764"]["tipo"] == "ODONTOLOGO"
 
+    def test_default_templates(self):
+        """DEFAULT_TEMPLATES is a list of 3 dicts with lowercase nombres and valid permisos."""
+        from app.constants.base import DEFAULT_TEMPLATES, ALLOWED_PERMISOS
+        assert isinstance(DEFAULT_TEMPLATES, list)
+        assert len(DEFAULT_TEMPLATES) == 3
+        nombres = {t["nombre"] for t in DEFAULT_TEMPLATES}
+        assert nombres == {"odontologia", "urgencias", "auditor"}
+        for t in DEFAULT_TEMPLATES:
+            assert "nombre" in t
+            assert "descripcion" in t
+            assert "permisos" in t
+            assert len(t["permisos"]) >= 1
+            for p in t["permisos"]:
+                assert p in ALLOWED_PERMISOS
+
 

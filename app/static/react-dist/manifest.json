@@ -236,7 +236,7 @@
     ]
   },
   "src/pages/unauthorized/index.html": {
-    "file": "assets/index-DYW91gXu.js",
+    "file": "assets/index-BnUQm-V1.js",
     "name": "index",
     "src": "src/pages/unauthorized/index.html",
     "isEntry": true,
@@ -246,7 +246,7 @@
     ]
   },
   "src/pages/urgencias/index.html": {
-    "file": "assets/index-DDbdxPWR.js",
+    "file": "assets/index-BL_sT93J.js",
     "name": "index",
     "src": "src/pages/urgencias/index.html",
     "isEntry": true,
@@ -263,7 +263,7 @@
     ]
   },
   "src/pages/usuarios/index.html": {
-    "file": "assets/index-Cc2pMac1.js",
+    "file": "assets/index-U6CtJgAe.js",
     "name": "index",
     "src": "src/pages/usuarios/index.html",
     "isEntry": true,
@@ -277,7 +277,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-CT8k3Z9V.css",
+    "file": "assets/style-DIqddaMa.css",
     "src": "style.css"
   }
 }

@@ -118,6 +118,31 @@ class TestListarUsuarios:
         resp = app_client.get("/auth/usuarios")
         assert resp.status_code == 401
 
+    def test_list_includes_templates_in_initial_data(self, app_client, tmp_path):
+        """Admin user: templates are included in initial_data."""
+        import json
+        from app.utils import templates_store
+
+        templates_file = tmp_path / "templates.json"
+        templates = [
+            {"nombre": "odontologia", "descripcion": "...", "permisos": ["odontologia"]},
+        ]
+        templates_file.write_text(json.dumps(templates, indent=2), encoding="utf-8")
+        with patch.object(templates_store, "TEMPLATES_FILE", templates_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.get("/auth/usuarios")
+            assert resp.status_code == 200
+
+        # HTML response — verify templates section in initial_data
+        html = resp.data.decode("utf-8")
+        assert '"templates"' in html, "templates key missing from initial_data"
+        assert '"nombre":"odontologia"' in html.replace(" ", ""), \
+            "odontologia template not found in initial_data"
+
 
 # =============================================================================
 # Tests: Crear usuario (no regression)

@@ -1,0 +1,4 @@
+phase: propose
+previous_phases: []
+completed_phases:
+  - propose

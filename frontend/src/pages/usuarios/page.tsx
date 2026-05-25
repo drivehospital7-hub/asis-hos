@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Users,
   UserPlus,
@@ -18,9 +18,16 @@ interface Usuario {
   permisos: string[];
 }
 
+interface Template {
+  nombre: string;
+  descripcion: string;
+  permisos: string[];
+}
+
 interface UsuariosData {
   usuarios: Usuario[];
   session_username: string;
+  templates?: Template[];
 }
 
 const initialData = (window as unknown as { __INITIAL_DATA__?: UsuariosData }).__INITIAL_DATA__;
@@ -50,6 +57,10 @@ export function UsuariosPage() {
   const [formRol, setFormRol] = useState("usuario");
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
 
+  // Template state
+  const [templates, setTemplates] = useState<Template[]>(initialData?.templates ?? []);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>("");
+
   const openCreate = () => {
     setModalMode("create");
     setFormUsername("");
@@ -71,6 +82,36 @@ export function UsuariosPage() {
   const closeModal = () => {
     setModalMode(null);
     setEditUser(null);
+  };
+
+  // Fetch templates on mount if not already in initial_data
+  useEffect(() => {
+    if (templates.length === 0) {
+      fetch("/auth/api/templates")
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.status === "success") {
+            setTemplates(data.data.templates);
+          }
+        })
+        .catch(() => {
+          // Silently fail — templates are optional for the UI
+        });
+    }
+  }, [templates.length]);
+
+  const handleTemplateChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const value = e.target.value;
+    setSelectedTemplate(value);
+    if (!value) {
+      // "-- Seleccionar --" -> clear all
+      setFormPermisos([]);
+    } else {
+      const tmpl = templates.find((t) => t.nombre === value);
+      if (tmpl) {
+        setFormPermisos([...tmpl.permisos]);
+      }
+    }
   };
 
   const togglePermiso = (value: string) => {
@@ -191,6 +232,22 @@ export function UsuariosPage() {
             </div>
             {formRol !== "admin" && (
               <div className="mb-4">
+                <label className="block text-xs font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+                  Basado en plantilla
+                </label>
+                <select
+                  value={selectedTemplate}
+                  onChange={handleTemplateChange}
+                  className="rounded-lg border px-4 py-2.5 text-sm outline-none w-full max-w-xs mb-3"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {templates.map((t) => (
+                    <option key={t.nombre} value={t.nombre}>
+                      {t.nombre.charAt(0).toUpperCase() + t.nombre.slice(1)}
+                    </option>
+                  ))}
+                </select>
                 <label className="block text-xs font-medium mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
                   Permisos (seleccionar uno o más)
                 </label>
@@ -343,6 +400,26 @@ export function UsuariosPage() {
                 <option value="admin">Admin</option>
               </select>
 
+              {formRol !== "admin" && (
+                <div className="mb-4">
+                  <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+                    Basado en plantilla
+                  </label>
+                  <select
+                    value={selectedTemplate}
+                    onChange={handleTemplateChange}
+                    className="w-full rounded-lg border px-4 py-2.5 text-sm mb-4 outline-none focus:border-primary"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+                  >
+                    <option value="">-- Seleccionar --</option>
+                    {templates.map((t) => (
+                      <option key={t.nombre} value={t.nombre}>
+                        {t.nombre.charAt(0).toUpperCase() + t.nombre.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               {formRol !== "admin" && (
                 <fieldset className="mb-4">
                   <legend className="text-sm font-medium mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
