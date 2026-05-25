@@ -33,9 +33,9 @@ def home_react():
     entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
 
     kpis = [
-        {"label": "Facturas del mes", "value": "1,248", "trend": "+12% vs abril", "icon": "trending-up"},
-        {"label": "Pendientes de revisi\u00f3n", "value": "40", "trend": "9 novedades \u00b7 31 errores", "icon": "clock"},
-        {"label": "Resueltas este mes", "value": "1,208", "trend": "Cierre al d\u00eda 24", "icon": "check-circle"},
+        {"label": "Facturas del mes", "value": "0", "trend": "Sin datos", "icon": "trending-up"},
+        {"label": "Pendientes de revisi\u00f3n", "value": "0", "trend": "Sin datos", "icon": "clock"},
+        {"label": "Resueltas este mes", "value": "0", "trend": "Sin datos", "icon": "check-circle"},
     ]
     areas = [
         {"title": "Urgencias", "description": "Procesamiento y validaci\u00f3n de facturas del servicio de urgencias.", "href": "/urgencias", "pending": 31, "tone": "danger", "pending_label": "errores"},
