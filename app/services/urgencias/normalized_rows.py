@@ -27,6 +27,8 @@ def build_urgencias_normalized_rows(
     tipo_usuario: list[dict] | None = None,
     revision_entidad_86: list[dict] | None = None,
     revision_cantidad: list[dict] | None = None,
+    copago_entidad: list[dict] | None = None,
+    duplicados_farmacia: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
@@ -57,6 +59,7 @@ def build_urgencias_normalized_rows(
         fecha_cierre_vacia_map: Dict {factura: True si Fecha Cierre está vacía} (opcional)
         revision_entidad_86: Lista de revisiones necesarias para entidad 86 (opcional)
         revision_cantidad: Lista de revisiones necesarias por cantidad > 1 (opcional)
+        duplicados_farmacia: Lista de duplicados de farmacia (opcional)
 
     Returns:
         Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
@@ -334,6 +337,48 @@ def build_urgencias_normalized_rows(
                 "descripcion": "Cantidad > 1 con código no exento requiere revisión manual",
                 "procedimiento": _build_procedimiento(codigo, proc),
                 "detalle": f"Cant: {cantidad}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+            })
+
+    # --- Copago vs Entidad ---
+    if copago_entidad:
+        for item in copago_entidad:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            entidad = item.get("entidad_cobrar", "")
+            copago = item.get("vlr_copago", "")
+            rows.append({
+                "tipo_error": "Copago vs Entidad",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": "Vlr. Copago debe ser 0 cuando entidad no es default",
+                "procedimiento": _build_procedimiento(codigo, proc),
+                "detalle": f"Ent: {entidad}, Copago: {copago}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+            })
+
+    # --- ⚠️ Revisión Necesaria: Duplicados Farmacia ---
+    if duplicados_farmacia:
+        for item in duplicados_farmacia:
+            factura = item.get("factura", "")
+            tipo_proc = item.get("codigo_tipo_procedimiento", "")
+            total_pares = item.get("total_pares", 0)
+            pares = item.get("pares_duplicados", [])
+            detalle_pares = "; ".join(
+                f"{p.get('codigo', '')} x{p.get('cantidad', '')} ({p.get('count', 0)} veces)"
+                for p in pares
+            )
+            rows.append({
+                "tipo_error": "⚠️ Revisión Necesaria",
+                "factura": factura,
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": (
+                    f"Duplicados Farmacia — Grupo {tipo_proc}: "
+                    f"{total_pares} par(es) duplicado(s)"
+                ),
+                "procedimiento": f"Grupo {tipo_proc}",
+                "detalle": detalle_pares or f"{total_pares} pares",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
