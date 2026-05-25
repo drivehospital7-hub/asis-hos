@@ -234,3 +234,127 @@ class TestNewReactRoutes:
         assert "src/pages/genderize/index.html" in html_keys
         assert "src/pages/login/index.html" in html_keys
         assert "src/pages/unauthorized/index.html" in html_keys
+
+
+class TestDashboardPermisos:
+    """Dashboard areas are filtered by user permissions (T5: sincronizar-dashboard-permisos)."""
+
+    # ═══════════════════════════════════════════
+    # Unit: _filter_areas
+    # ═══════════════════════════════════════════
+
+    def test_filter_areas_admin(self):
+        """Admin (*) sees all 6 DASHBOARD_AREAS."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas(["*"])
+        assert len(result) == 6
+        titles = [a["title"] for a in result]
+        assert "Urgencias" in titles
+        assert "Derechos" in titles
+
+    def test_filter_areas_single_permiso(self):
+        """User with only odontologia sees exactly 1 area."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas(["odontologia"])
+        assert len(result) == 1
+        assert result[0]["slug"] == "odontologia"
+
+    def test_filter_areas_multiple(self):
+        """User with urgencias + facturas_abiertas sees 2 areas."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas(["urgencias", "facturas_abiertas"])
+        assert len(result) == 2
+        slugs = {a["slug"] for a in result}
+        assert slugs == {"urgencias", "abiertas_urgencias"}
+
+    def test_filter_areas_no_match(self):
+        """User with unmapped permiso sees 0 areas."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas(["some_random"])
+        assert len(result) == 0
+
+    def test_filter_areas_empty(self):
+        """Empty list sees 0 areas (spec R2-E5)."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas([])
+        assert len(result) == 0
+
+    def test_filter_areas_none(self):
+        """None sees all areas (safe fallback for missing session)."""
+        from app.constants.base import _filter_areas
+        result = _filter_areas(None)
+        assert len(result) == 6
+
+    # ═══════════════════════════════════════════
+    # Integration: dashboard filtering
+    # ═══════════════════════════════════════════
+
+    @staticmethod
+    def _extract_initial_data(html: str) -> dict:
+        """Extract __INITIAL_DATA__ JSON from the HTML shell."""
+        import json
+        import re
+        match = re.search(r"window\.__INITIAL_DATA__\s*=\s*({.*?});", html, re.DOTALL)
+        if not match:
+            return {}
+        return json.loads(match.group(1))
+
+    def test_dashboard_admin_sees_all_areas(self, app_client):
+        """Admin user sees all 6 areas in /dashboard."""
+        app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
+        response = app_client.get("/dashboard", follow_redirects=True)
+        html = response.data.decode("utf-8")
+        data = self._extract_initial_data(html)
+        areas = data.get("areas", [])
+        titles = [a["title"] for a in areas]
+        assert "Urgencias" in titles
+        assert "Odontología" in titles
+        assert "Control de Novedades" in titles
+        assert "Facturas Abiertas" in titles
+        assert "Ordenado y Facturado" in titles
+        assert "Derechos" in titles
+        assert len(areas) == 6
+
+    def test_dashboard_odontologia_only(self, app_client):
+        """User with only odontologia permiso sees exactly 1 area."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["odontologia"]
+            sess["username"] = "odontologia"
+
+        resp = app_client.get("/dashboard", follow_redirects=True)
+        html = resp.data.decode("utf-8")
+        data = self._extract_initial_data(html)
+        areas = data.get("areas", [])
+        assert len(areas) == 1
+        assert areas[0]["slug"] == "odontologia"
+
+    # ═══════════════════════════════════════════
+    # Integration: derechos route guard
+    # ═══════════════════════════════════════════
+
+    def test_derechos_without_permiso_returns_403(self, app_client):
+        """User without derechos permiso gets 403 on GET /derechos/derechos."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["odontologia"]
+            sess["username"] = "odontologia"
+
+        # Use XHR header so @permiso_requerido returns 403 JSON (not HTML redirect)
+        response = app_client.get(
+            "/derechos/derechos",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert response.status_code == 403
+
+    def test_derechos_with_permiso_returns_200(self, app_client):
+        """Admin with * permiso can access /derechos/derechos."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        response = app_client.get("/derechos/derechos", follow_redirects=True)
+        assert response.status_code == 200
+        html = response.data.decode("utf-8")
+        assert "__INITIAL_DATA__" in html

@@ -40,7 +40,8 @@ const ALL_PERMISOS = [
   { value: "facturas_abiertas", label: "Facturas Abiertas (lectura)" },
   { value: "facturas_abiertas:write", label: "Facturas Abiertas (modificar)" },
   { value: "cruce_facturas", label: "Cruce de Reportes" },
-  { value: "equipos_basicos", label: "Equipos Básicos" },
+  { value: "equipos_basicos", label: "Ordenado y Facturado" },
+  { value: "odontologia_equipos_basicos", label: "Equipos Básicos" },
   { value: "derechos", label: "Derechos" },
 ];
 

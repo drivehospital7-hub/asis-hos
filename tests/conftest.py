@@ -22,6 +22,15 @@ def app_client():
 
 
 @pytest.fixture
+def fresh_client():
+    """Flask test client with clean session (no cookies from previous tests)."""
+    app = create_app()
+    app.config["TESTING"] = True
+    with app.test_client() as client:
+        yield client
+
+
+@pytest.fixture
 def temp_output_dir() -> Generator[Path, None, None]:
     """Directorio temporal para archivos de salida."""
     with tempfile.TemporaryDirectory() as tmpdir:

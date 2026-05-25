@@ -201,10 +201,10 @@ class TestDoDetectProblemsErrorPaths:
                     ):
                         result = _do_detect_problems(
                             filename="test.xlsx",
-                            equipos_basicos=True,
+                            area="equipos_basicos",
                         )
 
-        assert result["status"] == "error"
-        assert any(
-            "Equipos crash" in e for e in result.get("errors", [])
-        ), f"Error should contain equipos error: {result}"
+                        assert result["status"] == "error"
+                        assert any(
+                            "Equipos crash" in e for e in result.get("errors", [])
+                        ), f"Error should contain equipos error: {result}"

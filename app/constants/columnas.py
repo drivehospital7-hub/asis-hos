@@ -60,6 +60,7 @@ URGENCIA_COLUMNS_TO_KEEP = frozenset({
     "Centro Costo",
     "Código Tipo Procedimiento",
     "Laboratorio",
+    "Vlr. Copago",
 })
 
 # =============================================================================
@@ -68,7 +69,7 @@ URGENCIA_COLUMNS_TO_KEEP = frozenset({
 
 CENTRO_COSTO_ODONTOLOGIA = "ODONTOLOGIA"
 CENTRO_COSTO_EXTRAMURAL = "SERVICIOS ODONTOLOGIA -EXTRAMURALES"
-CENTRO_COSTO_EQUIPOS_BASICOS = "EQUIPOS BASICOS ODONTOLOGIA"
+
 
 # =============================================================================
 # HEADERS - Headers de hojas especiales
@@ -94,18 +95,4 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
     6: "Detalle",
 }
 
-# Headers para hoja Revision EQUIPOS BÁSICOS (formato normalizado - 6 columnas fijas)
-EQUIPOS_BASICOS_REVISION_HEADERS: dict[int, str] = {
-    1: "Tipo de error",
-    2: "Número Factura",
-    3: "Responsable Cierra",
-    4: "Descripción",
-    5: "Procedimiento",
-    6: "Detalle",
-}
 
-# =============================================================================
-# EQUIPOS BÁSICOS - Columnas (alias de COLUMNS_TO_KEEP)
-# =============================================================================
-
-EQUIPOS_BASICOS_COLUMNS_TO_KEEP = COLUMNS_TO_KEEP

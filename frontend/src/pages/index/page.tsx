@@ -42,32 +42,7 @@ const kpis: IndexKpi[] = initialData?.kpis ?? [
   { label: "Resueltas este mes", value: "1,208", trend: "Cierre al día 24" },
 ];
 
-const areas: IndexArea[] = initialData?.areas ?? [
-  {
-    title: "Urgencias",
-    description: "Procesamiento y validación de facturas del servicio de urgencias.",
-    href: "/urgencias/react",
-    pending: 31,
-    pending_label: "errores",
-    tone: "danger",
-  },
-  {
-    title: "Control de Novedades",
-    description: "Registro y seguimiento de novedades en facturación.",
-    href: "/control-errores/react",
-    pending: 9,
-    pending_label: "pendientes",
-    tone: "warning",
-  },
-  {
-    title: "Facturas Abiertas",
-    description: "Gestión de horarios y responsables del servicio de urgencias.",
-    href: "/abiertas-urgencias/react",
-    pending: 0,
-    pending_label: "sin horario",
-    tone: "info",
-  },
-];
+const areas: IndexArea[] = initialData?.areas ?? [];
 
 const kpiIcons = [TrendingUp, Clock, CheckCircle2];
 const areaIcons = [FileText, ClipboardCheck, CalendarClock];

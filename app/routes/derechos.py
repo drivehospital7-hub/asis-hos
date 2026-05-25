@@ -6,6 +6,8 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, render_template, request, jsonify, session
 
+from app.utils.auth import permiso_requerido
+
 logger = logging.getLogger(__name__)
 
 derechos_bp = Blueprint("derechos", __name__)
@@ -88,6 +90,7 @@ def buscar_archivos_pde(ruta_base, extraer_datos: bool = True):
 
 
 @derechos_bp.get("/derechos")
+@permiso_requerido("derechos")
 def derechos_react():
     """React shell for Derechos."""
     permisos = session.get("permisos", [])

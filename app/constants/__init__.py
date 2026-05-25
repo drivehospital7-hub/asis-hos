@@ -9,5 +9,6 @@ from __future__ import annotations
 from app.constants.base import *            # noqa: F401, F403
 from app.constants.columnas import *         # noqa: F401, F403
 from app.constants.colores import *          # noqa: F401, F403
+from app.constants.equipos_basicos import *  # noqa: F401, F403
 from app.constants.odontologia import *      # noqa: F401, F403
 from app.constants.urgencias import *        # noqa: F401, F403

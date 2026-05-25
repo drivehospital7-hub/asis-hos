@@ -53,6 +53,7 @@
         {% set nav_items = {
           'home.home_react':               {'label': 'Panel principal', 'icon': 'LayoutDashboard'},
           'excel_headers.excel_headers_react': {'label': 'Odontología', 'icon': 'FileText'},
+          'odontologia_equipos_basicos.excel_headers_react': {'label': 'Equipos Básicos', 'icon': 'FileText'},
           'urgencias.urgencias_react':     {'label': 'Urgencias',       'icon': 'Ambulance'},
           'control_errores.control_errores_page': {'label': 'Control de Novedades', 'icon': 'ClipboardCheck'},
           'abiertas_urgencias.abiertas_urgencias_react': {'label': 'Abiertas Urgencias', 'icon': 'CalendarClock'},
@@ -77,13 +78,14 @@
             {% for permiso in session_permisos %}
               {% set key = permiso.split(':')[0] if ':' in permiso else permiso %}
               {% set endpoint_map = {
-                'odontologia':        'excel_headers.excel_headers_react',
-                'urgencias':          'urgencias.urgencias_react',
-                'control_urgencias':  'control_errores.control_errores_react',
-                'equipos_basicos':    'ordenado_facturado.ordenado_facturado_react',
-                'facturas_abiertas':  'abiertas_urgencias.abiertas_urgencias_react',
-                'derechos':           'derechos.derechos_react',
-                '*':                  'auth.usuarios_react',
+                'odontologia':                  'excel_headers.excel_headers_react',
+                'odontologia_equipos_basicos': 'odontologia_equipos_basicos.excel_headers_react',
+                'urgencias':                    'urgencias.urgencias_react',
+                'control_urgencias':            'control_errores.control_errores_react',
+                'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
+                'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
+                'derechos':                     'derechos.derechos_react',
+                '*':                            'auth.usuarios_react',
               } %}
               {% if key in endpoint_map %}
                 {% set ep = endpoint_map[key] %}

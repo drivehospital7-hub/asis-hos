@@ -247,7 +247,7 @@ class TestConstantsAPI:
         assert "Control de Placa Bacteriana" in EQUIPOS_BASICOS_TARGET_PROCEDURES
 
     def test_equipos_basicos_columns_reference(self):
-        assert EQUIPOS_BASICOS_COLUMNS_TO_KEEP is COLUMNS_TO_KEEP
+        assert EQUIPOS_BASICOS_COLUMNS_TO_KEEP == COLUMNS_TO_KEEP
 
     def test_equipos_basicos_revision_headers(self):
         assert EQUIPOS_BASICOS_REVISION_HEADERS[1] == "Tipo de error"

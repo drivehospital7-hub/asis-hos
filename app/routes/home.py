@@ -4,6 +4,8 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, redirect, render_template, session, url_for
 
+from app.constants.base import _filter_areas
+
 logger = logging.getLogger(__name__)
 
 home_bp = Blueprint("home", __name__)
@@ -37,11 +39,7 @@ def home_react():
         {"label": "Pendientes de revisi\u00f3n", "value": "0", "trend": "Sin datos", "icon": "clock"},
         {"label": "Resueltas este mes", "value": "0", "trend": "Sin datos", "icon": "check-circle"},
     ]
-    areas = [
-        {"title": "Urgencias", "description": "Procesamiento y validaci\u00f3n de facturas del servicio de urgencias.", "href": "/urgencias", "pending": 31, "tone": "danger", "pending_label": "errores"},
-        {"title": "Control de Novedades", "description": "Registro y seguimiento de novedades en facturaci\u00f3n.", "href": "/control-errores", "pending": 9, "tone": "warning", "pending_label": "pendientes"},
-        {"title": "Facturas Abiertas", "description": "Gesti\u00f3n de horarios y responsables del servicio de urgencias.", "href": "/abiertas-urgencias", "pending": 0, "tone": "info", "pending_label": "sin horario"},
-    ]
+    areas = _filter_areas(permisos)
 
     return render_template(
         "react_shell.html",

@@ -60,6 +60,7 @@ ALLOWED_PERMISOS = frozenset({
     "facturas_abiertas",
     "facturas_abiertas:write",
     "equipos_basicos",
+    "odontologia_equipos_basicos",
     "cruce_facturas",
     "derechos",
 })
@@ -124,3 +125,71 @@ MAX_EXCEL_UPLOAD_SIZE_MB = 100
 # =============================================================================
 
 HORAS_POR_DIA = 24
+
+# =============================================================================
+# DASHBOARD - Áreas del dashboard con sus permisos asociados
+# =============================================================================
+
+DASHBOARD_AREAS = [
+    {
+        "title": "Urgencias",
+        "slug": "urgencias",
+        "permiso": "urgencias",
+        "href": "/urgencias",
+        "tone": "danger",
+        "pending_label": "errores",
+        "description": "Procesamiento y validación de facturas del servicio de urgencias.",
+    },
+    {
+        "title": "Odontología",
+        "slug": "odontologia",
+        "permiso": "odontologia",
+        "href": "/odontologia",
+        "tone": "info",
+        "pending_label": "errores",
+        "description": "Procesamiento y validación de facturas del servicio de odontología.",
+    },
+    {
+        "title": "Control de Novedades",
+        "slug": "control_errores",
+        "permiso": "control_urgencias",
+        "href": "/control-errores",
+        "tone": "warning",
+        "pending_label": "pendientes",
+        "description": "Registro y seguimiento de novedades en facturación.",
+    },
+    {
+        "title": "Facturas Abiertas",
+        "slug": "abiertas_urgencias",
+        "permiso": "facturas_abiertas",
+        "href": "/abiertas-urgencias",
+        "tone": "info",
+        "pending_label": "sin horario",
+        "description": "Gestión de horarios y responsables del servicio de urgencias.",
+    },
+    {
+        "title": "Ordenado y Facturado",
+        "slug": "ordenado_facturado",
+        "permiso": "equipos_basicos",
+        "href": "/ordenado-facturado",
+        "tone": "info",
+        "pending_label": "pendientes",
+        "description": "Verificación de facturación ordenada por profesional y servicio.",
+    },
+    {
+        "title": "Derechos",
+        "slug": "derechos",
+        "permiso": "derechos",
+        "href": "/derechos",
+        "tone": "info",
+        "pending_label": "pendientes",
+        "description": "Gestión de derechos de petición y trámites administrativos.",
+    },
+]
+
+
+def _filter_areas(permisos: list[str] | None) -> list[dict]:
+    """Filter DASHBOARD_AREAS by user permissions. Admin (*) sees all."""
+    if permisos is None or "*" in permisos:
+        return [{**a, "pending": 0} for a in DASHBOARD_AREAS]
+    return [{**a, "pending": 0} for a in DASHBOARD_AREAS if a["permiso"] in permisos]

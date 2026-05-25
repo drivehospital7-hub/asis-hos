@@ -68,6 +68,21 @@
   </a>
   {% endif %}
 
+  {% if '*' in permisos or 'odontologia_equipos_basicos' in permisos %}
+  <a href="{{ url_for('odontologia_equipos_basicos.excel_headers_react') }}"
+     class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"
+     style="border-color: oklch(0.55 0.04 160 / 0.1); color: inherit;">
+    <div class="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style="background: oklch(0.25 0.06 160 / 0.1);">
+      <i data-lucide="file-spreadsheet" class="w-6 h-6" style="color: oklch(0.25 0.06 160);"></i>
+    </div>
+    <div class="flex-1 min-w-0">
+      <h3 class="font-heading font-semibold text-base" style="color: oklch(0.15 0.02 160);">Equipos Básicos</h3>
+      <p class="text-sm mt-1" style="color: oklch(0.55 0.04 160);">Procesamiento independiente de facturas de equipos básicos odontología</p>
+    </div>
+    <i data-lucide="chevron-right" class="w-5 h-5 flex-shrink-0" style="color: oklch(0.55 0.04 160);"></i>
+  </a>
+  {% endif %}
+
   {% if '*' in permisos or 'urgencias' in permisos %}
   <a href="{{ url_for('urgencias.urgencias_page') }}"
      class="bg-white rounded-xl border p-6 flex items-start gap-4 no-underline transition-all duration-200 hover:border-[var(--primary)] hover:shadow-[0_4px_12px_var(--primary\/8)]"

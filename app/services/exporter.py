@@ -73,7 +73,6 @@ def detect_problems_only(
     dias: list[int] | None = None,
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
-    equipos_basicos: bool = False,
 ) -> tuple[dict[str, Any], int]:
     """
     Solo detecta problemas en un Excel, SIN exportar ni crear archivos.
@@ -93,7 +92,6 @@ def detect_problems_only(
         dias: Días seleccionados (odontología)
         todos_profesionales_dias: Todos los profesionales y días
         validar_centro_costo: Validar centro de costo por días
-        equipos_basicos: Usar detectores de equipos básicos
     
     Returns:
         Tupla (result_dict, status_code) donde status_code es:
@@ -121,7 +119,6 @@ def detect_problems_only(
             dias=dias,
             todos_profesionales_dias=todos_profesionales_dias,
             validar_centro_costo=validar_centro_costo,
-            equipos_basicos=equipos_basicos,
         )
         return (result, 200)
     except Exception:
@@ -147,20 +144,19 @@ def _do_detect_problems(
     dias: list[int] | None = None,
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
-    equipos_basicos: bool = False,
 ) -> dict[str, Any]:
     """
     Implementación interna de la detección de problemas.
     Separada para que detect_problems_only() pueda envolverla con el semáforo.
+    Callers deben pasar area=AREA_EQUIPOS_BASICOS para procesar equipos básicos.
     """
     logger.info("Detectando problemas (sin exportar): %s", filename)
     
     # Construir datos para validación de centro costo (odontología/equipos básicos)
     profesional_dias = {}
     permitir_todos_centros = False
-    area_effective = AREA_EQUIPOS_BASICOS if equipos_basicos else area
     
-    if area_effective in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS):
+    if area in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS):
         if validar_centro_costo and todos_profesionales_dias:
             for prof_codigo, dias_list in todos_profesionales_dias.items():
                 if dias_list:
@@ -251,19 +247,20 @@ def _do_detect_problems(
         "responsable_cierra": "Responsable Cierra Facturar",
         "tarifario": "Tarifario",
         "tipo_usuario": "Tipo Usuario",
+        "vlr_copago": "Vlr. Copago",
     }
     indices, missing_columns = get_column_indices(headers, required_headers)
     
     try:
-        if area_effective == AREA_URGENCIAS:
+        if area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
                 sheet, indices,
             )
-        elif area_effective == AREA_EQUIPOS_BASICOS:
+        elif area == AREA_EQUIPOS_BASICOS:
             problemas_detectados, responsables_map = detect_all_problems_equipos_basicos(
                 sheet, indices,
                 profesional_dias=profesional_dias,
-                permitir_todos_centros=permitir_todos_centros or equipos_basicos,
+                permitir_todos_centros=permitir_todos_centros,
             )
         else:
             problemas_detectados, responsables_map = detect_all_problems_odontologia(

@@ -86,13 +86,6 @@
           <p class="form-group__hint">Al activar, los centros de costo se validan según los días seleccionados en el calendario</p>
         </div>
 
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" id="equipos_basicos" name="equipos_basicos">
-            <span>Equipos Básicos</span>
-          </label>
-          <p class="form-group__hint">Procesa con reglas independientes de Odontología estándar</p>
-        </div>
       </div>
     </details>
 
@@ -770,91 +763,5 @@ function cerrarReglasOdontologia() {
   }
 }
 
-// Actualizar reglas según el modo seleccionado
-function actualizarReglasModal() {
-  var checkboxEquipos = document.getElementById('equipos_basicos');
-  var titulo = document.getElementById('modal-reglas-titulo');
-  var lista = document.getElementById('modal-reglas-lista');
-  
-  if (checkboxEquipos && checkboxEquipos.checked) {
-    // Modo Equipos Básicos
-    if (titulo) titulo.textContent = 'Reglas de Validación - Equipos Básicos';
-    if (lista) {
-      lista.innerHTML = `
-        <li><strong>1. Decimales:</strong> Detecta valores con decimales en columnas de cantidad (deben ser enteros)</li>
-        <li><strong>2. Doble tipo procedimiento:</strong> Facturas con más de un tipo de procedimiento</li>
-        <li><strong>3. Ruta duplicada:</strong> El misma número de factura aparece dos veces</li>
-        <li><strong>4. Convenio - Procedimiento:</strong> El procedimiento no corresponde al convento del usuario</li>
-        <li><strong>5. Cantidades anómalas:</strong> Valores que parecen incorrectos (ej: cantidad 0 a muy alta)</li>
-        <li><strong>6. Tipo Identificación:</strong> El tipo de documento no coincide con la edad:
-          <ul>
-            <li>RC: menor de 7 años</li>
-            <li>TI: 7-17 años</li>
-            <li>CC: 18 años o más</li>
-            <li>MS: menor de 18 años (extranjero)</li>
-            <li>AS: 18 años o más (extranjero)</li>
-            <li>CN: solo menor de 2 meses</li>
-            <li>CE: solo mayor de 7 años</li>
-          </ul>
-        </li>
-        <li><strong>7. Centro de costo:</strong> 
-          <ul>
-            <li>Solo ODONTOLOGIA o EXTRAMURAL (por defecto)</li>
-            <li>Si validar por fecha <strong>ACTIVADO</strong>: 
-              <ul>
-                <li>Día del 1 al 15 → EXTRAMURAL</li>
-                <li>Día 16 al 31 → ODONTOLOGIA</li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><strong>8. Entidad Cobrar vs Afiliación:</strong> Compara el código en "Cód Entidad Cobrar" con el código extraído de "Entidad Afiliación" (formato: {...})</li>
-      `;
-    }
-  } else {
-    // Modo Odontología estánda
-    if (titulo) titulo.textContent = 'Reglas de Validación - Odontología';
-    if (lista) {
-      lista.innerHTML = `
-        <li><strong>1. Decimales:</strong> Detecta valores con decimales en columnas de cantidad (deben ser enteros)</li>
-        <li><strong>2. Doble tipo procedimiento:</strong> Facturas con más de un tipo de procedimiento</li>
-        <li><strong>3. Ruta duplicada:</strong> El mismo número de factura aparece dos veces</li>
-        <li><strong>4. Conventio - Procedimiento:</strong> El procedimiento no corresponde al convenio del usuario</li>
-        <li><strong>5. Cantidades anómalas:</strong> Valores que parecen incorrectos (ej: cantidad 0 a muy alta)</li>
-        <li><strong>6. Tipo Identificación:</strong> El tipo de documento no coincide con la edad:
-          <ul>
-            <li>RC: menor de 7 años</li>
-            <li>TI: 7-17 años</li>
-            <li>CC: 18 años o más</li>
-            <li>MS: menor de 18 años (extranjero)</li>
-            <li>AS: 18 años o más (extranjero)</li>
-            <li>CN: solo menor de 2 meses</li>
-            <li>CE: solo mayor de 7 años</li>
-          </ul>
-        </li>
-        <li><strong>7. Centro de costo:</strong> 
-          <ul>
-            <li>Solo ODONTOLOGIA o EXTRAMURAL (por defecto)</li>
-            <li>Si validar por fecha <strong>ACTIVADO</strong>: 
-              <ul>
-                <li>Día del 1 al 15 → EXTRAMURAL</li>
-                <li>Día 16 al 31 → ODONTOLOGIA</li>
-              </ul>
-            </li>
-          </ul>
-        </li>
-        <li><strong>8. Entidad Cobrar vs Afiliación:</strong> Compara el código en "Cód Entidad Cobrar" con el código extraído de "Entidad Afiliación" (formato: {...})</li>
-      `;
-    }
-  }
-}
-
-// Agregar evento al checkbox de Equipos Básicos
-document.addEventListener('DOMContentLoaded', function() {
-  var checkboxEquipos = document.getElementById('equipos_basicos');
-  if (checkboxEquipos) {
-    checkboxEquipos.addEventListener('change', actualizarReglasModal);
-  }
-});
 </script>
 {% endblock %}
