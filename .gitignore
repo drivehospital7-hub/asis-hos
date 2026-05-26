@@ -104,6 +104,7 @@ scripts/output/
 # =========================
 frontend/node_modules/
 frontend/dist/
+*.tsbuildinfo
 
 # =========================
 # React build output served by Flask (keep tracked)

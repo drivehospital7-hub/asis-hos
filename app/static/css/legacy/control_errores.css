@@ -187,7 +187,6 @@ html {
 .table-wrapper { 
   overflow-x: auto; 
   width: 100%; 
-  max-width: 70rem;
   background: white;
   border: 1px solid #e2e8f0;
   border-radius: 12px;
@@ -197,12 +196,15 @@ html {
 /* Table mejorada */
 .table { 
   width: 100%; 
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
 }
 
-.table thead th { 
+.table thead th {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   background: white;
   color: #64748b;
   font-weight: 600;
@@ -242,12 +244,14 @@ html {
   border-bottom: none;
 }
 
-.table thead th:nth-child(1) { width: 10%; }
-.table thead th:nth-child(2) { width: 10%; }
-.table thead th:nth-child(3) { width: 11%; }
-.table thead th:nth-child(5) { width: 13%; }
-.table thead th:nth-child(6) { width: 8%; }
-.table thead th:nth-child(7) { width: 8%; }
+.table thead th:nth-child(1) { width: 6%; }    /* Validador */
+.table thead th:nth-child(2) { width: 8%; }    /* Factura */
+.table thead th:nth-child(3) { width: 8%; }    /* Creado */
+.table thead th:nth-child(4) { width: 11%; }   /* Categoría */
+.table thead th:nth-child(5) { width: 36%; }   /* Descripción */
+.table thead th:nth-child(6) { width: 15%; }   /* Responsable */
+.table thead th:nth-child(7) { width: 6%; }    /* Estado */
+.table thead th:nth-child(8) { width: 10%; }   /* Acciones */
 
 .table-actions { 
   font-size: 0.75rem; 
@@ -739,9 +743,12 @@ body.editor-open {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 150px;
+  /* max-width removed — let column width govern */
   height: 20px;
   line-height: 20px;
+}
+.editable-cell[data-field="factura"], .new-row-cell[data-field="factura"] {
+  max-width: 120px;
 }
 .editable-cell[data-field="observacion_facturador"], .new-row-cell[data-field="observacion_facturador"] {
   max-width: 300px;
@@ -751,6 +758,8 @@ body.editor-open {
 }
 
 .editable-cell[data-type="select"], .new-row-cell[data-type="select"] {
+  overflow: hidden;
+  text-overflow: ellipsis;
   background-color: transparent;
 }
 .editable-cell[data-type="select"]:hover:not(.disabled-action), .new-row-cell[data-type="select"]:hover:not(.disabled-action) {
