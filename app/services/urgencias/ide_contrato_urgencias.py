@@ -48,6 +48,7 @@ def detect_ide_contrato_urgencias(
         Lista de dicts con keys: "factura", "codigo", "entidad",
         "ide_contrato_actual", "ide_contrato_deberia" y opcionales
     """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     ident_idx = indices.get("identificacion")
     codigo_idx = indices.get("codigo")
@@ -55,7 +56,7 @@ def detect_ide_contrato_urgencias(
     proc_idx = indices.get("procedimiento")
     ide_contrato_idx = indices.get("ide_contrato")
 
-    if num_fact_idx is None or codigo_idx is None or ide_contrato_idx is None or codigo_entidad_cobrar_idx is None:
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, ide_contrato_idx, codigo_entidad_cobrar_idx):
         logger.warning("IDE Contrato Urgencias - Columnas necesarias no encontradas")
         return []
 
@@ -89,6 +90,13 @@ def detect_ide_contrato_urgencias(
 
     # ----- Loop principal: validar IDE Contrato por fila
     for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:

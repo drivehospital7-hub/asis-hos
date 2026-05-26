@@ -49,6 +49,7 @@ def detect_profesionales_urgencias(
     logger.warning("=== detect_profesionales_urgencias ===")
     logger.warning("Indices encontrados: %s", indices)
 
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     cod_prof_idx = indices.get("codigo_profesional")
     codigo_idx = indices.get("codigo")
@@ -59,7 +60,7 @@ def detect_profesionales_urgencias(
         num_fact_idx, cod_prof_idx, codigo_idx, procedimiento_idx,
     )
 
-    if num_fact_idx is None or cod_prof_idx is None:
+    if None in (tipo_factura_idx, num_fact_idx, cod_prof_idx):
         logger.warning("NO se encontró numero_factura o codigo_profesional en los índices")
         return []
 
@@ -86,6 +87,13 @@ def detect_profesionales_urgencias(
         )
 
     for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str or factura_str in facturas_procesadas:

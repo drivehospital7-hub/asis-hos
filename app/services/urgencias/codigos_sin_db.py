@@ -54,6 +54,7 @@ def get_codigos_no_en_db_ess118(
 
     logger.info("Códigos válidos (nota_hoja=3): %d", len(cups_validos))
 
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     codigo_idx = indices.get("codigo")
     ide_contrato_idx = indices.get("ide_contrato")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
@@ -61,12 +62,19 @@ def get_codigos_no_en_db_ess118(
     proc_idx = indices.get("procedimiento")
     codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
 
-    if codigo_idx is None:
+    if tipo_factura_idx is None or codigo_idx is None:
         return []
 
     problemas = []
 
     for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
         # Verificar IDE Contrato = 969
         ide_contrato = None
         if ide_contrato_idx is not None:
