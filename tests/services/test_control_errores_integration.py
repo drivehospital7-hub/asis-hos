@@ -180,3 +180,47 @@ class TestPutEndpointPermissions:
             json={"tipo_error": "X"},
         )
         assert resp.status_code == 403
+
+
+class TestValidadorIntegration:
+    """Integration tests: validador column behavior via POST/GET flow."""
+
+    def test_post_creates_with_validador(self, app_client):
+        """POST /api/control-errores with valid session MUST create entry with validador."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["control_urgencias:write"]
+            sess["primer_nombre"] = "Juan"
+            sess["apellido_1"] = "Pérez"
+
+        resp = app_client.post("/api/control-errores", json={
+            "tipo_error": "OTROS",
+            "factura": "FAC-001",
+            "responsable": "Admin",
+            "observacion": "test validador",
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"]["error"]["validador"] == "Juan Pérez"
+
+    def test_post_validador_ignores_client_payload_integration(self, app_client):
+        """POST with validador in payload MUST use session value, not payload."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["control_urgencias:write"]
+            sess["primer_nombre"] = "Maria"
+            sess["apellido_1"] = "Gomez"
+
+        resp = app_client.post("/api/control-errores", json={
+            "tipo_error": "OTROS",
+            "factura": "FAC-002",
+            "responsable": "Admin",
+            "observacion": "test",
+            "validador": "hacker",
+        })
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"]["error"]["validador"] == "Maria Gomez"
+        assert data["data"]["error"]["validador"] != "hacker"

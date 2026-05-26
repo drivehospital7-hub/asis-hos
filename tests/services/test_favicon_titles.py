@@ -15,11 +15,8 @@ STATIC_DIR = Path("app/static")
 
 TEMPLATES = [
     "base.html",
-    "login.html",
     "react_shell.html",
     "react_standalone.html",
-    "import_facturas.html",
-    "usuarios.html",
 ]
 
 TITLE_TEMPLATES = {
@@ -27,7 +24,6 @@ TITLE_TEMPLATES = {
     "react_shell.html": ("— React", "Hospital Orito"),
     "react_standalone.html": ("— React", "Hospital Orito"),
     "base.html": ("Control Facturacion", "Hospital Orito · Control de Facturación"),
-    "login.html": ("Login — Control Facturación", "Ingresar · Hospital Orito"),
 }
 
 
@@ -178,17 +174,4 @@ class TestTemplateTitles:
             "base.html block title default not updated"
         )
 
-    def test_login_html_title(self):
-        """login.html <title> is 'Ingresar · Hospital Orito'."""
-        path = TEMPLATES_DIR / "login.html"
-        content = path.read_text(encoding="utf-8")
-        title_start = content.find("<title>")
-        title_end = content.find("</title>")
-        assert title_start != -1 and title_end != -1
-        title_content = content[title_start:title_end]
-        assert "Ingresar" in title_content, (
-            f"login.html title missing 'Ingresar': {title_content}"
-        )
-        assert "Hospital Orito" in title_content, (
-            f"login.html title missing 'Hospital Orito': {title_content}"
-        )
+

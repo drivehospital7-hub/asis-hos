@@ -244,10 +244,10 @@ class TestDashboardPermisos:
     # ═══════════════════════════════════════════
 
     def test_filter_areas_admin(self):
-        """Admin (*) sees all 6 DASHBOARD_AREAS."""
+        """Admin (*) sees all DASHBOARD_AREAS."""
         from app.constants.base import _filter_areas
         result = _filter_areas(["*"])
-        assert len(result) == 6
+        assert len(result) == 9
         titles = [a["title"] for a in result]
         assert "Urgencias" in titles
         assert "Derechos" in titles
@@ -283,7 +283,7 @@ class TestDashboardPermisos:
         """None sees all areas (safe fallback for missing session)."""
         from app.constants.base import _filter_areas
         result = _filter_areas(None)
-        assert len(result) == 6
+        assert len(result) == 9
 
     # ═══════════════════════════════════════════
     # Integration: dashboard filtering
@@ -300,7 +300,7 @@ class TestDashboardPermisos:
         return json.loads(match.group(1))
 
     def test_dashboard_admin_sees_all_areas(self, app_client):
-        """Admin user sees all 6 areas in /dashboard."""
+        """Admin user sees all 9 areas in /dashboard."""
         app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
         response = app_client.get("/dashboard", follow_redirects=True)
         html = response.data.decode("utf-8")
@@ -313,7 +313,10 @@ class TestDashboardPermisos:
         assert "Facturas Abiertas" in titles
         assert "Ordenado y Facturado" in titles
         assert "Derechos" in titles
-        assert len(areas) == 6
+        assert "Equipos Básicos" in titles
+        assert "Usuarios" in titles
+        assert "Importar Facturas" in titles
+        assert len(areas) == 9
 
     def test_dashboard_odontologia_only(self, app_client):
         """User with only odontologia permiso sees exactly 1 area."""

@@ -11,7 +11,8 @@ import pytest
 from flask import session
 
 from app import create_app
-from app.services.control_errores_service import update_error
+from app.services.control_errores_service import update_error, add_error
+from app.utils.errores_storage import crear_error, actualizar_error
 
 # Application fixture for test request context
 _APP = create_app({"TESTING": True, "SECRET_KEY": "test-secret-key"})
@@ -202,3 +203,123 @@ class TestUpdateErrorPermissions:
         assert result[1] == 403
         assert "responsable" in result[0]["errors"][0]
         mock_upd.assert_not_called()
+
+
+class TestValidadorColumn:
+    """Tests: validador column — storage, service composition, and backward compat.
+    
+    Strict TDD: tests written BEFORE production changes. These will fail (RED)
+    until storage and service code is updated.
+    """
+
+    # ── Storage: crear_error ──────────────────────────────────────────
+
+    def test_crear_error_stores_validador_key(self):
+        """crear_error() MUST store validador key when validador param is passed."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-001",
+                observacion="test obs",
+                estado="S",
+                responsable="Admin",
+                validador="Juan Pérez",
+            )
+
+        assert error["validador"] == "Juan Pérez"
+        mock_write.assert_called_once()
+
+    def test_crear_error_validador_default_empty(self):
+        """crear_error() MUST default validador to empty string."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-002",
+                observacion="no validador",
+                estado="S",
+                responsable="Admin",
+            )
+
+        assert error["validador"] == ""
+        mock_write.assert_called_once()
+
+    # ── Service: add_error composition ────────────────────────────────
+
+    def test_add_error_composes_validador_from_session(self):
+        """add_error() MUST compose validador from session['primer_nombre'] + session['apellido_1']."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            session["primer_nombre"] = "Juan"
+            session["apellido_1"] = "Pérez"
+
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "observacion": "test",
+            })
+
+            mock_crear.assert_called_once()
+            _call_kwargs = mock_crear.call_args.kwargs
+            assert _call_kwargs.get("validador") == "Juan Pérez"
+
+    def test_add_error_validador_ignores_client_payload(self):
+        """add_error() MUST NOT use validador from client payload — session always wins."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            session["primer_nombre"] = "Maria"
+            session["apellido_1"] = "Gomez"
+
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "validador": "hacker",
+            })
+
+            mock_crear.assert_called_once()
+            _call_kwargs = mock_crear.call_args.kwargs
+            assert _call_kwargs.get("validador") == "Maria Gomez"
+
+    def test_add_error_validador_session_keys_missing(self):
+        """add_error() MUST handle missing session keys gracefully (empty string fallback)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            # No session keys set — should fall back to empty
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-003",
+                "responsable": "Admin",
+            })
+
+            mock_crear.assert_called_once()
+            _call_kwargs = mock_crear.call_args.kwargs
+            assert _call_kwargs.get("validador") == ""
+
+    # ── Storage: actualizar_error does NOT touch validador ─────────────
+
+    def test_actualizar_error_does_not_accept_validador(self):
+        """actualizar_error() MUST NOT accept a validador parameter."""
+        with patch("app.utils.errores_storage._leer_datos") as mock_read, \
+             patch("app.utils.errores_storage._escribir_datos") as mock_write:
+
+            mock_read.return_value = {"errores": [{"id": "test-1", "validador": "old"}]}
+
+            result = actualizar_error(
+                error_id="test-1",
+                estado="N",
+            )
+
+            assert result is not None
+            # validador should remain unchanged
+            assert result.get("validador") == "old"
+            # Verify TypeError if validador is passed
+            import inspect
+            sig = inspect.signature(actualizar_error)
+            assert "validador" not in sig.parameters

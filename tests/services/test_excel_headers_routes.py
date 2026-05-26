@@ -1,35 +1,33 @@
-"""Integration tests for app/routes/urgencias.py POST route.
+"""Integration tests for app/routes/excel_headers.py POST route.
 
-Covers the uncovered paths in the POST endpoint:
+Covers the fallback paths in the POST endpoint:
 - No file uploaded → JSON error (not HTML)
 - Invalid file extension → JSON error
-- Semaphore timeout → 503
 """
 
 from __future__ import annotations
 
 from io import BytesIO
-from unittest.mock import patch
 
-import pytest
+from app import PUBLIC_ENDPOINTS
 
 
-class TestUrgenciasRoutePost:
-    """Integration tests for /urgencias/ POST endpoint."""
+class TestExcelHeadersRoutePost:
+    """Integration tests for /odontologia/ POST endpoint."""
 
     def _authenticate(self, app_client) -> None:
-        """Establece sesión autenticada con permiso urgencias."""
+        """Establece sesión autenticada con permiso odontologia."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
-            sess["permisos"] = ["urgencias"]
+            sess["permisos"] = ["odontologia"]
 
     def test_post_no_file_returns_json_error(self, app_client) -> None:
         """POST without file returns JSON error, not HTML."""
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/urgencias/",
+            "/odontologia/",
             data={},
             content_type="multipart/form-data",
         )
@@ -46,7 +44,7 @@ class TestUrgenciasRoutePost:
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/urgencias/",
+            "/odontologia/",
             data={
                 "file_upload": (BytesIO(b"test data"), "test.txt"),
             },
@@ -60,30 +58,17 @@ class TestUrgenciasRoutePost:
         assert isinstance(data["errors"], list)
         assert any("formato" in e.lower() or "permitido" in e.lower() for e in data["errors"])
 
-    def test_post_semaphore_timeout_returns_503(self, app_client) -> None:
-        """POST returns 503 when semaphore is exhausted."""
-        self._authenticate(app_client)
-        app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
-        with patch(
-            "app.services.exporter.acquire_semaphore"
-        ) as mock_acquire:
-            mock_acquire.return_value = False
+class TestPublicEndpoints:
+    """PUBLIC_ENDPOINTS no longer contains legacy auth endpoint."""
 
-            response = app_client.post(
-                "/urgencias/",
-                data={
-                    "file_upload": (BytesIO(b"test"), "test.xlsx"),
-                },
-                content_type="multipart/form-data",
-            )
+    def test_login_legacy_not_in_public_endpoints(self) -> None:
+        """auth.login_legacy is not in PUBLIC_ENDPOINTS."""
+        assert "auth.login_legacy" not in PUBLIC_ENDPOINTS
 
-            assert response.status_code == 503, (
-                f"Expected 503, got {response.status_code}: {response.data[:500]}"
-            )
-            data = response.get_json()
-            assert data is not None
-            assert data["status"] == "error"
-            assert any(
-                "Servidor ocupado" in e for e in data.get("errors", [])
-            ), f"503 should mention 'Servidor ocupado': {data}"
+    def test_other_endpoints_still_present(self) -> None:
+        """Required endpoints remain in PUBLIC_ENDPOINTS."""
+        required = {"auth.api_login", "auth.api_logout", "auth.api_status",
+                     "auth.login", "auth.unauthorized_react", "static"}
+        for endpoint in required:
+            assert endpoint in PUBLIC_ENDPOINTS, f"{endpoint} should still be public"

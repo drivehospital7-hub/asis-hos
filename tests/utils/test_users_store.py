@@ -25,18 +25,30 @@ SAMPLE_USERS = [
         "password_hash": generate_password_hash("admin123"),
         "rol": "admin",
         "permisos": ["*"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
     {
         "username": "odontologia",
         "password_hash": generate_password_hash("odonto123"),
         "rol": "usuario",
         "permisos": ["odontologia"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
     {
         "username": "auditor",
         "password_hash": generate_password_hash("auditor123"),
         "rol": "usuario",
         "permisos": ["odontologia", "urgencias"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
 ]
 
@@ -194,6 +206,42 @@ class TestUpdateUser:
         assert ok is False
         assert "rol inválido" in msg.lower()
 
+    def test_update_rejects_mutually_exclusive_permisos(self):
+        """control_urgencias + control_urgencias:write → (False, msg)."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            ok, msg = users_store.update_user(
+                "odontologia",
+                {"permisos": ["control_urgencias", "control_urgencias:write"]},
+            )
+
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_update_rejects_mutually_exclusive_facturas(self):
+        """facturas_abiertas + facturas_abiertas:write → (False, msg)."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            ok, msg = users_store.update_user(
+                "odontologia",
+                {"permisos": ["facturas_abiertas", "facturas_abiertas:write"]},
+            )
+
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_update_allows_either_alone(self):
+        """Solo write sin read → se actualiza correctamente."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "odontologia",
+                    {"permisos": ["control_urgencias:write"]},
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        updated = next(u for u in saved if u["username"] == "odontologia")
+        assert updated["permisos"] == ["control_urgencias:write"]
+
     def test_user_list_unchanged_after_update(self):
         """Other users in store remain intact after update."""
         users = SAMPLE_USERS.copy()
@@ -288,6 +336,293 @@ class TestCreateUser:
 
         assert ok is False
         assert "ya existe" in msg.lower()
+
+    def test_create_rejects_mutually_exclusive_permisos(self):
+        """control_urgencias + control_urgencias:write → (False, msg)."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            ok, msg = users_store.create_user(
+                "nuevo", "pass123", "usuario",
+                ["control_urgencias", "control_urgencias:write"],
+            )
+
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_create_rejects_mutually_exclusive_facturas(self):
+        """facturas_abiertas + facturas_abiertas:write → (False, msg)."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            ok, msg = users_store.create_user(
+                "nuevo", "pass123", "usuario",
+                ["facturas_abiertas", "facturas_abiertas:write"],
+            )
+
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_create_allows_either_alone(self):
+        """Solo write sin read → se crea correctamente."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.create_user(
+                    "nuevo", "pass123", "usuario",
+                    ["control_urgencias:write"],
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        nuevo = next(u for u in saved if u["username"] == "nuevo")
+        assert nuevo["permisos"] == ["control_urgencias:write"]
+
+
+# =============================================================================
+# Tests: create_user() — person fields
+# =============================================================================
+
+
+class TestCreateUserPersonFields:
+    """Spec R9: create_user stores person fields."""
+
+    def test_create_user_with_person_fields(self):
+        """All 4 person fields provided → stored correctly."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.create_user(
+                    "nuevo", "pass123", "usuario", ["odontologia"],
+                    primer_nombre="Ana",
+                    segundo_nombre="María",
+                    apellido_1="López",
+                    apellido_2="García",
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        nuevo = next(u for u in saved if u["username"] == "nuevo")
+        assert nuevo["primer_nombre"] == "Ana"
+        assert nuevo["segundo_nombre"] == "María"
+        assert nuevo["apellido_1"] == "López"
+        assert nuevo["apellido_2"] == "García"
+
+    def test_create_user_default_empty(self):
+        """Person fields not provided → stored as empty strings."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.create_user(
+                    "nuevo", "pass123", "usuario", ["odontologia"],
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        nuevo = next(u for u in saved if u["username"] == "nuevo")
+        assert nuevo["primer_nombre"] == ""
+        assert nuevo["segundo_nombre"] == ""
+        assert nuevo["apellido_1"] == ""
+        assert nuevo["apellido_2"] == ""
+
+
+# =============================================================================
+# Tests: update_user() — person fields
+# =============================================================================
+
+
+class TestUpdateUserPersonFields:
+    """Spec R1 (extended): update_user partial person field support."""
+
+    def test_update_person_fields_partial(self):
+        """Update only primer_nombre and apellido_1; other fields preserved."""
+        users = SAMPLE_USERS.copy()
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "odontologia",
+                    {"primer_nombre": "Ana", "apellido_1": "López"},
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        updated = next(u for u in saved if u["username"] == "odontologia")
+        assert updated["primer_nombre"] == "Ana"
+        assert updated["apellido_1"] == "López"
+        # Other person fields preserved as empty
+        assert updated["segundo_nombre"] == ""
+        assert updated["apellido_2"] == ""
+
+    def test_update_without_person_fields(self):
+        """Update rol only; person fields untouched."""
+        users = SAMPLE_USERS.copy()
+        # Give odontologia some person fields first
+        users[1]["primer_nombre"] = "Carlos"
+        users[1]["apellido_1"] = "Ruiz"
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "odontologia",
+                    {"rol": "admin"},
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        updated = next(u for u in saved if u["username"] == "odontologia")
+        assert updated["rol"] == "admin"
+        assert updated["primer_nombre"] == "Carlos"
+        assert updated["apellido_1"] == "Ruiz"
+        assert updated["segundo_nombre"] == ""
+        assert updated["apellido_2"] == ""
+
+
+# =============================================================================
+# Tests: check_credentials() — person fields
+# =============================================================================
+
+
+class TestCheckCredentialsPersonFields:
+    """Spec R9: check_credentials returns person fields."""
+
+    def test_check_credentials_returns_person_fields(self):
+        """Valid credentials → return dict includes all 4 person fields."""
+        users = SAMPLE_USERS.copy()
+        users[0]["primer_nombre"] = "Ana"
+        users[0]["apellido_1"] = "Admin"
+        with patch.object(users_store, "_load_users", return_value=users):
+            result = users_store.check_credentials("admin", "admin123")
+
+        assert result is not None
+        assert "primer_nombre" in result
+        assert "segundo_nombre" in result
+        assert "apellido_1" in result
+        assert "apellido_2" in result
+        assert result["primer_nombre"] == "Ana"
+        assert result["apellido_1"] == "Admin"
+        assert result["segundo_nombre"] == ""
+        assert result["apellido_2"] == ""
+
+
+# =============================================================================
+# Tests: list_users() — person fields
+# =============================================================================
+
+
+class TestListUsersPersonFields:
+    """Spec R9: list_users returns person fields."""
+
+    def test_list_users_includes_person_fields(self):
+        """list_users() returns dicts with all 4 person fields."""
+        users = SAMPLE_USERS.copy()
+        users[0]["primer_nombre"] = "Admin"
+        users[0]["apellido_1"] = "User"
+        with patch.object(users_store, "_load_users", return_value=users):
+            result = users_store.list_users()
+
+        assert len(result) == 3
+        admin_out = next(u for u in result if u["username"] == "admin")
+        assert admin_out["primer_nombre"] == "Admin"
+        assert admin_out["apellido_1"] == "User"
+        assert admin_out["segundo_nombre"] == ""
+        assert admin_out["apellido_2"] == ""
+
+        odonto_out = next(u for u in result if u["username"] == "odontologia")
+        assert "primer_nombre" in odonto_out
+        assert "segundo_nombre" in odonto_out
+        assert "apellido_1" in odonto_out
+        assert "apellido_2" in odonto_out
+
+
+# =============================================================================
+# Tests: _load_users() backfill
+# =============================================================================
+
+
+class TestLoadUsersBackfill:
+    """Spec R11: _load_users backfills missing person fields."""
+
+    def test_backfill_legacy_users(self):
+        """Legacy JSON missing person fields → backfilled as empty string, saved."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        legacy_users = [
+            {
+                "username": "admin",
+                "password_hash": generate_password_hash("admin123"),
+                "rol": "admin",
+                "permisos": ["*"],
+                # No person fields
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(legacy_users), encoding="utf-8")
+
+            with patch.object(users_store, "USERS_FILE", real_path):
+                result = users_store._load_users()
+
+            assert len(result) == 1
+            admin = result[0]
+            assert admin["primer_nombre"] == ""
+            assert admin["segundo_nombre"] == ""
+            assert admin["apellido_1"] == ""
+            assert admin["apellido_2"] == ""
+            # Original fields preserved
+            assert admin["username"] == "admin"
+            assert admin["rol"] == "admin"
+
+    def test_backfill_partial_missing(self):
+        """Only some person fields missing → only missing ones backfilled."""
+        import json
+        import tempfile
+        from pathlib import Path
+
+        partial_users = [
+            {
+                "username": "admin",
+                "password_hash": generate_password_hash("admin123"),
+                "rol": "admin",
+                "permisos": ["*"],
+                "primer_nombre": "Ana",
+                # Missing segundo_nombre, apellido_1, apellido_2
+            },
+        ]
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(partial_users), encoding="utf-8")
+
+            with patch.object(users_store, "USERS_FILE", real_path):
+                result = users_store._load_users()
+
+            assert len(result) == 1
+            admin = result[0]
+            assert admin["primer_nombre"] == "Ana"  # Preserved
+            assert admin["segundo_nombre"] == ""     # Backfilled
+            assert admin["apellido_1"] == ""          # Backfilled
+            assert admin["apellido_2"] == ""          # Backfilled
+
+
+# =============================================================================
+# Tests: DEFAULT_USERS have person fields
+# =============================================================================
+
+
+class TestDefaultUsersHavePersonFields:
+    """Spec R11: DEFAULT_USERS include empty person fields."""
+
+    def test_default_users_include_empty_person_fields(self):
+        """Each DEFAULT_USERS entry has all 4 person fields set to ''."""
+        for u in users_store.DEFAULT_USERS:
+            assert "primer_nombre" in u, f"Missing in {u['username']}"
+            assert "segundo_nombre" in u, f"Missing in {u['username']}"
+            assert "apellido_1" in u, f"Missing in {u['username']}"
+            assert "apellido_2" in u, f"Missing in {u['username']}"
+            assert u["primer_nombre"] == ""
+            assert u["segundo_nombre"] == ""
+            assert u["apellido_1"] == ""
+            assert u["apellido_2"] == ""
 
 
 # =============================================================================

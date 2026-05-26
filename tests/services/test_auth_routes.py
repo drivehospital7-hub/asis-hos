@@ -23,18 +23,30 @@ def _seed_users(tmp_path):
             "password_hash": generate_password_hash("admin123"),
             "rol": "admin",
             "permisos": ["*"],
+            "primer_nombre": "",
+            "segundo_nombre": "",
+            "apellido_1": "",
+            "apellido_2": "",
         },
         {
             "username": "odontologia",
             "password_hash": generate_password_hash("odonto123"),
             "rol": "usuario",
             "permisos": ["odontologia"],
+            "primer_nombre": "",
+            "segundo_nombre": "",
+            "apellido_1": "",
+            "apellido_2": "",
         },
         {
             "username": "test_user",
             "password_hash": generate_password_hash("test123"),
             "rol": "usuario",
             "permisos": ["odontologia"],
+            "primer_nombre": "Test",
+            "segundo_nombre": "",
+            "apellido_1": "User",
+            "apellido_2": "",
         },
     ]
     users_file = tmp_path / "users.json"
@@ -196,6 +208,39 @@ class TestCrearUsuario:
             assert resp.status_code == 200
             # Redirects to React usuarios page (no flash)
 
+    def test_create_user_with_person_fields(self, app_client, tmp_path):
+        """POST with 4 person fields → stored in user record."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/usuarios/crear",
+                data={
+                    "username": "nuevo_user",
+                    "password": "pass123",
+                    "rol": "usuario",
+                    "permisos": ["odontologia"],
+                    "primer_nombre": "Ana",
+                    "segundo_nombre": "María",
+                    "apellido_1": "López",
+                    "apellido_2": "García",
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            # Verify stored user has the person fields (inside patch context)
+            user = users_store.get_user("nuevo_user")
+            assert user is not None
+            assert user["primer_nombre"] == "Ana"
+            assert user["segundo_nombre"] == "María"
+            assert user["apellido_1"] == "López"
+            assert user["apellido_2"] == "García"
+
 
 # =============================================================================
 # Tests: Editar usuario (R2)
@@ -328,6 +373,63 @@ class TestEditarUsuario:
         )
         assert resp.status_code == 200
         # Redirects to React dashboard (no flash)
+
+    def test_edit_person_fields(self, app_client, tmp_path):
+        """POST with primer_nombre and apellido_1 → only those fields updated."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/usuarios/test_user/editar",
+                data={
+                    "username": "test_user",
+                    "rol": "usuario",
+                    "permisos": ["odontologia"],
+                    "primer_nombre": "Ana",
+                    "apellido_1": "López",
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            # Verify person fields updated (inside patch context)
+            user = users_store.get_user("test_user")
+            assert user is not None
+            assert user["primer_nombre"] == "Ana"
+            assert user["apellido_1"] == "López"
+            # Other person fields preserved
+            assert user["segundo_nombre"] == ""
+            assert user["apellido_2"] == ""
+
+    def test_edit_without_person_fields(self, app_client, tmp_path):
+        """POST without person fields → existing values preserved."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/usuarios/test_user/editar",
+                data={
+                    "username": "test_user",
+                    "rol": "admin",
+                    "permisos": ["*"],
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            # Verify person fields unchanged (inside patch context)
+            user = users_store.get_user("test_user")
+            assert user is not None
+            assert user["primer_nombre"] == "Test"
+            assert user["apellido_1"] == "User"
 
 
 # =============================================================================

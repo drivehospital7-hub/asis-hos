@@ -89,3 +89,18 @@ class TestDetectAllProblemsUrgencias:
 
         assert "missing_columns" in result
         assert isinstance(result["missing_columns"], list)
+
+    def test_normalizados_incluyen_fec_factura(
+        self, workbook_minimal: Workbook
+    ) -> None:
+        """Resultado normalizados MUST include 'fec_factura' in every row."""
+        ws = workbook_minimal.active
+        ws.cell(row=2, column=1, value="FAC-001")
+        ws.cell(row=2, column=2, value="2024-01-15")
+        ws.cell(row=1, column=2, value="Fec. Factura")
+
+        indices = {"numero_factura": 0, "fec_factura": 1}
+        result = self._run(ws, indices)
+        norm = result["problemas"]["normalizados"]
+        for row in norm:
+            assert "fec_factura" in row

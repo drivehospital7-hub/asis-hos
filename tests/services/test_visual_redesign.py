@@ -32,15 +32,6 @@ class TestCSSExtraction:
         assert ".badge--pending" in content or ".badge" in content
         assert ".carga-modal" in content
 
-    def test_legacy_abiertas_urgencias_css_exists(self):
-        """Phase 0.2: legacy/abiertas_urgencias.css extracted from inline <style>."""
-        css_path = Path("app/static/css/legacy/abiertas_urgencias.css")
-        assert css_path.exists(), "abiertas_urgencias.css must be extracted"
-        content = css_path.read_text(encoding="utf-8")
-        # Must contain key rules from the original inline
-        assert ".page-header" in content or ".status-bar" in content
-        assert ".parse-card" in content or ".horario-table" in content
-
 
 # =============================================================================
 # Phase 1 — Foundation: main.css, CDN, sidebar, breadcrumbs
@@ -199,35 +190,6 @@ class TestTemplateRendering:
 
 
 # =============================================================================
-# Phase 2 — Dashboard (home.html) structure
-# =============================================================================
-
-
-class TestHomeTemplate:
-    """Phase 2: Dashboard template structure."""
-
-    def test_home_has_kpi_cards(self):
-        """home.html has KPI stat cards section."""
-        home_path = Path("app/templates/home.html")
-        content = home_path.read_text(encoding="utf-8")
-        assert "kpi" in content.lower() or "stat" in content.lower(), "Must have KPI/stat indicators"
-
-    def test_home_has_area_cards(self):
-        """home.html has area access cards."""
-        home_path = Path("app/templates/home.html")
-        content = home_path.read_text(encoding="utf-8")
-        assert "Odontolog" in content
-        assert "Urgencias" in content
-        assert "Control" in content
-
-    def test_home_extends_base(self):
-        """home.html extends base.html."""
-        home_path = Path("app/templates/home.html")
-        content = home_path.read_text(encoding="utf-8")
-        assert 'extends "base.html"' in content or "extends 'base.html'" in content
-
-
-# =============================================================================
 # Phase 3 — Control Errores
 # =============================================================================
 
@@ -255,54 +217,14 @@ class TestControlErroresTemplate:
 
 
 # =============================================================================
-# Phase 4 — Urgencias + Abiertas
-# =============================================================================
-
-
-class TestAbiertasUrgenciasTemplate:
-    """Phase 4.2: Abiertas Urgencias template structure."""
-
-    def test_abiertas_extends_base(self):
-        """abiertas_urgencias.html extends base.html."""
-        tmpl_path = Path("app/templates/abiertas_urgencias.html")
-        content = tmpl_path.read_text(encoding="utf-8")
-        assert 'extends "base.html"' in content or "extends 'base.html'" in content
-
-    def test_abiertas_has_schedule_section(self):
-        """abiertas_urgencias.html has schedule table."""
-        tmpl_path = Path("app/templates/abiertas_urgencias.html")
-        content = tmpl_path.read_text(encoding="utf-8")
-        assert "horario" in content.lower() or "turno" in content.lower() or "Horario" in content
-
-
-class TestUrgenciasTemplate:
-    """Phase 4.1: Urgencias template structure."""
-
-    def test_urgencias_extends_base(self):
-        """urgencias.html extends base.html."""
-        tmpl_path = Path("app/templates/urgencias.html")
-        content = tmpl_path.read_text(encoding="utf-8")
-        assert 'extends "base.html"' in content or "extends 'base.html'" in content
-
-    def test_urgencias_has_upload_form(self):
-        """urgencias.html has file upload form."""
-        tmpl_path = Path("app/templates/urgencias.html")
-        content = tmpl_path.read_text(encoding="utf-8")
-        assert "file_upload" in content or "upload" in content.lower()
-
-
-# =============================================================================
 # Phase 5 — Remaining templates
 # =============================================================================
 
 
 class TestRemainingTemplates:
-    """Phase 5: ordenado, excel_headers, derechos, unauthorized inherit base."""
+    """Phase 5: remaining templates inherit base."""
 
     @pytest.mark.parametrize("template_name", [
-        "ordenado_facturado.html",
-        "excel_headers.html",
-        "derechos.html",
         "unauthorized.html",
     ])
     def test_template_extends_base(self, template_name):
@@ -334,12 +256,4 @@ class TestCleanup:
         """components.css must be deleted (replaced by Tailwind utilities)."""
         assert not Path("app/static/css/components.css").exists(), "components.css must be deleted"
 
-    def test_standalone_templates_have_tailwind(self):
-        """Standalone templates (login, usuarios, import_facturas) include Tailwind CDN."""
-        for template in ["login.html", "usuarios.html", "import_facturas.html"]:
-            tmpl_path = Path(f"app/templates/{template}")
-            if not tmpl_path.exists():
-                continue
-            content = tmpl_path.read_text(encoding="utf-8")
-            assert "tailwind" in content.lower() or "cdn" in content.lower(), \
-                f"{template} must include Tailwind CDN"
+
