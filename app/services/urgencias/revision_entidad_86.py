@@ -29,16 +29,18 @@ def detect_revision_entidad_86_urgencias(
     Returns:
         Lista de dicts con keys: 'factura', 'codigo', 'procedimiento', 'entidad', 'ide_contrato'
     """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
     ide_contrato_idx = indices.get("ide_contrato")
 
-    if None in (num_fact_idx, codigo_entidad_idx):
+    if None in (tipo_factura_idx, num_fact_idx, codigo_entidad_idx):
         logger.warning(
             "Revision Entidad 86 - Columnas necesarias no encontradas: "
-            "numero_factura=%s, codigo_entidad_cobrar=%s",
+            "tipo_factura_descripcion=%s, numero_factura=%s, codigo_entidad_cobrar=%s",
+            tipo_factura_idx,
             num_fact_idx,
             codigo_entidad_idx,
         )
@@ -48,6 +50,12 @@ def detect_revision_entidad_86_urgencias(
     facturas_vistas: set[str] = set()
 
     for row in range(2, data_sheet.max_row + 1):
+        # Filtrar por tipo_factura_descripcion = "Urgencias"
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:

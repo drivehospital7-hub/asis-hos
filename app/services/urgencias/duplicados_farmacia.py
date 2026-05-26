@@ -42,6 +42,7 @@ def detect_duplicados_farmacia(
         Lista de dicts con keys: factura, codigo_tipo_procedimiento,
         pares_duplicados, total_pares.
     """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     codigo_idx = indices.get("codigo")
     cantidad_idx = indices.get("cantidad")
@@ -49,10 +50,12 @@ def detect_duplicados_farmacia(
     tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
 
     # Guard: columnas requeridas faltantes
-    if None in (num_fact_idx, tarifario_idx, tipo_proc_idx):
+    if None in (tipo_factura_idx, num_fact_idx, tarifario_idx, tipo_proc_idx):
         logger.warning(
             "Duplicados Farmacia - Columnas necesarias no encontradas: "
-            "numero_factura=%s, tarifario=%s, codigo_tipo_procedimiento=%s",
+            "tipo_factura_descripcion=%s, numero_factura=%s, tarifario=%s, "
+            "codigo_tipo_procedimiento=%s",
+            tipo_factura_idx,
             num_fact_idx,
             tarifario_idx,
             tipo_proc_idx,
@@ -64,6 +67,12 @@ def detect_duplicados_farmacia(
     grupos: dict[tuple[str, str], dict[tuple[str, int], int]] = {}
 
     for row in range(2, data_sheet.max_row + 1):
+        # Filtrar por tipo_factura_descripcion = "Urgencias"
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:

@@ -181,7 +181,7 @@ def create_revision_sheet(
             logger.exception("Error detectando problemas de urgencias: %s", exc)
             problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
 
-        from app.services.odontologia.mal_capitado import detect_mal_capitado
+        from app.services.urgencias.mal_capitado import detect_mal_capitado
         from app.services.urgencias.cantidades_urgencias import detect_cantidades_urgencias
         from app.services.urgencias.hospitalizacion import detect_cantidades_hospitalizacion
 

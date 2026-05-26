@@ -38,12 +38,13 @@ def detect_mal_capitado(
         Lista de dicts con keys: "factura", "codigo", "procedimiento",
         "observacion", "ide_contrato_actual"
     """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
     ide_contrato_idx = indices.get("ide_contrato")
 
-    if num_fact_idx is None or codigo_idx is None:
+    if tipo_factura_idx is None or num_fact_idx is None or codigo_idx is None:
         logger.warning("MAL CAPITADO - Columnas necesarias no encontradas")
         return []
 
@@ -51,6 +52,12 @@ def detect_mal_capitado(
     facturas_procesadas: set[str] = set()
 
     for row in range(2, data_sheet.max_row + 1):
+        # Filtrar por tipo_factura_descripcion = "Urgencias"
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str or factura_str in facturas_procesadas:
@@ -88,8 +95,14 @@ def detect_mal_capitado(
 
     # Regla: Si Número Factura tiene prefijo CAP -> Cód Entidad Cobrar debe ser ESS118
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
-    if num_fact_idx is not None and codigo_entidad_cobrar_idx is not None:
+    if tipo_factura_idx is not None and num_fact_idx is not None and codigo_entidad_cobrar_idx is not None:
         for row in range(2, data_sheet.max_row + 1):
+            # Filtrar por tipo_factura_descripcion = "Urgencias"
+            tipo_factura_cap = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+            tipo_factura_cap_str = str(tipo_factura_cap).strip() if tipo_factura_cap else ""
+            if tipo_factura_cap_str != "Urgencias":
+                continue
+
             numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
             factura_str = normalize_invoice(numero_factura)
             if not factura_str:
