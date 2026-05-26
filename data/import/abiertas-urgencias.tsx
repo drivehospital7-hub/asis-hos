@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronUp,
   Users,
@@ -40,14 +39,6 @@ function AbiertasUrgenciasPage() {
         eyebrow="Servicio de Urgencias"
         title="Abiertas Urgencias"
         description="Visualiza y gestiona los horarios del personal asignado a urgencias."
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <Link to="/control-novedades">
-              <ArrowLeft className="h-4 w-4" />
-              Volver a control
-            </Link>
-          </Button>
-        }
       />
 
       {/* Asignar responsable */}

@@ -19,6 +19,7 @@ interface ErrorGroup {
   cantidad: number;
   facturas: Array<{
     factura: string;
+    fec_factura: string;
     responsable_cierra: string;
     descripcion: string;
     procedimiento: string;
@@ -27,7 +28,11 @@ interface ErrorGroup {
   }>;
 }
 
-export function UrgenciasPage() {
+interface UrgenciasPageProps {
+  can_write?: boolean;
+}
+
+export function UrgenciasPage({ can_write: _can_write = false }: UrgenciasPageProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -171,31 +176,26 @@ export function UrgenciasPage() {
               </div>
               <div className="overflow-x-auto rounded-md border border-border">
                 <table className="w-full text-sm">
-                  <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-                    <tr>
-                      <th className="text-left font-medium px-4 py-3">Factura</th>
-                      <th className="text-left font-medium px-4 py-3">Responsable cierre</th>
-                      <th className="text-left font-medium px-4 py-3">Descripción</th>
-                      <th className="text-left font-medium px-4 py-3">Procedimiento</th>
-                      <th className="text-left font-medium px-4 py-3">Detalle</th>
-                      <th className="text-right font-medium px-4 py-3">Acción</th>
-                    </tr>
-                  </thead>
+                    <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
+                      <tr>
+                        <th className="text-left font-medium px-4 py-3">Fec. Factura</th>
+                        <th className="text-left font-medium px-4 py-3">Factura</th>
+                        <th className="text-left font-medium px-4 py-3">Responsable cierre</th>
+                        <th className="text-left font-medium px-4 py-3">Descripción</th>
+                        <th className="text-left font-medium px-4 py-3">Procedimiento</th>
+                        <th className="text-left font-medium px-4 py-3">Detalle</th>
+                      </tr>
+                    </thead>
                   <tbody className="divide-y divide-border">
                     {grupo.facturas.map((f, i) => (
                       <tr key={`${f.factura}-${i}`} className={cn("hover:bg-muted/30 transition-colors", f.fecha_cierre_vacia && "bg-amber-50")}>
+                        <td className="px-4 py-3 text-xs text-foreground/80">{f.fec_factura}</td>
                         <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
                         <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra}</td>
                         <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
                         <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento}</td>
                         <td className="px-4 py-3">
                           <StatusBadge tone="warning">{f.detalle}</StatusBadge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <Button size="sm" variant="secondary" className="bg-secondary hover:bg-secondary/90">
-                            Controlar
-                            <ArrowRight className="h-3.5 w-3.5" />
-                          </Button>
                         </td>
                       </tr>
                     ))}

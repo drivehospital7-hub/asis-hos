@@ -20,7 +20,7 @@ interface NavItem {
 }
 
 const ALL_NAV: NavItem[] = [
-  { label: "Panel principal", href: "/dashboard", icon: LayoutDashboard, permiso: "*", exact: true },
+  { label: "Panel principal", href: "/dashboard", icon: LayoutDashboard, exact: true },
   { label: "Urgencias", href: "/urgencias", icon: Ambulance, permiso: "urgencias" },
   { label: "Odontología", href: "/odontologia", icon: FileText, permiso: "odontologia" },
   { label: "Equipos Básicos", href: "/odontologia-equipos-basicos", icon: FileText, permiso: "odontologia_equipos_basicos" },

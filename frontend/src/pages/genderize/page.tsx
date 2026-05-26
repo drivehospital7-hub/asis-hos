@@ -148,13 +148,12 @@ export function GenderizePage() {
     ]);
     const text = [headers.join("\t"), ...rows.map((r) => r.join("\t"))].join("\n");
     navigator.clipboard.writeText(text).then(() => {
-      alert("Datos copiados al portapapeles. Puedes pegarlos en Excel.");
+      Modal.toast("✓ Datos copiados al portapapeles. Puedes pegarlos en Excel.");
     });
   };
 
   return (
-    <div className="min-h-screen" style={{ background: "oklch(0.96 0.01 80)" }}>
-      <div className="max-w-4xl mx-auto px-4 py-8">
+    <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold font-heading tracking-tight mb-1"
@@ -353,7 +352,6 @@ export function GenderizePage() {
             )}
           </Card>
         )}
-      </div>
     </div>
   );
 }

@@ -1,0 +1,164 @@
+/* ──────── Shared Confirm / Alert Modal Tokens ────────
+ * Design language matches .carga-modal-overlay from control_errores.css.
+ * Both Jinja2 (modal.js) and React (ConfirmDialog.tsx) reference the same
+ * classes for visual consistency.
+ * ──────────────────────────────────────────────────── */
+
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  z-index: 99999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  animation: confirm-fade-in 0.2s ease;
+}
+
+.confirm-modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 1.5rem;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: confirm-slide-up 0.2s ease;
+}
+
+.confirm-modal__title {
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.75rem 0;
+  line-height: 1.3;
+}
+
+.confirm-modal__message {
+  font-size: 0.9375rem;
+  color: #475569;
+  margin: 0 0 1.25rem 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.confirm-modal__buttons {
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.confirm-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1.125rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-decoration: none;
+  line-height: 1.4;
+  font-family: inherit;
+}
+
+.confirm-button:hover {
+  transform: translateY(-1px);
+}
+
+.confirm-button--primary {
+  background: #0f172a;
+  color: white;
+  border-color: #0f172a;
+}
+
+.confirm-button--primary:hover {
+  background: #1e293b;
+  border-color: #1e293b;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+.confirm-button--secondary {
+  background: white;
+  color: #475569;
+  border-color: #e2e8f0;
+}
+
+.confirm-button--secondary:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+.confirm-button--danger {
+  background: #dc2626;
+  color: white;
+  border-color: #dc2626;
+}
+
+.confirm-button--danger:hover {
+  background: #b91c1c;
+  border-color: #b91c1c;
+  box-shadow: 0 4px 6px -1px rgba(220, 38, 38, 0.2);
+}
+
+/* ── Alert toast variant for genderize page ── */
+.confirm-modal--toast {
+  max-width: 360px;
+  text-align: center;
+}
+
+.confirm-modal--toast .confirm-modal__buttons {
+  justify-content: center;
+}
+
+/* ──────── Toast Notification (bottom-right, auto-dismiss) ──────── */
+
+.toast-notification {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 999999;
+  background: #0f172a;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.2);
+  max-width: 360px;
+  cursor: pointer;
+  transform: translateY(1rem);
+  opacity: 0;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+.toast-notification--visible {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast-notification--exit {
+  transform: translateY(0.5rem);
+  opacity: 0;
+}
+
+/* ── Animations ── */
+@keyframes confirm-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes confirm-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

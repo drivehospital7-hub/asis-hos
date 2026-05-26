@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import {
-  ArrowLeft,
   ChevronDown,
   ChevronUp,
   Users,
@@ -50,7 +49,7 @@ function Toast({
   }, [onDone]);
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50">
+    <div className="fixed bottom-6 right-6 z-50">
       <div className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
         {message}
       </div>
@@ -194,7 +193,7 @@ export function AbiertasUrgenciasPage({
       showToast("Iniciá sesión para modificar");
       return;
     }
-    if (!confirm("¿Eliminar el horario cargado?")) return;
+    if (!await window.__showConfirm!("¿Eliminar el horario cargado?")) return;
 
     try {
       const res = await fetch("/abiertas-urgencias/api/schedule", {
@@ -341,6 +340,7 @@ export function AbiertasUrgenciasPage({
       setResults(newResults);
       setShowResults(true);
       setShowRespCard(false);
+      setFacturasText("");
       showToast("✅ " + newResults.length + " facturas procesadas");
     } catch {
       showToast("Error al procesar los datos.");
@@ -363,17 +363,17 @@ export function AbiertasUrgenciasPage({
     const alreadyExists = envioExistentes.current.has(factura);
     if (alreadyExists) {
       if (
-        !confirm(
+        !(await window.__showConfirm!(
           `La factura "${factura}" ya existe en la tabla de Control de Errores.\n¿Querés duplicarla de todas formas?`,
-        )
+        ))
       ) {
         return;
       }
     } else {
       if (
-        !confirm(
+        !(await window.__showConfirm!(
           `¿Enviar factura "${factura}" a Control de Errores como "Factura Abierta"?`,
-        )
+        ))
       ) {
         return;
       }
@@ -496,14 +496,6 @@ export function AbiertasUrgenciasPage({
         eyebrow="Servicio de Urgencias"
         title="Abiertas Urgencias"
         description="Visualiza y gestiona los horarios del personal asignado a urgencias."
-        actions={
-          <Button variant="outline" size="sm" asChild>
-            <a href="/control-novedades">
-              <ArrowLeft className="h-4 w-4" />
-              Volver a control
-            </a>
-          </Button>
-        }
       />
 
       {/* ═══════════════════ Asignar Responsable ═══════════════════ */}
@@ -553,10 +545,7 @@ export function AbiertasUrgenciasPage({
               <Button
                 size="sm"
                 className="bg-primary hover:bg-primary/90"
-                disabled={processing || !can_write}
-                title={
-                  !can_write ? "Iniciá sesión para modificar" : undefined
-                }
+                disabled={processing}
                 onClick={handleProcesarFacturas}
               >
                 {processing ? (
@@ -681,8 +670,13 @@ export function AbiertasUrgenciasPage({
                       key={`${r.factura}-${idx}`}
                       className={cn(
                         "hover:bg-muted/30 transition-colors",
-                        isVencida && "resp-row--vencida bg-danger/5",
+                        isVencida && "resp-row--vencida",
                       )}
+                      style={
+                        isVencida
+                          ? { backgroundColor: "color-mix(in oklab, var(--color-danger) 16%, transparent)" }
+                          : undefined
+                      }
                     >
                       <td className="px-2 py-1.5 font-mono text-xs text-foreground truncate">
                         {escapeHtml(r.fechaCrea || "—")}

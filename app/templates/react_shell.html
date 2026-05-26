@@ -19,12 +19,17 @@
 
   {# ── Custom CSS (tokens + utilities) ── #}
   <link rel="stylesheet" href="/static/css/main.css">
+  <link rel="stylesheet" href="/static/css/modal.css">
+  <script src="/static/js/modal.js"></script>
 
   {% if entry_css %}
   <link rel="stylesheet" crossorigin href="/static/react-dist/{{ entry_css }}">
   {% endif %}
 </head>
 <body>
+  {# Consumir flash messages acumulados (React maneja sus propias notificaciones) #}
+  {% with messages = get_flashed_messages(with_categories=true) %}{% endwith %}
+
   <div id="root"></div>
   <noscript>
     <div style="padding: 2rem; text-align: center; color: var(--muted);">

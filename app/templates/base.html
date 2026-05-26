@@ -43,9 +43,6 @@
             <span class="text-[11px] uppercase tracking-wider" style="color:var(--sidebar-foreground); opacity:0.6;">Facturación</span>
           </div>
         </div>
-        <button id="sidebarToggle" onclick="toggleSidebar()" class="flex items-center justify-center p-1 rounded-md hover:bg-white/10 transition-colors flex-shrink-0" style="color:var(--sidebar-foreground); opacity:0.7;">
-          <i data-lucide="panel-left-open" class="lucide w-4 h-4"></i>
-        </button>
       </div>
 
       {# Navigation items #}
@@ -62,6 +59,9 @@
           'auth.usuarios_react':           {'label': 'Usuarios',        'icon': 'Users'},
         } %}
 
+        {# ── "Áreas de trabajo" label (matches React sidebar) ── #}
+        <p class="px-4 pb-1 text-[11px] uppercase tracking-wider font-medium sidebar-label" style="color:var(--sidebar-foreground); opacity:0.5; display:none;">Áreas de trabajo</p>
+
         <div class="px-2 space-y-0.5">
           {% if '*' in session_permisos %}
             {% for endpoint, item in nav_items.items() %}
@@ -75,20 +75,43 @@
               </a>
             {% endfor %}
           {% else %}
-            {% for permiso in session_permisos %}
-              {% set key = permiso.split(':')[0] if ':' in permiso else permiso %}
-              {% set endpoint_map = {
-                'odontologia':                  'excel_headers.excel_headers_react',
-                'odontologia_equipos_basicos': 'odontologia_equipos_basicos.excel_headers_react',
-                'urgencias':                    'urgencias.urgencias_react',
-                'control_urgencias':            'control_errores.control_errores_react',
-                'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
-                'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
-                'derechos':                     'derechos.derechos_react',
-                '*':                            'auth.usuarios_react',
-              } %}
-              {% if key in endpoint_map %}
-                {% set ep = endpoint_map[key] %}
+            {# ── "Panel principal" — always shown for authenticated non-admin users ── #}
+            {% if session.get('ce_authenticated') %}
+              {% set endpoint = 'home.home_react' %}
+              {% set item = nav_items.get(endpoint) %}
+              {% if item %}
+                {% set is_active = request.endpoint == endpoint %}
+                {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
+                {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
+                {% set op = 1 if is_active else 0.8 %}
+                <a href="{{ url_for(endpoint) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
+                  <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
+                  <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
+                </a>
+              {% endif %}
+            {% endif %}
+
+            {# Map permiso key → Flask endpoint. Iterated once (unique keys) to
+               avoid duplicating nav items when user has both X and X:write. #}
+            {% set _ep_map = {
+              'odontologia':                  'excel_headers.excel_headers_react',
+              'odontologia_equipos_basicos': 'odontologia_equipos_basicos.excel_headers_react',
+              'urgencias':                    'urgencias.urgencias_react',
+              'control_urgencias':            'control_errores.control_errores_page',
+              'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
+              'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
+              'derechos':                     'derechos.derechos_react',
+              '*':                            'auth.usuarios_react',
+            } %}
+            {% for key, ep in _ep_map.items() %}
+              {% set ns = namespace(found=false) %}
+              {% for p in session_permisos %}
+                {% set pkey = p.split(':')[0] if ':' in p else p %}
+                {% if pkey == key %}
+                  {% set ns.found = true %}
+                {% endif %}
+              {% endfor %}
+              {% if ns.found %}
                 {% set item = nav_items.get(ep) %}
                 {% if item %}
                   {% set is_active = request.endpoint == ep %}
@@ -129,6 +152,10 @@
       {# ── HEADER ── #}
       <header class="h-14 min-h-[3.5rem] flex items-center justify-between px-6 bg-white border-b border-[var(--muted\/20)] fixed top-0 right-0 z-30" id="mainHeader" style="left: 4rem; transition: left 0.2s ease;">
         <div class="flex items-center gap-3">
+          {# ── Sidebar toggle (matches React header: app-header.tsx) ── #}
+          <button id="sidebarToggle" onclick="toggleSidebar()" class="flex items-center justify-center p-1 rounded-md hover:bg-[var(--sidebar-accent)] transition-colors flex-shrink-0" style="color:var(--foreground); opacity:0.7;" title="Colapsar menú">
+            <i data-lucide="panel-left-open" class="lucide w-4 h-4"></i>
+          </button>
           <h1 class="text-base font-semibold font-heading text-[var(--foreground)] tracking-tight">
             <span class="text-[var(--primary)]">HOR</span>
             <span class="text-[var(--muted)] mx-1">·</span>
@@ -452,6 +479,10 @@
       }
     });
   </script>
+
+  {# ── Shared modal CSS + JS for styled confirm/alert dialogs ── #}
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
+  <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
 
   {% block scripts %}{% endblock %}
 </body>

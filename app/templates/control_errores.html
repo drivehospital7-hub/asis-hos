@@ -91,6 +91,7 @@
   <table class="table" id="erroresTable">
     <thead>
       <tr>
+        <th>Validador</th>
         <th>Factura</th>
         <th>Creado</th>
         <th>Categoría</th>
@@ -100,7 +101,7 @@
         <th>Acciones</th>
       </tr>
     </thead>
-    <tbody id="erroresBody"><tr><td colspan="7" class="empty-state">Cargando...</td></tr></tbody>
+    <tbody id="erroresBody"><tr><td colspan="8" class="empty-state">Cargando...</td></tr></tbody>
   </table>
 </div>
 
@@ -187,9 +188,13 @@
           </div>
         </div>
       </div>
-      <div class="carga-modal-footer">
-        <button class="btn btn--secondary" onclick="backToCargaStep1()">Volver</button>
-        <button class="btn btn--primary" onclick="submitCargaMasiva()">Confirmar y Agregar</button>
+      <div class="carga-modal-footer" id="cargaFooter2">
+        <button class="btn btn--secondary" id="cargaBtnVolver" onclick="backToCargaStep1()">Volver</button>
+        <button class="btn btn--primary" id="cargaBtnConfirmar" onclick="submitCargaMasiva()">Confirmar y Agregar</button>
+        <div id="cargaProgress" class="carga-progress" style="display:none;align-items:center;gap:0.75rem;width:100%;justify-content:center;">
+          <span class="spinner" style="width:16px;height:16px;border:2px solid #e2e8f0;border-top-color:#2563eb;border-radius:50%;display:inline-block;"></span>
+          <span id="cargaProgressText" style="color:#475569;font-size:0.8125rem;">Subiendo registros...</span>
+        </div>
       </div>
     </div>
   </div>
@@ -203,6 +208,7 @@
   let opciones = { tipos_error: [], estados: [], responsables: [] };
   let cachedErrores = [];
   let isAdding = false;
+  let _cargaEnProgreso = false;
 
   let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
   const ITEMS_PER_PAGE = 20;
@@ -367,7 +373,7 @@
     // Nueva fila
     if (isAdding) {
       html += `<tr>
-        <td colspan="7" style="padding: 1.5rem; background: #f8fafc;">
+        <td colspan="8" style="padding: 1.5rem; background: #f8fafc;">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <input type="text" id="newFactura" class="inline-input" placeholder="ID" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newTipo" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
@@ -387,7 +393,7 @@
     }
 
     if (!cachedErrores || cachedErrores.length === 0) {
-      if (!isAdding) html += '<tr><td colspan="7" class="empty-state">No hay errores registrados</td></tr>';
+      if (!isAdding) html += '<tr><td colspan="8" class="empty-state">No hay errores registrados</td></tr>';
     } else {
       cachedErrores.forEach(e => {
         // Determinar clase de categoría
@@ -402,6 +408,7 @@
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
+          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
@@ -677,6 +684,13 @@
     tooltip.textContent = text;
     document.body.appendChild(tooltip);
 
+    // Auto-seleccionar contenido para copiado rápido (solo factura y descripción)
+    const range = document.createRange();
+    range.selectNodeContents(tooltip);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
     _obsTooltipOpen = true;
     _obsTooltipEl = tooltip;
     _obsTooltipTd = td;
@@ -841,7 +855,7 @@
     }
   });
 
-  function saveFromEditor() {
+  async function saveFromEditor() {
     if (!currentEditId) return;
     // Editor de facturador abierto → no hacer nada (el save lo maneja saveFacturadorEditor)
     if (!currentCell) return;
@@ -907,7 +921,7 @@
       if (factura) {
         var dup = buscarDuplicados(factura);
         if (dup.length) {
-          if (!confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+          if (!await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
             closeEditor(); loadErrores(); return;
           }
         }
@@ -920,7 +934,7 @@
         var errActual = cachedErrores.find(function(e){return e.id===currentEditId});
         if (errActual && errActual.factura !== newValue) {
           var dup = buscarDuplicados(newValue);
-          if (dup.length && !confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+          if (dup.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
             // Revertir cambio visual y recargar
             currentCell.textContent = errActual.factura || '-';
             closeEditor(); loadErrores(); return;
@@ -964,7 +978,7 @@
   // Función vacía para evitar errores si se llama
   function addNewRow() {}
 
-  function saveFromEditorWithCallback(callback) {
+  async function saveFromEditorWithCallback(callback) {
     if (!currentEditId) { callback(); return; }
     // Editor de facturador abierto → no hacer nada
     if (!currentCell) { callback(); return; }
@@ -993,14 +1007,14 @@
     if (field === 'factura' && newValue) {
       if (prevId === 'new') {
         var dupNew = buscarDuplicados(newValue);
-        if (dupNew.length && !confirm('La factura ' + newValue + ' ya existe. ¿Crear igual?')) {
+        if (dupNew.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Crear igual?')) {
           closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
         }
       } else {
         var errActual = cachedErrores.find(function(e){return e.id===prevId});
         if (errActual && errActual.factura !== newValue) {
           var dupExisting = buscarDuplicados(newValue);
-          if (dupExisting.length && !confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+          if (dupExisting.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
             currentCell.textContent = errActual.factura || '-';
             closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
           }
@@ -1128,6 +1142,7 @@
     const newRow = document.createElement('tr');
     newRow.id = 'new-row';
     newRow.innerHTML = `
+      <td class="fecha-creado">${currentUserName || '-'}</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
@@ -1165,7 +1180,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     var factura = (document.getElementById('newFactura')?.value?.trim() || '').toUpperCase();
     if (!factura) { isAdding = false; loadErrores(); return; }
     var dup = buscarDuplicados(factura);
-    if (dup.length && !confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+    if (dup.length && !await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
       isAdding = false; loadErrores(); return;
     }
     var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
@@ -1197,11 +1212,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== ELIMINAR ======
   async function deleteError(id) { 
     if (!window._canWrite) return;
-    if (!confirm('¿Eliminar?')) return; 
+    if (!await Modal.confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
     if (result.status === 'success') loadErrores(); 
-    else alert(result.errors.join(', ')); 
+    else Modal.alert(result.errors.join(', ')); 
   }
   function handleSearch() {
     currentPage = 1; // Reset a primera página al buscar
@@ -1237,7 +1252,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const pageItems = errores.slice(startIndex, endIndex);
     
     if (!errores || errores.length === 0) {
-      html += '<tr><td colspan="7" class="empty-state">No se encontraron resultados</td></tr>';
+      html += '<tr><td colspan="8" class="empty-state">No se encontraron resultados</td></tr>';
     } else {
       pageItems.forEach(e => {
         let categoryClass = 'clinico';
@@ -1250,6 +1265,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
+          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
@@ -1344,7 +1360,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function exportToCSV() {
     if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
-      alert('No hay datos para exportar');
+      Modal.alert('No hay datos para exportar');
       return;
     }
     
@@ -1357,7 +1373,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     });
     
     if (erroresDelMes.length === 0) {
-      alert('No hay errores en el mes seleccionado para exportar');
+      Modal.alert('No hay errores en el mes seleccionado para exportar');
       return;
     }
     
@@ -1487,7 +1503,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       formData.append('imagen', file);
       const res = await fetch(`/api/control-errores/${errorId}/imagenes`, { method: 'POST', body: formData });
       const result = await res.json();
-      if (result.status !== 'success') alert(result.errors.join(', '));
+      if (result.status !== 'success') Modal.alert(result.errors.join(', '));
     }
     openImageModal(errorId);
     loadErrores();
@@ -1495,11 +1511,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function deleteImage(errorId, filename) {
     if (!window._canWrite) return;
-    if (!confirm('¿Eliminar imagen?')) return;
+    if (!await Modal.confirm('¿Eliminar imagen?')) return;
     const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
     const result = await res.json();
     if (result.status === 'success') { openImageModal(errorId); loadErrores(); }
-    else alert(result.errors.join(', '));
+    else Modal.alert(result.errors.join(', '));
   }
 
   function viewFullImage(errorId, filename) {
@@ -1757,7 +1773,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function addCargaImageFile(file) {
     var isPdf = file.name.toLowerCase().endsWith('.pdf');
     if (!file.type.startsWith('image/') && !isPdf) return;
-    if (cargaImages.length >= 3) { alert('Máximo 3 archivos'); return; }
+    if (cargaImages.length >= 3) { Modal.alert('Máximo 3 archivos'); return; }
     var url = URL.createObjectURL(file);
     var ext = isPdf ? 'pdf' : file.type.split('/')[1];
     cargaImages.push({
@@ -1769,8 +1785,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     renderCargaThumbs();
   }
 
-  function deleteCargaImage(index) {
-    if (!confirm('¿Eliminar imagen?')) return;
+  async function deleteCargaImage(index) {
+    if (!await Modal.confirm('¿Eliminar imagen?')) return;
     URL.revokeObjectURL(cargaImages[index].url);
     cargaImages.splice(index, 1);
     renderCargaThumbs();
@@ -1835,6 +1851,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   function closeCargaMasiva() {
+    if (_cargaEnProgreso) return; // No cerrar mientras se estén subiendo registros
     document.getElementById('cargaModal').classList.remove('open');
   }
 
@@ -1859,15 +1876,15 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     });
   }
 
-  function parseCargaMasiva() {
+  async function parseCargaMasiva() {
     const raw = document.getElementById('cargaTextarea').value;
     const descripcion = document.getElementById('cargaDescripcion').value.trim();
-    if (!raw.trim()) { alert('Pegá los datos de Excel primero'); return; }
-    if (!descripcion) { alert('Ingresá una Descripción de Novedad'); return; }
+    if (!raw.trim()) { await Modal.alert('Pegá los datos de Excel primero'); return; }
+    if (!descripcion) { await Modal.alert('Ingresá una Descripción de Novedad'); return; }
 
     const lines = raw.split('\n').filter(l => l.trim());
     if (lines.length < 2) {
-      alert('Necesitás al menos el encabezado + 1 fila de datos');
+      await Modal.alert('Necesitás al menos el encabezado + 1 fila de datos');
       return;
     }
 
@@ -1877,11 +1894,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const respCol = _findCol(headers, ['responsable', 'cierra', 'facturador']);
 
     if (facturaCol === -1) {
-      alert('No se encontró columna "Número de Factura". El encabezado debe contener "Factura" o "Número".');
+      await Modal.alert('No se encontró columna "Número de Factura". El encabezado debe contener "Factura" o "Número".');
       return;
     }
     if (respCol === -1) {
-      alert('No se encontró columna "Responsable Cierra Facturar". El encabezado debe contener "Responsable", "Cierra" o "Facturador".');
+      await Modal.alert('No se encontró columna "Responsable Cierra Facturar". El encabezado debe contener "Responsable", "Cierra" o "Facturador".');
       return;
     }
 
@@ -1907,12 +1924,12 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     });
 
     if (!rows.length) {
-      alert('Error al parsear los datos:\n' + errors.join('\n'));
+      await Modal.alert('Error al parsear los datos:\n' + errors.join('\n'));
       return;
     }
 
     if (errors.length) {
-      if (!confirm('Hay ' + errors.length + ' fila(s) ignoradas:\n' +
+      if (!await Modal.confirm('Hay ' + errors.length + ' fila(s) ignoradas:\n' +
           errors.slice(0, 5).join('\n') +
           (errors.length > 5 ? '\n... y ' + (errors.length - 5) + ' más' : '') +
           '\n\n¿Querés continuar solo con las ' + rows.length + ' filas válidas?')) {
@@ -1938,7 +1955,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     var dupCount = rows.filter(function(r) { return r.duplicate; }).length;
     if (dupCount > 0) {
-      if (!confirm('Se encontraron ' + dupCount + ' registro(s) duplicado(s) (misma factura + categoría "Otros").\nSe mostrarán deshabilitados en la preview.\n¿Querés continuar?')) {
+      if (!await Modal.confirm('Se encontraron ' + dupCount + ' registro(s) duplicado(s) (misma factura + categoría "Otros").\nSe mostrarán deshabilitados en la preview.\n¿Querés continuar?')) {
         return;
       }
     }
@@ -2011,8 +2028,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   async function submitCargaMasiva() {
     var total = cargaParsedRows.length;
     var enabled = cargaParsedRows.filter(function(r) { return !r.duplicate; }).length;
-    if (!enabled) { alert('No hay registros habilitados para agregar'); return; }
-    if (!confirm('¿Agregar ' + enabled + ' novedad(es) con categoría "Otros"?\n' +
+    if (!enabled) { await Modal.alert('No hay registros habilitados para agregar'); return; }
+    if (!await Modal.confirm('¿Agregar ' + enabled + ' novedad(es) con categoría "Otros"?\n' +
         (total - enabled > 0 ? '(' + (total - enabled) + ' duplicado(s) omitidos)' : ''))) return;
 
     var rows = [];
@@ -2030,68 +2047,92 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     }
 
     var validRows = rows.filter(function(r) { return r.factura && r.responsable; });
-    if (!validRows.length) { alert('No hay filas válidas para agregar. Necesitás seleccionar un responsable para cada registro.'); return; }
+    if (!validRows.length) { await Modal.alert('No hay filas válidas para agregar. Necesitás seleccionar un responsable para cada registro.'); return; }
+
+    // ---- Activar estado de carga ----
+    _cargaEnProgreso = true;
+    document.getElementById('cargaBtnVolver').style.display = 'none';
+    document.getElementById('cargaBtnConfirmar').style.display = 'none';
+    var progressEl = document.getElementById('cargaProgress');
+    var progressText = document.getElementById('cargaProgressText');
+    progressEl.style.display = 'flex';
+    progressText.textContent = 'Subiendo 0 de ' + validRows.length + '...';
+    // Ocultar dropzone de imágenes durante la carga
+    var dropzone = document.getElementById('cargaImageDropzoneInline');
+    if (dropzone) dropzone.style.display = 'none';
 
     var successCount = 0;
     var errorCount = 0;
     var createdIds = [];
 
-    for (var i = 0; i < validRows.length; i++) {
-      var r = validRows[i];
-      try {
-        var res = await fetch('/api/control-errores', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-        tipo_error: 'Otros',
-            factura: r.factura,
-            observacion: r.observacion,
-            responsable: r.responsable,
-            estado: 'S'
-          })
-        });
-        var result = await res.json();
-        if (result.status === 'success') {
-          successCount++;
-          createdIds.push(result.data.error.id);
-        } else {
+    try {
+      for (var i = 0; i < validRows.length; i++) {
+        var r = validRows[i];
+        progressText.textContent = 'Subiendo ' + (i + 1) + ' de ' + validRows.length + '...';
+        try {
+          var res = await fetch('/api/control-errores', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+          tipo_error: 'Otros',
+              factura: r.factura,
+              observacion: r.observacion,
+              responsable: r.responsable,
+              estado: 'S'
+            })
+          });
+          var result = await res.json();
+          if (result.status === 'success') {
+            successCount++;
+            createdIds.push(result.data.error.id);
+          } else {
+            errorCount++;
+            console.error('Error fila ' + (i + 1) + ':', result.errors);
+          }
+        } catch (e) {
           errorCount++;
-          console.error('Error fila ' + (i + 1) + ':', result.errors);
+          console.error('Error fila ' + (i + 1) + ':', e);
         }
-      } catch (e) {
-        errorCount++;
-        console.error('Error fila ' + (i + 1) + ':', e);
       }
-    }
 
-    // ---- Subir imágenes a cada error creado ----
-    if (cargaImages.length > 0 && createdIds.length > 0) {
-      for (var ei = 0; ei < createdIds.length; ei++) {
-        for (var ii = 0; ii < cargaImages.length; ii++) {
-          try {
-            var fd = new FormData();
-            fd.append('imagen', cargaImages[ii].file, cargaImages[ii].name);
-            await fetch('/api/control-errores/' + createdIds[ei] + '/imagenes', {
-              method: 'POST',
-              body: fd
-            });
-          } catch (e) {
-            console.error('Error subiendo imagen a ' + createdIds[ei] + ':', e);
+      // ---- Subir imágenes a cada error creado ----
+      if (cargaImages.length > 0 && createdIds.length > 0) {
+        progressText.textContent = 'Subiendo imágenes adjuntas...';
+        for (var ei = 0; ei < createdIds.length; ei++) {
+          for (var ii = 0; ii < cargaImages.length; ii++) {
+            try {
+              var fd = new FormData();
+              fd.append('imagen', cargaImages[ii].file, cargaImages[ii].name);
+              await fetch('/api/control-errores/' + createdIds[ei] + '/imagenes', {
+                method: 'POST',
+                body: fd
+              });
+            } catch (e) {
+              console.error('Error subiendo imagen a ' + createdIds[ei] + ':', e);
+            }
           }
         }
       }
+    } finally {
+      // ---- Restaurar UI y cerrar ----
+      _cargaEnProgreso = false;
+      progressEl.style.display = 'none';
+      document.getElementById('cargaBtnVolver').style.display = '';
+      document.getElementById('cargaBtnConfirmar').style.display = '';
+      if (dropzone) dropzone.style.display = '';
+
+      // Liberar URLs de imágenes
+      for (var ci = 0; ci < cargaImages.length; ci++) URL.revokeObjectURL(cargaImages[ci].url);
+      cargaImages = [];
+
+      closeCargaMasiva();
     }
 
-    // Liberar URLs de imágenes
-    for (var ci = 0; ci < cargaImages.length; ci++) URL.revokeObjectURL(cargaImages[ci].url);
-    cargaImages = [];
-
-    closeCargaMasiva();
     await loadErrores();
 
     var msg = successCount + ' novedad(es) agregada(s) correctamente';
     if (errorCount) msg += ', ' + errorCount + ' con errores (revisá la consola)';
-    alert(msg);
+    await Modal.toast('✓ ' + msg);
   }
 
   setupCargaImageInlineDropzone();
@@ -2118,6 +2159,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== AUTH DISABLED STATE ======
   // Permiso de escritura desde el server (control_urgencias:write o admin *)
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+  const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {
     const authed = window._canWrite;
@@ -2151,14 +2193,16 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       });
       document.querySelectorAll('.page-header-actions button').forEach(btn => {
         btn.classList.remove('disabled-action');
+        btn.removeAttribute('disabled');
       });
     } else {
       body.classList.remove('auth-enabled');
       body.classList.add('auth-disabled');
 
-      // Deshabilitar acciones: Agregar, Exportar, Eliminar
+      // Deshabilitar acciones: Agregar, Exportar, Carga Masiva
       document.querySelectorAll('.page-header-actions button').forEach(btn => {
         btn.classList.add('disabled-action');
+        btn.setAttribute('disabled', '');
       });
 
       // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion y factura)
