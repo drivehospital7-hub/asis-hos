@@ -62,7 +62,7 @@ def excel_headers_react():
 
 
 @odontologia_equipos_basicos_bp.post("/")
-@rate_limit(1, 120)
+@rate_limit(1, 120, admin_exempt=True)
 def export_cruce_eb():
     """Procesa el archivo de Equipos Básicos - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")
@@ -125,6 +125,7 @@ def export_cruce_eb():
             all_items.append({
                 "tipo_error": row.get("tipo_error", ""),
                 "factura": row.get("factura", ""),
+                "fec_factura": row.get("fec_factura", ""),
                 "responsable_cierra": row.get("responsable_cierra", ""),
                 "descripcion": row.get("descripcion", ""),
                 "procedimiento": row.get("procedimiento", ""),
@@ -148,6 +149,7 @@ def export_cruce_eb():
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
                 "columnas": [
+                    "Fec. Factura",
                     "Tipo de error",
                     "Número Factura",
                     "Responsable Cierra",

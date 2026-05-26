@@ -91,7 +91,9 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
         estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
 
-        nuevo = crear_error(tipo_error, factura, observacion, estado, responsable, observacion_facturador)
+        validador = f"{session.get('primer_nombre', '')} {session.get('apellido_1', '')}".strip()
+
+        nuevo = crear_error(tipo_error, factura, observacion, estado, responsable, observacion_facturador, validador=validador)
         logger.info("Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}
     except Exception as e:

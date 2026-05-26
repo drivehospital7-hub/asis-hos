@@ -65,6 +65,16 @@ ALLOWED_PERMISOS = frozenset({
     "derechos",
 })
 
+# Pares de permisos que NO pueden convivir en el mismo usuario.
+# Si se asigna uno, el otro debe estar ausente.
+# Formato: {permiso: su_conflictivo}
+PERMISO_MUTUAL_EXCLUSION: dict[str, str] = {
+    "control_urgencias": "control_urgencias:write",
+    "control_urgencias:write": "control_urgencias",
+    "facturas_abiertas": "facturas_abiertas:write",
+    "facturas_abiertas:write": "facturas_abiertas",
+}
+
 # =============================================================================
 # DEFAULT_TEMPLATES - Plantillas de permisos predefinidas
 # =============================================================================
@@ -184,6 +194,33 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "pendientes",
         "description": "Gestión de derechos de petición y trámites administrativos.",
+    },
+    {
+        "title": "Equipos Básicos",
+        "slug": "odontologia_equipos_basicos",
+        "permiso": "odontologia_equipos_basicos",
+        "href": "/odontologia-equipos-basicos",
+        "tone": "info",
+        "pending_label": "pendientes",
+        "description": "Procesamiento de facturas de odontología para equipos básicos.",
+    },
+    {
+        "title": "Usuarios",
+        "slug": "usuarios",
+        "permiso": "*",
+        "href": "/auth/usuarios",
+        "tone": "neutral",
+        "pending_label": "",
+        "description": "Gestión de usuarios, roles y permisos del sistema.",
+    },
+    {
+        "title": "Importar Facturas",
+        "slug": "import_facturas",
+        "permiso": "*",
+        "href": "/import-facturas",
+        "tone": "neutral",
+        "pending_label": "",
+        "description": "Carga masiva de facturas desde archivos Excel.",
     },
 ]
 

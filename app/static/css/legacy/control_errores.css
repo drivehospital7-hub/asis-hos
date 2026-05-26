@@ -345,6 +345,14 @@ td.obs-cell {
   -webkit-filter: none !important;
 }
 
+/* Botones deshabilitados por permiso (lectura) */
+.page-header-actions button.disabled-action {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+  filter: grayscale(1);
+}
+
 .obs-img-btn:hover:not(.disabled-action) {
   background: #e0e7ff;
   color: #4338ca;
@@ -1101,4 +1109,12 @@ body.editor-open {
   background: #eff6ff;
   border: 1px solid #bfdbfe;
   color: #2563eb;
+}
+
+/* Spinner animado para carga masiva */
+@keyframes carga-spin {
+  to { transform: rotate(360deg); }
+}
+.carga-progress .spinner {
+  animation: carga-spin 0.6s linear infinite;
 }

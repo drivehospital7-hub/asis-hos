@@ -227,7 +227,13 @@ def crear_usuario():
 
     permisos = ["*"] if rol == "admin" else permisos_raw
 
-    ok, msg = users_store.create_user(username, password, rol, permisos)
+    ok, msg = users_store.create_user(
+        username, password, rol, permisos,
+        primer_nombre=request.form.get("primer_nombre", ""),
+        segundo_nombre=request.form.get("segundo_nombre", ""),
+        apellido_1=request.form.get("apellido_1", ""),
+        apellido_2=request.form.get("apellido_2", ""),
+    )
     flash(msg, "success" if ok else "error")
     return redirect(url_for("auth.usuarios_react"))
 
@@ -253,6 +259,12 @@ def editar_usuario(username):
     updates = {"rol": rol, "permisos": permisos_raw}
     if password:
         updates["password"] = password
+
+    # Person fields — solo si fueron enviados en el form
+    for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
+        val = request.form.get(key)
+        if val is not None:
+            updates[key] = val
 
     ok, msg = users_store.update_user(username, updates)
     flash(msg, "success" if ok else "error")

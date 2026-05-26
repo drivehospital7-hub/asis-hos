@@ -33,12 +33,19 @@ def do_login(user_data: dict) -> None:
     session["username"] = user_data["username"]
     session["rol"] = user_data["rol"]
     session["permisos"] = user_data["permisos"]
+    session["primer_nombre"] = user_data.get("primer_nombre", "")
+    session["segundo_nombre"] = user_data.get("segundo_nombre", "")
+    session["apellido_1"] = user_data.get("apellido_1", "")
+    session["apellido_2"] = user_data.get("apellido_2", "")
     session.permanent = True
 
 
 def do_logout() -> None:
     """Limpia los datos de autenticación de la sesión."""
-    for key in ("ce_authenticated", "username", "rol", "permisos"):
+    for key in (
+        "ce_authenticated", "username", "rol", "permisos",
+        "primer_nombre", "segundo_nombre", "apellido_1", "apellido_2",
+    ):
         session.pop(key, None)
 
 

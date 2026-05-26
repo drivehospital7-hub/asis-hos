@@ -29,6 +29,7 @@ def build_urgencias_normalized_rows(
     revision_cantidad: list[dict] | None = None,
     copago_entidad: list[dict] | None = None,
     duplicados_farmacia: list[dict] | None = None,
+    fec_factura_map: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Urgencias en filas de 6 columnas.
@@ -65,6 +66,7 @@ def build_urgencias_normalized_rows(
         Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
     """
     rows: list[dict[str, str]] = []
+    _fec_factura_map = fec_factura_map or {}
 
     def _get_fecha_cierre_vacia(factura: str) -> bool:
         if fecha_cierre_vacia_map is None:
@@ -73,6 +75,9 @@ def build_urgencias_normalized_rows(
 
     def _get_responsable(factura: str) -> str:
         return responsables_map.get(factura, "")
+
+    def _get_fec_factura(factura: str) -> str:
+        return _fec_factura_map.get(factura, "")
 
     def _build_procedimiento(codigo: str, procedimiento: str) -> str:
         """Construye 'Código - Nombre' si ambos existen, sino el que esté presente."""
@@ -96,6 +101,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Centros de Costo",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}",
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -111,6 +117,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "IDE Contrato",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": _build_ide_contrato_descripcion(item.get("ide_contrato_deberia", "N/A")),
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -138,6 +145,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Cups Equivalentes",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": item.get("accion", ""),
             "procedimiento": proc_final,
@@ -153,6 +161,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "MAL CAPITADO",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": item.get("observacion", ""),
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -169,6 +178,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Cantidades",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Cantidad {cantidad} debe ser ≤ 1 en Urgencias",
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -185,6 +195,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Cantidades SOAT",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Cantidad {cantidad} debe ser = 1 (SOAT Urgencias)",
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -202,6 +213,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Cantidades Hospitalización",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada}",
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -219,6 +231,7 @@ def build_urgencias_normalized_rows(
         rows.append({
             "tipo_error": "Cantidades SOAT Hospitalización",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Cantidad {cantidad} debería ser {cantidad_esperada} (SOAT Hospitalización)",
             "procedimiento": _build_procedimiento(codigo, proc),
@@ -232,6 +245,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Decimales",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Valores con decimales",
                 "procedimiento": "Vlr. Procedimiento",
@@ -251,6 +265,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Tipo Identificación / Edad",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
                 "procedimiento": num_id,
@@ -268,6 +283,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Profesionales",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": item.get("problema", item.get("regla", "")),
                 "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
@@ -285,6 +301,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Código Entidad vs Afiliación",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": item.get("problema", ""),
                 "procedimiento": proc_entidad,
@@ -301,6 +318,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",
@@ -317,6 +335,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "⚠️ Revisión Necesaria",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Cód Entidad Cobrar = 86 requiere revisión manual",
                 "procedimiento": _build_procedimiento(codigo, proc),
@@ -333,6 +352,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "⚠️ Revisión Necesaria",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Cantidad > 1 con código no exento requiere revisión manual",
                 "procedimiento": _build_procedimiento(codigo, proc),
@@ -351,6 +371,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "Copago vs Entidad",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Vlr. Copago debe ser 0 cuando entidad no es default",
                 "procedimiento": _build_procedimiento(codigo, proc),
@@ -372,6 +393,7 @@ def build_urgencias_normalized_rows(
             rows.append({
                 "tipo_error": "⚠️ Revisión Necesaria",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": (
                     f"Duplicados Farmacia — Grupo {tipo_proc}: "

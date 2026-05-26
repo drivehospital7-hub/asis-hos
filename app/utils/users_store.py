@@ -13,7 +13,7 @@ from typing import Optional
 
 from werkzeug.security import generate_password_hash, check_password_hash
 
-from app.constants.base import ALLOWED_PERMISOS
+from app.constants.base import ALLOWED_PERMISOS, PERMISO_MUTUAL_EXCLUSION
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +27,10 @@ DEFAULT_USERS = [
         "rol": "admin",
         "permisos": ["*"],
         "descripcion": "Acceso a todas las áreas",
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
     {
         "username": "odontologia",
@@ -34,6 +38,10 @@ DEFAULT_USERS = [
         "rol": "usuario",
         "permisos": ["odontologia"],
         "descripcion": "Solo /odontologia",
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
     {
         "username": "urgencias",
@@ -41,6 +49,10 @@ DEFAULT_USERS = [
         "rol": "usuario",
         "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
         "descripcion": "/urgencias + control urgencias (solo lectura) + facturas abiertas",
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
     {
         "username": "auditor",
@@ -54,6 +66,10 @@ DEFAULT_USERS = [
             "equipos_basicos",
         ],
         "descripcion": "Control urgencias + facturas abiertas + cruce reportes (con modificación)",
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
     },
 ]
 
@@ -64,10 +80,24 @@ def _load_users() -> list:
         _create_default_users()
     try:
         with open(USERS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            users = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.error("Error leyendo %s: %s", USERS_FILE, e)
         return []
+
+    # Backfill: ensure all person fields exist for legacy users
+    person_fields = ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2")
+    changed = False
+    for u in users:
+        for field in person_fields:
+            if field not in u:
+                u[field] = ""
+                changed = True
+
+    if changed:
+        _save_users(users)
+
+    return users
 
 
 def _save_users(users: list) -> None:
@@ -94,6 +124,10 @@ def _create_default_users() -> None:
                 "password_hash": generate_password_hash(u["password"]),
                 "rol": u["rol"],
                 "permisos": u["permisos"],
+                "primer_nombre": u.get("primer_nombre", ""),
+                "segundo_nombre": u.get("segundo_nombre", ""),
+                "apellido_1": u.get("apellido_1", ""),
+                "apellido_2": u.get("apellido_2", ""),
             }
         )
     _save_users(users)
@@ -102,6 +136,26 @@ def _create_default_users() -> None:
         USERS_FILE,
         len(users),
     )
+
+
+def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
+    """Verifica que no haya permisos mutuamente excluyentes.
+
+    Por ejemplo, 'control_urgencias' y 'control_urgencias:write'
+    no pueden estar ambos en la misma lista.
+
+    Returns:
+        (True, "") si está ok, (False, mensaje) si hay conflicto.
+    """
+    for p in permisos:
+        conflicto = PERMISO_MUTUAL_EXCLUSION.get(p)
+        if conflicto and conflicto in permisos:
+            return (
+                False,
+                f"No puede tener '{p}' y '{conflicto}' simultáneamente: "
+                f"son mutuamente excluyentes",
+            )
+    return True, ""
 
 
 def check_credentials(username: str, password: str) -> Optional[dict]:
@@ -120,6 +174,10 @@ def check_credentials(username: str, password: str) -> Optional[dict]:
                 "username": u["username"],
                 "rol": u["rol"],
                 "permisos": u["permisos"],
+                "primer_nombre": u.get("primer_nombre", ""),
+                "segundo_nombre": u.get("segundo_nombre", ""),
+                "apellido_1": u.get("apellido_1", ""),
+                "apellido_2": u.get("apellido_2", ""),
             }
     return None
 
@@ -137,13 +195,28 @@ def list_users() -> list:
     """Retorna todos los usuarios (sin password_hash)."""
     users = _load_users()
     return [
-        {"username": u["username"], "rol": u["rol"], "permisos": u["permisos"]}
+        {
+            "username": u["username"],
+            "rol": u["rol"],
+            "permisos": u["permisos"],
+            "primer_nombre": u.get("primer_nombre", ""),
+            "segundo_nombre": u.get("segundo_nombre", ""),
+            "apellido_1": u.get("apellido_1", ""),
+            "apellido_2": u.get("apellido_2", ""),
+        }
         for u in users
     ]
 
 
 def create_user(
-    username: str, password: str, rol: str, permisos: list
+    username: str,
+    password: str,
+    rol: str,
+    permisos: list,
+    primer_nombre: str = "",
+    segundo_nombre: str = "",
+    apellido_1: str = "",
+    apellido_2: str = "",
 ) -> tuple:
     """Crea un nuevo usuario.
 
@@ -155,12 +228,20 @@ def create_user(
     if any(u["username"] == username for u in users):
         return False, f"El usuario '{username}' ya existe"
 
+    ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
+    if not ok_exclusion:
+        return False, msg_exclusion
+
     users.append(
         {
             "username": username,
             "password_hash": generate_password_hash(password),
             "rol": rol,
             "permisos": permisos,
+            "primer_nombre": primer_nombre,
+            "segundo_nombre": segundo_nombre,
+            "apellido_1": apellido_1,
+            "apellido_2": apellido_2,
         }
     )
     _save_users(users)
@@ -214,6 +295,11 @@ def update_user(username: str, updates: dict) -> tuple:
             if p not in ALLOWED_PERMISOS:
                 return False, f"Permiso inválido: {p}"
 
+        # Validar exclusión mutua (read vs write del mismo módulo)
+        ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
+        if not ok_exclusion:
+            return False, msg_exclusion
+
         # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
         if "*" in target.get("permisos", []) and "*" not in nuevos_permisos:
             return (
@@ -222,6 +308,11 @@ def update_user(username: str, updates: dict) -> tuple:
             )
 
         updated["permisos"] = nuevos_permisos
+
+    # Person fields (partial update — only if present in updates dict)
+    for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
+        if key in updates:
+            updated[key] = updates[key]
 
     # Reemplazar en la lista
     for i, u in enumerate(users):

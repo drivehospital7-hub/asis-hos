@@ -74,7 +74,7 @@ def release_semaphore() -> None:
     )
 
 
-def rate_limit(limit: int = 1, window: int = 120):
+def rate_limit(limit: int = 1, window: int = 120, admin_exempt: bool = False):
     """Decorator: limita a ``limit`` requests POST en una ventana de ``window`` segundos.
 
     Usa ``session["_rate_limiter"]`` = lista de timestamps (``time.time()``).
@@ -86,10 +86,15 @@ def rate_limit(limit: int = 1, window: int = 120):
     Args:
         limit: Número máximo de requests permitidos en la ventana.
         window: Duración de la ventana en segundos.
+        admin_exempt: Si ``True``, los usuarios admin (permiso ``*``) saltan el rate limit.
     """
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
+            # Admin bypass: si el usuario es admin y admin_exempt=True, no limitar
+            if admin_exempt and "*" in session.get("permisos", []):
+                return f(*args, **kwargs)
+
             # GET y otros métodos no se cuentan
             if request.method != "POST":
                 return f(*args, **kwargs)

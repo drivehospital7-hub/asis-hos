@@ -245,7 +245,21 @@ def detect_all_problems_urgencias(
             elif factura not in fecha_cierre_vacia:
                 fecha_cierre_vacia[factura] = False
 
-    # 9. Build normalized rows
+    # 9. Build fec_factura_map
+    fec_factura_map: dict[str, str] = {}
+    fec_factura_idx = indices.get("fec_factura")
+    if fec_factura_idx is not None and num_fact_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura = normalize_invoice(numero)
+            if not factura:
+                continue
+            raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+            val = str(raw).strip() if raw else ""
+            if val and factura not in fec_factura_map:
+                fec_factura_map[factura] = val
+
+    # 10. Build normalized rows
     normalized_rows = build_urgencias_normalized_rows(
         problemas_centros=problemas_centros_filtrados,
         problemas_ide_contrato=problemas_ide_contrato,
@@ -266,9 +280,10 @@ def detect_all_problems_urgencias(
         revision_cantidad=revision_cantidad,
         copago_entidad=copago_entidad,
         duplicados_farmacia=duplicados_farmacia,
+        fec_factura_map=fec_factura_map,
     )
 
-    # 10. Build resultado dict
+    # 11. Build resultado dict
     resultado: dict[str, Any] = {
         "area": AREA_URGENCIAS,
         "problemas": {
@@ -348,7 +363,7 @@ def detect_all_problems_urgencias(
         ),
     }
 
-    # 11. Enrich errors with responsable from mapping
+    # 12. Enrich errors with responsable from mapping
     if responsable_cierra:
         for problem_type, problems in resultado["problemas"].items():
             for p in problems:

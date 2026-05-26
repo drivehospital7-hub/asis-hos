@@ -21,6 +21,7 @@ def build_odontologia_normalized_rows(
     responsable_cierra: dict[str, str],
     entidad_afiliacion_comparison: list[dict] | None = None,
     tipo_usuario: list[dict] | None = None,
+    fec_factura_map: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
@@ -35,15 +36,20 @@ def build_odontologia_normalized_rows(
         centro_costo: Lista de dicts con "factura", "centro_actual", "centro_deberia", ...
         ide_contrato: Lista de dicts con "factura", "codigo", "cod_entidad", "ide_actual", ...
         responsable_cierra: Dict {factura: responsable}
+        fec_factura_map: Dict {factura: fec_factura} (opcional)
 
     Returns:
         Lista de dicts normalizados con tipo_error, factura, responsable_cierra,
-        descripcion, procedimiento (Var1), detalle (Var2)
+        descripcion, procedimiento (Var1), detalle (Var2), fec_factura
     """
     rows: list[dict[str, str]] = []
+    _fec_factura_map = fec_factura_map or {}
 
     def _get_responsable(factura: str) -> str:
         return responsable_cierra.get(factura, "")
+
+    def _get_fec_factura(factura: str) -> str:
+        return _fec_factura_map.get(factura, "")
 
     def _build_procedimiento(codigo: str, procedimiento: str) -> str:
         codigo = str(codigo).strip() if codigo else ""
@@ -63,6 +69,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Decimales",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
             "procedimiento": valores,
@@ -76,6 +83,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Doble tipo procedimiento",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": "Múltiples tipos de procedimiento",
             "procedimiento": "",
@@ -90,6 +98,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Ruta Duplicada",
             "factura": identificacion,
+            "fec_factura": _get_fec_factura(identificacion),
             "responsable_cierra": _get_responsable(identificacion),
             "descripcion": f"Paciente con {cantidad} facturas en PyP",
             "procedimiento": facturas_list,
@@ -106,6 +115,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Convenio de procedimiento",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": problema or regla,
             "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
@@ -121,6 +131,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Cantidades",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": problema or f"Cantidad anómala: {cantidad_val}",
             "procedimiento": tipo_proc,
@@ -136,6 +147,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Tipo Identificación",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
             "procedimiento": f"Edad: {edad} años",
@@ -150,6 +162,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "Centro Costo",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Centro de costo debería ser {centro_deberia}",
             "procedimiento": "",
@@ -166,6 +179,7 @@ def build_odontologia_normalized_rows(
         rows.append({
             "tipo_error": "IDE Contrato",
             "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}",
             "procedimiento": _build_procedimiento(codigo, ""),
@@ -182,6 +196,7 @@ def build_odontologia_normalized_rows(
             rows.append({
                 "tipo_error": "Código Entidad vs Afiliación",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": item.get("problema", ""),
                 "procedimiento": proc_entidad,
@@ -196,6 +211,7 @@ def build_odontologia_normalized_rows(
             rows.append({
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",

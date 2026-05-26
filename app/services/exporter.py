@@ -7,6 +7,7 @@ ejecuta detectores y retorna JSON con problemas. Sin exportación ni hojas.
 from __future__ import annotations
 
 import logging
+import unicodedata
 from pathlib import Path
 from typing import Any
 
@@ -211,13 +212,7 @@ def _do_detect_problems(
         rows.append(row_vals)
 
     del df
-    
-    # Construir hoja liviana con solo los valores crudos
-    sheet = _SimpleSheet(rows)
-    
-    # Leer headers de la primera fila
-    headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
-    
+
     required_headers: dict[str, str] = {
         "numero_factura": "Número Factura",
         "vlr_subsidiado": "Vlr. Subsidiado",
@@ -249,6 +244,57 @@ def _do_detect_problems(
         "tipo_usuario": "Tipo Usuario",
         "vlr_copago": "Vlr. Copago",
     }
+
+    # --- Auto-detección de fila de headers ---
+    # Algunos Excel tienen filas de título antes de los encabezados reales.
+    # Escanea las primeras filas buscando una que contenga TODOS los names requeridos.
+    MAX_SCAN_ROWS = 20
+    nombres_requeridos: set[str] = set()
+    for name in required_headers.values():
+        name_norm = (
+            unicodedata.normalize("NFC", name).strip().replace("\u00a0", " ")
+        )
+        nombres_requeridos.add(name_norm)
+
+    detected_row = 1  # default: fila 1
+    for check_row in range(1, min(len(rows), MAX_SCAN_ROWS + 1)):
+        valores_fila: set[str] = set()
+        for col in range(1, len(rows[check_row])):
+            val = rows[check_row][col]
+            if val is not None:
+                norm = (
+                    unicodedata.normalize("NFC", str(val))
+                    .strip()
+                    .replace("\u00a0", " ")
+                )
+                valores_fila.add(norm)
+        if nombres_requeridos.issubset(valores_fila):
+            detected_row = check_row
+            logger.info(
+                "Headers detectados automáticamente en fila %d", detected_row
+            )
+            break
+
+    # Reubicar headers en row=1 si se detectaron más abajo
+    # (todos los detectores asumen headers en row=1, datos desde row=2)
+    if detected_row > 1:
+        clean_rows: list[list[Any]] = [[None]]  # row 0 sin usar
+        clean_rows.append(rows[detected_row])  # headers reales en row=1
+        for dr in range(detected_row + 1, len(rows)):
+            clean_rows.append(rows[dr])
+        rows = clean_rows
+        logger.info(
+            "Headers en fila %d del Excel original → reubicados en row=1 "
+            "para procesamiento (%d filas de datos)",
+            detected_row, len(rows) - 2,
+        )
+
+    # Construir hoja liviana con solo los valores crudos
+    sheet = _SimpleSheet(rows)
+
+    # Leer headers de la primera fila
+    headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
+
     indices, missing_columns = get_column_indices(headers, required_headers)
     
     try:

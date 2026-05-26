@@ -92,6 +92,20 @@ def detect_all_problems_odontologia(
             if resp and factura not in responsable_cierra:
                 responsable_cierra[factura] = resp
 
+    # Build fec_factura_map
+    fec_factura_map: dict[str, str] = {}
+    fec_factura_idx = indices.get("fec_factura")
+    if fec_factura_idx is not None and num_fact_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura = normalize_invoice(numero)
+            if not factura:
+                continue
+            raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+            val = str(raw).strip() if raw else ""
+            if val and factura not in fec_factura_map:
+                fec_factura_map[factura] = val
+
     # Build normalized rows for unified 6-column display
     from app.services.odontologia.normalized_rows import build_odontologia_normalized_rows
     normalized_rows_od = build_odontologia_normalized_rows(
@@ -106,6 +120,7 @@ def detect_all_problems_odontologia(
         responsable_cierra=responsable_cierra,
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
         tipo_usuario=tipo_usuario_od,
+        fec_factura_map=fec_factura_map,
     )
 
     resultado: dict[str, Any] = {

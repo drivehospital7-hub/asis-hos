@@ -61,33 +61,25 @@ def urgencias_react():
 
 
 @urgencias_bp.post("/")
-@rate_limit(1, 120)
+@rate_limit(1, 120, admin_exempt=True)
 def export_urgencias():
     """Procesa el archivo de urgencias - retorna errores en JSON."""
     uploaded_file = request.files.get("file_upload")
     
     if not uploaded_file or not uploaded_file.filename:
-        ctx = build_excel_headers_form_context(
-            file="",
-            sheet_name=request.form.get("sheet_name"),
-            sheet_id_raw=request.form.get("sheet_id"),
-            header_row_raw=request.form.get("header_row"),
-        )
-        ctx["upload_error"] = "Debes seleccionar un archivo"
-        ctx["profesionales"] = PROFESIONALES_URGENCIAS
-        return render_template("urgencias.html", **ctx)
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Debes seleccionar un archivo"],
+        }), 400
     
     temp_path, error = save_temp_excel(uploaded_file)
     if error:
-        ctx = build_excel_headers_form_context(
-            file="",
-            sheet_name=request.form.get("sheet_name"),
-            sheet_id_raw=request.form.get("sheet_id"),
-            header_row_raw=request.form.get("header_row"),
-        )
-        ctx["upload_error"] = error
-        ctx["profesionales"] = PROFESIONALES_URGENCIAS
-        return render_template("urgencias.html", **ctx)
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [error],
+        }), 400
     
     filename = str(temp_path)
     sheet_name = request.form.get("sheet_name") or None
@@ -167,6 +159,7 @@ def export_urgencias():
             all_items.append({
                 "tipo_error": row.get("tipo_error", ""),
                 "factura": row.get("factura", ""),
+                "fec_factura": row.get("fec_factura", ""),
                 "responsable_cierra": row.get("responsable_cierra", ""),
                 "descripcion": row.get("descripcion", ""),
                 "procedimiento": row.get("procedimiento", ""),
@@ -192,6 +185,7 @@ def export_urgencias():
                 "errores": errores,
                 "total_errores": sum(e["cantidad"] for e in errores),
                 "columnas": [
+                    "Fec. Factura",
                     "Tipo de error",
                     "Número Factura",
                     "Responsable Cierra",
