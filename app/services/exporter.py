@@ -17,11 +17,11 @@ from app.constants import (
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
     AREA_EQUIPOS_BASICOS,
+    AREA_UNIFICADA,
     PROFESIONALES_ODONTOLOGIA,
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
-from app.services.tipo_factura_registry import get_detectors
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
 from app.services.processor_gate import (
@@ -299,11 +299,14 @@ def _do_detect_problems(
     indices, missing_columns = get_column_indices(headers, required_headers)
     
     try:
-        if area == AREA_URGENCIAS:
-            # Dispatch via registry — future: use tipo_factura_descripcion from data
-            # to select per-tipo orchestrator instead of hardcoding urgencias.
-            _detectors = get_detectors("Urgencias")
-            logger.debug("Registry returned %d detectors for Urgencias", len(_detectors))
+        if area == AREA_UNIFICADA:
+            # Procesamiento unificado: detecta tipo_factura por fila y
+            # despacha al orquestador correspondiente vía unified_processor.
+            from app.services.unified_processor import process_unified
+            problemas_detectados, responsables_map = process_unified(
+                sheet, indices,
+            )
+        elif area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
                 sheet, indices,
             )
