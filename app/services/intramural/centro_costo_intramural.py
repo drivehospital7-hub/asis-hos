@@ -1,0 +1,185 @@
+"""Detector de problemas de centro de costo para Intramural.
+
+Aplica reglas comunes (1-4, 8, 9) + reglas específicas de Intramural:
+- REGLA5: Código laboratorio + ESS118 + Intramural → Centro LABORATORIO
+- REGLA5-REVERSE: Centro=LABORATORIO + CN/uotros → Código en lista + Intramural
+- INTRAMURAL_OTRAS_ENTIDADES: Intramural + Cód Entidad != ESS118 → Centro LABORATORIO
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from openpyxl.worksheet.worksheet import Worksheet
+
+from app.constants import (
+    CENTRO_COSTO_LABORATORIO_URGENCIAS,
+    CODIGOS_LABORATORIO_URGENCIAS,
+    CODIGOS_LABORATORIO_URGENCIAS_REVERSE,
+)
+from app.services.transversales.centro_costo_rules import apply_common_centro_costo_rules
+from app.services.transversales.normalize import normalize_invoice
+
+logger = logging.getLogger(__name__)
+
+
+def detect_centro_costo_intramural(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[dict[str, Any]]:
+    """Detecta facturas de Intramural con problemas de centro de costo.
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+
+    Returns:
+        Lista de dicts con keys: factura, tipo_factura, centro_actual,
+        centro_deberia, codigo, procedimiento, prioridad, regla
+    """
+    num_fact_idx = indices.get("numero_factura")
+    codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
+    codigo_idx = indices.get("codigo")
+    laboratorio_idx = indices.get("laboratorio")
+    centro_costo_idx = indices.get("centro_costo")
+    codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
+    tipo_factura_descripcion_idx = indices.get("tipo_factura_descripcion")
+    proc_idx = indices.get("procedimiento")
+    tarifario_idx = indices.get("tarifario")
+    tipo_identificacion_idx = indices.get("tipo_identificacion")
+
+    if num_fact_idx is None or centro_costo_idx is None:
+        logger.warning("Centro Costo Intramural - Columnas necesarias no encontradas")
+        return []
+
+    problemas_centros: list[dict[str, Any]] = []
+
+    for row in range(2, data_sheet.max_row + 1):
+        numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura_str = normalize_invoice(numero_factura)
+        if not factura_str:
+            continue
+
+        tipo_factura_descripcion = (
+            data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+            if tipo_factura_descripcion_idx is not None else None
+        )
+        tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
+
+        # Only process Intramural rows
+        if tipo_factura_str != "Intramural":
+            continue
+
+        # Read row values
+        codigo_tipo_proc = (
+            data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
+            if codigo_tipo_proc_idx is not None else None
+        )
+        codigo = (
+            data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if codigo_idx is not None else None
+        )
+        laboratorio = (
+            data_sheet.cell(row=row, column=laboratorio_idx + 1).value
+            if laboratorio_idx is not None else None
+        )
+        centro_costo = data_sheet.cell(row=row, column=centro_costo_idx + 1).value
+        codigo_entidad_cobrar = (
+            data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
+            if codigo_entidad_cobrar_idx is not None else None
+        )
+        procedimiento = (
+            data_sheet.cell(row=row, column=proc_idx + 1).value
+            if proc_idx is not None else None
+        )
+        tarifario = (
+            data_sheet.cell(row=row, column=tarifario_idx + 1).value
+            if tarifario_idx is not None else None
+        )
+        tipo_identificacion_val = (
+            data_sheet.cell(row=row, column=tipo_identificacion_idx + 1).value
+            if tipo_identificacion_idx is not None else None
+        )
+
+        codigo_str = str(codigo_tipo_proc).strip() if codigo_tipo_proc else ""
+        codigo_excluir = str(codigo).strip() if codigo else ""
+        laboratorio_str = str(laboratorio).strip() if laboratorio else ""
+        centro_costo_str = str(centro_costo).strip() if centro_costo else ""
+        codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
+        proc_str = str(procedimiento).strip() if procedimiento else ""
+        tarifario_str = str(tarifario).strip() if tarifario else ""
+        tipo_identificacion_str = str(tipo_identificacion_val).strip() if tipo_identificacion_val else ""
+
+        # Apply common rules
+        errors = apply_common_centro_costo_rules(
+            centro_costo_str=centro_costo_str,
+            codigo_str=codigo_str,
+            codigo_excluir=codigo_excluir,
+            laboratorio_str=laboratorio_str,
+            tarifario_str=tarifario_str,
+            codigo_entidad_str=codigo_entidad_str,
+            factura_str=factura_str,
+            proc_str=proc_str,
+        )
+
+        for e in errors:
+            e["tipo_factura"] = tipo_factura_str
+        problemas_centros.extend(errors)
+
+        # --- REGLA5: Código laboratorio + ESS118 + Intramural → Centro LABORATORIO ---
+        if codigo_excluir in CODIGOS_LABORATORIO_URGENCIAS:
+            if codigo_entidad_str == "ESS118" and tipo_factura_str == "Intramural":
+                centro_valido = centro_costo_str in (
+                    CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}.",
+                )
+                if not centro_valido:
+                    problemas_centros.append({
+                        "factura": factura_str,
+                        "tipo_factura": tipo_factura_str,
+                        "centro_actual": centro_costo_str,
+                        "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                        "codigo": codigo_excluir,
+                        "procedimiento": proc_str,
+                        "prioridad": 1,
+                        "regla": "REGLA5",
+                    })
+
+        # --- REGLA5-REVERSE: Centro=LABORATORIO → Código en lista + Tipo=Intramural ---
+        if centro_costo_str == CENTRO_COSTO_LABORATORIO_URGENCIAS:
+            if tipo_identificacion_str == "CN":
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS | CODIGOS_LABORATORIO_URGENCIAS_REVERSE
+            else:
+                codigos_validos = CODIGOS_LABORATORIO_URGENCIAS
+
+            if tipo_factura_str != "Intramural" or codigo_excluir not in codigos_validos:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": "Procedimiento con mal uso de centro de costo LABORATORIO + Tipo=Intramural",
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "REVERSE5",
+                })
+
+        # --- INTRAMURAL_OTRAS_ENTIDADES: Intramural + Cód Entidad != ESS118 → Centro LABORATORIO ---
+        if tipo_factura_str == "Intramural" and codigo_entidad_str and codigo_entidad_str != "ESS118":
+            if centro_costo_str != CENTRO_COSTO_LABORATORIO_URGENCIAS:
+                problemas_centros.append({
+                    "factura": factura_str,
+                    "tipo_factura": tipo_factura_str,
+                    "centro_actual": centro_costo_str,
+                    "centro_deberia": CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                    "codigo": codigo_excluir,
+                    "procedimiento": proc_str,
+                    "prioridad": 1,
+                    "regla": "INTRAMURAL_OTRAS_ENTIDADES",
+                })
+
+    if problemas_centros:
+        logger.info("Centro Costo Intramural - Problemas encontrados: %d", len(problemas_centros))
+
+    return problemas_centros

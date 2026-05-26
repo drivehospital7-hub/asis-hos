@@ -46,6 +46,9 @@ TIPO_USUARIO_VALORES = frozenset({
 AREA_ODONTOLOGIA = "odontologia"
 AREA_URGENCIAS = "urgencias"
 AREA_EQUIPOS_BASICOS = "equipos_basicos"
+AREA_HOSPITALIZACION = "hospitalizacion"
+AREA_INTRAMURAL = "intramural"
+AREA_AMBULATORIA = "ambulatoria"
 
 # =============================================================================
 # PERMISOS - Valores de permiso válidos

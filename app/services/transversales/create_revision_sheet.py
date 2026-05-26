@@ -29,7 +29,7 @@ from app.services.transversales import (
 )
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
-from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
+from app.services.normalized_rows import build_urgencias_normalized_rows
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.utils.formatting import (
@@ -183,7 +183,7 @@ def create_revision_sheet(
 
         from app.services.urgencias.mal_capitado import detect_mal_capitado
         from app.services.urgencias.cantidades_urgencias import detect_cantidades_urgencias
-        from app.services.urgencias.hospitalizacion import detect_cantidades_hospitalizacion
+        from app.services.hospitalizacion.cantidades_hospitalizacion import detect_cantidades_hospitalizacion
 
         mal_capitado = detect_mal_capitado(data_sheet, indices)
         cantidades_urgencias = detect_cantidades_urgencias(data_sheet, indices)

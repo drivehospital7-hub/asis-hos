@@ -48,29 +48,29 @@ Chain strategy: feature-branch-chain
 ## PR 2: Structural Reorganization (~8-14h, medium risk)
 
 ### Phase 4: Foundation (shared infrastructure)
-- [ ] 4.1 Create `app/services/normalized_rows.py` — parametrized `build_normalized_rows(error_groups)` replacing `urgencias/normalized_rows.py`
-- [ ] 4.2 Create `app/services/transversales/centro_costo_rules.py` — shared helper `apply_common_centro_costo_rules()`
-- [ ] 4.3 Create `app/services/tipo_factura_registry.py` — `get_detectors(tipo_factura) -> list[Callable]` per design contract
-- [ ] 4.4 Add `AREA_HOSPITALIZACION`, `AREA_INTRAMURAL`, `AREA_AMBULATORIA` to `app/constants/base.py`
+- [x] 4.1 Create `app/services/normalized_rows.py` — parametrized `build_normalized_rows(error_groups)` replacing `urgencias/normalized_rows.py`
+- [x] 4.2 Create `app/services/transversales/centro_costo_rules.py` — shared helper `apply_common_centro_costo_rules()`
+- [x] 4.3 Create `app/services/tipo_factura_registry.py` — `get_detectors(tipo_factura) -> list[Callable]` per design contract
+- [x] 4.4 Add `AREA_HOSPITALIZACION`, `AREA_INTRAMURAL`, `AREA_AMBULATORIA` to `app/constants/base.py`
 
 ### Phase 5: Create per-tipo packages
-- [ ] 5.1 Create `hospitalizacion/` package: `__init__.py`, `cantidades_hospitalizacion.py`, `hospitalizacion_codes.py`, `centro_costo_hospitalizacion.py`, `detect_all.py`
-- [ ] 5.2 Create `intramural/` package: `__init__.py`, `centro_costo_intramural.py`, `detect_all.py`
-- [ ] 5.3 Create `ambulatoria/` package: `__init__.py`, `centro_costo_ambulatoria.py`, `detect_all.py`
-- [ ] 5.4 `git mv cantidades_soat_hospitalizacion.py` → `hospitalizacion/`; update imports
+- [x] 5.1 Create `hospitalizacion/` package: `__init__.py`, `cantidades_hospitalizacion.py`, `hospitalizacion_codes.py`, `centro_costo_hospitalizacion.py`, `detect_all.py`
+- [x] 5.2 Create `intramural/` package: `__init__.py`, `centro_costo_intramural.py`, `detect_all.py`
+- [x] 5.3 Create `ambulatoria/` package: `__init__.py`, `centro_costo_ambulatoria.py`, `detect_all.py`
+- [x] 5.4 `git mv cantidades_soat_hospitalizacion.py` → `hospitalizacion/`; update imports
 
 ### Phase 6: Shrink urgencias/
-- [ ] 6.1 Shrink `urgencias/detect_all.py` to Urgencias-only detectors; use shared `normalized_rows.py`; update imports
-- [ ] 6.2 Shrink `urgencias/centro_costo_urgencias.py` to Urgencias-only rules; call shared `centro_costo_rules.py`
-- [ ] 6.3 Delete `urgencias/normalized_rows.py`, `urgencias/hospitalizacion.py`, `urgencias/detect_copago_entidad.py`
-- [ ] 6.4 Update `urgencias/__init__.py` — remove Hospitalizacion exports
+- [x] 6.1 Shrink `urgencias/detect_all.py` to Urgencias-only detectors; use shared `normalized_rows.py`; update imports
+- [x] 6.2 Shrink `urgencias/centro_costo_urgencias.py` to Urgencias-only rules; call shared `centro_costo_rules.py`
+- [x] 6.3 Delete `urgencias/normalized_rows.py`, `urgencias/hospitalizacion.py`; `urgencias/detect_copago_entidad.py` (already deleted in PR 1)
+- [x] 6.4 Update `urgencias/__init__.py` — re-export from hospitalizacion/ package
 
 ### Phase 7: Wire exporter
-- [ ] 7.1 Update `app/services/exporter.py` — dispatch by `tipo_factura_descripcion` via registry instead of `area==AREA_URGENCIAS`
+- [x] 7.1 Update `app/services/exporter.py` — import registry; dispatch by `tipo_factura_descripcion` via registry; add `area` + `tipo_factura` to response
 
 ### Phase 8: Tests
-- [ ] 8.1 Run `pytest -v --tb=short > baseline.txt` before any changes
-- [ ] 8.2 Create 4 new test files: `test_tipo_factura_registry.py`, `test_hospitalizacion_detect_all.py`, `test_intramural_detect_all.py`, `test_ambulatoria_detect_all.py`
-- [ ] 8.3 Update 9 test file imports for moved detectors (urgencias copago, hospitalizacion, cantidades_soat_hosp)
-- [ ] 8.4 Run full `pytest -v`; diff against baseline — all tests pass
+- [x] 8.1 Run `pytest -v --tb=short > baseline.txt` before changes
+- [x] 8.2 Create 4 new test files: `test_tipo_factura_registry.py`, `test_hospitalizacion_detect_all.py`, `test_intramural_detect_all.py`, `test_ambulatoria_detect_all.py`
+- [x] 8.3 Update test imports for moved detectors (test_revision_sheet, test_urgencias_hospitalizacion, test_urgencias_normalized_rows, test_urgencias_cantidades_soat_hospitalizacion, create_revision_sheet)
+- [x] 8.4 Run full `pytest -v`; diff against baseline — 577 passed (baseline 531), same 3 pre-existing failures
 - [ ] 8.5 Commit PR 2

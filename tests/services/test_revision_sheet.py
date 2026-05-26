@@ -23,7 +23,7 @@ from app.services.transversales.doble_tipo_procedimiento import detect_doble_tip
 from app.services.transversales.normalize import normalize_header, normalize_invoice
 from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
 from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
-from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
+from app.services.normalized_rows import build_urgencias_normalized_rows
 
 
 @pytest.fixture

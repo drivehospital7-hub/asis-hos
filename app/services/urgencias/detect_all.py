@@ -1,7 +1,7 @@
 """Orquestador de detección de problemas para Urgencias.
 
-Agrupa todos los detectores específicos de urgencias más los
-detectores transversales aplicables a esta área.
+Agrupa detectores transversales + específicos de Urgencias.
+Usa el builder compartido de normalized_rows.
 """
 
 from __future__ import annotations
@@ -33,17 +33,9 @@ from app.services.urgencias.cantidades_urgencias import (
 from app.services.urgencias.cantidades_soat_urgencias import (
     detect_cantidades_soat_urgencias,
 )
-from app.services.urgencias.cantidades_soat_hospitalizacion import (
-    detect_cantidades_soat_hospitalizacion,
-)
-from app.services.urgencias.hospitalizacion import (
-    detect_cantidades_hospitalizacion,
-    detect_hospitalizacion_codes,
-)
 from app.services.urgencias.mal_capitado import detect_mal_capitado
 from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
 from app.services.urgencias.ide_contrato_reverse import detect_ide_contrato_reverse_urgencias
-from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
 from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
 from app.services.transversales.detect_copago_entidad import (
     detect_copago_entidad_urgencias,
@@ -51,6 +43,7 @@ from app.services.transversales.detect_copago_entidad import (
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
+from app.services.normalized_rows import build_normalized_rows
 
 logger = logging.getLogger(__name__)
 
@@ -59,8 +52,7 @@ def detect_all_problems_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """
-    Detecta TODOS los problemas en facturas de urgencias.
+    """Detecta TODOS los problemas en facturas de urgencias.
 
     Incluye detectores transversales y específicos de urgencias.
 
@@ -91,7 +83,6 @@ def detect_all_problems_urgencias(
     problemas_cups_equivalentes: list[dict[str, str]] = []
     problemas_cups_equivalentes.extend(detect_cups_equivalentes(data_sheet, indices))
     problemas_cups_equivalentes.extend(detect_sala_observacion(data_sheet, indices))
-    problemas_cups_equivalentes.extend(detect_hospitalizacion_codes(data_sheet, indices))
 
     # 3. Agregar "Código no en DB" a problemas_ide_contrato
     for problema in problemas_codigos_no_en_db:
@@ -135,22 +126,6 @@ def detect_all_problems_urgencias(
     logger.info(
         "detect_all_problems_urgencias - Cantidades SOAT Urgencias encontradas: %d",
         len(cantidades_soat_urgencias),
-    )
-
-    cantidades_hospitalizacion = detect_cantidades_hospitalizacion(
-        data_sheet, indices
-    )
-    logger.info(
-        "detect_all_problems_urgencias - Cantidades Hospitalización encontradas: %d",
-        len(cantidades_hospitalizacion),
-    )
-
-    cantidades_soat_hospitalizacion = detect_cantidades_soat_hospitalizacion(
-        data_sheet, indices
-    )
-    logger.info(
-        "detect_all_problems_urgencias - Cantidades SOAT Hospitalización encontradas: %d",
-        len(cantidades_soat_hospitalizacion),
     )
 
     ide_contrato_reverse = detect_ide_contrato_reverse_urgencias(
@@ -259,28 +234,28 @@ def detect_all_problems_urgencias(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 10. Build normalized rows
-    normalized_rows = build_urgencias_normalized_rows(
-        problemas_centros=problemas_centros_filtrados,
-        problemas_ide_contrato=problemas_ide_contrato,
-        problemas_cups_equivalentes=problemas_cups_equivalentes,
-        mal_capitado=mal_capitado,
-        cantidades_urgencias=cantidades_urgencias,
-        cantidades_soat_urgencias=cantidades_soat_urgencias,
-        cantidades_hospitalizacion=cantidades_hospitalizacion,
-        cantidades_soat_hospitalizacion=cantidades_soat_hospitalizacion,
+    # 10. Build normalized rows (shared builder)
+    error_groups = {
+        "Centros de Costo": problemas_centros_filtrados,
+        "IDE Contrato": problemas_ide_contrato,
+        "Cups Equivalentes": problemas_cups_equivalentes,
+        "MAL CAPITADO": mal_capitado,
+        "Cantidades": cantidades_urgencias,
+        "Cantidades SOAT": cantidades_soat_urgencias,
+        "Decimales": decimales,
+        "Tipo Identificación / Edad": tipo_identificacion_edad,
+        "Profesionales": profesionales,
+        "Código Entidad vs Afiliación": entidad_afiliacion_comparison,
+        "Tipo Usuario": tipo_usuario,
+        "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
+        "Copago vs Entidad": copago_entidad,
+        "Duplicados Farmacia": duplicados_farmacia,
+    }
+    normalized_rows = build_normalized_rows(
+        error_groups=error_groups,
         responsables_map=responsable_cierra,
-        decimales=decimales,
-        tipo_identificacion_edad=tipo_identificacion_edad,
-        profesionales=profesionales,
-        entidad_afiliacion_comparison=entidad_afiliacion_comparison,
-        fecha_cierre_vacia_map=fecha_cierre_vacia,
-        tipo_usuario=tipo_usuario,
-        revision_entidad_86=revision_entidad_86,
-        revision_cantidad=revision_cantidad,
-        copago_entidad=copago_entidad,
-        duplicados_farmacia=duplicados_farmacia,
         fec_factura_map=fec_factura_map,
+        fecha_cierre_vacia_map=fecha_cierre_vacia,
     )
 
     # 11. Build resultado dict
@@ -331,8 +306,6 @@ def detect_all_problems_urgencias(
             "mal_capitado": mal_capitado,
             "cantidades_urgencias": cantidades_urgencias,
             "cantidades_soat_urgencias": cantidades_soat_urgencias,
-            "cantidades_hospitalizacion": cantidades_hospitalizacion,
-            "cantidades_soat_hospitalizacion": cantidades_soat_hospitalizacion,
             "revision_entidad_86": revision_entidad_86,
             "revision_cantidad": revision_cantidad,
             "copago_entidad": copago_entidad,
@@ -350,8 +323,6 @@ def detect_all_problems_urgencias(
             "mal_capitado": len(mal_capitado),
             "cantidades_urgencias": len(cantidades_urgencias),
             "cantidades_soat_urgencias": len(cantidades_soat_urgencias),
-            "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
-            "cantidades_soat_hospitalizacion": len(cantidades_soat_hospitalizacion),
             "revision_entidad_86": len(revision_entidad_86),
             "revision_cantidad": len(revision_cantidad),
             "copago_entidad": len(copago_entidad),

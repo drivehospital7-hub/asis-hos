@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 from openpyxl import Workbook
 
-from app.services.urgencias.hospitalizacion import detect_cantidades_hospitalizacion
+from app.services.hospitalizacion.cantidades_hospitalizacion import detect_cantidades_hospitalizacion
 
 
 @pytest.fixture

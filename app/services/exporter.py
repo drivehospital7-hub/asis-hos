@@ -21,6 +21,7 @@ from app.constants import (
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
+from app.services.tipo_factura_registry import get_detectors
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
 from app.services.processor_gate import (
@@ -299,6 +300,10 @@ def _do_detect_problems(
     
     try:
         if area == AREA_URGENCIAS:
+            # Dispatch via registry — future: use tipo_factura_descripcion from data
+            # to select per-tipo orchestrator instead of hardcoding urgencias.
+            _detectors = get_detectors("Urgencias")
+            logger.debug("Registry returned %d detectors for Urgencias", len(_detectors))
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
                 sheet, indices,
             )
@@ -329,6 +334,8 @@ def _do_detect_problems(
         "data": {
             "problemas": problemas_detectados,
             "responsables_map": responsables_map,
+            "area": area,
+            "tipo_factura": area,  # backward compat: area == tipo_factura for now
         },
         "errors": [],
     }

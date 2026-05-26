@@ -1,10 +1,7 @@
-"""Detector de problemas de centro de costo en facturas de Urgencias.
+"""Detector de problemas de centro de costo para Hospitalización.
 
-Aplica reglas comunes (1-4, 8, 9) + regla específica de Urgencias:
-- Urgencias + Centro=HOSPITALIZACIÓN → Error
-
-Las reglas de Intramural, Ambulatoria y Hospitalización se movieron a sus
-respectivos packages (intramural/, ambulatoria/, hospitalizacion/).
+Aplica reglas comunes (1-4, 8, 9) + regla específica de Hospitalización:
+- Hospitalización + Centro=URGENCIAS → Error
 """
 
 from __future__ import annotations
@@ -24,11 +21,11 @@ from app.services.transversales.normalize import normalize_invoice
 logger = logging.getLogger(__name__)
 
 
-def detect_centro_costo_urgencias(
+def detect_centro_costo_hospitalizacion(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> list[dict[str, Any]]:
-    """Detecta facturas con problemas de centro de costo en Urgencias.
+    """Detecta facturas de Hospitalización con problemas de centro de costo.
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -49,7 +46,7 @@ def detect_centro_costo_urgencias(
     tarifario_idx = indices.get("tarifario")
 
     if num_fact_idx is None or centro_costo_idx is None:
-        logger.warning("Centro Costo Urgencias - Columnas necesarias no encontradas")
+        logger.warning("Centro Costo Hospitalización - Columnas necesarias no encontradas")
         return []
 
     problemas_centros: list[dict[str, Any]] = []
@@ -60,6 +57,17 @@ def detect_centro_costo_urgencias(
         if not factura_str:
             continue
 
+        tipo_factura_descripcion = (
+            data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+            if tipo_factura_descripcion_idx is not None else None
+        )
+        tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
+
+        # Only process Hospitalización rows
+        if tipo_factura_str != "Hospitalización":
+            continue
+
+        # Read row values
         codigo_tipo_proc = (
             data_sheet.cell(row=row, column=codigo_tipo_proc_idx + 1).value
             if codigo_tipo_proc_idx is not None else None
@@ -77,10 +85,6 @@ def detect_centro_costo_urgencias(
             data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value
             if codigo_entidad_cobrar_idx is not None else None
         )
-        tipo_factura_descripcion = (
-            data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
-            if tipo_factura_descripcion_idx is not None else None
-        )
         procedimiento = (
             data_sheet.cell(row=row, column=proc_idx + 1).value
             if proc_idx is not None else None
@@ -95,11 +99,10 @@ def detect_centro_costo_urgencias(
         laboratorio_str = str(laboratorio).strip() if laboratorio else ""
         centro_costo_str = str(centro_costo).strip() if centro_costo else ""
         codigo_entidad_str = str(codigo_entidad_cobrar).strip() if codigo_entidad_cobrar else ""
-        tipo_factura_str = str(tipo_factura_descripcion).strip() if tipo_factura_descripcion else ""
         proc_str = str(procedimiento).strip() if procedimiento else ""
         tarifario_str = str(tarifario).strip() if tarifario else ""
 
-        # Apply common rules (shared across all tipos)
+        # Apply common rules
         errors = apply_common_centro_costo_rules(
             centro_costo_str=centro_costo_str,
             codigo_str=codigo_str,
@@ -111,25 +114,26 @@ def detect_centro_costo_urgencias(
             proc_str=proc_str,
         )
 
+        # Set tipo_factura in each error
         for e in errors:
             e["tipo_factura"] = tipo_factura_str
+
         problemas_centros.extend(errors)
 
-        # --- Urgencias-specific crossing rules ---
-
-        # Urgencias + Centro=HOSPITALIZACIÓN → Error
-        if tipo_factura_str == "Urgencias" and centro_costo_str == CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
+        # --- Hospitalización-specific crossing rule ---
+        # Hospitalización + Centro=URGENCIAS → Error
+        if tipo_factura_str == "Hospitalización" and centro_costo_str == CENTRO_COSTO_URGENCIAS:
             problemas_centros.append({
                 "factura": factura_str,
                 "tipo_factura": tipo_factura_str,
                 "centro_actual": centro_costo_str,
-                "centro_deberia": CENTRO_COSTO_URGENCIAS,
+                "centro_deberia": CENTRO_COSTO_HOSPITALIZACION_ESTANCIA,
                 "codigo": codigo_excluir,
                 "procedimiento": proc_str,
                 "prioridad": 2,
             })
 
     if problemas_centros:
-        logger.info("Centro Costo Urgencias - Problemas encontrados: %d", len(problemas_centros))
+        logger.info("Centro Costo Hospitalización - Problemas encontrados: %d", len(problemas_centros))
 
     return problemas_centros
