@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
-import { UserCircle2, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import * as DropdownMenu from "@radix-ui/react-dropdown-menu";
+import { UserCircle2, PanelLeftClose, PanelLeftOpen, KeyRound, LogOut } from "lucide-react";
+
+import { ChangePasswordDialog } from "@/components/change-password-dialog";
 
 interface AppHeaderProps {
   username?: string;
@@ -9,6 +12,7 @@ interface AppHeaderProps {
 
 export function AppHeader({ username = "", collapsed, onToggle }: AppHeaderProps) {
   const [authed, setAuthed] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
 
   useEffect(() => {
     const check = async () => {
@@ -24,6 +28,11 @@ export function AppHeader({ username = "", collapsed, onToggle }: AppHeaderProps
     const interval = setInterval(check, 30000);
     return () => clearInterval(interval);
   }, []);
+
+  const handleLogout = async () => {
+    await fetch("/auth/api/logout", { method: "POST" });
+    window.location.href = "/auth/login";
+  };
 
   return (
     <header
@@ -58,13 +67,53 @@ export function AppHeader({ username = "", collapsed, onToggle }: AppHeaderProps
               </svg>
               Sesión iniciada
             </span>
-            <div className="flex items-center gap-2 text-sm">
-              <UserCircle2 className="h-5 w-5 shrink-0" style={{ opacity: 0.8 }} />
-              <span className="hidden sm:inline" style={{ opacity: 0.9 }}>{username}</span>
-            </div>
+
+            <DropdownMenu.Root>
+              <DropdownMenu.Trigger asChild>
+                <button className="flex items-center gap-2 text-sm rounded-md hover:bg-white/10 transition-colors px-2 py-1 focus:outline-none">
+                  <UserCircle2 className="h-5 w-5 shrink-0" style={{ opacity: 0.8 }} />
+                  <span className="hidden sm:inline" style={{ opacity: 0.9 }}>{username}</span>
+                </button>
+              </DropdownMenu.Trigger>
+
+              <DropdownMenu.Portal>
+                <DropdownMenu.Content
+                  className="z-50 min-w-[200px] rounded-lg border bg-white p-1 shadow-lg"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+                  sideOffset={8}
+                  align="end"
+                >
+                  <DropdownMenu.Label className="px-3 py-2 text-xs font-medium" style={{ color: "oklch(0.55 0.04 160)" }}>
+                    Usuario: {username}
+                  </DropdownMenu.Label>
+
+                  <DropdownMenu.Separator className="mx-2 my-1 h-px" style={{ backgroundColor: "oklch(0.55 0.04 160 / 0.1)" }} />
+
+                  <DropdownMenu.Item
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm cursor-pointer outline-none transition-colors data-[highlighted]:bg-gray-100"
+                    style={{ color: "oklch(0.15 0.02 160)" }}
+                    onSelect={() => setChangePasswordOpen(true)}
+                  >
+                    <KeyRound className="h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />
+                    Cambiar contraseña
+                  </DropdownMenu.Item>
+
+                  <DropdownMenu.Item
+                    className="flex items-center gap-2 rounded-md px-3 py-2 text-sm cursor-pointer outline-none transition-colors data-[highlighted]:bg-gray-100"
+                    style={{ color: "oklch(0.4 0.15 25)" }}
+                    onSelect={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Cerrar Sesión
+                  </DropdownMenu.Item>
+                </DropdownMenu.Content>
+              </DropdownMenu.Portal>
+            </DropdownMenu.Root>
           </>
         )}
       </div>
+
+      <ChangePasswordDialog open={changePasswordOpen} onOpenChange={setChangePasswordOpen} />
     </header>
   );
 }

@@ -66,4 +66,4 @@ Error generating stack: `+a.message+`
  *
  * This source code is licensed under the ISC license.
  * See the LICENSE file in the root directory of this source tree.
- */const dd=(r,Y)=>{const G=Qu.forwardRef(({className:d,...q},X)=>Qu.createElement(yd,{ref:X,iconNode:Y,className:r1(`lucide-${nd(A1(r))}`,`lucide-${r}`,d),...q}));return G.displayName=A1(r),G};export{md as R,dd as a,ud as b,sd as c,Ws as g,vd as j,Qu as r};
+ */const dd=(r,Y)=>{const G=Qu.forwardRef(({className:d,...q},X)=>Qu.createElement(yd,{ref:X,iconNode:Y,className:r1(`lucide-${nd(A1(r))}`,`lucide-${r}`,d),...q}));return G.displayName=A1(r),G};export{md as R,Is as a,dd as b,sd as c,ud as d,Ws as g,vd as j,Qu as r};
