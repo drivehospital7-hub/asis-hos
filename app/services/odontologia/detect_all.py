@@ -25,7 +25,7 @@ from app.services.transversales import (
 from app.services.odontologia.profesionales import detect_profesionales_odontologia
 from app.services.odontologia.centro_costo import detect_centro_costo_odontologia
 from app.services.odontologia.ide_contrato import detect_ide_contrato_odontologia
-from app.services.odontologia.mal_capitado import detect_mal_capitado
+from app.services.urgencias.mal_capitado import detect_mal_capitado
 
 logger = logging.getLogger(__name__)
 

@@ -16,6 +16,7 @@ from app.services.urgencias.hospitalizacion import (
 )
 from app.services.urgencias.ide_contrato_urgencias import detect_ide_contrato_urgencias
 from app.services.urgencias.sala_observacion import detect_sala_observacion
+from app.services.urgencias.mal_capitado import detect_mal_capitado
 
 __all__ = [
     "detect_all_problems_urgencias",
@@ -28,4 +29,5 @@ __all__ = [
     "detect_hospitalizacion_codes",
     "detect_ide_contrato_urgencias",
     "detect_sala_observacion",
+    "detect_mal_capitado",
 ]
