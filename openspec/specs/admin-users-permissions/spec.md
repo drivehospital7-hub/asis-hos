@@ -8,9 +8,9 @@ Completar el CRUD de usuarios del sistema de autenticación: agregar edición y 
 
 ## Requirements
 
-### R1: `users_store.update_user()` — Actualización Parcial
+### R1: `users_store.update_user()` — Actualización Parcial (extended)
 
-`users_store.update_user(username, updates)` MUST soportar actualización parcial: `password` (opcional), `rol`, `permisos`.
+`update_user(username, updates)` MUST soportar actualización parcial: `password` (opcional), `rol`, `permisos`, `primer_nombre`, `segundo_nombre`, `apellido_1`, `apellido_2`.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
@@ -19,6 +19,8 @@ Completar el CRUD de usuarios del sistema de autenticación: agregar edición y 
 | Skip password (empty string) | existing user, password="" | `update_user("u", {"password": "", "permisos": ["y"]})` | existing hash preserved; permisos updated |
 | Update rol only | existing user | `update_user("u", {"rol": "admin"})` | only rol changed; password+permisos unchanged |
 | Update permisos only | existing user | `update_user("u", {"permisos": ["*"]})` | only permisos changed; password+rol unchanged |
+| **Update person fields** | existing user | `update_user("u", {"primer_nombre": "Ana", "apellido_1": "López"})` | those 2 fields changed; rest preserved |
+| **Person fields absent** | existing user | `update_user("u", {"rol": "admin"})` | person fields untouched |
 | Non-existent user | username not in store | `update_user("ghost", {"rol": "admin"})` | returns `(False, "Usuario no encontrado")` |
 | Admin self-remove `*` | admin editing own user | `update_user("admin", {"permisos": ["odontologia"]})` with session username="admin" | returns `(False, msg)` — rejects removal of `*` |
 | Admin edit other user | admin editing different user | `update_user("otro", {"permisos": ["*"]})` | allowed — `*` added to other user |
@@ -26,7 +28,7 @@ Completar el CRUD de usuarios del sistema de autenticación: agregar edición y 
 | Atomic save | any update | `_save_users()` called | writes to temp file → `os.replace()`; no truncation on crash |
 | User list unchanged post-update | existing users | any successful update | other users in store intact |
 
-### R2: `POST /auth/usuarios/<username>/editar` — Editar Usuario
+### R2: `POST /auth/usuarios/<username>/editar` — Editar Usuario (extended)
 
 The system MUST expose `POST /auth/usuarios/<username>/editar` decorated with `@admin_requerido`.
 
@@ -34,6 +36,8 @@ The system MUST expose `POST /auth/usuarios/<username>/editar` decorated with `@
 |----------|-------|------|------|
 | Edit success | admin authenticated, valid form data | POST with password, rol, permisos | redirect `/auth/usuarios`; flash success message |
 | Edit success (password empty) | admin authenticated | POST with password="" | redirect; flash success; password unchanged |
+| **Edit with person fields** | admin authenticated | POST with `primer_nombre`, `apellido_1` | fields updated; redirect |
+| **Edit without person fields** | admin authenticated | POST without person fields | existing fields preserved |
 | Self-edit remove `*` | admin editing own user | POST removing `*` from permisos | redirect; flash error; changes not saved |
 | Non-existent user | admin, non-existent username | POST to `/auth/usuarios/ghost/editar` | flash error; redirect to `/auth/usuarios` |
 | Unauthenticated | no session | POST to endpoint | 401 or redirect to login |
@@ -101,6 +105,36 @@ The permisos form MUST have distinct checkboxes for `cruce_facturas` (label: "Cr
 | Legacy localStorage | `admin_authenticated` key exists | any auth change | NOT read — only `ce-auth-change` event used |
 | CSS classes preserved | any auth change | event received | `.require-auth`, `.action-icon--delete`, `.editable-cell` behavior matches legacy |
 
+### R9: Person Fields in Store (`create_user()`, `list_users()`, `check_credentials()`)
+
+All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`, `apellido_2` (default `""`).
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| create_user | new user | `create_user("u","p","usuario",["odonto"],"Ana","","López","")` | 4 fields stored |
+| list_users | user has fields | `list_users()` | each dict has all 4 fields |
+| check_credentials | valid login | `check_credentials("u","p")` | return dict has all 4 fields |
+
+### R10: Session + Routes — Person Fields
+
+`do_login()` MUST store person fields in session; routes MUST extract fields from `request.form`.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Login | user_data with fields | `do_login(user_data)` | `session["primer_nombre"]` etc. set |
+| Logout | session has fields | `do_logout()` | fields removed |
+| POST crear | admin, form with 4 names | POST `/auth/usuarios/crear` | user stored with all 4 values |
+| POST editar | admin, form with name fields | POST with `primer_nombre`, `apellido_1` | user updated |
+
+### R11: Backfill — Default + Legacy Users
+
+`DEFAULT_USERS` MUST include `""` for all 4 fields. `_load_users()` MUST backfill legacy users.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Default users | no `users.json` | first `_load_users()` | each default user has `""` for all 4 |
+| Legacy JSON | `users.json` missing fields | `_load_users()` | missing fields added as `""`; existing preserved |
+
 ---
 
 ## Validation Rules
@@ -122,6 +156,12 @@ The permisos form MUST have distinct checkboxes for `cruce_facturas` (label: "Cr
 |----------|------|
 | `username == "admin"` | MUST return `(False, "No se puede eliminar el usuario admin")` |
 | `username` not found | MUST return `(False, "Usuario no encontrado")` |
+
+### R3: Person Fields — Data Rules
+
+| Field | Rule | Notes |
+|-------|------|-------|
+| `primer_nombre`, `segundo_nombre`, `apellido_1`, `apellido_2` | SHOULD accept any string. Default: `""` | No regex required. Stored as-is. |
 
 ---
 
@@ -145,6 +185,15 @@ The permisos form MUST have distinct checkboxes for `cruce_facturas` (label: "Cr
 - [ ] `auth.js` reads `ce-auth-change` event, not `localStorage`
 - [ ] `.require-auth`, `.action-icon--delete`, `.editable-cell` CSS classes retain behavior
 - [ ] All tests pass (unit + integration) with no regression
+- [ ] `create_user()` stores `primer_nombre`, `segundo_nombre`, `apellido_1`, `apellido_2` (default `""`)
+- [ ] `list_users()` returns all 4 person fields per user
+- [ ] `check_credentials()` returns all 4 person fields per user
+- [ ] `update_user()` merges person fields partially (only fields present in `updates`)
+- [ ] `do_login()` stores person fields in session; `do_logout()` removes them
+- [ ] `POST /auth/usuarios/crear` extracts person fields from form
+- [ ] `POST /auth/usuarios/<username>/editar` extracts person fields from form
+- [ ] `DEFAULT_USERS` includes `""` for all 4 person fields
+- [ ] `_load_users()` backfills legacy users missing person fields
 
 ---
 
