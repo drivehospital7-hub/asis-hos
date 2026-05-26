@@ -13,6 +13,7 @@ from app.services.transversales.doble_tipo_procedimiento import detect_doble_tip
 from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
 from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
 from app.services.transversales.normalize import normalize_invoice, normalize_header
+from app.services.transversales.detect_copago_entidad import detect_copago_entidad_urgencias
 
 __all__ = [
     "detect_tipo_documento_edad",
@@ -28,4 +29,5 @@ __all__ = [
     "detect_cantidades_anomalas",
     "normalize_invoice",
     "normalize_header",
+    "detect_copago_entidad_urgencias",
 ]
