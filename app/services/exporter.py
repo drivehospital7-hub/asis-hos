@@ -244,6 +244,7 @@ def _do_detect_problems(
         "responsable_cierra": "Responsable Cierra Facturar",
         "tarifario": "Tarifario",
         "tipo_usuario": "Tipo Usuario",
+        "codigo_dx_principal": "Cód. Dx Principal",
         "vlr_copago": "Vlr. Copago",
     }
 

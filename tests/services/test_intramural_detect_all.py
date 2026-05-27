@@ -118,12 +118,11 @@ class TestDetectAllProblemsIntramural:
         assert "missing_columns" in result
         assert isinstance(result["missing_columns"], list)
 
-    def test_incluye_solo_transversales(
+    def test_incluye_solo_keys_esperadas(
         self, workbook_minimal: Workbook
     ) -> None:
-        """Resultado incluye solo detectores transversales (decimales,
-        tipo_identificacion_edad, codigo_entidad_vs_afiliacion, tipo_usuario)
-        y NINGUN detector de area."""
+        """Resultado incluye transversales + ide_contrato y NO incluye
+        keys de otras areas (centros_de_costos, cups_equivalentes, etc)."""
         ws = workbook_minimal.active
         ws.cell(row=2, column=1, value="FAC-001")
 
@@ -131,21 +130,22 @@ class TestDetectAllProblemsIntramural:
         result = self._run(ws, indices)
 
         problemas = result["problemas"]
-        transversales_keys = {
+        keys_esperadas = {
             "normalizados",
             "decimales",
             "tipo_identificacion_edad",
             "codigo_entidad_vs_afiliacion",
             "tipo_usuario",
+            "ide_contrato",
+            "totales_por_tipo",
         }
-        for key in transversales_keys:
+        for key in keys_esperadas:
             assert key in problemas, (
-                f"Key transversal '{key}' debe estar presente"
+                f"Key esperada '{key}' debe estar presente"
             )
 
-        area_keys = {
+        keys_no_intramural = {
             "centros_de_costos",
-            "ide_contrato",
             "cups_equivalentes",
             "profesionales",
             "mal_capitado",
@@ -158,7 +158,7 @@ class TestDetectAllProblemsIntramural:
             "revision_entidad_86",
             "revision_cantidad",
         }
-        for key in area_keys:
+        for key in keys_no_intramural:
             assert key not in problemas, (
                 f"Key de area '{key}' NO debe estar presente en intramural"
             )

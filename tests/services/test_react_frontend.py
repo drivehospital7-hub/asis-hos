@@ -222,7 +222,7 @@ class TestNewReactRoutes:
             pytest.skip("manifest.json not found — build may not have run yet")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         html_keys = [k for k in manifest if k.endswith(".html")]
-        assert len(html_keys) == 12, f"Expected 12 HTML entries, got {len(html_keys)}: {html_keys}"
+        assert len(html_keys) == 13, f"Expected 13 HTML entries, got {len(html_keys)}: {html_keys}"
         assert "src/pages/index/index.html" in html_keys
         assert "src/pages/abiertas-urgencias/index.html" in html_keys
         assert "src/pages/control-novedades/index.html" in html_keys

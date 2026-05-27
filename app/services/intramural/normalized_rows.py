@@ -15,10 +15,11 @@ def build_intramural_normalized_rows(
     tipo_identificacion_edad: list[dict] | None = None,
     tipo_usuario: list[dict] | None = None,
     entidad_afiliacion_comparison: list[dict] | None = None,
+    problemas_ide_contrato: list[dict] | None = None,
     fec_factura_map: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
     """
-    Normaliza errores transversales de Intramural en filas de 6 columnas.
+    Normaliza errores de Intramural en filas de 6 columnas.
 
     Formato de salida: cada dict tiene:
         - tipo_error: str
@@ -35,6 +36,7 @@ def build_intramural_normalized_rows(
         tipo_identificacion_edad: Lista de errores de tipo ID/edad (opcional)
         tipo_usuario: Lista de errores de tipo usuario (opcional)
         entidad_afiliacion_comparison: Lista de errores de entidad vs afiliación (opcional)
+        problemas_ide_contrato: Lista de errores de IDE Contrato (opcional)
         fec_factura_map: Dict {factura: fecha_factura} (opcional)
 
     Returns:
@@ -96,6 +98,22 @@ def build_intramural_normalized_rows(
                 "descripcion": item.get("problema", ""),
                 "procedimiento": proc_entidad,
                 "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+            })
+
+    # --- IDE Contrato ---
+    if problemas_ide_contrato:
+        for item in problemas_ide_contrato:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            rows.append({
+                "tipo_error": "IDE Contrato",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": f"IDE Contrato debería ser {item.get('ide_contrato_deberia', 'N/A')}",
+                "procedimiento": f"{codigo} - {proc}" if codigo and proc else (codigo or proc or ""),
+                "detalle": item.get("ide_contrato_actual", ""),
             })
 
     # --- Tipo Usuario ---

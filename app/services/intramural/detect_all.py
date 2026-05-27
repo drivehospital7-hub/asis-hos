@@ -21,6 +21,9 @@ from app.services.transversales import (
 from app.services.intramural.normalized_rows import (
     build_intramural_normalized_rows,
 )
+from app.services.intramural.ide_contrato_intramural import (
+    detect_ide_contrato_intramural,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,9 @@ def detect_all_problems_intramural(
         data_sheet, indices, limit_log=5
     )
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
+
+    # 1b. Detectores específicos de intramural
+    problemas_ide_contrato = detect_ide_contrato_intramural(data_sheet, indices)
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
@@ -83,6 +89,7 @@ def detect_all_problems_intramural(
         tipo_identificacion_edad=tipo_identificacion_edad,
         tipo_usuario=tipo_usuario,
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
+        problemas_ide_contrato=problemas_ide_contrato,
         fec_factura_map=fec_factura_map,
     )
 
@@ -95,6 +102,7 @@ def detect_all_problems_intramural(
             "tipo_identificacion_edad": tipo_identificacion_edad,
             "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             "tipo_usuario": tipo_usuario,
+            "ide_contrato": problemas_ide_contrato,
             "totales_por_tipo": _build_totales_por_tipo(normalized_rows),
         },
         "totales": {
@@ -102,6 +110,7 @@ def detect_all_problems_intramural(
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario),
+            "ide_contrato": len(problemas_ide_contrato),
             "problemas": len(normalized_rows),
         },
         "missing_columns": [],

@@ -191,6 +191,22 @@
       "_eye-Cy85FeWW.js"
     ]
   },
+  "src/pages/intramural/index.html": {
+    "file": "assets/index-BCf6NZl6.js",
+    "name": "index",
+    "src": "src/pages/intramural/index.html",
+    "isEntry": true,
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_app-layout-7IHTHcpW.js",
+      "_breadcrumbs-CQhrzMeU.js",
+      "_page-title-yw6qK8j9.js",
+      "_status-badge-CfsJsJV3.js",
+      "_info-CaFPEwhM.js",
+      "_arrow-right-svMThmkB.js",
+      "_eye-Cy85FeWW.js"
+    ]
+  },
   "src/pages/login/index.html": {
     "file": "assets/index-D-eWFE7A.js",
     "name": "index",
