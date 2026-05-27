@@ -51,8 +51,15 @@ def permiso_requerido(*permisos):
             if "*" in user_permisos:
                 return f(*args, **kwargs)
 
+            # Expandir :write → también tener el base (ej: facturas_abiertas:write → facturas_abiertas)
+            # Consistente con sidebar (app-sidebar.tsx) y dashboard (base.py _filter_areas)
+            expanded = set(user_permisos)
+            for p in user_permisos:
+                if p.endswith(":write"):
+                    expanded.add(p.removesuffix(":write"))
+
             # Verificar al menos un permiso requerido
-            if any(p in user_permisos for p in permisos):
+            if any(p in expanded for p in permisos):
                 return f(*args, **kwargs)
 
             # Sin permiso
