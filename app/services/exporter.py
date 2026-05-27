@@ -17,9 +17,11 @@ from app.constants import (
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
     AREA_EQUIPOS_BASICOS,
+    AREA_INTRAMURAL,
     PROFESIONALES_ODONTOLOGIA,
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
+from app.services.intramural.detect_all import detect_all_problems_intramural
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
@@ -300,6 +302,10 @@ def _do_detect_problems(
     try:
         if area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
+                sheet, indices,
+            )
+        elif area == AREA_INTRAMURAL:
+            problemas_detectados, responsables_map = detect_all_problems_intramural(
                 sheet, indices,
             )
         elif area == AREA_EQUIPOS_BASICOS:

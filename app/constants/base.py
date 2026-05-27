@@ -46,6 +46,7 @@ TIPO_USUARIO_VALORES = frozenset({
 AREA_ODONTOLOGIA = "odontologia"
 AREA_URGENCIAS = "urgencias"
 AREA_EQUIPOS_BASICOS = "equipos_basicos"
+AREA_INTRAMURAL = "intramural"
 
 # =============================================================================
 # PERMISOS - Valores de permiso válidos
@@ -61,6 +62,7 @@ ALLOWED_PERMISOS = frozenset({
     "facturas_abiertas:write",
     "equipos_basicos",
     "odontologia_equipos_basicos",
+    "intramural",
     "cruce_facturas",
     "derechos",
 })
@@ -221,6 +223,15 @@ DASHBOARD_AREAS = [
         "tone": "neutral",
         "pending_label": "",
         "description": "Carga masiva de facturas desde archivos Excel.",
+    },
+    {
+        "title": "Intramural",
+        "slug": "intramural",
+        "permiso": "intramural",
+        "href": "/intramural",
+        "tone": "info",
+        "pending_label": "errores",
+        "description": "Procesamiento y validación de facturas del servicio intramural.",
     },
 ]
 
