@@ -8,18 +8,15 @@ de factura están presentes y despacha al orquestador correspondiente.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
 from flask import (
     Blueprint,
-    current_app,
     jsonify,
+    render_template_string,
     request,
-    session,
 )
 
 from app.services.exporter import detect_problems_only
-from app.services.responsables import obtener_responsable
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 from app.constants import AREA_UNIFICADA
 from app.utils.auth import permiso_requerido
@@ -27,6 +24,27 @@ from app.utils.auth import permiso_requerido
 logger = logging.getLogger(__name__)
 
 procesar_bp = Blueprint("procesar", __name__)
+
+
+@procesar_bp.get("/")
+def procesar_form():
+    """Formulario simple para probar la ruta desde el navegador."""
+    return render_template_string("""
+    <!DOCTYPE html>
+    <html lang="es">
+    <head><meta charset="UTF-8"><title>Procesar Excel Unificado</title></head>
+    <body style="font-family:sans-serif;padding:2rem">
+        <h2>Procesar Excel — Detección por Tipo Factura</h2>
+        <form method="post" enctype="multipart/form-data">
+            <label>Archivo Excel: <input type="file" name="file_upload" accept=".xlsx,.xls"></label>
+            <br><br>
+            <button type="submit">Procesar</button>
+        </form>
+        <p style="color:#666;font-size:.9em">Subí cualquier Excel — el sistema detecta automáticamente
+        los tipos de factura y aplica las reglas correspondientes.</p>
+    </body>
+    </html>
+    """)
 
 
 @procesar_bp.post("/")
