@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:app/static/react-dist/assets/index-B5hrh80k.js
-import{a as V,r as a,j as e,c as W}from"./globals-BoBHE25F.js";import{d as Y,a as $,X as Z,A as ee}from"./app-layout-ulhHvXJd.js";import{B as i}from"./button-YqsVF3zb.js";import{S as se}from"./status-badge-B13HvWlx.js";import{P as le}from"./pencil-D6nS2XbR.js";import{T as z}from"./trash-2-0mnNXBQD.js";/**
-========
 import{b as V,r as a,j as e,c as W}from"./globals-IEYCF5gg.js";import{d as Y,a as $,B as i,X as Z,A as ee}from"./app-layout-CDRIbi_9.js";import{S as se}from"./status-badge-DtPTigfM.js";import{P as le}from"./pencil-DccyUFYy.js";import{T as z}from"./trash-2-CHuTzTk0.js";import"./eye-Cy85FeWW.js";/**
->>>>>>>> feat/cambiar-contrasena-propia:app/static/react-dist/assets/index-7sdZVi2M.js
  * @license lucide-react v0.510.0 - ISC
  *
  * This source code is licensed under the ISC license.

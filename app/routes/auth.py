@@ -178,6 +178,55 @@ def api_status():
     })
 
 
+@auth_bp.route("/api/cambiar-contrasena", methods=["POST"])
+def api_cambiar_contrasena():
+    """Cambiar la contraseña del usuario autenticado (self-service)."""
+    if not auth_session.is_authenticated():
+        return jsonify({"status": "error", "data": {}, "errors": ["No autenticado"]}), 401
+
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"status": "error", "data": {}, "errors": ["Cuerpo JSON inválido"]}), 400
+
+    old_password = data.get("old_password")
+    new_password = data.get("new_password")
+    confirm_password = data.get("confirm_password")
+
+    # Validate all fields present
+    missing = []
+    if not old_password:
+        missing.append("old_password")
+    if not new_password:
+        missing.append("new_password")
+    if not confirm_password:
+        missing.append("confirm_password")
+    if missing:
+        return jsonify({"status": "error", "data": {}, "errors": ["Todos los campos son requeridos"]}), 400
+
+    # New password length validation
+    if len(new_password) < 6:
+        return jsonify({"status": "error", "data": {}, "errors": ["La contraseña debe tener al menos 6 caracteres"]}), 400
+
+    if len(new_password) > 128:
+        return jsonify({"status": "error", "data": {}, "errors": ["La contraseña no puede tener más de 128 caracteres"]}), 400
+
+    # Confirm match
+    if new_password != confirm_password:
+        return jsonify({"status": "error", "data": {}, "errors": ["Las contraseñas nuevas no coinciden"]}), 400
+
+    # Verify old password
+    username = session.get("username")
+    creds = users_store.check_credentials(username, old_password)
+    if not creds:
+        return jsonify({"status": "error", "data": {}, "errors": ["La contraseña actual es incorrecta"]}), 400
+
+    # Update password
+    users_store.update_user(username, {"password": new_password})
+    logger.info("Contraseña cambiada por self-service: %s", username)
+
+    return jsonify({"status": "success", "data": {}, "errors": []}), 200
+
+
 @auth_bp.route("/api/templates")
 @admin_requerido
 def api_list_templates():
