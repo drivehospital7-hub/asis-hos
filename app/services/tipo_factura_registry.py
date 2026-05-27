@@ -115,4 +115,31 @@ def get_detectors(tipo_factura: str) -> list[Callable]:
         )
         return transversales + _get_ambulatoria_detectors()
 
+    if tipo_factura == "Odontología":
+        from app.services.odontologia.profesionales import (
+            detect_profesionales_odontologia,
+        )
+        from app.services.odontologia.centro_costo import (
+            detect_centro_costo_odontologia,
+        )
+        from app.services.odontologia.ide_contrato import (
+            detect_ide_contrato_odontologia,
+        )
+        from app.services.urgencias.mal_capitado import detect_mal_capitado
+        from app.services.transversales import (
+            detect_doble_tipo_procedimiento,
+            detect_ruta_duplicada,
+            detect_cantidades_anomalas,
+        )
+
+        return transversales + [
+            detect_profesionales_odontologia,
+            detect_centro_costo_odontologia,
+            detect_ide_contrato_odontologia,
+            detect_mal_capitado,
+            detect_doble_tipo_procedimiento,
+            detect_ruta_duplicada,
+            detect_cantidades_anomalas,
+        ]
+
     return []

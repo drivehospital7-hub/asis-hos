@@ -43,6 +43,7 @@ def _get_unique_tipo_factura(
     # Solo procesar tipos que tienen orquestador implementado
     tipos_con_orquestador = {
         "Urgencias", "Hospitalización", "Intramural", "Ambulatoria",
+        "Odontología",
     }
     tipos_presentes = sorted(tipos & tipos_con_orquestador)
 
@@ -77,6 +78,11 @@ def _get_orquestador(tipo_factura: str):
             detect_all_problems_ambulatoria,
         )
         return detect_all_problems_ambulatoria
+    elif tipo_factura == "Odontología":
+        from app.services.odontologia.detect_all import (
+            detect_all_problems_odontologia,
+        )
+        return detect_all_problems_odontologia
     return None
 
 
