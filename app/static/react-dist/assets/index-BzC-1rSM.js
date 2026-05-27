@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:app/static/react-dist/assets/index-CMNNmplg.js
-import{a as d,r as i,j as e,c as E}from"./globals-BoBHE25F.js";import{a as x,c as P,A}from"./app-layout-ulhHvXJd.js";import{B as C}from"./button-YqsVF3zb.js";import{B as D}from"./breadcrumbs-CSsrtbyg.js";import{P as I}from"./page-title-CeAcaL4H.js";import{S as v}from"./status-badge-B13HvWlx.js";import{C as B}from"./circle-check-BTNX0Fqi.js";/**
-========
-import{b as d,r as i,j as e,c as E}from"./globals-IEYCF5gg.js";import{a as x,B as P,c as A,A as C}from"./app-layout-CDRIbi_9.js";import{B as D}from"./breadcrumbs-CQhrzMeU.js";import{P as I}from"./page-title-CqgdNZAZ.js";import{S as v}from"./status-badge-DtPTigfM.js";import{C as B}from"./circle-check-D7L-pulr.js";import"./eye-Cy85FeWW.js";/**
->>>>>>>> feat/cambiar-contrasena-propia:app/static/react-dist/assets/index-DDoOGC0Y.js
+import{b as d,r as i,j as e,c as E}from"./globals-IEYCF5gg.js";import{a as x,B as P,c as A,A as C}from"./app-layout-7IHTHcpW.js";import{B as D}from"./breadcrumbs-CQhrzMeU.js";import{P as I}from"./page-title-yw6qK8j9.js";import{S as v}from"./status-badge-CfsJsJV3.js";import{C as B}from"./circle-check-D7L-pulr.js";import"./eye-Cy85FeWW.js";/**
  * @license lucide-react v0.510.0 - ISC
  *
  * This source code is licensed under the ISC license.

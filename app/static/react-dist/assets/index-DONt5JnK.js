@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:app/static/react-dist/assets/index-BLpwOoxM.js
-import{a as c,j as e,c as m,r as x}from"./globals-BoBHE25F.js";import{a as p,c as i,b as u,C as g,A as h}from"./app-layout-ulhHvXJd.js";import{P as f}from"./page-title-CeAcaL4H.js";import{S as b}from"./status-badge-B13HvWlx.js";import{C as j}from"./clock-55-7RBFs.js";import{C as v}from"./circle-check-BTNX0Fqi.js";import{A as w}from"./arrow-right-DjVHW9Vj.js";/**
-========
-import{b as c,j as e,c as m,r as x}from"./globals-IEYCF5gg.js";import{a as p,c as i,b as u,C as g,A as h}from"./app-layout-CDRIbi_9.js";import{P as f}from"./page-title-CqgdNZAZ.js";import{S as b}from"./status-badge-DtPTigfM.js";import{C as j}from"./clock-BKWXDcK3.js";import{C as v}from"./circle-check-D7L-pulr.js";import{A as w}from"./arrow-right-svMThmkB.js";import"./eye-Cy85FeWW.js";/**
->>>>>>>> feat/cambiar-contrasena-propia:app/static/react-dist/assets/index-WFFe32kc.js
+import{b as c,j as e,c as m,r as x}from"./globals-IEYCF5gg.js";import{a as p,c as i,b as u,C as g,A as h}from"./app-layout-7IHTHcpW.js";import{P as f}from"./page-title-yw6qK8j9.js";import{S as b}from"./status-badge-CfsJsJV3.js";import{C as j}from"./clock-BKWXDcK3.js";import{C as v}from"./circle-check-D7L-pulr.js";import{A as w}from"./arrow-right-svMThmkB.js";import"./eye-Cy85FeWW.js";/**
  * @license lucide-react v0.510.0 - ISC
  *
  * This source code is licensed under the ISC license.
