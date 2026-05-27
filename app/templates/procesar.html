@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Procesar Excel — Detección Unificada</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; color: #1a1a1a; min-height: 100vh; }
+  .header { background: #1e293b; color: #fff; padding: 1.25rem 2rem; }
+  .header h1 { font-size: 1.25rem; font-weight: 600; }
+  .header p { font-size: .85rem; color: #94a3b8; margin-top: .25rem; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+  /* Upload zone */
+  .upload-card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 2rem; margin-bottom: 1.5rem; }
+  .upload-card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 1rem; }
+  .drop-zone { border: 2px dashed #cbd5e1; border-radius: 8px; padding: 2.5rem 2rem; text-align: center; cursor: pointer; transition: .2s; }
+  .drop-zone:hover, .drop-zone.dragover { border-color: #3b82f6; background: #f0f7ff; }
+  .drop-zone input[type=file] { display: none; }
+  .drop-zone-label { display: block; font-size: .95rem; color: #475569; }
+  .drop-zone-label strong { color: #2563eb; }
+  .drop-zone-hint { font-size: .8rem; color: #94a3b8; margin-top: .5rem; }
+  .btn { display: inline-block; padding: .6rem 1.5rem; border: none; border-radius: 6px; font-size: .9rem; font-weight: 500; cursor: pointer; transition: .15s; }
+  .btn-primary { background: #2563eb; color: #fff; }
+  .btn-primary:hover { background: #1d4ed8; }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .upload-actions { margin-top: 1rem; text-align: center; }
+  .file-name { display: inline-block; margin-right: .75rem; font-size: .9rem; color: #475569; }
+
+  /* Results */
+  .summary { display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+  .summary-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 1.25rem 1.5rem; flex: 1; min-width: 140px; }
+  .summary-card .num { font-size: 1.75rem; font-weight: 700; color: #2563eb; }
+  .summary-card .label { font-size: .8rem; color: #64748b; margin-top: .25rem; }
+  .summary-card .tags { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
+  .tag { background: #e2e8f0; color: #475569; padding: .2rem .6rem; border-radius: 4px; font-size: .75rem; font-weight: 500; }
+
+  .error-group { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: 1rem; overflow: hidden; }
+  .error-group-header { background: #f8fafc; padding: .85rem 1.25rem; cursor: pointer; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; user-select: none; }
+  .error-group-header:hover { background: #f1f5f9; }
+  .error-group-header .title { font-weight: 600; font-size: .9rem; }
+  .error-group-header .count { font-size: .8rem; color: #64748b; background: #e2e8f0; padding: .15rem .55rem; border-radius: 999px; }
+  .error-group-body { overflow-x: auto; display: none; }
+  .error-group-body.open { display: block; }
+  .error-group-body table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+  .error-group-body th { background: #f1f5f9; padding: .6rem .75rem; text-align: left; font-weight: 600; color: #475569; white-space: nowrap; border-bottom: 1px solid #e2e8f0; }
+  .error-group-body td { padding: .5rem .75rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  .error-group-body tr:hover td { background: #fafbfc; }
+  .fecha-cierre-vacia td { background: #fef2f2 !important; }
+  .fecha-cierre-vacia td:first-child { border-left: 3px solid #ef4444; }
+
+  /* JSON raw */
+  .raw-json { background: #1e293b; color: #e2e8f0; border-radius: 8px; padding: 1rem; font-family: 'SF Mono', 'Cascadia Code', monospace; font-size: .78rem; overflow-x: auto; margin-top: 1.5rem; display: none; }
+  .raw-json.open { display: block; }
+  .toggle-link { font-size: .8rem; color: #2563eb; cursor: pointer; user-select: none; }
+  .toggle-link:hover { text-decoration: underline; }
+
+  /* Error messages */
+  .error-msg { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 1rem 1.25rem; color: #991b1b; font-size: .9rem; margin-bottom: 1rem; }
+
+  /* Loading */
+  .loading { display: none; text-align: center; padding: 2rem; color: #64748b; }
+  .loading.active { display: block; }
+  .spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin .6s linear infinite; margin: 0 auto .75rem; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .json-toggle-area { text-align: right; margin-top: .5rem; }
+
+  @media (max-width: 768px) {
+    .container { padding: 1rem; }
+    .summary-card { min-width: 100%; }
+    .error-group-body th, .error-group-body td { white-space: normal; word-break: break-word; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>⚡ Procesamiento Unificado</h1>
+  <p>Subí cualquier Excel — las reglas se aplican según el valor de Tipo Factura Descripción de cada fila</p>
+</div>
+
+<div class="container">
+  <!-- Upload -->
+  <div class="upload-card">
+    <h2>📂 Seleccionar archivo</h2>
+    <form method="post" enctype="multipart/form-data" id="uploadForm">
+      <div class="drop-zone" id="dropZone">
+        <input type="file" name="file_upload" accept=".xlsx,.xls,.xlsm" id="fileInput">
+        <span class="drop-zone-label">
+          Arrastrá un Excel acá o <strong>hacé click para seleccionar</strong>
+        </span>
+        <div class="drop-zone-hint">Formatos: .xlsx .xls .xlsm</div>
+      </div>
+      <div class="upload-actions">
+        <span class="file-name" id="fileName"></span>
+        <button type="submit" class="btn btn-primary" id="submitBtn">Procesar Excel</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" id="loading">
+    <div class="spinner"></div>
+    Procesando archivo...
+  </div>
+
+  {% if error %}
+  <div class="error-msg">{{ error }}</div>
+  {% endif %}
+
+  {% if resultados %}
+  <!-- Summary -->
+  <div class="summary">
+    <div class="summary-card">
+      <div class="num">{{ resultados.total_errores }}</div>
+      <div class="label">Total errores</div>
+    </div>
+    <div class="summary-card">
+      <div class="num">{{ resultados.tipos_procesados|length }}</div>
+      <div class="label">Tipos de factura procesados</div>
+      <div class="tags">
+        {% for tipo in resultados.tipos_procesados %}
+        <span class="tag">{{ tipo }}</span>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="summary-card">
+      <div class="num">{{ resultados.errores|length }}</div>
+      <div class="label">Categorías de error</div>
+    </div>
+  </div>
+
+  <!-- Error groups -->
+  {% for grupo in resultados.errores %}
+  <div class="error-group">
+    <div class="error-group-header" onclick="this.nextElementSibling.classList.toggle('open')">
+      <span class="title">{{ grupo.tipo }}</span>
+      <span class="count">{{ grupo.cantidad }}</span>
+    </div>
+    <div class="error-group-body open">
+      <table>
+        <thead>
+          <tr>
+            <th>Fec. Factura</th>
+            <th>Factura</th>
+            <th>Responsable</th>
+            <th>Procedimiento</th>
+            <th>Descripción</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for f in grupo.facturas %}
+          <tr class="{% if f.fecha_cierre_vacia %}fecha-cierre-vacia{% endif %}">
+            <td>{{ f.fec_factura or '-' }}</td>
+            <td>{{ f.factura }}</td>
+            <td>{{ f.responsable_cierra or '-' }}</td>
+            <td>{{ f.procedimiento or '-' }}</td>
+            <td>{{ f.descripcion }}</td>
+            <td>{{ f.detalle }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+
+  <!-- JSON raw toggle -->
+  <div class="json-toggle-area">
+    <span class="toggle-link" onclick="document.getElementById('rawJson').classList.toggle('open')">📄 Ver JSON crudo</span>
+  </div>
+  <pre class="raw-json" id="rawJson">{{ resultados_json }}</pre>
+
+  {% endif %}
+</div>
+
+<script>
+  // Drag & drop
+  const dropZone = document.getElementById('dropZone');
+  const fileInput = document.getElementById('fileInput');
+  const fileName = document.getElementById('fileName');
+  const submitBtn = document.getElementById('submitBtn');
+  const loading = document.getElementById('loading');
+  const form = document.getElementById('uploadForm');
+
+  dropZone.addEventListener('click', () => fileInput.click());
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+  dropZone.addEventListener('drop', e => { e.preventDefault(); dropZone.classList.remove('dragover'); fileInput.files = e.dataTransfer.files; updateFileName(); });
+
+  fileInput.addEventListener('change', updateFileName);
+  function updateFileName() {
+    if (fileInput.files.length > 0) {
+      fileName.textContent = '📎 ' + fileInput.files[0].name;
+      submitBtn.disabled = false;
+    } else {
+      fileName.textContent = '';
+      submitBtn.disabled = true;
+    }
+  }
+
+  form.addEventListener('submit', () => {
+    loading.classList.add('active');
+    submitBtn.disabled = true;
+  });
+
+  // Enable submit if file selected on page load (stays after POST)
+  if (fileInput.files.length > 0) updateFileName();
+</script>
+</body>
+</html>

@@ -7,12 +7,12 @@ de factura están presentes y despacha al orquestador correspondiente.
 
 from __future__ import annotations
 
+import json
 import logging
 
 from flask import (
     Blueprint,
-    jsonify,
-    render_template_string,
+    render_template,
     request,
 )
 
@@ -28,52 +28,23 @@ procesar_bp = Blueprint("procesar", __name__)
 
 @procesar_bp.get("/")
 def procesar_form():
-    """Formulario simple para probar la ruta desde el navegador."""
-    return render_template_string("""
-    <!DOCTYPE html>
-    <html lang="es">
-    <head><meta charset="UTF-8"><title>Procesar Excel Unificado</title></head>
-    <body style="font-family:sans-serif;padding:2rem">
-        <h2>Procesar Excel — Detección por Tipo Factura</h2>
-        <form method="post" enctype="multipart/form-data">
-            <label>Archivo Excel: <input type="file" name="file_upload" accept=".xlsx,.xls"></label>
-            <br><br>
-            <button type="submit">Procesar</button>
-        </form>
-        <p style="color:#666;font-size:.9em">Subí cualquier Excel — el sistema detecta automáticamente
-        los tipos de factura y aplica las reglas correspondientes.</p>
-    </body>
-    </html>
-    """)
+    """Formulario para subir Excel y ver resultados."""
+    return render_template("procesar.html")
 
 
 @procesar_bp.post("/")
 @permiso_requerido("urgencias")
 def procesar_unificado():
     """Procesa un Excel aplicando reglas según Tipo Factura Descripción.
-
-    Acepta cualquier archivo Excel. El sistema identifica los valores de
-    'Tipo Factura Descripción' presentes y ejecuta los detectores
-    correspondientes a cada tipo (Urgencias, Hospitalización, Intramural,
-    Ambulatoria). Las reglas transversales (decimales, tipo documento, etc.)
-    se ejecutan una sola vez.
+    Renderiza resultados en tabla + JSON crudo para debugging.
     """
     uploaded_file = request.files.get("file_upload")
-
     if not uploaded_file or not uploaded_file.filename:
-        return jsonify({
-            "status": "error",
-            "data": {},
-            "errors": ["Debes seleccionar un archivo"],
-        }), 400
+        return render_template("procesar.html", error="Debes seleccionar un archivo")
 
     temp_path, error = save_temp_excel(uploaded_file)
     if error:
-        return jsonify({
-            "status": "error",
-            "data": {},
-            "errors": [error],
-        }), 400
+        return render_template("procesar.html", error=error)
 
     filename = str(temp_path)
     sheet_name = request.form.get("sheet_name") or None
@@ -90,86 +61,69 @@ def procesar_unificado():
     cleanup_temp_excel(temp_path)
 
     if missing_columns:
-        logger.error("Columnas faltantes en el Excel: %s", missing_columns)
-        return jsonify({
-            "status": "error",
-            "data": {},
-            "errors": [
-                f"Columnas no encontradas en el Excel: {', '.join(missing_columns)}. "
-                f"Verifica que el archivo tenga los encabezados correctos."
-            ],
-            "missing_columns": missing_columns,
-        }), 200
-
-    if export_result["status"] == "success":
-        problemas_data = export_result["data"].get("problemas", {})
-        problemas_dict = problemas_data.get("problemas", {})
-        responsables_map = export_result["data"].get("responsables_map", {})
-
-        normalized_rows = problemas_dict.get("normalizados", [])
-        tipos_procesados = problemas_dict.get(
-            "tipos_procesados",
-            export_result["data"].get("tipos_procesados", []),
-        )
-        total_errores = len(normalized_rows)
-
-        logger.info(
-            "Procesamiento unificado: %d errores en %d tipos",
-            total_errores,
-            len(tipos_procesados),
+        return render_template(
+            "procesar.html",
+            error=(
+                f"Columnas no encontradas: {', '.join(missing_columns)}. "
+                "Verificá que el archivo tenga los encabezados correctos."
+            ),
         )
 
-        # Armar errores agrupados por tipo
-        from itertools import groupby
+    if export_result["status"] != "success":
+        return render_template(
+            "procesar.html",
+            error=export_result.get("errors", ["Error desconocido"])[0],
+        )
 
-        errores = []
-        MAX_POR_TIPO = 50
+    problemas_data = export_result["data"].get("problemas", {})
+    problemas_dict = problemas_data.get("problemas", {})
 
-        all_items = []
-        for row in normalized_rows:
-            all_items.append({
-                "tipo_error": row.get("tipo_error", ""),
-                "factura": row.get("factura", ""),
-                "fec_factura": row.get("fec_factura", ""),
-                "responsable_cierra": row.get("responsable_cierra", ""),
-                "descripcion": row.get("descripcion", ""),
-                "procedimiento": row.get("procedimiento", ""),
-                "detalle": row.get("detalle", ""),
-                "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
-            })
+    normalized_rows = problemas_dict.get("normalizados", [])
+    tipos_procesados = problemas_data.get(
+        "tipos_procesados",
+        export_result["data"].get("tipos_procesados", []),
+    )
+    total_errores = len(normalized_rows)
 
-        normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])
-        for tipo, group in groupby(normalized_rows_sorted, key=lambda r: r["tipo_error"]):
-            items = list(group)
-            errores.append({
-                "tipo": tipo,
-                "tipo_key": "norm_" + tipo.lower().replace(" ", "_"),
-                "cantidad": len(items),
-                "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
-                "facturas": items[:MAX_POR_TIPO],
-            })
+    from itertools import groupby
 
-        return jsonify({
-            "status": "success",
-            "data": {
-                "errores": errores,
-                "total_errores": sum(e["cantidad"] for e in errores),
-                "tipos_procesados": tipos_procesados,
-                "columnas": [
-                    "Fec. Factura",
-                    "Tipo de error",
-                    "Número Factura",
-                    "Responsable Cierra",
-                    "Descripción",
-                    "Procedimiento",
-                    "Detalle",
-                ],
-            },
-            "errors": [],
-        }), status_code
+    errores = []
+    MAX_POR_TIPO = 50
 
-    return jsonify({
-        "status": "error",
-        "data": {},
-        "errors": export_result.get("errors", []),
-    }), status_code
+    all_items = []
+    for row in normalized_rows:
+        all_items.append({
+            "tipo_error": row.get("tipo_error", ""),
+            "factura": row.get("factura", ""),
+            "fec_factura": row.get("fec_factura", ""),
+            "responsable_cierra": row.get("responsable_cierra", ""),
+            "descripcion": row.get("descripcion", ""),
+            "procedimiento": row.get("procedimiento", ""),
+            "detalle": row.get("detalle", ""),
+            "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
+        })
+
+    normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])
+    for tipo, group in groupby(normalized_rows_sorted, key=lambda r: r["tipo_error"]):
+        items = list(group)
+        errores.append({
+            "tipo": tipo,
+            "tipo_key": "norm_" + tipo.lower().replace(" ", "_"),
+            "cantidad": len(items),
+            "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
+            "facturas": items[:MAX_POR_TIPO],
+        })
+
+    resultados = {
+        "errores": errores,
+        "total_errores": sum(e["cantidad"] for e in errores),
+        "tipos_procesados": tipos_procesados,
+    }
+
+    resultados_json = json.dumps(export_result, indent=2, ensure_ascii=False, default=str)
+
+    return render_template(
+        "procesar.html",
+        resultados=resultados,
+        resultados_json=resultados_json,
+    )
