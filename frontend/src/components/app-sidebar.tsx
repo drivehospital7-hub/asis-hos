@@ -45,10 +45,19 @@ export function AppSidebar({ username = "", permisos = [], collapsed }: AppSideb
   };
 
   const isAdmin = permisos.includes("*");
+
+  // Expandir :write → base (ej: control_urgencias:write → control_urgencias)
+  const expandedPermisos = new Set(permisos);
+  permisos.forEach((p) => {
+    if (p.endsWith(":write")) {
+      expandedPermisos.add(p.replace(/:write$/, ""));
+    }
+  });
+
   const visibleItems = ALL_NAV.filter((item) => {
     if (!item.permiso) return true;
     if (isAdmin) return true;
-    return permisos.includes(item.permiso);
+    return expandedPermisos.has(item.permiso);
   });
 
   return (
