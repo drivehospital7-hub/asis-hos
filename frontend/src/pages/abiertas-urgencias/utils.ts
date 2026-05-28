@@ -355,6 +355,33 @@ export function calcularResponsable(
   return nombreNormalizado || nombreCorto;
 }
 
+// ─── Filter Utilities ────────────────────────────────────────────────
+
+/**
+ * Extract unique, alphabetically sorted responsables from results.
+ * Null/empty values are normalized to "—".
+ */
+export function getUniqueResponsables(results: FacturaResult[]): string[] {
+  if (!results || results.length === 0) return [];
+  return Array.from(
+    new Set(results.map((r) => r.responsable || "—")),
+  ).sort();
+}
+
+/**
+ * Filter results by responsable when a filter is active.
+ * Returns the original array (same reference) when filter is empty ("Todos").
+ * Returns null when results is null.
+ */
+export function filterResultsByResponsable(
+  results: FacturaResult[] | null,
+  filterResponsable: string,
+): FacturaResult[] | null {
+  if (!results) return null;
+  if (!filterResponsable) return results;
+  return results.filter((r) => r.responsable === filterResponsable);
+}
+
 // ─── Utility Functions (clipboard, escape) ────────────────────────────
 
 /** Escape HTML special characters. */
