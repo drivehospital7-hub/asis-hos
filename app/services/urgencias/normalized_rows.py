@@ -23,6 +23,7 @@ def build_urgencias_normalized_rows(
     tipo_identificacion_edad: list[dict] | None = None,
     profesionales: list[dict] | None = None,
     entidad_afiliacion_comparison: list[dict] | None = None,
+    tipo_identificacion_entidad: list[dict] | None = None,
     fecha_cierre_vacia_map: dict[str, bool] | None = None,
     tipo_usuario: list[dict] | None = None,
     revision_entidad_86: list[dict] | None = None,
@@ -323,6 +324,24 @@ def build_urgencias_normalized_rows(
                 "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",
                 "detalle": tipo_actual,
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+            })
+
+    # --- Tipo Identificación / Entidad (AS/MS vs 86000) ---
+    if tipo_identificacion_entidad:
+        for item in tipo_identificacion_entidad:
+            factura = item.get("factura", "")
+            tipo_id = item.get("tipo_identificacion", "")
+            cod_actual = item.get("cod_entidad_actual", "")
+            cod_esperado = item.get("cod_entidad_esperado", "")
+            rows.append({
+                "tipo_error": "Tipo Identificación / Entidad",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": f"{tipo_id} debe tener Cód Entidad Cobrar = {cod_esperado} (actual: {cod_actual})",
+                "procedimiento": tipo_id,
+                "detalle": f"Cód actual: {cod_actual}",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 

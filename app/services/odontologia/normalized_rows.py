@@ -16,6 +16,7 @@ def build_odontologia_normalized_rows(
     profesionales: list[dict],
     cantidades: list[dict],
     tipo_id_edad: list[dict],
+    tipo_id_entidad: list[dict] | None = None,
     centro_costo: list[dict],
     ide_contrato: list[dict],
     responsable_cierra: dict[str, str],
@@ -153,6 +154,23 @@ def build_odontologia_normalized_rows(
             "procedimiento": f"Edad: {edad} años",
             "detalle": "",
         })
+
+    # --- Tipo Identificación vs Cód Entidad Cobrar ---
+    if tipo_id_entidad:
+        for item in tipo_id_entidad:
+            factura = item.get("factura", "")
+            tipo_id = item.get("tipo_identificacion", "")
+            cod_actual = item.get("cod_entidad_actual", "")
+            cod_esperado = item.get("cod_entidad_esperado", "")
+            rows.append({
+                "tipo_error": "Tipo Identificación / Entidad",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": f"{tipo_id} debe tener Cód Entidad Cobrar = {cod_esperado} (actual: {cod_actual})",
+                "procedimiento": "",
+                "detalle": f"Cód actual: {cod_actual}",
+            })
 
     # --- Centro Costo ---
     for item in centro_costo:

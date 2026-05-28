@@ -12,6 +12,7 @@ from app.services.transversales.column_indices import get_column_indices
 from app.services.transversales.doble_tipo_procedimiento import detect_doble_tipo_procedimiento
 from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
 from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
+from app.services.transversales.tipo_identificacion_entidad import detect_tipo_identificacion_entidad
 from app.services.transversales.normalize import normalize_invoice, normalize_header
 
 __all__ = [
@@ -26,6 +27,7 @@ __all__ = [
     "detect_doble_tipo_procedimiento",
     "detect_ruta_duplicada",
     "detect_cantidades_anomalas",
+    "detect_tipo_identificacion_entidad",
     "normalize_invoice",
     "normalize_header",
 ]
