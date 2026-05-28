@@ -15,6 +15,8 @@ from app.constants.intramural import (
     TIPO_FACTURA_INTRAMURAL,
     CODIGOS_PYM_RUTAS,
     CODIGOS_PYM_NECESITAN_DX,
+    CODIGOS_PYM_INTRAMURAL,
+    CODIGOS_NUEVA_EPS_NO_CAPITA,
 )
 from app.services.transversales.normalize import normalize_invoice
 from app.services.intramural.ide_contrato_rules import (
@@ -28,7 +30,12 @@ logger = logging.getLogger(__name__)
 
 # PYM_RUTAS + Dx: según prefijo factura
 _PYM_RUTAS_IDE_MAP: dict[str, set[str]] = {
-    "EPSI05": {"977", "978"},
+    # "EPSS41": {"955"},
+    "EPS037": {"961"},
+    # "ESSC18": {"975"},
+}
+_PYM_RUTAS_FEV_MAP: dict[str, set[str]] = {
+    # "EPSS41": {"958", "959"},
 }
 _PYM_RUTAS_EXCLUIDOS: frozenset[str] = frozenset()
 
@@ -40,7 +47,10 @@ def _check_pym_ruta_con_dx_ides(
     factura: str,
 ) -> set[str] | None:
     """Si código está en PYM_RUTAS, entidad tiene mapeo y Dx está en
-    NECESITAN_DX, retorna el SET de IDEs válidos. Sino None."""
+    NECESITAN_DX, retorna el SET de IDEs válidos. Sino None.
+    
+    Si la factura empieza con FEV y la entidad está en _PYM_RUTAS_FEV_MAP,
+    usa esos IDEs alternativos."""
     if entidad not in _PYM_RUTAS_IDE_MAP:
         return None
     if codigo in _PYM_RUTAS_EXCLUIDOS:
@@ -50,6 +60,9 @@ def _check_pym_ruta_con_dx_ides(
     if not dx_principal or dx_principal not in CODIGOS_PYM_NECESITAN_DX:
         return None
 
+    factura_up = factura.upper().strip()
+    if factura_up.startswith("FEV") and entidad in _PYM_RUTAS_FEV_MAP:
+        return _PYM_RUTAS_FEV_MAP[entidad]
     return _PYM_RUTAS_IDE_MAP[entidad]
 
 
@@ -112,6 +125,9 @@ def detect_ide_contrato_intramural(
         matched = False
         for rule in IDE_SIMPLE_RULES:
             if codigo == rule["codigo"] and entidad == rule["entidad"]:
+                # Exclusión: PYM_INTRAMURAL en NUEVA_EPS_NO_CAPITA no se valida
+                if codigo in CODIGOS_PYM_INTRAMURAL and codigo in CODIGOS_NUEVA_EPS_NO_CAPITA:
+                    continue  # no marca error, no hace match
                 if ide_actual != rule["expected"]:
                     problemas.append({
                         "factura": factura,

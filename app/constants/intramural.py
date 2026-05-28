@@ -16,6 +16,19 @@ TIPO_FACTURA_INTRAMURAL = "Intramural"
 # INTRAMURAL - EXAMENES PYM EVENTO
 # =============================================================================
 
+# =============================================================================
+# INTRAMURAL - NUEVA EPS NO CAPITA
+# =============================================================================
+
+CODIGOS_NUEVA_EPS_NO_CAPITA: frozenset[str] = frozenset({
+    "906241",  # Rubeola Anticuerpos IGG
+    "897011",  # Monitoria Fetal Anteparto
+})
+
+# =============================================================================
+# INTRAMURAL - EXAMENES PYM EVENTO
+# =============================================================================
+
 CODIGOS_EXAMENES_PYM_EVENTO: frozenset[str] = frozenset({
     "906127",  # Toxoplasma Gondii Anticuerpos IG G
     "906129",  # Toxoplasma Gondii Anticuerpos IG M
