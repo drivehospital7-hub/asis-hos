@@ -355,6 +355,34 @@ export function calcularResponsable(
   return nombreNormalizado || nombreCorto;
 }
 
+// ─── Sin Egreso Guard ────────────────────────────────────────────────
+
+export interface SinEgresoButtonConfig {
+  disabled: boolean;
+  title: string;
+}
+
+/**
+ * Returns the button configuration for the "Enviar a Control" action
+ * based on whether the factura has no responsable asignado ("Sin Egreso").
+ * When `isSinEgreso` is true, the button must be disabled with an
+ * explanatory tooltip.
+ */
+export function getSinEgresoButtonConfig(
+  isSinEgreso: boolean,
+): SinEgresoButtonConfig {
+  if (isSinEgreso) {
+    return {
+      disabled: true,
+      title: "Sin egreso — no hay responsable asignado",
+    };
+  }
+  return {
+    disabled: false,
+    title: "Enviar a Control de Errores",
+  };
+}
+
 // ─── Filter Utilities ────────────────────────────────────────────────
 
 /**
@@ -395,8 +423,20 @@ export function escapeHtml(text: string | null | undefined): string {
     .replace(/'/g, "&#039;");
 }
 
-/** Write text to clipboard with fallback for older browsers. */
+/** Write text to clipboard with fallback for HTTP and older browsers. */
 function writeClipboard(text: string): Promise<void> {
+  if (!navigator.clipboard) {
+    // navigator.clipboard is undefined on HTTP pages
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    return Promise.resolve();
+  }
   return navigator.clipboard.writeText(text).catch(() => {
     const ta = document.createElement("textarea");
     ta.value = text;

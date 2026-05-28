@@ -6,6 +6,7 @@ import {
   escapeHtml,
   getUniqueResponsables,
   filterResultsByResponsable,
+  getSinEgresoButtonConfig,
   type ScheduleDay,
   type FacturaResult,
 } from "../utils";
@@ -497,6 +498,27 @@ describe("filterResultsByResponsable", () => {
   it("returns null when results is null", () => {
     const result = filterResultsByResponsable(null, "Ana");
     expect(result).toBeNull();
+  });
+});
+
+// ─── getSinEgresoButtonConfig ─────────────────────────────────────────
+
+describe("getSinEgresoButtonConfig", () => {
+  it("returns disabled config when isSinEgreso is true", () => {
+    const config = getSinEgresoButtonConfig(true);
+    expect(config.disabled).toBe(true);
+    expect(config.title).toBe("Sin egreso — no hay responsable asignado");
+  });
+
+  it("returns enabled config when isSinEgreso is false", () => {
+    const config = getSinEgresoButtonConfig(false);
+    expect(config.disabled).toBe(false);
+    expect(config.title).toBe("Enviar a Control de Errores");
+  });
+
+  it("returns enabled config when isSinEgreso is undefined", () => {
+    const config = getSinEgresoButtonConfig(undefined as unknown as boolean);
+    expect(config.disabled).toBe(false);
   });
 });
 
