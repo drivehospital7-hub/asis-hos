@@ -95,11 +95,11 @@ IDE_CONTRATO_MULTIPLE_EPSIC5_PYP = frozenset({"979"})
 # EPSIC5 + Procedimientos NO PyP -> IDE Contrato 967
 IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP = frozenset({"967"})
 
-# RES001 + Procedimientos PyP -> IDE Contrato 954
+# RES001 + Procedimientos PyP -> IDE Contrato 993
 ENTIDAD_IDE_CONTRATO_RES001_PYP = "RES001"
-IDE_CONTRATO_MULTIPLE_RES001_PYP = frozenset({"954"})
-# RES001 + Procedimientos NO PyP -> IDE Contrato 953
-IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"953"})
+IDE_CONTRATO_MULTIPLE_RES001_PYP = frozenset({"993"})
+# RES001 + Procedimientos NO PyP -> IDE Contrato 992
+IDE_CONTRATO_MULTIPLE_RES001_NO_PYP = frozenset({"992"})
 
 # ESS062 + Procedimientos PyP -> IDE Contrato 922
 ENTIDAD_IDE_CONTRATO_ESS062_PYP = "ESS062"
