@@ -86,6 +86,8 @@ def detect_sala_observacion(
     tarifario_idx = indices.get("tarifario")
     fec_factura_idx = indices.get("fec_factura")
     fecha_cierre_idx = indices.get("fecha_cierre")
+    tipo_identificacion_idx = indices.get("tipo_identificacion")
+    numero_reingreso_idx = indices.get("numero_reingreso")
 
     if num_fact_idx is None or tipo_factura_descripcion_idx is None:
         logger.warning("Sala Observación - Columnas necesarias no encontradas")
@@ -117,6 +119,14 @@ def detect_sala_observacion(
             entidad_cell = data_sheet.cell(row=row, column=codigo_entidad_cobrar_idx + 1).value if codigo_entidad_cobrar_idx else None
             entidad_str = str(entidad_cell).strip() if entidad_cell else ""
 
+            # Tipo Identificación (para eximir 890701 si es CN)
+            tipo_id_cell = data_sheet.cell(row=row, column=tipo_identificacion_idx + 1).value if tipo_identificacion_idx else None
+            tipo_identificacion_str = str(tipo_id_cell).strip().upper() if tipo_id_cell else ""
+
+            # Nº Reingreso (para eximir 890701 si es distinto de 0)
+            reingreso_cell = data_sheet.cell(row=row, column=numero_reingreso_idx + 1).value if numero_reingreso_idx else None
+            reingreso_str = str(reingreso_cell).strip() if reingreso_cell is not None else "0"
+
             # Fechas para estancia
             fec_factura_cell = data_sheet.cell(row=row, column=fec_factura_idx + 1).value if fec_factura_idx else None
             fecha_cierre_cell = data_sheet.cell(row=row, column=fecha_cierre_idx + 1).value if fecha_cierre_idx else None
@@ -133,6 +143,8 @@ def detect_sala_observacion(
 
             factura_sala_data[factura_str] = {
                 "entidad": entidad_str,
+                "tipo_identificacion": tipo_identificacion_str,
+                "numero_reingreso": reingreso_str,
                 "tipo_factura": tipo_factura_str,
                 "estancia_horas": estancia_horas,
                 "tarifario": tarifario_str,
@@ -282,7 +294,10 @@ def detect_sala_observacion(
                     CODIGO_SALA_OBSERVACION_LARGA_OTRAS,
                 }
                 if codigos_sala & activadores_no_soat:
-                    faltan_obligatorios = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS - codigos_urgencia_obligatorios
+                    obligatorios_requeridos = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS
+                    if data.get("tipo_identificacion") == "CN" or data.get("numero_reingreso") not in ("0", ""):
+                        obligatorios_requeridos = CODIGOS_SALA_OBSERVACION_OBLIGATORIOS - {"890701"}
+                    faltan_obligatorios = obligatorios_requeridos - codigos_urgencia_obligatorios
                     if faltan_obligatorios:
                         if factura_str not in facturas_urgencia_reportadas:
                             estancia_str = _format_estancia(estancia_horas)

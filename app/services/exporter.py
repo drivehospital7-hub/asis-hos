@@ -243,6 +243,7 @@ def _do_detect_problems(
         "tarifario": "Tarifario",
         "tipo_usuario": "Tipo Usuario",
         "vlr_copago": "Vlr. Copago",
+        "numero_reingreso": "Nº Reingreso",
     }
 
     # --- Auto-detección de fila de headers ---

@@ -15,7 +15,6 @@ from app.constants import AREA_URGENCIAS
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
-    detect_codigo_entidad_vs_entidad_afiliacion,
     detect_tipo_usuario,
     normalize_invoice,
 )
@@ -107,9 +106,6 @@ def detect_all_problems_urgencias(
     # 4. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
 
     # 5. Detectores específicos de urgencias
@@ -273,7 +269,7 @@ def detect_all_problems_urgencias(
         decimales=decimales,
         tipo_identificacion_edad=tipo_identificacion_edad,
         profesionales=profesionales,
-        entidad_afiliacion_comparison=entidad_afiliacion_comparison,
+        entidad_afiliacion_comparison=None,
         fecha_cierre_vacia_map=fecha_cierre_vacia,
         tipo_usuario=tipo_usuario,
         revision_entidad_86=revision_entidad_86,
@@ -324,7 +320,7 @@ def detect_all_problems_urgencias(
             # reglas transversales
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
-            "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
+            "codigo_entidad_vs_afiliacion": [],
             "tipo_usuario": tipo_usuario,
             # reglas urgencias
             "profesionales": profesionales,
@@ -344,7 +340,7 @@ def detect_all_problems_urgencias(
             "cups_equivalentes": len(problemas_cups_equivalentes),
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
-            "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
+            "codigo_entidad_vs_afiliacion": 0,
             "tipo_usuario": len(tipo_usuario),
             "profesionales": len(profesionales),
             "mal_capitado": len(mal_capitado),

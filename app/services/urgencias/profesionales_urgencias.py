@@ -16,6 +16,7 @@ from app.constants import (
     CODIGOS_FISIOTERAPEUTA,
     CODIGOS_JEFE_ENFERMERIA,
     CODIGOS_NUTRICIONISTA,
+    CODIGOS_ODONTOLOGO,
     CODIGOS_PSICOLOGA,
     CODIGOS_TRABAJADORA_SOCIAL,
     CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO,
@@ -288,6 +289,30 @@ def detect_profesionales_urgencias(
                     "procedimiento": procedimiento,
                     "regla": "Código Tipo=02/05 + Laboratorio=Si",
                     "problema": "LABORATORIO NO IDENTIFICADO: BACTERIOLOGA requiere Código Tipo Procedimiento=02/05 y Laboratorio=Si",
+                })
+                facturas_procesadas.add(factura_str)
+
+        # Si es ODONTOLOGO, validar código 890403
+        if tipo_profesional == "ODONTOLOGO" and codigo_idx is not None:
+            codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            codigo_str = str(codigo).strip() if codigo else ""
+
+            procedimiento = ""
+            if procedimiento_idx is not None:
+                proc = data_sheet.cell(row=row, column=procedimiento_idx + 1).value
+                procedimiento = str(proc).strip() if proc else ""
+
+            if codigo_str and codigo_str not in CODIGOS_ODONTOLOGO:
+                codigos_validos = ", ".join(sorted(CODIGOS_ODONTOLOGO))
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo_profesional": cod_profesional_str,
+                    "nombre": profesional_info.get("nombre", ""),
+                    "tipo": "ODONTOLOGO",
+                    "profesional_area": "ODONTOLOGO",
+                    "procedimiento": procedimiento,
+                    "regla": f"Código debe ser {codigos_validos}",
+                    "problema": f"ODONTOLOGO con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
                 facturas_procesadas.add(factura_str)
 

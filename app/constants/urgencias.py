@@ -22,6 +22,7 @@ CODIGOS_PSICOLOGA = frozenset({"890408", "35102"})
 CODIGOS_NUTRICIONISTA = frozenset({"890406", "37602"})
 CODIGOS_FISIOTERAPEUTA = frozenset({"890412", "890411", "29117"})
 CODIGOS_JEFE_ENFERMERIA = frozenset({"861801", "890205", "890405", "990211", "29116", "39360"})
+CODIGOS_ODONTOLOGO = frozenset({"890403", "36102"})
 CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "890409",  # TRABAJADORA SOCIAL
     "37701",   # TRABAJADORA SOCIAL
@@ -38,6 +39,8 @@ CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "990211",  # JEFE ENFERMERIA
     "29116",   # JEFE ENFERMERIA
     "39360",   # JEFE ENFERMERIA
+    "890403",  # ODONTOLOGO — Interconsulta por Odontologia General
+    "36102",   # ODONTOLOGO
 })
 
 # Excepciones para Bacterióloga (no requiere Tipo=02/05 ni Laboratorio=Si)
@@ -699,6 +702,10 @@ IDE_CONTRATO_REVERSE_ESS118 = {
 # =============================================================================
 
 PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
+    "03007": {
+        "nombre": "OSPINA MARTINEZ LIZETH",
+        "tipo": "ODONTOLOGO",
+    },
     "03568": {
         "nombre": "RIVADENEIRA CABEZAS RENY MARGARITA",
         "tipo": "TRABAJADORA SOCIAL",
