@@ -15,6 +15,7 @@ from app.constants import AREA_URGENCIAS
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
+    detect_tipo_identificacion_entidad,
     detect_tipo_usuario,
     normalize_invoice,
 )
@@ -106,6 +107,7 @@ def detect_all_problems_urgencias(
     # 4. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
 
     # 5. Detectores específicos de urgencias
@@ -268,6 +270,7 @@ def detect_all_problems_urgencias(
         responsables_map=responsable_cierra,
         decimales=decimales,
         tipo_identificacion_edad=tipo_identificacion_edad,
+        tipo_identificacion_entidad=tipo_identificacion_entidad,
         profesionales=profesionales,
         entidad_afiliacion_comparison=None,
         fecha_cierre_vacia_map=fecha_cierre_vacia,
@@ -320,6 +323,7 @@ def detect_all_problems_urgencias(
             # reglas transversales
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
+            "tipo_identificacion_entidad": tipo_identificacion_entidad,
             "codigo_entidad_vs_afiliacion": [],
             "tipo_usuario": tipo_usuario,
             # reglas urgencias
@@ -340,6 +344,7 @@ def detect_all_problems_urgencias(
             "cups_equivalentes": len(problemas_cups_equivalentes),
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
+            "tipo_identificacion_entidad": len(tipo_identificacion_entidad),
             "codigo_entidad_vs_afiliacion": 0,
             "tipo_usuario": len(tipo_usuario),
             "profesionales": len(profesionales),

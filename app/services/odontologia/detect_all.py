@@ -15,6 +15,7 @@ from app.constants import AREA_ODONTOLOGIA
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
+    detect_tipo_identificacion_entidad,
     detect_codigo_entidad_vs_entidad_afiliacion,
     detect_tipo_usuario,
     detect_doble_tipo_procedimiento,
@@ -55,6 +56,7 @@ def detect_all_problems_odontologia(
     doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
     ruta_dup = detect_ruta_duplicada(data_sheet, indices)
     tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
+    tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     cantidades = detect_cantidades_anomalas(data_sheet, indices)
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
@@ -115,6 +117,7 @@ def detect_all_problems_odontologia(
         profesionales=profesionales,
         cantidades=cantidades,
         tipo_id_edad=tipo_id_edad,
+        tipo_id_entidad=tipo_id_entidad,
         centro_costo=centro_costo,
         ide_contrato=ide_contrato,
         responsable_cierra=responsable_cierra,
@@ -133,6 +136,7 @@ def detect_all_problems_odontologia(
             "profesionales": profesionales,
             "cantidades_anomalas": cantidades,
             "tipo_identificacion_edad": tipo_id_edad,
+            "tipo_identificacion_entidad": tipo_id_entidad,
             "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             "tipo_usuario": tipo_usuario_od,
             "centro_costo": centro_costo,
@@ -145,6 +149,7 @@ def detect_all_problems_odontologia(
             "profesionales": len(profesionales),
             "cantidades_anomalas": len(cantidades),
             "tipo_identificacion_edad": len(tipo_id_edad),
+            "tipo_identificacion_entidad": len(tipo_id_entidad),
             "centro_costo": len(centro_costo),
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
