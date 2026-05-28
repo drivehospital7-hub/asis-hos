@@ -334,12 +334,17 @@ def build_urgencias_normalized_rows(
             tipo_id = item.get("tipo_identificacion", "")
             cod_actual = item.get("cod_entidad_actual", "")
             cod_esperado = item.get("cod_entidad_esperado", "")
+            problema = item.get("problema", "")
+            if problema == "86000_solo_para_as_ms":
+                desc = f"Cód Entidad Cobrar = {cod_esperado} solo válido para AS/MS (actual: {tipo_id})"
+            else:
+                desc = f"{tipo_id} debe tener Cód Entidad Cobrar = {cod_esperado} (actual: {cod_actual})"
             rows.append({
                 "tipo_error": "Tipo Identificación / Entidad",
                 "factura": factura,
                 "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": f"{tipo_id} debe tener Cód Entidad Cobrar = {cod_esperado} (actual: {cod_actual})",
+                "descripcion": desc,
                 "procedimiento": tipo_id,
                 "detalle": f"Cód actual: {cod_actual}",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),

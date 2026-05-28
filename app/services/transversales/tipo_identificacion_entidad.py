@@ -1,9 +1,10 @@
-"""Regla transversal: Tipo Identificación AS/MS requiere Cód Entidad Cobrar = 86000.
+"""Regla transversal: Tipo Identificación AS/MS y Cód Entidad Cobrar 86000 son exclusivos.
 
-Si el tipo de identificación es AS (Adulto Sin identificación) o MS (Menor Sin identificación),
-el código de entidad a cobrar debe ser 86000.
-
-La recíproca también aplica: si el código entidad no es 86000, no puede ser AS/MS.
+Reglas:
+1. Si Tipo Identificación es AS (Adulto Sin identificación) o MS (Menor Sin identificación)
+   → Cód Entidad Cobrar debe ser 86000. Si no es 86000, error.
+2. Si Cód Entidad Cobrar es 86000
+   → Tipo Identificación debe ser AS o MS. Si es cualquier otro (CC, DE, TI, RC, etc.), error.
 """
 
 from __future__ import annotations
@@ -20,11 +21,12 @@ COD_ENTIDAD_ESPERADO = "86000"
 
 
 class TipoIdentificacionEntidadProblema(TypedDict):
-    """Problema encontrado: tipo identificación AS/MS sin código 86000."""
+    """Problema encontrado: incompatibilidad entre tipo identificación y código entidad."""
     factura: str
     tipo_identificacion: str
     cod_entidad_actual: str
     cod_entidad_esperado: str
+    problema: str
 
 
 def detect_tipo_identificacion_entidad(
@@ -32,17 +34,17 @@ def detect_tipo_identificacion_entidad(
     indices: dict[str, int | None],
 ) -> list[TipoIdentificacionEntidadProblema]:
     """
-    Detecta facturas donde Tipo Identificación es AS/MS pero
-    Cód Entidad Cobrar no es 86000.
+    Detecta incompatibilidades entre Tipo Identificación y Cód Entidad Cobrar.
 
-    Regla:
-    - AS (Adulto Sin identificación) y MS (Menor Sin identificación)
-      deben tener Cód Entidad Cobrar = 86000.
-    - Si Cód Entidad Cobrar ≠ 86000, no puede ser AS/MS.
+    Reglas:
+    - AS o MS requieren Cód Entidad Cobrar = 86000.
+    - Cód Entidad Cobrar = 86000 solo es válido para AS o MS.
+      Si el tipo es CC, DE, TI, RC, NIT, etc. con 86000, es error.
+    - Cód Entidad Cobrar ≠ 86000 no puede tener AS o MS.
 
     Returns:
         Lista de dicts con keys: "factura", "tipo_identificacion",
-        "cod_entidad_actual", "cod_entidad_esperado"
+        "cod_entidad_actual", "cod_entidad_esperado", "problema"
     """
     tipo_id_idx = indices.get("tipo_identificacion")
     cod_entidad_idx = indices.get("codigo_entidad_cobrar")
@@ -77,18 +79,35 @@ def detect_tipo_identificacion_entidad(
         cod_entidad = data_sheet.cell(row=row, column=cod_entidad_idx + 1).value
         cod_entidad_str = str(cod_entidad).strip() if cod_entidad is not None else ""
 
-        # Validar: si AS/MS, debe tener código 86000
+        # --- Regla 1: AS/MS requiere 86000 ---
         if tipo_id_str in TIPO_ID_AS_MS and cod_entidad_str != COD_ENTIDAD_ESPERADO:
             problemas.append({
                 "factura": factura_str,
                 "tipo_identificacion": tipo_id_str,
                 "cod_entidad_actual": cod_entidad_str,
                 "cod_entidad_esperado": COD_ENTIDAD_ESPERADO,
+                "problema": "as_ms_requiere_86000",
             })
             facturas_ya_procesadas.add(factura_str)
             logger.debug(
                 "Fila %s: %s requiere Cód Entidad Cobrar = %s (actual: %s)",
                 row, tipo_id_str, COD_ENTIDAD_ESPERADO, cod_entidad_str,
+            )
+            continue
+
+        # --- Regla 2: 86000 solo para AS/MS ---
+        if cod_entidad_str == COD_ENTIDAD_ESPERADO and tipo_id_str not in TIPO_ID_AS_MS:
+            problemas.append({
+                "factura": factura_str,
+                "tipo_identificacion": tipo_id_str,
+                "cod_entidad_actual": cod_entidad_str,
+                "cod_entidad_esperado": COD_ENTIDAD_ESPERADO,
+                "problema": "86000_solo_para_as_ms",
+            })
+            facturas_ya_procesadas.add(factura_str)
+            logger.debug(
+                "Fila %s: Cód Entidad Cobrar = %s solo válido para AS/MS (actual: %s)",
+                row, COD_ENTIDAD_ESPERADO, tipo_id_str,
             )
 
     return problemas
