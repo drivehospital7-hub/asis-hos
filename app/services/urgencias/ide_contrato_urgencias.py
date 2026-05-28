@@ -14,6 +14,7 @@ Reglas extraídas de _detect_centro_costo_urgencias (revision_sheet.py):
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
@@ -54,6 +55,7 @@ def detect_ide_contrato_urgencias(
     codigo_entidad_cobrar_idx = indices.get("codigo_entidad_cobrar")
     proc_idx = indices.get("procedimiento")
     ide_contrato_idx = indices.get("ide_contrato")
+    fec_factura_idx = indices.get("fec_factura")
 
     if num_fact_idx is None or codigo_idx is None or ide_contrato_idx is None or codigo_entidad_cobrar_idx is None:
         logger.warning("IDE Contrato Urgencias - Columnas necesarias no encontradas")
@@ -215,7 +217,20 @@ def detect_ide_contrato_urgencias(
 
             if not es_excluido:
                 ide_contrato_requerido = URGENCIA_ENTIDAD_CONTRATO[codigo_entidad_str]
-                if ide_contrato_str != ide_contrato_requerido:
+
+                # Historial de contratos RES001: en Mayo también válido 953
+                es_valido = ide_contrato_str == ide_contrato_requerido
+                if not es_valido and codigo_entidad_str == "RES001" and fec_factura_idx is not None:
+                    fecha_raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+                    if fecha_raw:
+                        try:
+                            fecha_dt = datetime.strptime(str(fecha_raw).strip(), "%Y-%m-%d %H:%M:%S")
+                            if fecha_dt.month == 5 and ide_contrato_str == "953":
+                                es_valido = True
+                        except (ValueError, TypeError):
+                            pass
+
+                if not es_valido:
                     problemas_ide_contrato.append({
                         "factura": factura_str,
                         "procedimiento": proc_str,

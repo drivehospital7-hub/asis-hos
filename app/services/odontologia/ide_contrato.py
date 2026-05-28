@@ -11,6 +11,7 @@ Reglas:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
@@ -50,9 +51,15 @@ from app.services.transversales.normalize import normalize_invoice
 logger = logging.getLogger(__name__)
 
 
+RES001_MESES_HISTORICO: dict[int, tuple[frozenset[str], frozenset[str]]] = {
+    5: (frozenset({"993", "954"}), frozenset({"992", "953"})),  # Mayo: nuevos + históricos
+}
+
+
 def _determinar_ide_esperado(
     codigo_entidad_str: str,
     codigo_str: str,
+    mes: int | None = None,
 ) -> tuple[frozenset[str] | None, str]:
     """
     Determina el IDE Contrato esperado según entidad y código.
@@ -60,6 +67,7 @@ def _determinar_ide_esperado(
     Args:
         codigo_entidad_str: Código de entidad (ESS118, ESSC18, etc.)
         codigo_str: Código CUPS del procedimiento
+        mes: Mes de factura (1-12, None si no disponible)
 
     Returns:
         Tuple de (set de IDE esperados, nota descriptiva)
@@ -97,6 +105,11 @@ def _determinar_ide_esperado(
         return IDE_CONTRATO_MULTIPLE_EPSIC5_NO_PYP, "EPSIC5 + NO PyP"
 
     if codigo_entidad_str == "RES001":
+        if mes is not None and mes in RES001_MESES_HISTORICO:
+            pyp_set, no_pyp_set = RES001_MESES_HISTORICO[mes]
+            if es_pyp:
+                return pyp_set, f"RES001 + PyP (mes {mes})"
+            return no_pyp_set, f"RES001 + NO PyP (mes {mes})"
         if es_pyp:
             return IDE_CONTRATO_MULTIPLE_RES001_PYP, "RES001 + PyP"
         return IDE_CONTRATO_MULTIPLE_RES001_NO_PYP, "RES001 + NO PyP"
@@ -157,6 +170,7 @@ def detect_ide_contrato_odontologia(
     codigo_entidad_idx = indices.get("codigo_entidad_cobrar")
     codigo_idx = indices.get("codigo")
     ide_contrato_idx = indices.get("ide_contrato")
+    fec_factura_idx = indices.get("fec_factura")
 
     if None in (num_fact_idx, codigo_entidad_idx, codigo_idx, ide_contrato_idx):
         logger.warning(
@@ -183,8 +197,19 @@ def detect_ide_contrato_odontologia(
         codigo_str = str(codigo).strip().upper()
         ide_str = str(ide_contrato).strip()
 
+        # Extraer mes de fec_factura para reglas históricas
+        mes: int | None = None
+        if fec_factura_idx is not None and codigo_entidad_str == "RES001":
+            fecha_raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+            if fecha_raw:
+                try:
+                    fecha_dt = datetime.strptime(str(fecha_raw).strip(), "%Y-%m-%d %H:%M:%S")
+                    mes = fecha_dt.month
+                except (ValueError, TypeError):
+                    pass
+
         # Determinar IDE esperado según entidad y código
-        ide_esperado_set, nota = _determinar_ide_esperado(codigo_entidad_str, codigo_str)
+        ide_esperado_set, nota = _determinar_ide_esperado(codigo_entidad_str, codigo_str, mes)
 
         if ide_esperado_set is None:
             # Entidad no tiene regla específica
