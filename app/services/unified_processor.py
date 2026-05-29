@@ -56,6 +56,38 @@ def _get_unique_tipo_factura(
     return tipos_presentes
 
 
+def _build_factura_por_tipo(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+    tipos_presentes: list[str],
+) -> dict[str, set[str]]:
+    """Construye un mapping tipo_factura → conjunto de facturas.
+
+    Cada factura se asigna al tipo que aparece en su fila. Si una factura
+    aparece con múltiples tipos (inconsistencia de datos), se asigna a TODOS.
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+
+    if tipo_factura_idx is None or num_fact_idx is None:
+        logger.warning("No se puede filtrar por tipo factura: columnas faltantes")
+        return {}
+
+    factura_por_tipo: dict[str, set[str]] = {t: set() for t in tipos_presentes}
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_val = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo = str(tipo_val).strip() if tipo_val else ""
+        if tipo not in factura_por_tipo:
+            continue
+        factura_val = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura = normalize_invoice(factura_val)
+        if factura:
+            factura_por_tipo[tipo].add(factura)
+
+    return factura_por_tipo
+
+
 def _get_orquestador(tipo_factura: str):
     """Devuelve la función detect_all para un tipo de factura."""
     if tipo_factura == "Urgencias":
@@ -174,6 +206,9 @@ def process_unified(
     all_responsables: dict[str, str] = {}
     all_codigos_sin_db: list[dict[str, str]] = []
 
+    # Construir mapa factura → tipo para filtrar falsos positivos cruzados
+    factura_por_tipo = _build_factura_por_tipo(data_sheet, indices, tipos_presentes)
+
     for tipo in tipos_presentes:
         orquestador = _get_orquestador(tipo)
         if orquestador is None:
@@ -189,8 +224,11 @@ def process_unified(
 
         problemas = resultado.get("problemas", {})
 
-        # Fusionar filas normalizadas
+        # Fusionar filas normalizadas (filtradas por tipo factura)
         norm = problemas.get("normalizados", [])
+        facturas_matching = factura_por_tipo.get(tipo)
+        if facturas_matching:
+            norm = [r for r in norm if r.get("factura", "") in facturas_matching]
         all_normalized = _merge_normalized_rows(all_normalized, norm)
 
         # Fusionar listas de problemas específicos (no normalizados)
