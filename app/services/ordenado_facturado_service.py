@@ -54,9 +54,28 @@ MAX_SCAN_ROWS = 20
 
 # Códigos de excepción que NO se consideran no facturados
 CODIGOS_EXCEPCION: set[str] = {
-    "110001AUX", "110004", "1100041", "110007",
-    "70000AUX", "110005", "10006", "110002", "10000AUX",
-    "10001", "110001", "602T02", "601T01",
+    # 89xxx
+    "8938011",
+    # 39xxx
+    "39601", "396011",
+    # 6xxxx
+    "601T01", "601T012", "601T02", "601T02BOGOTA", "601T02BOGOTAAUX",
+    "601T02FLOREN", "601T02FLORENAUX",
+    "602T02", "602T021", "60200",
+    # 1xxxx
+    "10000", "10000AUX", "10001", "100011", "10002", "10003", "10003AUX",
+    "10006", "102", "103",
+    # 11xxx
+    "110001", "1100010AUX", "110001AUX", "110002", "110003", "110004",
+    "1100041", "110005", "110006", "110007", "11001", "110018",
+    "110018AUX", "11003", "11004", "11006", "11021",
+    "110212", "11022",
+    # 7xxxx
+    "70000", "70000AUX", "70003", "70003AUX",
+    # 8xxxx
+    "80000", "80000AUX", "800001AUX",
+    # Sxx
+    "S31301", "S31302", "S32301", "S32302", "S33301", "S33302",
 }
 
 # Códigos a mostrar en el totalizado (solo estos)
@@ -417,6 +436,7 @@ def procesar_cruce(
         conteo_ayudas: dict[str, int] = {}
         conteo_ayudas_full: dict[str, int] = {}
         nombre_procedimiento: dict[str, str] = {}
+        seen_conteo_ayudas: set[tuple[str, str]] = set()
         data_start = header_row + 1
 
         for row in range(data_start, len(rows_ayudas)):
@@ -443,6 +463,12 @@ def procesar_cruce(
             else:
                 if (factura, cups) in pares_normal:
                     continue
+
+            # Dedup: mismo par factura+código cuenta una sola vez
+            clave = (factura, cups)
+            if clave in seen_conteo_ayudas:
+                continue
+            seen_conteo_ayudas.add(clave)
 
             conteo_ayudas[cups] = conteo_ayudas.get(cups, 0) + 1
             if cups not in nombre_procedimiento:
@@ -483,6 +509,16 @@ def procesar_cruce(
                 if paciente:
                     excepcion_pacientes_reporte.add(paciente)
 
+        # Construir set de facturas con códigos de excepción en AYUDAS
+        ayudas_excepcion_facturas: set[str] = set()
+        for row in range(header_row + 1, len(rows_ayudas)):
+            factura = _normalizar_factura(rows_ayudas[row][idx_fact_ayudas + 1])
+            cups = _normalizar_codigo(rows_ayudas[row][idx_cups_ayudas + 1])
+            tipo_factura = str(rows_ayudas[row][idx_tipo_factura + 1] or "").strip().upper()
+            if factura and cups and cups in CODIGOS_EXCEPCION \
+               and tipo_factura in ("URGENCIAS", "HOSPITALIZACIÓN"):
+                ayudas_excepcion_facturas.add(factura)
+
         # ══════════════════════════════════════════════
         # Notas Enfermería (opcional)
         # ══════════════════════════════════════════════
@@ -494,20 +530,34 @@ def procesar_cruce(
             notas_result = _procesar_notas_enfermeria(path_notas)
             if notas_result["status"] == "success":
                 notas_data = notas_result["data"]
-                traslados_notas = set(notas_data.get("traslados_facturas", []))
-                traslados_emssanar = set(notas_data.get("traslados_emssanar_pacientes", []))
-                ocf066_rows = notas_data.get("ocf066_rows", [])
+                # Solo traslados cuya factura existe en ayudas con código de excepción
+                todos_ocf066 = notas_data.get("ocf066_rows", [])
+                ocf066_filtrados = [
+                    r for r in todos_ocf066
+                    if r["factura"] in ayudas_excepcion_facturas
+                ]
+                traslados_notas = {
+                    r["factura"] for r in ocf066_filtrados if not r["es_emssanar"]
+                }
+                traslados_emssanar = {
+                    r["llave"] for r in ocf066_filtrados if r["es_emssanar"]
+                }
+                ocf066_rows = ocf066_filtrados
                 logger.info(
-                    "Traslados en Notas: %d regulares + %d emssanar",
+                    "Traslados en Notas: %d regulares + %d emssanar (filtrados contra ayudas)",
                     len(traslados_notas), len(traslados_emssanar),
                 )
             else:
                 logger.warning("Error en Notas Enfermería: %s", notas_result["errors"])
 
         # Fila Traslados en totalizado
-        if total_excepciones_reporte > 0 or (notas_data and notas_data["traslados_count"] > 0):
+        use_traslados = (
+            total_excepciones_reporte > 0
+            or (notas_data and (len(traslados_notas) > 0 or len(traslados_emssanar) > 0))
+        )
+        if use_traslados:
             if notas_data:
-                total_ordenadas = notas_data["traslados_count"]
+                total_ordenadas = len(traslados_notas) + len(traslados_emssanar)
                 faltantes_regulares = traslados_notas - excepcion_facturas_reporte
                 faltantes_emssanar = traslados_emssanar - excepcion_pacientes_reporte
                 total_no_facturado = len(faltantes_regulares) + len(faltantes_emssanar)
@@ -528,6 +578,7 @@ def procesar_cruce(
         # No facturados: cruce ayudas (códigos normales)
         # ══════════════════════════════════════════════
         no_facturados: list[dict[str, Any]] = []
+        seen_no_facturados: set[tuple[str, str]] = set()
         data_start = header_row + 1
 
         for row in range(data_start, len(rows_ayudas)):
@@ -552,6 +603,13 @@ def procesar_cruce(
                         continue
                 elif (factura, cups) in pares_normal:
                     continue
+
+                # Si ya agregamos esta factura con este código, skip (sale una vez)
+                clave = (factura, cups)
+                if clave in seen_no_facturados:
+                    continue
+                seen_no_facturados.add(clave)
+
                 no_facturados.append({
                     "factura": rows_ayudas[row][idx_fact_ayudas + 1],
                     "cups": rows_ayudas[row][idx_cups_ayudas + 1],
@@ -608,7 +666,15 @@ def procesar_cruce(
 
                 # Sacar datos de ayudas por factura (siempre por factura de la nota)
                 if factura_nota in ayudas_x_factura:
-                    no_facturados.append(ayudas_x_factura[factura_nota])
+                    entry = ayudas_x_factura[factura_nota]
+                    clave = (
+                        _normalizar_factura(entry["factura"]),
+                        _normalizar_codigo(entry["cups"]),
+                    )
+                    if clave in seen_no_facturados:
+                        continue
+                    seen_no_facturados.add(clave)
+                    no_facturados.append(entry)
 
         total_ayudas = max(0, len(rows_ayudas) - 1 - header_row)
         total_no_facturado = len(no_facturados)
