@@ -7,6 +7,10 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass
 class DatabaseConfig:
@@ -40,7 +44,7 @@ def get_database_config() -> DatabaseConfig:
     """Lee configuración de variables de entorno."""
     return DatabaseConfig(
         host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
+        port=int(os.getenv("DB_PORT", "5433")),
         name=os.getenv("DB_NAME", "asis_hos"),
         user=os.getenv("DB_USER", "postgres"),
         password=os.getenv("DB_PASSWORD")  # None si no está definido

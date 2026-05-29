@@ -137,7 +137,7 @@ class NotasTecnicas(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_procedimiento = Column(Integer, ForeignKey("procedimiento.id", ondelete="NO ACTION", onupdate="NO ACTION"), nullable=False)
     id_nota_hoja = Column(Integer, ForeignKey("nota_hoja.id", ondelete="NO ACTION", onupdate="NO ACTION"), nullable=False)
-    tarifa = Column(Numeric(12, 2), nullable=False)
+    tariff = Column("tariff", Numeric(12, 2), nullable=False)
     
     # Relationships
     procedimiento = relationship("Procedimiento", back_populates="notas_tecnicas")
@@ -148,7 +148,7 @@ class NotasTecnicas(Base):
             "id": self.id,
             "id_procedimiento": self.id_procedimiento,
             "id_nota_hoja": self.id_nota_hoja,
-            "tarifa": float(self.tarifa)
+            "tariff": float(self.tariff)
         }
 
 

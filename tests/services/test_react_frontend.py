@@ -214,15 +214,15 @@ class TestNewReactRoutes:
     # 8.6 manifest has 4 entries
     # ═══════════════════════════════════════════
 
-    def test_manifest_has_eleven_html_entries(self, app_client):
-        """manifest.json has 11 HTML entry keys (4 original + 7 new)."""
+    def test_manifest_has_twelve_html_entries(self, app_client):
+        """manifest.json has 12 HTML entry keys (11 existing + catalogo)."""
         import json
         manifest_path = Path("app/static/react-dist/manifest.json")
         if not manifest_path.exists():
             pytest.skip("manifest.json not found — build may not have run yet")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         html_keys = [k for k in manifest if k.endswith(".html")]
-        assert len(html_keys) == 11, f"Expected 11 HTML entries, got {len(html_keys)}: {html_keys}"
+        assert len(html_keys) == 12, f"Expected 12 HTML entries, got {len(html_keys)}: {html_keys}"
         assert "src/pages/index/index.html" in html_keys
         assert "src/pages/abiertas-urgencias/index.html" in html_keys
         assert "src/pages/control-novedades/index.html" in html_keys
@@ -234,6 +234,7 @@ class TestNewReactRoutes:
         assert "src/pages/genderize/index.html" in html_keys
         assert "src/pages/login/index.html" in html_keys
         assert "src/pages/unauthorized/index.html" in html_keys
+        assert "src/pages/catalogo/index.html" in html_keys
 
 
 class TestDashboardPermisos:

@@ -38,6 +38,7 @@ from app.services.odontologia.centro_costo import (
 from app.services.odontologia.ide_contrato import (
     detect_ide_contrato_odontologia,
 )
+from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +47,7 @@ def detect_all_problems_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
     profesional_dias: dict[str, list[int]] | None = None,
-    permitir_todos_centros: bool = False,
+    permitir_todos_centros: bool = True,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta TODOS los problemas en facturas de equipos básicos.
@@ -108,6 +109,12 @@ def detect_all_problems_equipos_basicos(
         centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
     )
 
+    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_equipos_basicos - Cups Sin Contrato encontrados: %d",
+        len(cups_sin_contrato),
+    )
+
     # Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
     responsable_cierra_idx = indices.get("responsable_cierra")
@@ -153,6 +160,7 @@ def detect_all_problems_equipos_basicos(
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
         tipo_usuario=tipo_usuario_eb,
         fec_factura_map=fec_factura_map,
+        cups_sin_contrato=cups_sin_contrato,
     )
 
     resultado: dict[str, Any] = {
@@ -169,6 +177,7 @@ def detect_all_problems_equipos_basicos(
             "tipo_usuario": tipo_usuario_eb,
             "centro_costo": centro_costo,
             "ide_contrato": ide_contrato,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "decimales": len(decimales),
@@ -181,6 +190,7 @@ def detect_all_problems_equipos_basicos(
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario_eb),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "es_equipos_basicos": True,
         "missing_columns": [],

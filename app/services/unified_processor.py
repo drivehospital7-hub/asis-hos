@@ -111,10 +111,10 @@ def _get_orquestador(tipo_factura: str):
         )
         return detect_all_problems_ambulatoria
     elif tipo_factura == "Odontología":
-        from app.services.odontologia.detect_all import (
-            detect_all_problems_odontologia,
+        from app.services.odontologia.detect_por_responsable import (
+            detect_all_problems_odontologia_por_responsable,
         )
-        return detect_all_problems_odontologia
+        return detect_all_problems_odontologia_por_responsable
     return None
 
 
@@ -229,6 +229,9 @@ def process_unified(
         facturas_matching = factura_por_tipo.get(tipo)
         if facturas_matching:
             norm = [r for r in norm if r.get("factura", "") in facturas_matching]
+        # Agregar tipo_factura a cada fila para agrupar en la respuesta
+        for r in norm:
+            r["tipo_factura"] = tipo
         all_normalized = _merge_normalized_rows(all_normalized, norm)
 
         # Fusionar listas de problemas específicos (no normalizados)

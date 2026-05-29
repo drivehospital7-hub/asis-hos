@@ -1,11 +1,11 @@
 """CRUD para eps_contratado."""
 
 import logging
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
 
-from app.models import EpsContratado
+from app.models import EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento
 
 logger = logging.getLogger(__name__)
 
@@ -66,6 +66,41 @@ def update(db: Session, id: int, **kwargs) -> Optional[EpsContratado]:
     
     logger.info(f"Actualizada EPS contratada ID: {id}")
     return obj
+
+
+def get_procedimientos_por_eps(db: Session, eps_id: int) -> List[Dict[str, Any]]:
+    """Obtiene procedimientos vinculados a una EPS a través de la cadena completa.
+
+    Recorre: EpsContratado → EpsNota → NotaHoja → NotasTecnicas → Procedimiento.
+
+    Args:
+        db: Sesión de base de datos.
+        eps_id: ID de la EPS contratada.
+
+    Returns:
+        Lista de dicts con {eps_nota_id, nota_hoja, cups, procedimiento, tarifa}.
+        Vacía si no hay resultados.
+    """
+    results = (
+        db.query(EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento)
+        .join(EpsNota, EpsNota.id_eps_contratado == EpsContratado.id)
+        .join(NotaHoja, NotaHoja.id == EpsNota.id_nota_hoja)
+        .join(NotasTecnicas, NotasTecnicas.id_nota_hoja == NotaHoja.id)
+        .join(Procedimiento, Procedimiento.id == NotasTecnicas.id_procedimiento)
+        .filter(EpsContratado.id == eps_id)
+        .all()
+    )
+
+    return [
+        {
+            "eps_nota_id": en.id,
+            "nota_hoja": nh.nota,
+            "cups": proc.cups,
+            "procedimiento": proc.procedimiento,
+            "tarifa": float(nt.tariff),
+        }
+        for ec, en, nh, nt, proc in results
+    ]
 
 
 def delete(db: Session, id: int) -> bool:

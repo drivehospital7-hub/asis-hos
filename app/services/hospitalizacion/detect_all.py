@@ -90,6 +90,7 @@ def detect_all_problems_hospitalizacion(
     from app.services.transversales.detect_copago_entidad import (
         detect_copago_entidad_urgencias,
     )
+    from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
     # 1. Centro Costo + IDE Contrato
     problemas_centros = detect_centro_costo_hospitalizacion(data_sheet, indices)
@@ -111,6 +112,12 @@ def detect_all_problems_hospitalizacion(
     cantidades_hospitalizacion = detect_cantidades_hospitalizacion(data_sheet, indices)
     cantidades_soat_hospitalizacion = detect_cantidades_soat_hospitalizacion(data_sheet, indices)
     copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+
+    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_hospitalizacion - Cups Sin Contrato encontrados: %d",
+        len(cups_sin_contrato),
+    )
 
     # 5. Filtrar centros de costo por prioridad
     errores_por_factura_codigo: dict[tuple[str, str], list[tuple[dict, int]]] = {}
@@ -188,6 +195,7 @@ def detect_all_problems_hospitalizacion(
         "Código Entidad vs Afiliación": entidad_afiliacion_comparison,
         "Tipo Usuario": tipo_usuario,
         "Copago vs Entidad": copago_entidad,
+        "Cups Sin Contrato": cups_sin_contrato,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -241,6 +249,7 @@ def detect_all_problems_hospitalizacion(
             "cantidades_hospitalizacion": cantidades_hospitalizacion,
             "cantidades_soat_hospitalizacion": cantidades_soat_hospitalizacion,
             "copago_entidad": copago_entidad,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -253,6 +262,7 @@ def detect_all_problems_hospitalizacion(
             "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
             "cantidades_soat_hospitalizacion": len(cantidades_soat_hospitalizacion),
             "copago_entidad": len(copago_entidad),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": [],

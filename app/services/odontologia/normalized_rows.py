@@ -19,9 +19,11 @@ def build_odontologia_normalized_rows(
     centro_costo: list[dict],
     ide_contrato: list[dict],
     responsable_cierra: dict[str, str],
+    tipo_id_entidad: list[dict] | None = None,
     entidad_afiliacion_comparison: list[dict] | None = None,
     tipo_usuario: list[dict] | None = None,
     fec_factura_map: dict[str, str] | None = None,
+    cups_sin_contrato: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
@@ -154,6 +156,28 @@ def build_odontologia_normalized_rows(
             "detalle": "",
         })
 
+    # --- Tipo Identificación vs Cód Entidad Cobrar ---
+    if tipo_id_entidad:
+        for item in tipo_id_entidad:
+            factura = item.get("factura", "")
+            tipo_id = item.get("tipo_identificacion", "")
+            cod_actual = item.get("cod_entidad_actual", "")
+            cod_esperado = item.get("cod_entidad_esperado", "")
+            problema = item.get("problema", "")
+            if problema == "86000_solo_para_as_ms":
+                desc = f"Cód Entidad Cobrar = {cod_esperado} solo válido para AS/MS (actual: {tipo_id})"
+            else:
+                desc = f"{tipo_id} debe tener Cód Entidad Cobrar = {cod_esperado} (actual: {cod_actual})"
+            rows.append({
+                "tipo_error": "Tipo Identificación / Entidad",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": desc,
+                "procedimiento": "",
+                "detalle": f"Cód actual: {cod_actual}",
+            })
+
     # --- Centro Costo ---
     for item in centro_costo:
         factura = item.get("factura", "")
@@ -215,7 +239,25 @@ def build_odontologia_normalized_rows(
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": "Revisar tipo usuario en Targetero",
                 "procedimiento": "",
-                "detalle": tipo_actual,
+            "detalle": tipo_actual,
+        })
+
+    # --- Cups Sin Contrato ---
+    if cups_sin_contrato:
+        for item in cups_sin_contrato:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            entidad = item.get("entidad", "")
+            cod_ent = item.get("codigo_entidad_cobrar", "")
+            rows.append({
+                "tipo_error": "Cups Sin Contrato",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("problema", ""),
+                "procedimiento": _build_procedimiento(codigo, proc),
+                "detalle": f"Entidad: {cod_ent}, {entidad}",
             })
 
     return rows

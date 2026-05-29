@@ -94,6 +94,7 @@ def procesar_unificado():
     for row in normalized_rows:
         all_items.append({
             "tipo_error": row.get("tipo_error", ""),
+            "tipo_factura": row.get("tipo_factura", "Sin tipo"),
             "factura": row.get("factura", ""),
             "fec_factura": row.get("fec_factura", ""),
             "responsable_cierra": row.get("responsable_cierra", ""),
@@ -103,20 +104,35 @@ def procesar_unificado():
             "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
         })
 
-    normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])
-    for tipo, group in groupby(normalized_rows_sorted, key=lambda r: r["tipo_error"]):
-        items = list(group)
+    # Agrupar primero por tipo_factura, después por tipo_error
+    sorted_by_factura = sorted(all_items, key=lambda r: (r["tipo_factura"], r["tipo_error"]))
+    for tipo_factura, factura_group in groupby(sorted_by_factura, key=lambda r: r["tipo_factura"]):
+        factura_items = list(factura_group)
+        tipos = []
+        total_factura = 0
+        for tipo_error, error_group in groupby(factura_items, key=lambda r: r["tipo_error"]):
+            items = list(error_group)
+            tipos.append({
+                "tipo": tipo_error,
+                "tipo_key": "norm_" + tipo_error.lower().replace(" ", "_"),
+                "cantidad": len(items),
+                "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
+                "facturas": items[:MAX_POR_TIPO],
+            })
+            total_factura += len(items)
         errores.append({
-            "tipo": tipo,
-            "tipo_key": "norm_" + tipo.lower().replace(" ", "_"),
-            "cantidad": len(items),
-            "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
-            "facturas": items[:MAX_POR_TIPO],
+            "tipo_factura": tipo_factura,
+            "total": total_factura,
+            "tipos": tipos,
         })
 
+    total_categorias = sum(len(f["tipos"]) for f in errores)
     resultados = {
         "errores": errores,
-        "total_errores": sum(e["cantidad"] for e in errores),
+        "total_errores": sum(
+            sum(t["cantidad"] for t in f["tipos"]) for f in errores
+        ),
+        "total_categorias": total_categorias,
         "tipos_procesados": tipos_procesados,
     }
 

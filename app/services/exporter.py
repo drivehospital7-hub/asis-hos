@@ -21,9 +21,12 @@ from app.constants import (
     PROFESIONALES_ODONTOLOGIA,
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
-from app.services.odontologia.detect_all import detect_all_problems_odontologia
+from app.services.odontologia.detect_por_responsable import (
+    detect_all_problems_odontologia_por_responsable,
+)
 from app.services.transversales.column_indices import get_column_indices
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
+from app.services.unified_processor import process_unified
 from app.services.processor_gate import (
     SEMAPHORE_TIMEOUT,
     acquire_semaphore,
@@ -156,7 +159,7 @@ def _do_detect_problems(
     
     # Construir datos para validación de centro costo (odontología/equipos básicos)
     profesional_dias = {}
-    permitir_todos_centros = False
+    permitir_todos_centros = True
     
     if area in (AREA_ODONTOLOGIA, AREA_EQUIPOS_BASICOS):
         if validar_centro_costo and todos_profesionales_dias:
@@ -167,16 +170,15 @@ def _do_detect_problems(
                         profesional_id = profesional_info.get("identificacion")
                         if profesional_id:
                             profesional_dias[profesional_id] = dias_list
-            if not profesional_dias:
-                permitir_todos_centros = True
+            if profesional_dias:
+                permitir_todos_centros = False
         elif validar_centro_costo and profesional and dias:
             profesional_info = PROFESIONALES_ODONTOLOGIA.get(profesional)
             if profesional_info:
                 profesional_id = profesional_info.get("identificacion")
                 if profesional_id:
                     profesional_dias[profesional_id] = dias
-        else:
-            permitir_todos_centros = True
+                    permitir_todos_centros = False
     
     # Resolver path
     source_path, source_error = resolve_safe_excel_absolute(filename)
@@ -244,6 +246,7 @@ def _do_detect_problems(
         "tarifario": "Tarifario",
         "tipo_usuario": "Tipo Usuario",
         "vlr_copago": "Vlr. Copago",
+        "numero_reingreso": "Nº Reingreso",
     }
 
     # --- Auto-detección de fila de headers ---
@@ -299,14 +302,7 @@ def _do_detect_problems(
     indices, missing_columns = get_column_indices(headers, required_headers)
     
     try:
-        if area == AREA_UNIFICADA:
-            # Procesamiento unificado: detecta tipo_factura por fila y
-            # despacha al orquestador correspondiente vía unified_processor.
-            from app.services.unified_processor import process_unified
-            problemas_detectados, responsables_map = process_unified(
-                sheet, indices,
-            )
-        elif area == AREA_URGENCIAS:
+        if area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
                 sheet, indices,
             )
@@ -316,8 +312,12 @@ def _do_detect_problems(
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros,
             )
+        elif area == AREA_UNIFICADA:
+            problemas_detectados, responsables_map = process_unified(
+                sheet, indices,
+            )
         else:
-            problemas_detectados, responsables_map = detect_all_problems_odontologia(
+            problemas_detectados, responsables_map = detect_all_problems_odontologia_por_responsable(
                 sheet, indices,
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros,
@@ -337,8 +337,6 @@ def _do_detect_problems(
         "data": {
             "problemas": problemas_detectados,
             "responsables_map": responsables_map,
-            "area": area,
-            "tipo_factura": area,  # backward compat: area == tipo_factura for now
         },
         "errors": [],
     }

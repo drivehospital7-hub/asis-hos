@@ -8,6 +8,7 @@ import {
   Scale,
   Users,
   Upload,
+  BookType,
   LogOut,
 } from "lucide-react";
 
@@ -30,6 +31,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
   { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
+  { label: "Catálogos", href: "/catalogo", icon: BookType, permiso: "*" },
 ];
 
 interface AppSidebarProps {

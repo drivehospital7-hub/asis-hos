@@ -1,0 +1,193 @@
+/** API client for the Catalog Management page.
+ *
+ * Typed fetch wrapper for CRUD operations across SQLite (EpsContratado,
+ * Procedimiento CUPS) and PostgreSQL (Procedimientos tariffs).
+ *
+ * Each function returns the parsed response data on success,
+ * or throws an error with the server message on failure.
+ */
+
+// ─── Types ──────────────────────────────────────────────────────────
+
+export interface EpsContratado {
+  id: number;
+  cod_contrato: string;
+  eps: string;
+  regimen: string;
+}
+
+export interface ProcedimientoSqlite {
+  id: number;
+  cups: string;
+  procedimiento: string;
+}
+
+export interface ProcedimientoPg {
+  id: string;
+  eps: string;
+  codigo_cups: string;
+  descripcion: string | null;
+  tarifa: number | null;
+}
+
+export interface EpsProcedimientosChain {
+  eps: EpsContratado;
+  procedimientos: Array<{
+    eps_nota_id: number;
+    nota_hoja: string;
+    cups: string;
+    procedimiento: string;
+    tarifa: number;
+  }>;
+}
+
+interface ApiResponse<T> {
+  status: "success" | "error";
+  data: T;
+  errors: string[];
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────
+
+async function apiGet<T>(url: string): Promise<T> {
+  const res = await fetch(url);
+  const json: ApiResponse<T> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error de servidor");
+  }
+  return json.data;
+}
+
+async function apiPost<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json: ApiResponse<T> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error de servidor");
+  }
+  return json.data;
+}
+
+async function apiPut<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const json: ApiResponse<T> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error de servidor");
+  }
+  return json.data;
+}
+
+async function apiDelete(url: string): Promise<void> {
+  const res = await fetch(url, { method: "DELETE" });
+  const json: ApiResponse<unknown> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error de servidor");
+  }
+}
+
+// ─── GET / READ ──────────────────────────────────────────────────────
+
+/** Fetch all EpsContratado from SQLite. */
+export async function fetchEps(): Promise<EpsContratado[]> {
+  return apiGet<EpsContratado[]>("/api/eps");
+}
+
+/** Fetch all Procedimiento (CUPS) from SQLite. */
+export async function fetchProcSqlite(): Promise<ProcedimientoSqlite[]> {
+  return apiGet<ProcedimientoSqlite[]>("/api/procedimientos");
+}
+
+/** Fetch Procedimientos tariffs from PostgreSQL for a given EPS. */
+export async function fetchProcPg(eps: string): Promise<ProcedimientoPg[]> {
+  return apiGet<ProcedimientoPg[]>(`/procedimientos?eps=${encodeURIComponent(eps)}&all=true`);
+}
+
+/** Fetch available EPS list from PostgreSQL. */
+export async function fetchEpsDisponibles(): Promise<string[]> {
+  const data = await apiGet<{ eps_disponibles: string[] }>("/procedimientos/eps");
+  return data.eps_disponibles;
+}
+
+/** Fetch the chain EpsContratado → Procedimientos for a given EPS id. */
+export async function fetchProcedimientosPorEps(epsId: number): Promise<EpsProcedimientosChain> {
+  return apiGet<EpsProcedimientosChain>(`/api/eps/${epsId}/procedimientos`);
+}
+
+// ─── POST / CREATE ──────────────────────────────────────────────────
+
+/** Create a new EpsContratado. */
+export async function createEps(data: {
+  cod_contrato: string;
+  eps: string;
+  regimen?: string;
+}): Promise<EpsContratado> {
+  return apiPost<EpsContratado>("/api/eps", data);
+}
+
+/** Create a new Procedimiento (CUPS) in SQLite. */
+export async function createProcSqlite(data: {
+  cups: string;
+  procedimiento: string;
+}): Promise<ProcedimientoSqlite> {
+  return apiPost<ProcedimientoSqlite>("/api/procedimientos", data);
+}
+
+/** Create a new Procedimiento tariff in PostgreSQL. */
+export async function createProcPg(data: {
+  eps: string;
+  codigo_cups: string;
+  descripcion?: string | null;
+  tarifa?: number | null;
+}): Promise<ProcedimientoPg> {
+  return apiPost<ProcedimientoPg>("/procedimientos", data);
+}
+
+// ─── PUT / UPDATE ───────────────────────────────────────────────────
+
+/** Update an existing EpsContratado. */
+export async function updateEps(
+  id: number,
+  data: Partial<{ cod_contrato: string; eps: string; regimen: string }>,
+): Promise<EpsContratado> {
+  return apiPut<EpsContratado>(`/api/eps/${id}`, data);
+}
+
+/** Update an existing Procedimiento (CUPS) in SQLite. */
+export async function updateProcSqlite(
+  id: number,
+  data: Partial<{ cups: string; procedimiento: string }>,
+): Promise<ProcedimientoSqlite> {
+  return apiPut<ProcedimientoSqlite>(`/api/procedimientos/${id}`, data);
+}
+
+/** Update an existing Procedimiento tariff in PostgreSQL. */
+export async function updateProcPg(
+  id: number,
+  data: Partial<{ eps: string; codigo_cups: string; descripcion: string | null; tarifa: number | null }>,
+): Promise<{ message: string }> {
+  return apiPut<{ message: string }>(`/procedimientos/${id}`, data);
+}
+
+// ─── DELETE ──────────────────────────────────────────────────────────
+
+/** Delete an EpsContratado by id. */
+export async function deleteEps(id: number): Promise<void> {
+  return apiDelete(`/api/eps/${id}`);
+}
+
+/** Delete a Procedimiento (CUPS) in SQLite by id. */
+export async function deleteProcSqlite(id: number): Promise<void> {
+  return apiDelete(`/api/procedimientos/${id}`);
+}
+
+/** Delete a Procedimiento tariff in PostgreSQL by id. */
+export async function deleteProcPg(id: number): Promise<void> {
+  return apiDelete(`/procedimientos/${id}`);
+}

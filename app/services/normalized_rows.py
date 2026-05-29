@@ -301,6 +301,24 @@ def build_normalized_rows(
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
+    # --- Cups Sin Contrato ---
+    for item in error_groups.get("Cups Sin Contrato", []):
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        entidad = item.get("entidad", "")
+        cod_ent = item.get("codigo_entidad_cobrar", "")
+        rows.append({
+            "tipo_error": "Cups Sin Contrato",
+            "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("problema", ""),
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": f"Entidad: {cod_ent}, {entidad}",
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+        })
+
     return rows
 
 

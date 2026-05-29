@@ -127,13 +127,22 @@
       </div>
     </div>
     <div class="summary-card">
-      <div class="num">{{ resultados.errores|length }}</div>
+      <div class="num">{{ resultados.total_categorias }}</div>
       <div class="label">Categorías de error</div>
     </div>
   </div>
 
-  <!-- Error groups -->
-  {% for grupo in resultados.errores %}
+  <!-- Error groups: tipo_factura → tipo_error -->
+  {% for factura_group in resultados.errores %}
+  <div class="summary" style="margin-bottom: 0.5rem;">
+    <div class="summary-card" style="padding: 0.75rem 1rem;">
+      <div style="display: flex; align-items: center; justify-content: space-between;">
+        <strong style="font-size: 1rem;">🏷️ {{ factura_group.tipo_factura }}</strong>
+        <span class="count">{{ factura_group.total }} errores</span>
+      </div>
+    </div>
+  </div>
+  {% for grupo in factura_group.tipos %}
   <div class="error-group">
     <div class="error-group-header" onclick="this.nextElementSibling.classList.toggle('open')">
       <span class="title">{{ grupo.tipo }}</span>
@@ -166,6 +175,7 @@
       </table>
     </div>
   </div>
+  {% endfor %}
   {% endfor %}
 
   <!-- JSON raw toggle -->

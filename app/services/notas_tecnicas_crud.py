@@ -66,7 +66,7 @@ def create(
     obj = NotasTecnicas(
         id_procedimiento=id_procedimiento,
         id_nota_hoja=id_nota_hoja,
-        tarifa=tarifa
+        tariff=tarifa
     )
     db.add(obj)
     db.commit()

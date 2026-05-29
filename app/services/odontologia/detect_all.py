@@ -26,6 +26,7 @@ from app.services.odontologia.profesionales import detect_profesionales_odontolo
 from app.services.odontologia.centro_costo import detect_centro_costo_odontologia
 from app.services.odontologia.ide_contrato import detect_ide_contrato_odontologia
 from app.services.urgencias.mal_capitado import detect_mal_capitado
+from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ def detect_all_problems_odontologia(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
     profesional_dias: dict[str, list[int]] | None = None,
-    permitir_todos_centros: bool = False,
+    permitir_todos_centros: bool = True,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta TODOS los problemas en facturas de odontología.
@@ -75,6 +76,12 @@ def detect_all_problems_odontologia(
         indices,
         profesional_dias=profesional_dias,
         permitir_todos_centros=permitir_todos_centros,
+    )
+
+    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_odontologia - Cups Sin Contrato encontrados: %d",
+        len(cups_sin_contrato),
     )
 
     # Build responsable_cierra mapping
@@ -121,6 +128,7 @@ def detect_all_problems_odontologia(
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
         tipo_usuario=tipo_usuario_od,
         fec_factura_map=fec_factura_map,
+        cups_sin_contrato=cups_sin_contrato,
     )
 
     resultado: dict[str, Any] = {
@@ -137,6 +145,7 @@ def detect_all_problems_odontologia(
             "tipo_usuario": tipo_usuario_od,
             "centro_costo": centro_costo,
             "ide_contrato": ide_contrato,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "decimales": len(decimales),
@@ -149,6 +158,7 @@ def detect_all_problems_odontologia(
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario_od),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
     }

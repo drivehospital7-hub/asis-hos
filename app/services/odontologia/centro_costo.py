@@ -29,7 +29,7 @@ def detect_centro_costo_odontologia(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
     profesional_dias: dict[str, list[int]] | None = None,
-    permitir_todos_centros: bool = False,
+    permitir_todos_centros: bool = True,
     centros_validos: list[str] | None = None,
 ) -> list[dict[str, str]]:
     """

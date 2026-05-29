@@ -9,8 +9,9 @@ from app.services import (
     procedimiento_crud,
     nota_hoja_crud,
     notas_tecnicas_crud,
-    eps_nota_crud
+    eps_nota_crud,
 )
+from app.utils.auth import admin_requerido
 
 api_bp = Blueprint("api", __name__, url_prefix="/api")
 
@@ -136,6 +137,44 @@ def delete_eps(id):
             "status": "success",
             "data": {},
             "errors": []
+        })
+    finally:
+        db.close()
+
+
+# ============================================================================
+# RELATIONSHIP: EPS → Procedimientos
+# ============================================================================
+
+
+@api_bp.route("/eps/<int:id>/procedimientos", methods=["GET"])
+@admin_requerido
+def eps_procedimientos(id):
+    """Obtiene procedimientos vinculados a una EPS a través de la cadena.
+
+    Recorre: EpsContratado → EpsNota → NotaHoja → NotasTecnicas → Procedimiento.
+    """
+    from sqlalchemy.orm import Session
+
+    db: Session = next(get_db())
+    try:
+        eps = eps_contratado_crud.get_by_id(db, id)
+        if not eps:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [f"No existe EPS con id: {id}"],
+            }), 404
+
+        procedimientos = eps_contratado_crud.get_procedimientos_por_eps(db, id)
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "eps": eps.to_dict(),
+                "procedimientos": procedimientos,
+            },
+            "errors": [],
         })
     finally:
         db.close()

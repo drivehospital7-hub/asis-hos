@@ -132,7 +132,7 @@ class TestDoDetectProblemsErrorPaths:
                     return_value=df,
                 ):
                     with patch(
-                        "app.services.exporter.detect_all_problems_odontologia",
+                        "app.services.exporter.detect_all_problems_odontologia_por_responsable",
                         side_effect=RuntimeError("Detection crash"),
                     ):
                         result = _do_detect_problems(

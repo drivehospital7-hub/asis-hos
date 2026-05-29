@@ -40,6 +40,7 @@ from app.services.urgencias.profesionales_urgencias import detect_profesionales_
 from app.services.transversales.detect_copago_entidad import (
     detect_copago_entidad_urgencias,
 )
+from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
@@ -162,6 +163,13 @@ def detect_all_problems_urgencias(
         len(duplicados_farmacia),
     )
 
+    # 6a. Cups Sin Contrato
+    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_urgencias - Cups Sin Contrato encontrados: %d",
+        len(cups_sin_contrato),
+    )
+
     # 6. Filtrar centros de costo por prioridad
     errores_por_factura_codigo: dict[tuple[str, str], list[tuple[dict, int]]] = {}
     for item in problemas_centros:
@@ -250,6 +258,7 @@ def detect_all_problems_urgencias(
         "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
         "Copago vs Entidad": copago_entidad,
         "Duplicados Farmacia": duplicados_farmacia,
+        "Cups Sin Contrato": cups_sin_contrato,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -310,6 +319,7 @@ def detect_all_problems_urgencias(
             "revision_cantidad": revision_cantidad,
             "copago_entidad": copago_entidad,
             "duplicados_farmacia": duplicados_farmacia,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -327,6 +337,7 @@ def detect_all_problems_urgencias(
             "revision_cantidad": len(revision_cantidad),
             "copago_entidad": len(copago_entidad),
             "duplicados_farmacia": len(duplicados_farmacia),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": (
