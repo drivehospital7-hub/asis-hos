@@ -29,6 +29,10 @@ def detect_cups_sin_contrato(
     (codigo_entidad_cobrar, codigo) y lo compara contra los pares válidos
     obtenidos de la base de datos.
 
+    Si el código principal no está contratado y existe la columna
+    "Cód. Equivalente CUPS" (indice "codigo_equiv"), también prueba
+    con ese código equivalente antes de marcar error.
+
     Args:
         data_sheet: Hoja de Excel con los datos.
         indices: Diccionario con los índices 0-based de las columnas.
@@ -56,6 +60,7 @@ def detect_cups_sin_contrato(
 
     proc_idx = indices.get("procedimiento")
     tarifario_idx = indices.get("tarifario")
+    codigo_equiv_idx = indices.get("codigo_equiv")
 
     # ── 2. Pre-load desde DB ───────────────────────────────────────────
     try:
@@ -132,30 +137,44 @@ def detect_cups_sin_contrato(
         if not cod_entidad or not codigo:
             continue
 
+        # Leer código equivalente si la columna existe
+        codigo_equiv = ""
+        if codigo_equiv_idx is not None:
+            codigo_equiv_raw = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
+            if codigo_equiv_raw:
+                codigo_equiv = str(codigo_equiv_raw).strip().upper()
+
         # Saltar entidades sin procedimientos cargados en DB
         if cod_entidad not in entidades_con_datos:
             continue
 
-        # Verificar si está contratado
-        if (cod_entidad, codigo) not in pares_validos:
-            procedimiento = ""
-            if proc_idx is not None:
-                proc_raw = data_sheet.cell(row=row, column=proc_idx + 1).value
-                if proc_raw:
-                    procedimiento = str(proc_raw).strip()
+        # Verificar si el código principal está contratado
+        if (cod_entidad, codigo) in pares_validos:
+            continue
 
-            entidad = eps_map.get(cod_entidad, cod_entidad)
+        # Si el código principal no está, probar con el equivalente
+        if codigo_equiv and (cod_entidad, codigo_equiv) in pares_validos:
+            continue
 
-            errores.append({
-                "factura": factura,
-                "codigo": codigo,
-                "procedimiento": procedimiento,
-                "codigo_entidad_cobrar": cod_entidad,
-                "entidad": entidad,
-                "problema": (
-                    f"CUPS {codigo} no contratado para "
-                    f"{cod_entidad}, {entidad}"
-                ),
-            })
+        # Ninguno de los dos está contratado → reportar error
+        procedimiento = ""
+        if proc_idx is not None:
+            proc_raw = data_sheet.cell(row=row, column=proc_idx + 1).value
+            if proc_raw:
+                procedimiento = str(proc_raw).strip()
+
+        entidad = eps_map.get(cod_entidad, cod_entidad)
+
+        errores.append({
+            "factura": factura,
+            "codigo": codigo,
+            "procedimiento": procedimiento,
+            "codigo_entidad_cobrar": cod_entidad,
+            "entidad": entidad,
+            "problema": (
+                f"CUPS {codigo} no contratado para "
+                f"{cod_entidad}, {entidad}"
+            ),
+        })
 
     return errores

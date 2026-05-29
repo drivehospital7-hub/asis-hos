@@ -377,7 +377,94 @@ class TestDetectCupsSinContrato:
 
         assert result == []
 
-    # ── 11. Entidad sin procedimientos en DB se ignora ──────────────────────
+    # ── 11. Código Equivalente CUPS ─────────────────────────────────────────
+
+    def test_codigo_equiv_fallback_avoids_error(self):
+        """Código principal no encontrado pero el equivalente sí → sin error."""
+        headers = REQUIRED + ["codigo_equiv"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "CUPS999", "CUPS001"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "CUPS001")],
+            eps_names={"ESS118": "EMSSANAR"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_codigo_equiv_not_found_still_errors(self):
+        """Ni el código principal ni el equivalente están contratados → error."""
+        headers = REQUIRED + ["codigo_equiv"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "CUPS999", "CUPS888"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "CUPS001")],
+            eps_names={"ESS118": "EMSSANAR"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "CUPS999"
+
+    def test_codigo_equiv_column_missing_fallback_old_behavior(self):
+        """Sin columna codigo_equiv, el comportamiento es el de siempre → error."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FAC-001", "ESS118", "CUPS999"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "CUPS001")],
+            eps_names={"ESS118": "EMSSANAR"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+
+    def test_codigo_equiv_empty_cell_ignored(self):
+        """Columna codigo_equiv existe pero celda vacía → solo usa código principal."""
+        headers = REQUIRED + ["codigo_equiv"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "CUPS999", None]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "CUPS001")],
+            eps_names={"ESS118": "EMSSANAR"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "CUPS999"
+
+    # ── 12. Entidad sin procedimientos en DB se ignora ──────────────────────
 
     def test_entity_without_procedures_skipped(self):
         """Entidades que no tienen procedimientos cargados se ignoran."""
