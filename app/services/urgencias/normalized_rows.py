@@ -30,6 +30,7 @@ def build_urgencias_normalized_rows(
     revision_cantidad: list[dict] | None = None,
     copago_entidad: list[dict] | None = None,
     duplicados_farmacia: list[dict] | None = None,
+    capita_invalidos: list[dict] | None = None,
     fec_factura_map: dict[str, str] | None = None,
 ) -> list[dict[str, str]]:
     """
@@ -425,6 +426,23 @@ def build_urgencias_normalized_rows(
                 ),
                 "procedimiento": f"Grupo {tipo_proc}",
                 "detalle": detalle_pares or f"{total_pares} pares",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+            })
+
+    # --- CAPITA Inválidos ---
+    if capita_invalidos:
+        for item in capita_invalidos:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            rows.append({
+                "tipo_error": "Cápita Inválido",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("observacion", ""),
+                "procedimiento": _build_procedimiento(codigo, proc),
+                "detalle": f"Código: {codigo}",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 

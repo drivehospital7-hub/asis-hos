@@ -51,6 +51,7 @@ from app.services.urgencias.detect_copago_entidad import (
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
+from app.services.urgencias.valida_capita import detect_capita_cups_invalidos
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,12 @@ def detect_all_problems_urgencias(
         len(duplicados_farmacia),
     )
 
+    capita_invalidos = detect_capita_cups_invalidos(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_urgencias - Códigos no CAPITA en facturas CAP: %d",
+        len(capita_invalidos),
+    )
+
     # 6. Filtrar centros de costo por prioridad
     errores_por_factura_codigo: dict[tuple[str, str], list[tuple[dict, int]]] = {}
     for item in problemas_centros:
@@ -279,6 +286,7 @@ def detect_all_problems_urgencias(
         revision_cantidad=revision_cantidad,
         copago_entidad=copago_entidad,
         duplicados_farmacia=duplicados_farmacia,
+        capita_invalidos=capita_invalidos,
         fec_factura_map=fec_factura_map,
     )
 
@@ -337,6 +345,7 @@ def detect_all_problems_urgencias(
             "revision_cantidad": revision_cantidad,
             "copago_entidad": copago_entidad,
             "duplicados_farmacia": duplicados_farmacia,
+            "capita_invalidos": capita_invalidos,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -357,6 +366,7 @@ def detect_all_problems_urgencias(
             "revision_cantidad": len(revision_cantidad),
             "copago_entidad": len(copago_entidad),
             "duplicados_farmacia": len(duplicados_farmacia),
+            "capita_invalidos": len(capita_invalidos),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": (
