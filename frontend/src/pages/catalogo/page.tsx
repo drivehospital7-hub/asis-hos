@@ -1006,7 +1006,7 @@ function NotaHojaTab() {
                       .filter((p) =>
                         !vincSearchProc ||
                         p.cups.toLowerCase().includes(vincSearchProc.toLowerCase()) ||
-                        p.procedimiento.toLowerCase().includes(vincSearchProc.toLowerCase())
+                        (p.procedimiento ?? "").toLowerCase().includes(vincSearchProc.toLowerCase())
                       )
                       .map((p) => (
                         <option key={p.id} value={p.id}>{p.cups} — {p.procedimiento}</option>
