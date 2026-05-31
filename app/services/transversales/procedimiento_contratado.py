@@ -156,6 +156,14 @@ def detect_cups_sin_contrato(
         if codigo_equiv and (cod_entidad, codigo_equiv) in pares_validos:
             continue
 
+        # Excepción: facturas FEV de EPS037/EPSS41 son con autorización
+        if factura.upper().startswith("FEV") and cod_entidad in ("EPS037", "EPSS41"):
+            logger.info(
+                "FEV autorizada: factura=%s, entidad=%s, codigo=%s",
+                factura, cod_entidad, codigo,
+            )
+            continue
+
         # Ninguno de los dos está contratado → reportar error
         procedimiento = ""
         if proc_idx is not None:

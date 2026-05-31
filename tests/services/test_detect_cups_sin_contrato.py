@@ -464,7 +464,89 @@ class TestDetectCupsSinContrato:
         assert len(result) == 1
         assert result[0]["codigo"] == "CUPS999"
 
-    # ── 12. Entidad sin procedimientos en DB se ignora ──────────────────────
+    # ── 12. Excepción FEV con autorización ──────────────────────────────────
+
+    def test_fev_eps037_autorizada_no_error(self):
+        """Factura FEV + EPS037 → sin error aunque CUPS no esté contratado."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FEV-001", "EPS037", "CUPS999"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("EPS037", "CUPS001")],
+            eps_names={"EPS037": "EPS 037"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_fev_epss41_autorizada_no_error(self):
+        """Factura FEV + EPSS41 → sin error aunque CUPS no esté contratado."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FEV-002", "EPSS41", "CUPS888"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("EPSS41", "CUPS001")],
+            eps_names={"EPSS41": "EPS S41"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_fev_otra_entidad_si_error(self):
+        """Factura FEV pero con otra entidad → error (no aplica excepción)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FEV-003", "ESS118", "CUPS999"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "CUPS001")],
+            eps_names={"ESS118": "EMSSANAR"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+
+    def test_no_fev_eps037_si_error(self):
+        """Factura normal con EPS037 → error (no es FEV)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FAC-001", "EPS037", "CUPS999"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("EPS037", "CUPS001")],
+            eps_names={"EPS037": "EPS 037"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+
+    # ── 13. Entidad sin procedimientos en DB se ignora ──────────────────────
 
     def test_entity_without_procedures_skipped(self):
         """Entidades que no tienen procedimientos cargados se ignoran."""
