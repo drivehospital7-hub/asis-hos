@@ -597,6 +597,7 @@ function NotaHojaTab() {
   const [vincEpsList, setVincEpsList] = useState<EpsContratado[]>([]);
   const [vincProcList, setVincProcList] = useState<ProcedimientoSqlite[]>([]);
   const [vincFormProc, setVincFormProc] = useState("");
+  const [vincSearchProc, setVincSearchProc] = useState("");
   const [vincFormEps, setVincFormEps] = useState("");
   const [vincFormTarifa, setVincFormTarifa] = useState("");
   const [vincFormError, setVincFormError] = useState<string | null>(null);
@@ -990,14 +991,26 @@ function NotaHojaTab() {
                 )}
                 <div>
                   <label className="block text-xs mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Procedimiento</label>
+                  <input type="text" placeholder="Buscar por CUPS o nombre..."
+                    value={vincSearchProc}
+                    onChange={(e) => { setVincSearchProc(e.target.value); setVincFormProc(""); }}
+                    className="w-full rounded-lg border px-3 py-2 text-sm mb-1 outline-none"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} />
                   <select value={vincFormProc}
                     onChange={(e) => setVincFormProc(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                    size={5}
+                    className="w-full rounded-lg border px-2 py-1 text-sm outline-none"
                     style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
                     <option value="">-- Seleccionar --</option>
-                    {vincProcList.map((p) => (
-                      <option key={p.id} value={p.id}>{p.cups} — {p.procedimiento}</option>
-                    ))}
+                    {vincProcList
+                      .filter((p) =>
+                        !vincSearchProc ||
+                        p.cups.toLowerCase().includes(vincSearchProc.toLowerCase()) ||
+                        p.procedimiento.toLowerCase().includes(vincSearchProc.toLowerCase())
+                      )
+                      .map((p) => (
+                        <option key={p.id} value={p.id}>{p.cups} — {p.procedimiento}</option>
+                      ))}
                   </select>
                 </div>
                 <div>
