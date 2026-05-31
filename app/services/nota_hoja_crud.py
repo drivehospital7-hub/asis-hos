@@ -65,13 +65,19 @@ def update(db: Session, id: int, **kwargs) -> Optional[NotaHoja]:
 
 
 def delete(db: Session, id: int) -> bool:
-    """Elimina una nota hoja."""
+    """Elimina una nota hoja y sus dependencias (eps_nota, notas_tecnicas)."""
     obj = get_by_id(db, id)
     if not obj:
         return False
     
+    from app.models import EpsNota, NotasTecnicas
+    
+    # Eliminar dependencias primero (FK no permiten NULL ni ON DELETE CASCADE)
+    db.query(EpsNota).filter(EpsNota.id_nota_hoja == id).delete()
+    db.query(NotasTecnicas).filter(NotasTecnicas.id_nota_hoja == id).delete()
+    
     db.delete(obj)
     db.commit()
     
-    logger.info(f"Eliminada nota hoja ID: {id}")
+    logger.info(f"Eliminada nota hoja ID: {id} con dependencias")
     return True

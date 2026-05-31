@@ -121,3 +121,12 @@ class TestRelationshipQueryLogic:
         params = list(sig.parameters.keys())
         assert "db" in params
         assert "eps_id" in params or "id" in params
+
+    def test_chain_result_includes_id_nota_hoja(self):
+        """Each procedimiento dict includes id_nota_hoja key."""
+        from app.services.eps_contratado_crud import get_procedimientos_por_eps
+        import inspect
+        source = inspect.getsource(get_procedimientos_por_eps)
+        assert "'id_nota_hoja'" in source or '"id_nota_hoja"' in source, (
+            "get_procedimientos_por_eps() must include 'id_nota_hoja' in the returned dict"
+        )

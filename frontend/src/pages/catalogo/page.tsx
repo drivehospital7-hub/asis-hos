@@ -1,8 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Building2,
-  Stethoscope,
-  DollarSign,
   Plus,
   Pencil,
   Trash2,
@@ -17,38 +14,44 @@ import { PageTitle } from "@/components/status-badge";
 import {
   type EpsContratado,
   type ProcedimientoSqlite,
-  type ProcedimientoPg,
   type EpsProcedimientosChain,
+  type NotaHoja,
   fetchEps,
   fetchProcSqlite,
-  fetchProcPg,
-  fetchEpsDisponibles,
   fetchProcedimientosPorEps,
+  fetchNotasHoja,
   createEps,
   updateEps,
   deleteEps,
   createProcSqlite,
   updateProcSqlite,
   deleteProcSqlite,
-  createProcPg,
-  updateProcPg,
-  deleteProcPg,
+  createNotaHoja,
+  updateNotaHoja,
+  deleteNotaHoja,
+  fetchNotaHojaDependencias,
+  type VinculacionesNota,
+  fetchVinculacionesNota,
+  vincularProcedimientoANota,
+  vincularEpsANota,
+  deleteEpsNota,
+  updateNotasTecnicas,
+  deleteNotasTecnicas,
 } from "@/lib/api-catalogo";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-type TabId = "eps" | "procedimientos" | "tarifas";
+type TabId = "eps" | "procedimientos" | "notas-hoja";
 
 interface Tab {
   id: TabId;
   label: string;
-  source: string;
 }
 
 const TABS: Tab[] = [
-  { id: "eps", label: "EPS Contratadas", source: "SQLite" },
-  { id: "procedimientos", label: "Procedimientos CUPS", source: "SQLite" },
-  { id: "tarifas", label: "Tarifas Procedimientos", source: "PostgreSQL" },
+  { id: "eps", label: "EPS Contratadas" },
+  { id: "procedimientos", label: "Procedimientos CUPS" },
+  { id: "notas-hoja", label: "Notas Hoja" },
 ];
 
 // ─── Modal helpers ──────────────────────────────────────────────────
@@ -72,7 +75,7 @@ export function CatalogoPage() {
     <div className="mx-auto max-w-7xl">
       <PageTitle
         title="Catálogos"
-        description="Gestión de EPS contratadas, procedimientos CUPS y tarifas."
+        description="Gestión de EPS contratadas, procedimientos CUPS y notas hoja."
       />
 
       {/* Tab selector */}
@@ -89,7 +92,7 @@ export function CatalogoPage() {
               color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-muted-foreground)",
             }}
           >
-            {tab.label} <span className="text-xs opacity-60">({tab.source})</span>
+            {tab.label}
           </button>
         ))}
       </div>
@@ -97,7 +100,7 @@ export function CatalogoPage() {
       {/* Tab panels */}
       {activeTab === "eps" && <EpsTab />}
       {activeTab === "procedimientos" && <ProcedimientosTab />}
-      {activeTab === "tarifas" && <TarifasTab />}
+      {activeTab === "notas-hoja" && <NotaHojaTab />}
     </div>
   );
 }
@@ -110,7 +113,6 @@ function EpsTab() {
   const [error, setError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState<EpsContratado>>(initialModal);
   const [chainView, setChainView] = useState<EpsProcedimientosChain | null>(null);
-  const [chainLoading, setChainLoading] = useState(false);
 
   // Form state
   const [formCodContrato, setFormCodContrato] = useState("");
@@ -187,16 +189,17 @@ function EpsTab() {
   };
 
   const handleViewProcedimientos = async (item: EpsContratado) => {
-    setChainLoading(true);
     setChainView(null);
     try {
       const data = await fetchProcedimientosPorEps(item.id);
       setChainView(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error al cargar procedimientos");
-    } finally {
-      setChainLoading(false);
+      setError(err instanceof Error ? err.message : "Error al cargar datos");
     }
+  };
+
+  const closeChainView = () => {
+    setChainView(null);
   };
 
   if (loading) {
@@ -222,7 +225,7 @@ function EpsTab() {
       <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-            EPS Contratadas (SQLite)
+            EPS Contratadas
           </h2>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-3.5 w-3.5" />
@@ -275,13 +278,13 @@ function EpsTab() {
       {/* Chain view overlay */}
       {chainView && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-             onClick={(e) => { if (e.target === e.currentTarget) setChainView(null); }}>
+             onClick={(e) => { if (e.target === e.currentTarget) closeChainView(); }}>
           <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-2xl mx-4 max-h-[80vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
                 Procedimientos vinculados — {chainView.eps.eps}
               </h2>
-              <button onClick={() => setChainView(null)} className="p-1 rounded-md hover:bg-gray-100">
+              <button onClick={closeChainView} className="p-1 rounded-md hover:bg-gray-100">
                 <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
               </button>
             </div>
@@ -312,7 +315,7 @@ function EpsTab() {
             )}
 
             <div className="flex justify-end mt-4">
-              <Button variant="secondary" onClick={() => setChainView(null)}>Cerrar</Button>
+              <Button variant="secondary" onClick={closeChainView}>Cerrar</Button>
             </div>
           </div>
         </div>
@@ -472,7 +475,7 @@ function ProcedimientosTab() {
     <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-          Procedimientos CUPS (SQLite)
+          Procedimientos CUPS
         </h2>
         <Button size="sm" onClick={openCreate}>
           <Plus className="h-3.5 w-3.5" />
@@ -578,64 +581,54 @@ function ProcedimientosTab() {
   );
 }
 
-// ─── Tarifas PostgreSQL Tab ──────────────────────────────────────────
+// ─── Notas Hoja Tab ──────────────────────────────────────────────────
 
-function TarifasTab() {
-  const [epsList, setEpsList] = useState<string[]>([]);
-  const [selectedEps, setSelectedEps] = useState("");
-  const [items, setItems] = useState<ProcedimientoPg[]>([]);
-  const [loading, setLoading] = useState(false);
+function NotaHojaTab() {
+  const [items, setItems] = useState<NotaHoja[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modal, setModal] = useState<ModalState<ProcedimientoPg>>(initialModal);
+  const [modal, setModal] = useState<ModalState<NotaHoja>>(initialModal);
 
-  const [formCodigoCups, setFormCodigoCups] = useState("");
-  const [formDescripcion, setFormDescripcion] = useState("");
-  const [formTarifa, setFormTarifa] = useState("");
+  const [formNota, setFormNota] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Load EPS list on mount
-  useEffect(() => {
-    fetchEpsDisponibles()
-      .then(setEpsList)
-      .catch(() => { /* silent */ });
-  }, []);
+  // Vinculaciones state
+  const [vinculaciones, setVinculaciones] = useState<VinculacionesNota | null>(null);
+  const [vincEpsList, setVincEpsList] = useState<EpsContratado[]>([]);
+  const [vincProcList, setVincProcList] = useState<ProcedimientoSqlite[]>([]);
+  const [vincFormProc, setVincFormProc] = useState("");
+  const [vincFormEps, setVincFormEps] = useState("");
+  const [vincFormTarifa, setVincFormTarifa] = useState("");
+  const [vincFormError, setVincFormError] = useState<string | null>(null);
+  const [vincFormLoading, setVincFormLoading] = useState(false);
 
-  const loadProcedimientos = useCallback(async (eps: string) => {
-    if (!eps) return;
+  // Edit tarifa
+  const [editandoTarifa, setEditandoTarifa] = useState<{ nt_id: number; tarifa: string } | null>(null);
+
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchProcPg(eps);
+      const data = await fetchNotasHoja();
       setItems(data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar tarifas");
+      setError(e instanceof Error ? e.message : "Error al cargar notas hoja");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    if (selectedEps) {
-      loadProcedimientos(selectedEps);
-    } else {
-      setItems([]);
-    }
-  }, [selectedEps, loadProcedimientos]);
+  useEffect(() => { load(); }, [load]);
 
   const openCreate = () => {
-    if (!selectedEps) return;
     setModal({ open: true, mode: "create", item: null });
-    setFormCodigoCups("");
-    setFormDescripcion("");
-    setFormTarifa("");
+    setFormNota("");
     setFormError(null);
   };
 
-  const openEdit = (item: ProcedimientoPg) => {
+  const openEdit = (item: NotaHoja) => {
     setModal({ open: true, mode: "edit", item });
-    setFormCodigoCups(item.codigo_cups);
-    setFormDescripcion(item.descripcion ?? "");
-    setFormTarifa(item.tarifa?.toString() ?? "");
+    setFormNota(item.nota);
     setFormError(null);
   };
 
@@ -647,200 +640,388 @@ function TarifasTab() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    if (!formNota.trim()) {
+      setFormError("La nota no puede estar vacía");
+      return;
+    }
     try {
       if (modal.mode === "create") {
-        await createProcPg({
-          eps: selectedEps,
-          codigo_cups: formCodigoCups,
-          descripcion: formDescripcion || null,
-          tarifa: formTarifa ? Number(formTarifa) : null,
-        });
+        await createNotaHoja({ nota: formNota.trim() });
       } else if (modal.item) {
-        await updateProcPg(modal.item.id, {
-          eps: selectedEps,
-          codigo_cups: formCodigoCups,
-          descripcion: formDescripcion || null,
-          tarifa: formTarifa ? Number(formTarifa) : null,
-        });
+        await updateNotaHoja(modal.item.id, { nota: formNota.trim() });
       }
       closeModal();
-      await loadProcedimientos(selectedEps);
+      await load();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error al guardar");
     }
   };
 
-  const handleDelete = async (item: ProcedimientoPg) => {
+  const handleDelete = async (item: NotaHoja) => {
     if (!window.__showConfirm) return;
-    const ok = await window.__showConfirm(`¿Eliminar tarifa ${item.codigo_cups}?`);
+    let mensaje = `¿Eliminar nota hoja "${item.nota}"?`;
+    try {
+      const deps = await fetchNotaHojaDependencias(item.id);
+      const partes: string[] = [];
+      if (deps.eps_nota_count > 0) {
+        const epsNombres = deps.eps_vinculadas.map(e => e.eps).join(", ");
+        partes.push(`${deps.eps_nota_count} EPS vinculada(s): ${epsNombres}`);
+      }
+      if (deps.notas_tecnicas_count > 0) {
+        const procCups = deps.procedimientos_vinculados.map(p => p.cups).join(", ");
+        partes.push(`${deps.notas_tecnicas_count} procedimiento(s): ${procCups}`);
+      }
+      if (partes.length > 0) {
+        mensaje += `\n\n⚠️ Se eliminarán también:\n${partes.join("\n")}`;
+      }
+    } catch {
+      mensaje += `\n\n(No se pudieron consultar dependencias)`;
+    }
+    const ok = await window.__showConfirm(mensaje);
     if (!ok) return;
     try {
-      await deleteProcPg(Number(item.id));
-      await loadProcedimientos(selectedEps);
+      await deleteNotaHoja(item.id);
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al eliminar");
     }
   };
 
+  // ─── Vinculaciones ────────────────────────────────────────────────
+
+  const handleVerVinculaciones = async (item: NotaHoja) => {
+    setVinculaciones(null);
+    setVincFormError(null);
+    try {
+      const [data, epsItems, procItems] = await Promise.all([
+        fetchVinculacionesNota(item.id),
+        fetchEps(),
+        fetchProcSqlite(),
+      ]);
+      setVinculaciones(data);
+      setVincEpsList(epsItems);
+      setVincProcList(procItems);
+      setVincFormProc("");
+      setVincFormEps("");
+      setVincFormTarifa("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cargar vinculaciones");
+    }
+  };
+
+  const handleVincular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVincFormError(null);
+    if (!vinculaciones) return;
+    if (!vincFormProc) {
+      setVincFormError("Seleccioná un procedimiento");
+      return;
+    }
+    setVincFormLoading(true);
+    try {
+      await vincularProcedimientoANota(vinculaciones.nota.id, {
+        id_procedimiento: Number(vincFormProc),
+        tarifa: vincFormTarifa ? Number(vincFormTarifa) : undefined,
+      });
+      await handleVerVinculaciones(vinculaciones.nota);
+    } catch (err) {
+      setVincFormError(err instanceof Error ? err.message : "Error al vincular");
+    } finally {
+      setVincFormLoading(false);
+    }
+  };
+
+  const handleVincularEps = async () => {
+    if (!vinculaciones || !vincFormEps) return;
+    try {
+      await vincularEpsANota(vinculaciones.nota.id, { id_eps_contratado: Number(vincFormEps) });
+      setVincFormEps("");
+      await handleVerVinculaciones(vinculaciones.nota);
+    } catch (err) {
+      setVincFormError(err instanceof Error ? err.message : "Error al vincular EPS");
+    }
+  };
+
+  const handleEliminarEpsVinculacion = async (epsNotaId: number | undefined, epsNombre: string) => {
+    if (!window.__showConfirm || !vinculaciones || !epsNotaId) return;
+    const ok = await window.__showConfirm(`¿Desvincular EPS ${epsNombre} de "${vinculaciones.nota.nota}"?`);
+    if (!ok) return;
+    try {
+      await deleteEpsNota(epsNotaId);
+      await handleVerVinculaciones(vinculaciones.nota);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al eliminar vinculación");
+    }
+  };
+
+  const handleEditarTarifa = async (nt_id: number) => {
+    if (!editandoTarifa || !vinculaciones) return;
+    try {
+      await updateNotasTecnicas(nt_id, { tariff: Number(editandoTarifa.tarifa) });
+      setEditandoTarifa(null);
+      await handleVerVinculaciones(vinculaciones.nota);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al actualizar tarifa");
+    }
+  };
+
+  const handleEliminarVinculacion = async (nt_id: number, cups: string) => {
+    if (!window.__showConfirm || !vinculaciones) return;
+    const ok = await window.__showConfirm(`¿Desvincular procedimiento ${cups} de "${vinculaciones.nota.nota}"?`);
+    if (!ok) return;
+    try {
+      await deleteNotasTecnicas(nt_id);
+      await handleVerVinculaciones(vinculaciones.nota);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error al eliminar vinculación");
+    }
+  };
+
+  if (loading) {
+    return (
+      <Card className="p-8 flex items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        <span className="text-sm text-muted-foreground">Cargando notas hoja...</span>
+      </Card>
+    );
+  }
+
   return (
-    <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-          Tarifas Procedimientos (PostgreSQL)
-        </h2>
-        {selectedEps && (
+    <>
+      <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
+            Notas Hoja
+          </h2>
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-3.5 w-3.5" />
-            Nueva Tarifa
+            Nueva Nota Hoja
           </Button>
+        </div>
+
+        {error && (
+          <div className="mb-4">
+            <p className="text-sm text-danger mb-2">{error}</p>
+            <Button size="sm" onClick={load}>Reintentar</Button>
+          </div>
         )}
-      </div>
 
-      {/* EPS selector */}
-      <div className="mb-4">
-        <label className="block text-xs font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-          EPS (PostgreSQL)
-        </label>
-        <select
-          value={selectedEps}
-          onChange={(e) => setSelectedEps(e.target.value)}
-          className="rounded-lg border px-4 py-2.5 text-sm outline-none w-full max-w-xs"
-          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-        >
-          <option value="">-- Seleccionar EPS --</option>
-          {epsList.map((eps) => (
-            <option key={eps} value={eps}>{eps}</option>
-          ))}
-        </select>
-      </div>
-
-      {!selectedEps ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">
-          Seleccioná una EPS para ver sus tarifas
-        </p>
-      ) : loading ? (
-        <div className="py-8 flex items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin mr-2" />
-          <span className="text-sm text-muted-foreground">Cargando tarifas...</span>
-        </div>
-      ) : error ? (
-        <div>
-          <p className="text-sm text-danger mb-2">{error}</p>
-          <Button size="sm" onClick={() => loadProcedimientos(selectedEps)}>Reintentar</Button>
-        </div>
-      ) : items.length === 0 ? (
-        <p className="text-sm text-muted-foreground py-8 text-center">No hay tarifas para esta EPS</p>
-      ) : (
-        <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
-                <th className="py-3 px-4 text-left">ID</th>
-                <th className="py-3 px-4 text-left">Código CUPS</th>
-                <th className="py-3 px-4 text-left">Descripción</th>
-                <th className="py-3 px-4 text-left">Tarifa</th>
-                <th className="py-3 px-4 text-left">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((item) => (
-                <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                  <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
-                  <td className="py-3 px-4 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.codigo_cups}</td>
-                  <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.descripcion ?? "—"}</td>
-                  <td className="py-3 px-4" style={{ color: "oklch(0.15 0.02 160)" }}>
-                    {item.tarifa != null ? `$${item.tarifa.toLocaleString("es-CO")}` : "—"}
-                  </td>
-                  <td className="py-3 px-4">
-                    <div className="flex gap-2">
-                      <Button size="sm" variant="default" onClick={() => openEdit(item)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                        Editar
-                      </Button>
-                      <Button size="sm" variant="destructive" onClick={() => handleDelete(item)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
+        {!error && items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No hay notas hoja</p>
+        ) : !error ? (
+          <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                  <th className="py-3 px-4 text-left">ID</th>
+                  <th className="py-3 px-4 text-left">Nota</th>
+                  <th className="py-3 px-4 text-left">Acciones</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {items.map((item) => (
+                  <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                    <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
+                    <td className="py-3 px-4 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.nota}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="default" onClick={() => openEdit(item)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                          Editar
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => handleVerVinculaciones(item)}>
+                          <Eye className="h-3.5 w-3.5" />
+                          Ver Vinculaciones
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDelete(item)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
-      {/* Create/Edit Modal */}
-      {modal.open && (
+        {/* Create/Edit Modal */}
+        {modal.open && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+               onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+            <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-lg mx-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
+                  {modal.mode === "create" ? "Nueva Nota Hoja" : "Editar Nota Hoja"}
+                </h2>
+                <button onClick={closeModal} className="p-1 rounded-md hover:bg-gray-100">
+                  <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
+                </button>
+              </div>
+              <form onSubmit={handleSubmit}>
+                {formError && (<p className="text-xs mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>{formError}</p>)}
+                <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Nota</label>
+                <input type="text" value={formNota} onChange={(e) => setFormNota(e.target.value)}
+                  className="w-full rounded-lg border px-4 py-2.5 text-sm mb-6 outline-none focus:border-primary"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} required />
+                <div className="flex gap-2 justify-end">
+                  <Button type="submit">{modal.mode === "create" ? "Crear" : "Guardar"}</Button>
+                  <Button type="button" variant="secondary" onClick={closeModal}>Cancelar</Button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Vinculaciones Modal */}
+      {vinculaciones && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-             onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-lg mx-4">
+             onClick={(e) => { if (e.target === e.currentTarget) setVinculaciones(null); }}>
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-3xl mx-4 max-h-[85vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
-                {modal.mode === "create" ? "Nueva Tarifa" : "Editar Tarifa"}
+                Vinculaciones — {vinculaciones.nota.nota}
               </h2>
-              <button onClick={closeModal} className="p-1 rounded-md hover:bg-gray-100">
+              <button onClick={() => setVinculaciones(null)} className="p-1 rounded-md hover:bg-gray-100">
                 <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
               </button>
             </div>
 
-            <form onSubmit={handleSubmit}>
-              {formError && (
-                <p className="text-xs mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>{formError}</p>
+            {/* EPS vinculadas */}
+            <div className="mb-4">
+              <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
+                EPS Vinculadas ({vinculaciones.eps_vinculadas.length})
+              </h3>
+              {vinculaciones.eps_vinculadas.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Sin EPS vinculadas</p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {vinculaciones.eps_vinculadas.map((e) => (
+                    <span key={e.id} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
+                      style={{ background: "oklch(0.55 0.04 160 / 0.08)", color: "oklch(0.55 0.04 160)" }}>
+                      {e.eps} ({e.cod_contrato})
+                      <button onClick={() => handleEliminarEpsVinculacion(e.eps_nota_id, e.eps)}
+                        className="ml-1 hover:text-danger" title="Desvincular">×</button>
+                    </span>
+                  ))}
+                </div>
               )}
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-                EPS
-              </label>
-              <input
-                type="text"
-                value={selectedEps}
-                readOnly
-                className="w-full rounded-lg border px-4 py-2.5 text-sm mb-4 outline-none"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)", background: "#f9fafb", cursor: "not-allowed" }}
-              />
-
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Código CUPS
-              </label>
-              <input
-                type="text"
-                value={formCodigoCups}
-                onChange={(e) => setFormCodigoCups(e.target.value)}
-                className="w-full rounded-lg border px-4 py-2.5 text-sm mb-4 outline-none focus:border-primary"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-                required
-              />
-
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Descripción
-              </label>
-              <input
-                type="text"
-                value={formDescripcion}
-                onChange={(e) => setFormDescripcion(e.target.value)}
-                className="w-full rounded-lg border px-4 py-2.5 text-sm mb-4 outline-none focus:border-primary"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-              />
-
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Tarifa
-              </label>
-              <input
-                type="number"
-                step="0.01"
-                value={formTarifa}
-                onChange={(e) => setFormTarifa(e.target.value)}
-                className="w-full rounded-lg border px-4 py-2.5 text-sm mb-6 outline-none focus:border-primary"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-              />
-
-              <div className="flex gap-2 justify-end">
-                <Button type="submit">{modal.mode === "create" ? "Crear" : "Guardar"}</Button>
-                <Button type="button" variant="secondary" onClick={closeModal}>Cancelar</Button>
+              {/* Vincular EPS */}
+              <div className="flex gap-2 mt-2">
+                <select value={vincFormEps}
+                  onChange={(e) => setVincFormEps(e.target.value)}
+                  className="rounded-lg border px-3 py-1.5 text-xs outline-none"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
+                  <option value="">-- Vincular EPS --</option>
+                  {vincEpsList.map((e) => (
+                    <option key={e.id} value={e.id}>{e.eps} ({e.cod_contrato})</option>
+                  ))}
+                </select>
+                <Button size="sm" onClick={handleVincularEps} disabled={!vincFormEps}>
+                  <Plus className="h-3 w-3" />
+                </Button>
               </div>
-            </form>
+            </div>
+
+            {/* Procedimientos vinculados */}
+            <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
+              Procedimientos ({vinculaciones.procedimientos.length})
+            </h3>
+            {vinculaciones.procedimientos.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-4 text-center">Sin procedimientos vinculados</p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border mb-4" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                      <th className="py-2 px-3 text-left">CUPS</th>
+                      <th className="py-2 px-3 text-left">Procedimiento</th>
+                      <th className="py-2 px-3 text-left">Tarifa</th>
+                      <th className="py-2 px-3 text-left">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vinculaciones.procedimientos.map((p) => (
+                      <tr key={p.nt_id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                        <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{p.cups}</td>
+                        <td className="py-2 px-3" style={{ color: "oklch(0.55 0.04 160)" }}>{p.procedimiento}</td>
+                        <td className="py-2 px-3">
+                          {editandoTarifa?.nt_id === p.nt_id ? (
+                            <div className="flex gap-1">
+                              <input type="number" step="0.01" value={editandoTarifa.tarifa}
+                                onChange={(e) => setEditandoTarifa({ nt_id: p.nt_id, tarifa: e.target.value })}
+                                className="w-24 rounded border px-2 py-1 text-xs outline-none"
+                                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} />
+                              <Button size="sm" onClick={() => handleEditarTarifa(p.nt_id)}>OK</Button>
+                              <Button size="sm" variant="secondary" onClick={() => setEditandoTarifa(null)}>X</Button>
+                            </div>
+                          ) : (
+                            <span>${p.tarifa?.toLocaleString("es-CO") ?? "—"}</span>
+                          )}
+                        </td>
+                        <td className="py-2 px-3">
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="default"
+                              onClick={() => setEditandoTarifa({ nt_id: p.nt_id, tarifa: p.tarifa?.toString() ?? "" })}>
+                              Editar
+                            </Button>
+                            <Button size="sm" variant="destructive"
+                              onClick={() => handleEliminarVinculacion(p.nt_id, p.cups)}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Vincular nuevo procedimiento */}
+            <div className="border-t pt-4" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "oklch(0.55 0.04 160)" }}>
+                Vincular nuevo procedimiento
+              </h3>
+              <form onSubmit={handleVincular} className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {vincFormError && (
+                  <p className="col-span-full text-xs" style={{ color: "oklch(0.6 0.2 25)" }}>{vincFormError}</p>
+                )}
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Procedimiento</label>
+                  <select value={vincFormProc}
+                    onChange={(e) => setVincFormProc(e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
+                    <option value="">-- Seleccionar --</option>
+                    {vincProcList.map((p) => (
+                      <option key={p.id} value={p.id}>{p.cups} — {p.procedimiento}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Tarifa</label>
+                  <input type="number" step="0.01" value={vincFormTarifa}
+                    onChange={(e) => setVincFormTarifa(e.target.value)}
+                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} />
+                </div>
+                <div className="flex items-end">
+                  <Button type="submit" disabled={vincFormLoading}>
+                    {vincFormLoading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}
+                    Vincular
+                  </Button>
+                </div>
+              </form>
+            </div>
+
+            <div className="flex justify-end mt-4">
+              <Button variant="secondary" onClick={() => setVinculaciones(null)}>Cerrar</Button>
+            </div>
           </div>
         </div>
       )}
-    </Card>
+    </>
   );
 }

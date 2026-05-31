@@ -30,10 +30,16 @@ export interface ProcedimientoPg {
   tarifa: number | null;
 }
 
+export interface NotaHoja {
+  id: number;
+  nota: string;
+}
+
 export interface EpsProcedimientosChain {
   eps: EpsContratado;
   procedimientos: Array<{
     eps_nota_id: number;
+    id_nota_hoja: number;
     nota_hoja: string;
     cups: string;
     procedimiento: string;
@@ -120,6 +126,11 @@ export async function fetchProcedimientosPorEps(epsId: number): Promise<EpsProce
   return apiGet<EpsProcedimientosChain>(`/api/eps/${epsId}/procedimientos`);
 }
 
+/** Fetch all NotaHoja from SQLite. */
+export async function fetchNotasHoja(): Promise<NotaHoja[]> {
+  return apiGet<NotaHoja[]>("/api/notas-hoja");
+}
+
 // ─── POST / CREATE ──────────────────────────────────────────────────
 
 /** Create a new EpsContratado. */
@@ -139,6 +150,11 @@ export async function createProcSqlite(data: {
   return apiPost<ProcedimientoSqlite>("/api/procedimientos", data);
 }
 
+/** Create a new NotaHoja in SQLite. */
+export async function createNotaHoja(data: { nota: string }): Promise<NotaHoja> {
+  return apiPost<NotaHoja>("/api/notas-hoja", data);
+}
+
 /** Create a new Procedimiento tariff in PostgreSQL. */
 export async function createProcPg(data: {
   eps: string;
@@ -150,6 +166,14 @@ export async function createProcPg(data: {
 }
 
 // ─── PUT / UPDATE ───────────────────────────────────────────────────
+
+/** Update an existing NotaHoja in SQLite. */
+export async function updateNotaHoja(
+  id: number,
+  data: Partial<{ nota: string }>,
+): Promise<NotaHoja> {
+  return apiPut<NotaHoja>(`/api/notas-hoja/${id}`, data);
+}
 
 /** Update an existing EpsContratado. */
 export async function updateEps(
@@ -169,13 +193,90 @@ export async function updateProcSqlite(
 
 /** Update an existing Procedimiento tariff in PostgreSQL. */
 export async function updateProcPg(
-  id: number,
+  id: string,
   data: Partial<{ eps: string; codigo_cups: string; descripcion: string | null; tarifa: number | null }>,
 ): Promise<{ message: string }> {
   return apiPut<{ message: string }>(`/procedimientos/${id}`, data);
 }
 
+/** Delete a Procedimiento tariff in PostgreSQL by id. */
+export async function deleteProcPg(id: string): Promise<void> {
+  return apiDelete(`/procedimientos/${id}`);
+}
+
 // ─── DELETE ──────────────────────────────────────────────────────────
+
+export interface DependenciasNotaHoja {
+  eps_nota_count: number;
+  notas_tecnicas_count: number;
+  eps_vinculadas: Array<{ id: number; cod_contrato: string; eps: string }>;
+  procedimientos_vinculados: Array<{ id: number; cups: string; procedimiento: string }>;
+}
+
+export interface VinculacionesNota {
+  nota: NotaHoja;
+  procedimientos: Array<{
+    nt_id: number;
+    id: number;
+    cups: string;
+    procedimiento: string;
+    tarifa: number | null;
+  }>;
+  eps_vinculadas: Array<{ eps_nota_id: number; id: number; cod_contrato: string; eps: string }>;
+}
+
+/** Fetch dependencias for a NotaHoja before deleting. */
+export async function fetchNotaHojaDependencias(id: number): Promise<DependenciasNotaHoja> {
+  return apiGet<DependenciasNotaHoja>(`/api/notas-hoja/${id}/dependencias`);
+}
+
+/** Fetch vinculaciones (procedimientos + EPS) for a NotaHoja. */
+export async function fetchVinculacionesNota(id: number): Promise<VinculacionesNota> {
+  return apiGet<VinculacionesNota>(`/api/notas-hoja/${id}/vinculaciones`);
+}
+
+/** Vincular un procedimiento a una NotaHoja (solo NotasTecnicas, sin EPS). */
+export async function vincularProcedimientoANota(
+  notaId: number,
+  data: { id_procedimiento: number; tarifa?: number },
+): Promise<{ nt_id: number }> {
+  return apiPost<{ nt_id: number }>(
+    `/api/notas-hoja/${notaId}/vincular-procedimiento`, data,
+  );
+}
+
+/** Vincular una EPS a una NotaHoja (crea EpsNota). */
+export async function vincularEpsANota(
+  notaId: number,
+  data: { id_eps_contratado: number },
+): Promise<{ eps_nota_id: number }> {
+  return apiPost<{ eps_nota_id: number }>(
+    `/api/notas-hoja/${notaId}/vincular-eps`, data,
+  );
+}
+
+/** Eliminar vínculo EPS-Nota. */
+export async function deleteEpsNota(id: number): Promise<void> {
+  return apiDelete(`/api/eps-nota/${id}`);
+}
+
+/** Actualizar tarifa de una nota técnica. */
+export async function updateNotasTecnicas(
+  id: number,
+  data: { tariff?: number },
+): Promise<{ tariff: number }> {
+  return apiPut<{ tariff: number }>(`/api/notas-tecnicas/${id}`, data);
+}
+
+/** Eliminar una nota técnica (desvincula procedimiento de nota). */
+export async function deleteNotasTecnicas(id: number): Promise<void> {
+  return apiDelete(`/api/notas-tecnicas/${id}`);
+}
+
+/** Delete a NotaHoja in SQLite by id. */
+export async function deleteNotaHoja(id: number): Promise<void> {
+  return apiDelete(`/api/notas-hoja/${id}`);
+}
 
 /** Delete an EpsContratado by id. */
 export async function deleteEps(id: number): Promise<void> {
@@ -187,7 +288,15 @@ export async function deleteProcSqlite(id: number): Promise<void> {
   return apiDelete(`/api/procedimientos/${id}`);
 }
 
-/** Delete a Procedimiento tariff in PostgreSQL by id. */
-export async function deleteProcPg(id: number): Promise<void> {
-  return apiDelete(`/procedimientos/${id}`);
+// ─── COMPOUND ───────────────────────────────────────────────────────
+
+/** Vincular procedimiento to EPS (creates EpsNota + NotasTecnicas atomically). */
+export async function vincularProcedimiento(
+  epsId: number,
+  data: { id_nota_hoja: number; id_procedimiento: number; tarifa: number },
+): Promise<{
+  eps_nota: { id: number; id_nota_hoja: number; id_eps_contratado: number };
+  notas_tecnicas: { id: number; id_procedimiento: number; id_nota_hoja: number; tarifa: number };
+}> {
+  return apiPost(`/api/eps/${epsId}/vincular-procedimiento`, data);
 }

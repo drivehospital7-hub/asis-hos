@@ -181,6 +181,74 @@ def eps_procedimientos(id):
 
 
 # ============================================================================
+# VINCULAR PROCEDIMIENTO (compuesto)
+# ============================================================================
+
+
+@api_bp.route("/eps/<int:eps_id>/vincular-procedimiento", methods=["POST"])
+@admin_requerido
+def vincular_procedimiento(eps_id):
+    """Vincula un procedimiento a una EPS atómicamente.
+
+    Crea EpsNota + NotasTecnicas en una sola transacción.
+    """
+    from sqlalchemy.orm import Session
+
+    from app.services.vincular_procedimiento_service import ejecutar
+
+    db: Session = next(get_db())
+    try:
+        data = request.get_json()
+
+        required = ["id_nota_hoja", "id_procedimiento", "tarifa"]
+        missing = [f for f in required if f not in data]
+        if missing:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [f"Campos requeridos: {missing}"],
+            }), 400
+
+        # Validate EPS exists — 404 if not
+        eps = eps_contratado_crud.get_by_id(db, eps_id)
+        if not eps:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [f"No existe EPS con id: {eps_id}"],
+            }), 404
+
+        eps_nota, nt = ejecutar(
+            db,
+            eps_id=eps_id,
+            id_nota_hoja=data["id_nota_hoja"],
+            id_procedimiento=data["id_procedimiento"],
+            tarifa=data["tarifa"],
+        )
+
+        nt_dict = nt.to_dict()
+        nt_dict["tarifa"] = nt_dict.pop("tariff")
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "eps_nota": eps_nota.to_dict(),
+                "notas_tecnicas": nt_dict,
+            },
+            "errors": [],
+        }), 201
+
+    except ValueError as e:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [str(e)],
+        }), 400
+    finally:
+        db.close()
+
+
+# ============================================================================
 # PROCEDIMIENTO
 # ============================================================================
 
@@ -401,6 +469,51 @@ def update_nota_hoja(id):
         db.close()
 
 
+@api_bp.route("/notas-hoja/<int:id>/dependencias", methods=["GET"])
+def get_nota_hoja_dependencias(id):
+    """Retorna las dependencias de una nota hoja (EPS y procedimientos vinculados)."""
+    db: Session = next(get_db())
+    try:
+        from app.models import EpsContratado, EpsNota, NotasTecnicas, Procedimiento
+        
+        nota = nota_hoja_crud.get_by_id(db, id)
+        if not nota:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [f"No existe nota hoja con id: {id}"]
+            }), 404
+        
+        # EPS vinculadas via eps_nota
+        eps_links = (
+            db.query(EpsContratado)
+            .join(EpsNota, EpsNota.id_eps_contratado == EpsContratado.id)
+            .filter(EpsNota.id_nota_hoja == id)
+            .all()
+        )
+        
+        # Procedimientos vinculados via notas_tecnicas
+        proc_links = (
+            db.query(Procedimiento)
+            .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
+            .filter(NotasTecnicas.id_nota_hoja == id)
+            .all()
+        )
+        
+        return jsonify({
+            "status": "success",
+            "data": {
+                "eps_nota_count": len(eps_links),
+                "notas_tecnicas_count": len(proc_links),
+                "eps_vinculadas": [{"id": e.id, "cod_contrato": e.cod_contrato, "eps": e.eps} for e in eps_links],
+                "procedimientos_vinculados": [{"id": p.id, "cups": p.cups, "procedimiento": p.procedimiento} for p in proc_links],
+            },
+            "errors": []
+        })
+    finally:
+        db.close()
+
+
 @api_bp.route("/notas-hoja/<int:id>", methods=["DELETE"])
 def delete_nota_hoja(id):
     """Elimina nota hoja."""
@@ -420,6 +533,201 @@ def delete_nota_hoja(id):
             "data": {},
             "errors": []
         })
+    finally:
+        db.close()
+
+
+@api_bp.route("/notas-hoja/<int:id>/vinculaciones", methods=["GET"])
+def get_nota_hoja_vinculaciones(id):
+    """Retorna procedimientos y EPS vinculados a una nota hoja."""
+    db: Session = next(get_db())
+    try:
+        from app.models import EpsContratado, EpsNota, NotasTecnicas, Procedimiento
+
+        nota = nota_hoja_crud.get_by_id(db, id)
+        if not nota:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"No existe nota hoja con id: {id}"]
+            }), 404
+
+        # Procedimientos vinculados via notas_tecnicas
+        proc_links = (
+            db.query(
+                NotasTecnicas.id.label("nt_id"),
+                Procedimiento.id.label("proc_id"),
+                Procedimiento.cups,
+                Procedimiento.procedimiento,
+                NotasTecnicas.tariff,
+            )
+            .join(Procedimiento, Procedimiento.id == NotasTecnicas.id_procedimiento)
+            .filter(NotasTecnicas.id_nota_hoja == id)
+            .all()
+        )
+
+        # EPS vinculadas via eps_nota
+        eps_links = (
+            db.query(EpsNota.id.label("eps_nota_id"), EpsContratado.id, EpsContratado.cod_contrato, EpsContratado.eps)
+            .join(EpsContratado, EpsContratado.id == EpsNota.id_eps_contratado)
+            .filter(EpsNota.id_nota_hoja == id)
+            .all()
+        )
+
+        return jsonify({
+            "status": "success",
+            "data": {
+                "nota": nota.to_dict(),
+                "procedimientos": [
+                    {
+                        "nt_id": r.nt_id,
+                        "id": r.proc_id,
+                        "cups": r.cups,
+                        "procedimiento": r.procedimiento,
+                        "tarifa": float(r.tariff) if r.tariff else None,
+                    }
+                    for r in proc_links
+                ],
+                "eps_vinculadas": [
+                    {"eps_nota_id": r.eps_nota_id, "id": r.id, "cod_contrato": r.cod_contrato, "eps": r.eps}
+                    for r in eps_links
+                ],
+            },
+            "errors": []
+        })
+    finally:
+        db.close()
+
+
+@api_bp.route("/notas-hoja/<int:id>/vincular-procedimiento", methods=["POST"])
+def vincular_procedimiento_a_nota(id):
+    """Vincula un procedimiento a una nota hoja (solo NotasTecnicas, sin EPS)."""
+    db: Session = next(get_db())
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Request body requerido"]
+            }), 400
+
+        id_procedimiento = data.get("id_procedimiento")
+        tarifa = data.get("tarifa")
+
+        if not id_procedimiento:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["id_procedimiento es requerido"]
+            }), 400
+
+        if tarifa is not None and (not isinstance(tarifa, (int, float)) or tarifa <= 0):
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["tarifa debe ser un número positivo"]
+            }), 400
+
+        from app.models import NotasTecnicas, Procedimiento
+
+        nota = nota_hoja_crud.get_by_id(db, id)
+        if not nota:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"No existe nota hoja con id: {id}"]
+            }), 404
+
+        proc = db.query(Procedimiento).filter(Procedimiento.id == id_procedimiento).first()
+        if not proc:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"No existe procedimiento con id: {id_procedimiento}"]
+            }), 400
+
+        nt = NotasTecnicas(
+            id_procedimiento=id_procedimiento,
+            id_nota_hoja=id,
+            tariff=tarifa if tarifa is not None else 0,
+        )
+        db.add(nt)
+        db.commit()
+
+        return jsonify({
+            "status": "success",
+            "data": {"nt_id": nt.id},
+            "errors": []
+        }), 201
+
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Error vinculando procedimiento a nota")
+        return jsonify({
+            "status": "error", "data": {},
+            "errors": [f"Error al vincular: {str(exc)}"]
+        }), 400
+    finally:
+        db.close()
+
+
+@api_bp.route("/notas-hoja/<int:id>/vincular-eps", methods=["POST"])
+def vincular_eps_a_nota(id):
+    """Vincula una EPS a una nota hoja (crea EpsNota)."""
+    db: Session = next(get_db())
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Request body requerido"]
+            }), 400
+
+        id_eps_contratado = data.get("id_eps_contratado")
+        if not id_eps_contratado:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["id_eps_contratado es requerido"]
+            }), 400
+
+        from app.models import EpsContratado, EpsNota
+
+        nota = nota_hoja_crud.get_by_id(db, id)
+        if not nota:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"No existe nota hoja con id: {id}"]
+            }), 404
+
+        eps = db.query(EpsContratado).filter(EpsContratado.id == id_eps_contratado).first()
+        if not eps:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"No existe EPS con id: {id_eps_contratado}"]
+            }), 400
+
+        existing = db.query(EpsNota).filter(
+            EpsNota.id_nota_hoja == id,
+            EpsNota.id_eps_contratado == id_eps_contratado,
+        ).first()
+        if existing:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Esa EPS ya está vinculada a esta nota"]
+            }), 400
+
+        en = EpsNota(id_nota_hoja=id, id_eps_contratado=id_eps_contratado)
+        db.add(en)
+        db.commit()
+
+        return jsonify({
+            "status": "success",
+            "data": {"eps_nota_id": en.id},
+            "errors": []
+        }), 201
+
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Error vinculando EPS a nota")
+        return jsonify({
+            "status": "error", "data": {},
+            "errors": [f"Error al vincular: {str(exc)}"]
+        }), 400
     finally:
         db.close()
 

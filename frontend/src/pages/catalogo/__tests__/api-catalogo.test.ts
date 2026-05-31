@@ -14,6 +14,11 @@ import {
   createProcPg,
   updateProcPg,
   deleteProcPg,
+  fetchNotasHoja,
+  createNotaHoja,
+  updateNotaHoja,
+  deleteNotaHoja,
+  vincularProcedimiento,
 } from "@/lib/api-catalogo";
 
 const mockFetch = vi.fn();
@@ -218,7 +223,7 @@ describe("updateProcSqlite", () => {
 describe("updateProcPg", () => {
   it("updates procedimiento in PostgreSQL", async () => {
     mockFetch.mockResolvedValue(okResponse({ message: "Actualizado" }));
-    const result = await updateProcPg(5, { tarifa: 55000 });
+    const result = await updateProcPg("5", { tarifa: 55000 });
     expect(result).toEqual({ message: "Actualizado" });
     expect(mockFetch).toHaveBeenCalledWith("/procedimientos/5", {
       method: "PUT",
@@ -249,7 +254,114 @@ describe("deleteProcSqlite", () => {
 describe("deleteProcPg", () => {
   it("deletes procedimiento in PostgreSQL", async () => {
     mockFetch.mockResolvedValue(okResponse({}));
-    await deleteProcPg(5);
+    await deleteProcPg("5");
     expect(mockFetch).toHaveBeenCalledWith("/procedimientos/5", { method: "DELETE" });
+  });
+});
+
+// ─── NotaHoja endpoints (SQLite CRUD) ──────────────────────────────────
+
+describe("fetchNotasHoja", () => {
+  it("fetches NotaHoja list from SQLite", async () => {
+    const items = [
+      { id: 1, nota: "FACTURA URGENCIAS" },
+      { id: 2, nota: "FACTURA ODONTOLOGIA" },
+    ];
+    mockFetch.mockResolvedValue(okResponse(items));
+
+    const result = await fetchNotasHoja();
+    expect(result).toEqual(items);
+    expect(mockFetch).toHaveBeenCalledWith("/api/notas-hoja");
+  });
+
+  it("throws on error response", async () => {
+    mockFetch.mockResolvedValue(
+      Promise.resolve(
+        new Response(JSON.stringify({ status: "error", data: {}, errors: ["DB error"] }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    await expect(fetchNotasHoja()).rejects.toThrow("DB error");
+  });
+});
+
+describe("createNotaHoja", () => {
+  it("posts new NotaHoja and returns created item", async () => {
+    const created = { id: 10, nota: "NUEVA NOTA" };
+    mockFetch.mockResolvedValue(
+      Promise.resolve(
+        new Response(JSON.stringify({ status: "success", data: created, errors: [] }), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+
+    const result = await createNotaHoja({ nota: "NUEVA NOTA" });
+    expect(result).toEqual(created);
+    expect(mockFetch).toHaveBeenCalledWith("/api/notas-hoja", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nota: "NUEVA NOTA" }),
+    });
+  });
+});
+
+describe("updateNotaHoja", () => {
+  it("updates NotaHoja by id", async () => {
+    const updated = { id: 1, nota: "UPDATED NOTA" };
+    mockFetch.mockResolvedValue(okResponse(updated));
+
+    const result = await updateNotaHoja(1, { nota: "UPDATED NOTA" });
+    expect(result).toEqual(updated);
+    expect(mockFetch).toHaveBeenCalledWith("/api/notas-hoja/1", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nota: "UPDATED NOTA" }),
+    });
+  });
+});
+
+describe("deleteNotaHoja", () => {
+  it("deletes NotaHoja by id", async () => {
+    mockFetch.mockResolvedValue(okResponse({}));
+    await deleteNotaHoja(10);
+    expect(mockFetch).toHaveBeenCalledWith("/api/notas-hoja/10", { method: "DELETE" });
+  });
+});
+
+// ─── Vincular Procedimiento ─────────────────────────────────────────────
+
+describe("vincularProcedimiento", () => {
+  it("POST to vincular endpoint with correct body", async () => {
+    const response = {
+      eps_nota: { id: 1, id_nota_hoja: 5, id_eps_contratado: 3 },
+      notas_tecnicas: { id: 1, id_procedimiento: 10, id_nota_hoja: 5, tarifa: 45000 },
+    };
+    mockFetch.mockResolvedValue(okResponse(response));
+
+    const body = { id_nota_hoja: 5, id_procedimiento: 10, tarifa: 45000 };
+    const result = await vincularProcedimiento(3, body);
+    expect(result).toEqual(response);
+    expect(mockFetch).toHaveBeenCalledWith("/api/eps/3/vincular-procedimiento", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  });
+
+  it("throws on server error", async () => {
+    mockFetch.mockResolvedValue(
+      Promise.resolve(
+        new Response(JSON.stringify({ status: "error", data: {}, errors: ["Combinación ya existe"] }), {
+          status: 400,
+          headers: { "Content-Type": "application/json" },
+        }),
+      ),
+    );
+    await expect(vincularProcedimiento(1, { id_nota_hoja: 5, id_procedimiento: 10, tarifa: 45000 }))
+      .rejects.toThrow("Combinación ya existe");
   });
 });

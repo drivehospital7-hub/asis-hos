@@ -78,7 +78,7 @@ def get_procedimientos_por_eps(db: Session, eps_id: int) -> List[Dict[str, Any]]
         eps_id: ID de la EPS contratada.
 
     Returns:
-        Lista de dicts con {eps_nota_id, nota_hoja, cups, procedimiento, tarifa}.
+        Lista de dicts con {eps_nota_id, id_nota_hoja, nota_hoja, cups, procedimiento, tarifa}.
         Vacía si no hay resultados.
     """
     results = (
@@ -94,6 +94,7 @@ def get_procedimientos_por_eps(db: Session, eps_id: int) -> List[Dict[str, Any]]
     return [
         {
             "eps_nota_id": en.id,
+            "id_nota_hoja": nh.id,
             "nota_hoja": nh.nota,
             "cups": proc.cups,
             "procedimiento": proc.procedimiento,
