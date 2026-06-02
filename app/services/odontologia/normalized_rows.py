@@ -16,6 +16,7 @@ def build_odontologia_normalized_rows(
     profesionales: list[dict],
     cantidades: list[dict],
     tipo_id_edad: list[dict],
+    tipo_id_entidad: list[dict] | None = None,
     centro_costo: list[dict],
     ide_contrato: list[dict],
     responsable_cierra: dict[str, str],

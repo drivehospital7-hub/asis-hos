@@ -4,7 +4,11 @@ import {
   autoDetectColumns,
   calcularResponsable,
   escapeHtml,
+  getUniqueResponsables,
+  filterResultsByResponsable,
+  getSinEgresoButtonConfig,
   type ScheduleDay,
+  type FacturaResult,
 } from "../utils";
 
 // ─── parseScheduleText ────────────────────────────────────────────────
@@ -413,6 +417,108 @@ describe("calcularResponsable", () => {
       localCrono,
     );
     expect(result).toBe("PEPE"); // not in NOMBRE_MAP, returned as-is
+  });
+});
+
+// ─── getUniqueResponsables ───────────────────────────────────────────
+
+describe("getUniqueResponsables", () => {
+  it("returns unique sorted responsables from results", () => {
+    const results: FacturaResult[] = [
+      { responsable: "Luis" },
+      { responsable: "Ana" },
+      { responsable: "Carlos" },
+      { responsable: "Ana" },
+    ] as FacturaResult[];
+
+    const result = getUniqueResponsables(results);
+
+    expect(result).toEqual(["Ana", "Carlos", "Luis"]);
+  });
+
+  it("handles null/undefined responsable with — fallback", () => {
+    const results: FacturaResult[] = [
+      { responsable: "" },
+      { responsable: "Ana" },
+      { responsable: undefined as unknown as string },
+      { responsable: "Luis" },
+    ] as FacturaResult[];
+
+    const result = getUniqueResponsables(results);
+
+    // "—" (U+2014) sorts after ASCII letters in JS default .sort()
+    expect(result).toEqual(["Ana", "Luis", "—"]);
+  });
+
+  it("returns empty array for empty results", () => {
+    const result = getUniqueResponsables([]);
+    expect(result).toEqual([]);
+  });
+
+  it("includes special values like Sin Egreso", () => {
+    const results: FacturaResult[] = [
+      { responsable: "Sin Egreso" },
+      { responsable: "Ana" },
+      { responsable: "—" },
+    ] as FacturaResult[];
+
+    const result = getUniqueResponsables(results);
+
+    // "—" (U+2014) sorts after ASCII letters in JS default .sort()
+    expect(result).toEqual(["Ana", "Sin Egreso", "—"]);
+  });
+});
+
+// ─── filterResultsByResponsable ─────────────────────────────────────
+
+describe("filterResultsByResponsable", () => {
+  const results: FacturaResult[] = [
+    { responsable: "Ana" },
+    { responsable: "Luis" },
+    { responsable: "Ana" },
+    { responsable: "Carlos" },
+  ] as FacturaResult[];
+
+  it("returns all results when filter is empty string (Todos)", () => {
+    const result = filterResultsByResponsable(results, "");
+    expect(result).toBe(results);
+  });
+
+  it("filters by responsable when filter is active", () => {
+    const result = filterResultsByResponsable(results, "Ana");
+    expect(result).toHaveLength(2);
+    expect(result!.every((r) => r.responsable === "Ana")).toBe(true);
+  });
+
+  it("returns empty array when no results match the filter", () => {
+    const result = filterResultsByResponsable(results, "Nobody");
+    expect(result).toHaveLength(0);
+  });
+
+  it("returns null when results is null", () => {
+    const result = filterResultsByResponsable(null, "Ana");
+    expect(result).toBeNull();
+  });
+});
+
+// ─── getSinEgresoButtonConfig ─────────────────────────────────────────
+
+describe("getSinEgresoButtonConfig", () => {
+  it("returns disabled config when isSinEgreso is true", () => {
+    const config = getSinEgresoButtonConfig(true);
+    expect(config.disabled).toBe(true);
+    expect(config.title).toBe("Sin egreso — no hay responsable asignado");
+  });
+
+  it("returns enabled config when isSinEgreso is false", () => {
+    const config = getSinEgresoButtonConfig(false);
+    expect(config.disabled).toBe(false);
+    expect(config.title).toBe("Enviar a Control de Errores");
+  });
+
+  it("returns enabled config when isSinEgreso is undefined", () => {
+    const config = getSinEgresoButtonConfig(undefined as unknown as boolean);
+    expect(config.disabled).toBe(false);
   });
 });
 

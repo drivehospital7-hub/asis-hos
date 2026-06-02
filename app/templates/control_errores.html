@@ -96,7 +96,7 @@
         <th>Creado</th>
         <th>Categoría</th>
         <th>Descripción</th>
-        <th>Facturador Cierra</th>
+        <th>Responsable</th>
         <th>Pendiente</th>
         <th>Acciones</th>
       </tr>
@@ -487,7 +487,8 @@
 
   // Mostrar contenido sin login (solo lectura)
   function openFacturadorEditorImpl(errorId, btn) {
-    const rect = btn.getBoundingClientRect();
+    const btnRect = btn.getBoundingClientRect();
+    const rect = btn.closest('td').getBoundingClientRect();
     currentEditId = errorId;
     currentEditType = 'text';
     currentCell = null; // No hay celda específica, usaremos el editor de forma independiente
@@ -495,11 +496,11 @@
     // Posicionar editor al lado derecho del botón
     editor.style.display = 'block';
     document.body.classList.add('editor-open');
-    editor.style.top = rect.top + 'px';
-    editor.style.left = rect.left + rect.width + 8 + 'px';
-    editor.style.width = '300px';
-    editor.style.height = '120px';
-    editor.style.minHeight = '120px';
+    editor.style.top = btnRect.top + 'px';
+    editor.style.left = btnRect.left + btnRect.width + 8 + 'px';
+    editor.style.width = Math.max(260, rect.width) + 'px';
+    editor.style.height = Math.max(90, rect.height) + 'px';
+    editor.style.minHeight = '';
     
     // Obtener el valor actual de observacion_facturador
     const error = cachedErrores.find(e => e.id === errorId);
@@ -1552,9 +1553,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (document.getElementById('cargaModal').classList.contains('open')) {
       // Si estamos en PASO 2 (previsualización): auto-agregar imagen sin preguntar
       if (!document.getElementById('cargaStep2').classList.contains('hidden')) {
+        e.preventDefault();
         var clipItems = e.clipboardData?.items;
         if (clipItems) {
-          for (var idx = 0; idx < clipItems.length; idx++) {
+          for (var idx = clipItems.length - 1; idx >= 0; idx--) {
             if (clipItems[idx].type.startsWith('image/')) {
               var file = clipItems[idx].getAsFile();
               if (file) {
@@ -1572,6 +1574,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       return; // No seguir al upload del error activo
     }
 
+    // Si el usuario está escribiendo en un textarea/input común,
+    // dejar que el navegador pegue el texto sin interferir
+    const activeEl = document.activeElement;
+    if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+      return;
+    }
+
     const items = e.clipboardData?.items;
     if (!items) return;
     
@@ -1579,7 +1588,6 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         imageFile = item.getAsFile();
-        break;
       }
     }
     if (!imageFile) return;
@@ -1808,10 +1816,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   document.getElementById('cargaTextarea').addEventListener('paste', function(e) {
     if (cargaImages.length >= 3) return;
 
-    // 1) Leer del paste event (síncrono, data solo disponible dentro del evento)
+    // No usar preventDefault — el texto de Excel (con posible preview
+    // visual) debe pegarse igual. Solo extraemos la imagen al lado.
     var items = e.clipboardData?.items;
     if (items) {
-      for (var idx = 0; idx < items.length; idx++) {
+      for (var idx = items.length - 1; idx >= 0; idx--) {
         if (items[idx].type.startsWith('image/')) {
           var file = items[idx].getAsFile();
           if (file) {

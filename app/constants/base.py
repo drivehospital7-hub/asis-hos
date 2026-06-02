@@ -230,7 +230,16 @@ DASHBOARD_AREAS = [
 
 
 def _filter_areas(permisos: list[str] | None) -> list[dict]:
-    """Filter DASHBOARD_AREAS by user permissions. Admin (*) sees all."""
+    """Filter DASHBOARD_AREAS by user permissions. Admin (*) sees all.
+
+    Expande permisos con :write para que quien tiene
+    'control_urgencias:write' también vea el área 'control_urgencias'.
+    """
     if permisos is None or "*" in permisos:
         return [{**a, "pending": 0} for a in DASHBOARD_AREAS]
-    return [{**a, "pending": 0} for a in DASHBOARD_AREAS if a["permiso"] in permisos]
+    # Expandir :write → base (ej: control_urgencias:write → control_urgencias)
+    expanded = set(permisos)
+    for p in permisos:
+        if p.endswith(":write"):
+            expanded.add(p.removesuffix(":write"))
+    return [{**a, "pending": 0} for a in DASHBOARD_AREAS if a["permiso"] in expanded]

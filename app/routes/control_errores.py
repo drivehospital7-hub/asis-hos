@@ -36,7 +36,7 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 
 
 @control_errores_bp.get("/control-errores")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def control_errores_page():
     """Página principal del control de errores (Jinja2)."""
     from flask import url_for
@@ -49,7 +49,7 @@ def control_errores_page():
 
 
 @control_errores_bp.get("/api/control-errores/opciones")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_opciones():
     """Obtener opciones para los selects."""
     opciones = get_opciones()
@@ -57,7 +57,7 @@ def listar_opciones():
 
 
 @control_errores_bp.get("/api/control-errores")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_errores():
     """Listar errores con filtros."""
     tipo_error = request.args.get("tipo_error")
@@ -68,7 +68,7 @@ def listar_errores():
 
 
 @control_errores_bp.get("/api/control-errores/changes")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def check_changes():
     """Verificar si hubo cambios desde el último poll."""
     since = request.args.get("since")
@@ -92,7 +92,7 @@ def crear_error():
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def actualizar_error(error_id: str):
     """Actualizar un error existente."""
     data = request.get_json() or {}
@@ -114,7 +114,7 @@ def eliminar_error(error_id: str):
 # =============================================================================
 
 @control_errores_bp.get("/api/control-errores/<error_id>/imagenes")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_imagenes(error_id: str):
     """Listar imágenes."""
     return jsonify(get_imagenes(error_id))
@@ -145,7 +145,7 @@ def eliminar_imagen(error_id: str):
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/<path:filename>")
-@permiso_requerido("control_urgencias")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def servir_imagen(error_id: str, filename: str):
     """Servir imagen."""
     from pathlib import Path

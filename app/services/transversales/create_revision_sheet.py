@@ -25,6 +25,7 @@ from app.services.transversales import (
     detect_doble_tipo_procedimiento,
     detect_ruta_duplicada,
     detect_cantidades_anomalas,
+    detect_tipo_identificacion_entidad,
     normalize_invoice,
 )
 from app.services.transversales.column_indices import get_column_indices
@@ -189,6 +190,13 @@ def create_revision_sheet(
         cantidades_urgencias = detect_cantidades_urgencias(data_sheet, indices)
         cantidades_hospitalizacion = detect_cantidades_hospitalizacion(data_sheet, indices)
 
+        # --- Tipo Identificación AS/MS vs Cód Entidad Cobrar ---
+        tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+        logger.info(
+            "create_revision_sheet - Tipo Identificación / Entidad encontrados: %d",
+            len(tipo_id_entidad),
+        )
+
         # --- ⚠️ Revisión Necesaria: Entidad 86 ---
         revision_entidad_86 = detect_revision_entidad_86_urgencias(data_sheet, indices)
         logger.info(
@@ -216,6 +224,7 @@ def create_revision_sheet(
             responsables_map=responsable_cierra,
             revision_entidad_86=revision_entidad_86,
             revision_cantidad=revision_cantidad,
+            tipo_identificacion_entidad=tipo_id_entidad,
         )
 
         # --- Escribir filas normalizadas en Excel ---
@@ -238,6 +247,7 @@ def create_revision_sheet(
                 "MAL CAPITADO": len(mal_capitado),
                 "Cantidades": len(cantidades_urgencias),
                 "Cantidades Hospitalización": len(cantidades_hospitalizacion),
+                "Tipo Identificación / Entidad": len(tipo_id_entidad),
                 "⚠️ Revisión Necesaria": len(revision_entidad_86) + len(revision_cantidad),
             },
         }
@@ -252,6 +262,7 @@ def create_revision_sheet(
         ruta_dup = detect_ruta_duplicada(data_sheet, indices)
         cantidades = detect_cantidades_anomalas(data_sheet, indices)
         tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
+        tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
         profesionales = detect_profesionales_odontologia(data_sheet, indices)
         centro_costo = detect_centro_costo_odontologia(
             data_sheet, indices,
@@ -283,6 +294,7 @@ def create_revision_sheet(
             profesionales=profesionales,
             cantidades=cantidades,
             tipo_id_edad=tipo_id_edad,
+            tipo_id_entidad=tipo_id_entidad,
             centro_costo=centro_costo,
             ide_contrato=ide_contrato,
             responsable_cierra=responsable_cierra_map,
@@ -306,6 +318,7 @@ def create_revision_sheet(
                 "Convenio de procedimiento": len(profesionales),
                 "Cantidades": len(cantidades),
                 "Tipo Identificación": len(tipo_id_edad),
+                "Tipo Identificación / Entidad": len(tipo_id_entidad),
                 "Centro Costo": len(centro_costo),
                 "IDE Contrato": len(ide_contrato),
             },

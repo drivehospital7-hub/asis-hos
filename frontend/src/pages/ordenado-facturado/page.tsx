@@ -95,7 +95,11 @@ export function OrdenadoFacturadoPage() {
     }
   };
 
-  const copyToClipboard = () => {
+  /** Escapa HTML para el formato text/html del clipboard */
+  const escHtml = (s: string) =>
+    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+
+  const copyToClipboard = async () => {
     if (!result?.no_facturados?.length) return;
 
     const headers = [
@@ -110,12 +114,79 @@ export function OrdenadoFacturadoPage() {
       item.profesional_solicito || "", item.cups || "",
       item.procedimiento_solicitado || "", item.fecha_solicitud || "",
     ]);
-    const text = [headers.join("\t"), ...rows.map((r) => r.join("\t"))].join("\n");
 
-    navigator.clipboard.writeText(text).then(() => {
+    // text/plain con tabs y CRLF (para editores de texto)
+    const textPlain = [headers.join("\t"), ...rows.map((r) => r.join("\t"))].join("\r\n");
+
+    // text/html — Excel reconoce <table> y separa en celdas automáticamente
+    //    (usamos solo <tr>/<td> sin thead/tbody para máxima compatibilidad)
+    const htmlParts: string[] = [
+      "<table>",
+      `<tr>${headers.map((h) => `<th>${escHtml(h)}</th>`).join("")}</tr>`,
+      ...rows.map(
+        (r) => `<tr>${r.map((v) => `<td>${escHtml(v)}</td>`).join("")}</tr>`,
+      ),
+      "</table>",
+    ];
+    const textHtml = htmlParts.join("");
+
+    // 1. Intentar con navigator.clipboard (HTTPS)
+    try {
+      await navigator.clipboard.writeText(textPlain);
       setCopied(true);
       setTimeout(() => setCopied(false), 3000);
-    });
+      return;
+    } catch {
+      // HTTP → continuar con fallback
+    }
+
+    // 2. Fallback: copy event + execCommand con contentEditable
+    //    Necesitamos una selección real para que execCommand dispare el evento copy
+    //    Pone text/html primero (Excel le da prioridad sobre text/plain)
+    const handler = (e: ClipboardEvent) => {
+      e.preventDefault();
+      e.clipboardData?.setData("text/html", textHtml);
+      e.clipboardData?.setData("text/plain", textPlain);
+    };
+    document.addEventListener("copy", handler);
+
+    try {
+      // Creamos un div contentEditable con selección para forzar el evento copy
+      const dummy = document.createElement("div");
+      dummy.contentEditable = "true";
+      dummy.textContent = ".";  // contenido mínimo para que la selección sea válida
+      dummy.style.position = "fixed";
+      dummy.style.opacity = "0";
+      dummy.style.pointerEvents = "none";
+      document.body.appendChild(dummy);
+      dummy.focus();
+
+      const sel = window.getSelection();
+      if (sel) {
+        sel.removeAllRanges();
+        const range = document.createRange();
+        range.selectNodeContents(dummy);
+        sel.addRange(range);
+      }
+
+      document.execCommand("copy");
+      document.body.removeChild(dummy);
+    } catch {
+      // 3. Último recurso: textarea (solo text/plain)
+      const textarea = document.createElement("textarea");
+      textarea.value = textPlain;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    document.removeEventListener("copy", handler);
+
+    setCopied(true);
+    setTimeout(() => setCopied(false), 3000);
   };
 
   return (

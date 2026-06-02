@@ -15,7 +15,7 @@ from app.constants import AREA_URGENCIAS
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
-    detect_codigo_entidad_vs_entidad_afiliacion,
+    detect_tipo_identificacion_entidad,
     detect_tipo_usuario,
     normalize_invoice,
 )
@@ -45,6 +45,7 @@ from app.services.urgencias.revision_cantidad import detect_revision_cantidad_ur
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
 from app.services.normalized_rows import build_normalized_rows
+from app.services.urgencias.valida_capita import detect_capita_cups_invalidos
 
 logger = logging.getLogger(__name__)
 
@@ -99,9 +100,7 @@ def detect_all_problems_urgencias(
     # 4. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
+    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
 
     # 5. Detectores específicos de urgencias
@@ -168,6 +167,13 @@ def detect_all_problems_urgencias(
     logger.info(
         "detect_all_problems_urgencias - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),
+    )
+
+    # 6b. CAPITA inválidos
+    capita_invalidos = detect_capita_cups_invalidos(data_sheet, indices)
+    logger.info(
+        "detect_all_problems_urgencias - Códigos no CAPITA en facturas CAP: %d",
+        len(capita_invalidos),
     )
 
     # 6. Filtrar centros de costo por prioridad
@@ -259,6 +265,7 @@ def detect_all_problems_urgencias(
         "Copago vs Entidad": copago_entidad,
         "Duplicados Farmacia": duplicados_farmacia,
         "Cups Sin Contrato": cups_sin_contrato,
+        "Cups No CAPITA": capita_invalidos,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -308,7 +315,8 @@ def detect_all_problems_urgencias(
             # reglas transversales
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
-            "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
+            "tipo_identificacion_entidad": tipo_identificacion_entidad,
+            "codigo_entidad_vs_afiliacion": [],
             "tipo_usuario": tipo_usuario,
             # reglas urgencias
             "profesionales": profesionales,
@@ -320,6 +328,7 @@ def detect_all_problems_urgencias(
             "copago_entidad": copago_entidad,
             "duplicados_farmacia": duplicados_farmacia,
             "cups_sin_contrato": cups_sin_contrato,
+            "capita_invalidos": capita_invalidos,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -327,7 +336,8 @@ def detect_all_problems_urgencias(
             "cups_equivalentes": len(problemas_cups_equivalentes),
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
-            "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
+            "tipo_identificacion_entidad": len(tipo_identificacion_entidad),
+            "codigo_entidad_vs_afiliacion": 0,
             "tipo_usuario": len(tipo_usuario),
             "profesionales": len(profesionales),
             "mal_capitado": len(mal_capitado),
@@ -338,6 +348,7 @@ def detect_all_problems_urgencias(
             "copago_entidad": len(copago_entidad),
             "duplicados_farmacia": len(duplicados_farmacia),
             "cups_sin_contrato": len(cups_sin_contrato),
+            "capita_invalidos": len(capita_invalidos),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": (

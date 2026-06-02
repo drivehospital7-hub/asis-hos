@@ -516,3 +516,362 @@ class TestEliminarUsuario:
         )
         assert resp.status_code == 200
         # Redirects to React dashboard (no flash)
+
+
+# =============================================================================
+# Tests: Cambiar contraseña propia (self-service)
+# =============================================================================
+
+
+class TestCambiarContrasena:
+    """POST /auth/api/cambiar-contrasena — self-service password change."""
+
+    def test_happy_path(self, app_client, tmp_path):
+        """Valid old + new password → 200, password updated."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["status"] == "success"
+
+            # Verify password was actually changed
+            creds = users_store.check_credentials("admin", "newadmin456")
+            assert creds is not None
+            assert creds["username"] == "admin"
+
+    def test_wrong_old_password(self, app_client, tmp_path):
+        """Wrong old password → 400, error message, password unchanged."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "wrong_old",
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("contraseña actual" in e.lower() for e in data["errors"])
+
+            # Verify password was NOT changed
+            creds = users_store.check_credentials("admin", "admin123")
+            assert creds is not None
+
+    def test_new_password_too_short(self, app_client, tmp_path):
+        """New password < 6 chars → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "abc12",
+                    "confirm_password": "abc12",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("6 caracteres" in e.lower() or "mínimo" in e.lower() or "6" in e for e in data["errors"])
+
+    def test_confirm_mismatch(self, app_client, tmp_path):
+        """New password != confirm → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "newadmin456",
+                    "confirm_password": "different456",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("no coinciden" in e.lower() for e in data["errors"])
+
+    def test_missing_fields(self, app_client, tmp_path):
+        """Missing old_password → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("requerido" in e.lower() for e in data["errors"])
+
+    def test_missing_all_fields(self, app_client, tmp_path):
+        """Empty JSON object → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={},
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert len(data["errors"]) > 0
+
+    def test_unauthenticated(self, app_client):
+        """No session → 401."""
+        resp = app_client.post(
+            "/auth/api/cambiar-contrasena",
+            json={
+                "old_password": "admin123",
+                "new_password": "newadmin456",
+                "confirm_password": "newadmin456",
+            },
+        )
+        assert resp.status_code == 401
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert any("autenticado" in e.lower() for e in data["errors"])
+
+    def test_session_intact_after_change(self, app_client, tmp_path):
+        """Session remains authenticated after password change."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            # Change password
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 200
+
+            # Session should still be valid
+            resp2 = app_client.get("/auth/api/status")
+            assert resp2.status_code == 200
+            status_data = resp2.get_json()
+            assert status_data["data"]["authenticated"] is True
+            assert status_data["data"]["username"] == "admin"
+
+    def test_empty_old_password_string(self, app_client, tmp_path):
+        """Empty string for old_password → 400, campo requerido."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "",
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("requerido" in e.lower() for e in data["errors"])
+
+    def test_empty_new_password_string(self, app_client, tmp_path):
+        """Empty string for new_password → 400, campo requerido."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "",
+                    "confirm_password": "",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("requerido" in e.lower() for e in data["errors"])
+
+    def test_empty_confirm_password_string(self, app_client, tmp_path):
+        """Empty string for confirm_password → 400, campo requerido."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "newadmin456",
+                    "confirm_password": "",
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("requerido" in e.lower() for e in data["errors"])
+
+    def test_invalid_json_body(self, app_client, tmp_path):
+        """Non-parsable JSON body → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                data="not-json-at-all",
+                content_type="application/json",
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("inválido" in e.lower() or "json" in e.lower() for e in data["errors"])
+
+    def test_new_password_same_as_old(self, app_client, tmp_path):
+        """New password == old password → 200, re-hash succeeds."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "admin123",
+                    "confirm_password": "admin123",
+                },
+            )
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["status"] == "success"
+
+    def test_login_with_new_password(self, app_client, tmp_path):
+        """After password change, login with new password works and old fails."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            # Login with old password first
+            app_client.post("/auth/login", data={
+                "username": "admin",
+                "password": "admin123",
+            })
+
+            # Change password via API
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "newadmin456",
+                    "confirm_password": "newadmin456",
+                },
+            )
+            assert resp.status_code == 200
+
+            # Logout
+            app_client.post("/auth/api/logout")
+
+            # Login with NEW password should work
+            resp = app_client.post("/auth/api/login", json={
+                "user": "admin",
+                "pass": "newadmin456",
+            })
+            assert resp.status_code == 200
+            data = resp.get_json()
+            assert data["status"] == "success"
+
+            # Logout
+            app_client.post("/auth/api/logout")
+
+            # Login with OLD password should FAIL
+            resp = app_client.post("/auth/api/login", json={
+                "user": "admin",
+                "pass": "admin123",
+            })
+            assert resp.status_code == 401
+            data = resp.get_json()
+            assert data["status"] == "error"
+
+    def test_new_password_too_long(self, app_client, tmp_path):
+        """New password > 128 chars → 400, error message."""
+        users_file = _seed_users(tmp_path)
+        with patch.object(users_store, "USERS_FILE", users_file):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/api/cambiar-contrasena",
+                json={
+                    "old_password": "admin123",
+                    "new_password": "x" * 129,
+                    "confirm_password": "x" * 129,
+                },
+            )
+            assert resp.status_code == 400
+            data = resp.get_json()
+            assert data["status"] == "error"
+            assert any("128" in e for e in data["errors"])

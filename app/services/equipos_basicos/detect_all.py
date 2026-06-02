@@ -26,6 +26,7 @@ from app.services.transversales import (
     detect_doble_tipo_procedimiento,
     detect_ruta_duplicada,
     detect_tipo_documento_edad,
+    detect_tipo_identificacion_entidad,
     detect_tipo_usuario,
     normalize_invoice,
 )
@@ -73,6 +74,7 @@ def detect_all_problems_equipos_basicos(
     )
 
     tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
+    tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
 
     # Cantidades anómalas con thresholds de Equipos Básicos
     # Equipos Básicos requiere columna procedimiento (más estricto)
@@ -154,6 +156,7 @@ def detect_all_problems_equipos_basicos(
         profesionales=profesionales,
         cantidades=cantidades,
         tipo_id_edad=tipo_id_edad,
+        tipo_id_entidad=tipo_id_entidad,
         centro_costo=centro_costo,
         ide_contrato=ide_contrato,
         responsable_cierra=responsable_cierra,
@@ -173,6 +176,7 @@ def detect_all_problems_equipos_basicos(
             "profesionales": profesionales,
             "cantidades_anomalas": cantidades,
             "tipo_identificacion_edad": tipo_id_edad,
+            "tipo_identificacion_entidad": tipo_id_entidad,
             "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             "tipo_usuario": tipo_usuario_eb,
             "centro_costo": centro_costo,
@@ -186,6 +190,7 @@ def detect_all_problems_equipos_basicos(
             "profesionales": len(profesionales),
             "cantidades_anomalas": len(cantidades),
             "tipo_identificacion_edad": len(tipo_id_edad),
+            "tipo_identificacion_entidad": len(tipo_id_entidad),
             "centro_costo": len(centro_costo),
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),

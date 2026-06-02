@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronDown,
   ChevronUp,
@@ -26,8 +26,12 @@ import {
   copiarHorario,
   copiarResultados,
   escapeHtml,
+  getUniqueResponsables,
+  filterResultsByResponsable,
+  getSinEgresoButtonConfig,
   type ScheduleDay,
   type FacturaResult,
+  type SinEgresoButtonConfig,
 } from "./utils";
 
 interface AbiertasUrgenciasPageProps {
@@ -99,6 +103,18 @@ export function AbiertasUrgenciasPage({
   const [results, setResults] = useState<FacturaResult[] | null>(null);
   const [showRespCard, setShowRespCard] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [filterResponsable, setFilterResponsable] = useState("");
+
+  // ── Derived filter data ──
+  const responsables = useMemo(
+    () => getUniqueResponsables(results ?? []),
+    [results],
+  );
+
+  const filteredResults = useMemo(
+    () => filterResultsByResponsable(results, filterResponsable),
+    [results, filterResponsable],
+  );
 
   // ── Envío tracking refs (no re-renders needed) ──
   const envioExistentes = useRef(new Set<string>());
@@ -338,6 +354,7 @@ export function AbiertasUrgenciasPage({
       }
 
       setResults(newResults);
+      setFilterResponsable("");
       setShowResults(true);
       setShowRespCard(false);
       setFacturasText("");
@@ -438,9 +455,10 @@ export function AbiertasUrgenciasPage({
   };
 
   const handleCopiarResultados = () => {
-    if (results) {
+    const data = filteredResults ?? results;
+    if (data) {
       copiarResultados(
-        results,
+        data,
         envioExistentes.current,
         envioEnviadas.current,
         showToast,
@@ -574,17 +592,29 @@ export function AbiertasUrgenciasPage({
                 Facturas con Responsable Asignado
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {results.length} facturas
+                {(filteredResults ?? results ?? []).length} facturas
               </p>
             </div>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={handleCopiarResultados}
-            >
-              <ClipboardCopy className="h-4 w-4" />
-              Copiar a Excel
-            </Button>
+            <div className="flex items-center gap-2">
+              <select
+                value={filterResponsable}
+                onChange={(e) => setFilterResponsable(e.target.value)}
+                className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+              >
+                <option value="">Todos</option>
+                {responsables.map((r) => (
+                  <option key={r} value={r}>{r}</option>
+                ))}
+              </select>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleCopiarResultados}
+              >
+                <ClipboardCopy className="h-4 w-4" />
+                Copiar a Excel
+              </Button>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-xs table-fixed" style={{ minWidth: 720 }}>
@@ -613,7 +643,7 @@ export function AbiertasUrgenciasPage({
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {results.map((r, idx) => {
+                {(filteredResults ?? results).map((r, idx) => {
                   const isVencida = esVencida(r.estado, r.fechaEgreso);
                   const yaExiste = envioExistentes.current.has(r.factura);
                   const yaEnviada =
@@ -652,13 +682,22 @@ export function AbiertasUrgenciasPage({
                       </button>
                     );
                   } else {
+                    const sinEgresoConfig = getSinEgresoButtonConfig(isSinEgreso);
+                    const isDisabled = sinEgresoConfig.disabled;
                     actionHtml = (
                       <button
-                        className="inline-flex items-center justify-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary hover:bg-primary/20 transition-colors w-full"
-                        title="Enviar a Control de Errores"
-                        onClick={() =>
-                          handleSendToControl(r.factura, r.responsable, idx)
-                        }
+                        className={cn(
+                          "inline-flex items-center justify-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary w-full",
+                          isDisabled
+                            ? "opacity-40 cursor-not-allowed"
+                            : "hover:bg-primary/20 transition-colors",
+                        )}
+                        title={sinEgresoConfig.title}
+                        disabled={isDisabled}
+                        {...(!isDisabled && {
+                          onClick: () =>
+                            handleSendToControl(r.factura, r.responsable, idx),
+                        })}
                       >
                         <Plus className="h-3 w-3" />
                       </button>

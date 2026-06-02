@@ -140,16 +140,27 @@ export function GenderizePage() {
     }
   };
 
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (!extractedData?.registros) return;
     const headers = ["Numero Factura", "Primer Nombre", "Segundo Nombre", "Nombre Completo", "Sexo"];
     const rows = extractedData.registros.map((r) => [
       r.numero_factura, r.primer_nombre, r.segundo_nombre || "", r.nombre_completo, r.sexo,
     ]);
-    const text = [headers.join("\t"), ...rows.map((r) => r.join("\t"))].join("\n");
-    navigator.clipboard.writeText(text).then(() => {
-      Modal.toast("✓ Datos copiados al portapapeles. Puedes pegarlos en Excel.");
-    });
+    const text = [headers.join("\t"), ...rows.map((r) => r.join("\t"))].join("\r\n");
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const textarea = document.createElement("textarea");
+      textarea.value = text;
+      textarea.style.position = "fixed";
+      textarea.style.opacity = "0";
+      textarea.style.pointerEvents = "none";
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand("copy");
+      document.body.removeChild(textarea);
+    }
+    Modal.toast("✓ Datos copiados al portapapeles. Puedes pegarlos en Excel.");
   };
 
   return (
