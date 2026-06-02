@@ -42,13 +42,6 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_download-C8wq8Rqr.js": {
-    "file": "assets/download-C8wq8Rqr.js",
-    "name": "download",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
   "_eye-Cy85FeWW.js": {
     "file": "assets/eye-Cy85FeWW.js",
     "name": "eye",
@@ -112,7 +105,7 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-DSCXya3g.js",
+    "file": "assets/index-oEbu0hBa.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
@@ -122,13 +115,13 @@
       "_breadcrumbs-CQhrzMeU.js",
       "_page-title-yw6qK8j9.js",
       "_clipboard-copy-Kyd3Hqo0.js",
-      "_trash-2-CHuTzTk0.js",
       "_plus-BLq7eTNT.js",
+      "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/control-novedades/index.html": {
-    "file": "assets/index-CpaOadCm.js",
+    "file": "assets/index-BZshwbYx.js",
     "name": "index",
     "src": "src/pages/control-novedades/index.html",
     "isEntry": true,
@@ -138,7 +131,6 @@
       "_breadcrumbs-CQhrzMeU.js",
       "_page-title-yw6qK8j9.js",
       "_status-badge-CfsJsJV3.js",
-      "_download-C8wq8Rqr.js",
       "_plus-BLq7eTNT.js",
       "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
@@ -163,7 +155,7 @@
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-Bvsp-KqK.js",
+    "file": "assets/index-B9B78Des.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
@@ -171,7 +163,6 @@
       "_globals-IEYCF5gg.js",
       "_app-layout-7IHTHcpW.js",
       "_status-badge-CfsJsJV3.js",
-      "_download-C8wq8Rqr.js",
       "_eye-Cy85FeWW.js"
     ]
   },
@@ -293,7 +284,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-Dcw9bgCB.css",
+    "file": "assets/style-CZjEuE1t.css",
     "src": "style.css"
   }
 }
