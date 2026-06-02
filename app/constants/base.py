@@ -146,22 +146,13 @@ HORAS_POR_DIA = 24
 
 DASHBOARD_AREAS = [
     {
-        "title": "Urgencias",
-        "slug": "urgencias",
+        "title": "Procesar",
+        "slug": "procesar",
         "permiso": "urgencias",
-        "href": "/urgencias",
+        "href": "/procesar",
         "tone": "danger",
         "pending_label": "errores",
-        "description": "Procesamiento y validación de facturas del servicio de urgencias.",
-    },
-    {
-        "title": "Odontología",
-        "slug": "odontologia",
-        "permiso": "odontologia",
-        "href": "/odontologia",
-        "tone": "info",
-        "pending_label": "errores",
-        "description": "Procesamiento y validación de facturas del servicio de odontología.",
+        "description": "Procesamiento unificado de facturas. Detecta el tipo de factura automáticamente.",
     },
     {
         "title": "Control de Novedades",
@@ -198,15 +189,6 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "pendientes",
         "description": "Gestión de derechos de petición y trámites administrativos.",
-    },
-    {
-        "title": "Equipos Básicos",
-        "slug": "odontologia_equipos_basicos",
-        "permiso": "odontologia_equipos_basicos",
-        "href": "/odontologia-equipos-basicos",
-        "tone": "info",
-        "pending_label": "pendientes",
-        "description": "Procesamiento de facturas de odontología para equipos básicos.",
     },
     {
         "title": "Usuarios",

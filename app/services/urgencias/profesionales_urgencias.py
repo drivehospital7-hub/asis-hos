@@ -31,9 +31,10 @@ logger = logging.getLogger(__name__)
 def detect_profesionales_urgencias(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    tipos_validos: set[str] | None = None,
 ) -> list[dict[str, str]]:
     """
-    Detecta facturas con profesionales no válidos en Urgencias.
+    Detecta facturas con profesionales no válidos en Urgencias (o áreas afines).
 
     Reglas (Urgencias):
     - "Código Profesional" DEBE estar en PROFESIONALES_URGENCIAS
@@ -42,11 +43,15 @@ def detect_profesionales_urgencias(
     Args:
         data_sheet: Hoja de Excel con los datos
         indices: Índices de columnas
+        tipos_validos: Set de tipos de factura válidos (default: {"Urgencias"})
 
     Returns:
         Lista de dicts con keys: "factura", "codigo_profesional", "nombre", "tipo",
         "profesional_area", "procedimiento", "regla", "problema"
     """
+    if tipos_validos is None:
+        tipos_validos = {"Urgencias"}
+
     logger.warning("=== detect_profesionales_urgencias ===")
     logger.warning("Indices encontrados: %s", indices)
 
@@ -92,7 +97,7 @@ def detect_profesionales_urgencias(
         tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
 
         # Solo procesar si Tipo Factura = "Urgencias"
-        if tipo_factura_str != "Urgencias":
+        if tipo_factura_str not in tipos_validos:
             continue
 
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value

@@ -43,6 +43,7 @@ def detect_all_problems_ambulatoria(
     from app.services.transversales import (
         detect_decimales,
         detect_tipo_documento_edad,
+        detect_tipo_identificacion_entidad,
         detect_codigo_entidad_vs_entidad_afiliacion,
         detect_tipo_usuario,
     )
@@ -54,6 +55,7 @@ def detect_all_problems_ambulatoria(
     # 1. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
@@ -109,7 +111,7 @@ def detect_all_problems_ambulatoria(
     error_groups = {
         "Decimales": decimales,
         "Tipo Identificación / Edad": tipo_identificacion_edad,
-        "Código Entidad vs Afiliación": entidad_afiliacion_comparison,
+        "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
         "Tipo Usuario": tipo_usuario,
         "Copago vs Entidad": copago_entidad,
         "Cups Sin Contrato": cups_sin_contrato,
@@ -131,6 +133,7 @@ def detect_all_problems_ambulatoria(
             "cups_equivalentes": [],
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
+            "tipo_identificacion_entidad": tipo_identificacion_entidad,
             "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             "tipo_usuario": tipo_usuario,
             "copago_entidad": copago_entidad,
@@ -142,6 +145,7 @@ def detect_all_problems_ambulatoria(
             "cups_equivalentes": 0,
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
+            "tipo_identificacion_entidad": len(tipo_identificacion_entidad),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario),
             "copago_entidad": len(copago_entidad),

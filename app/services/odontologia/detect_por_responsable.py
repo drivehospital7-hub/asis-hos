@@ -24,6 +24,15 @@ logger = logging.getLogger(__name__)
 
 FACTURADOR_ODONTOLOGIA = "LOPEZ ANDRADE CLAUDIA LORENA"
 
+# Facturadores de urgencias que aparecen como Odontología en tipo_factura
+# Para estos, centro de costo debe ser URGENCIAS
+FACTURADORES_URGENCIAS: set[str] = {
+    "ARIAS CULCHA ANGIE CAROLINA",
+    "ESPAÑA DIAZ LORENY ALEJANDRA",
+    "MEZA FERNANDEZ CARLOS OMAR",
+    "PAEZ YULIETH DANIELA",
+}
+
 
 class _SimpleSheet:
     """Lightweight wrapper que expone solo las filas indicadas de un sheet existente.
@@ -62,19 +71,21 @@ class _SimpleSheet:
 def _partition_rows(
     data_sheet,
     indices: dict[str, int | None],
-) -> tuple[list[int], list[int]] | None:
+) -> tuple[list[int], list[int], list[int]] | None:
     """Escanea filas 2..N y particiona las de Odontología por responsable.
 
     Pasos:
         1. Si la columna ``responsable_cierra`` no existe → retorna ``None``
         2. Si ``tipo_factura_descripcion`` existe, filtra solo filas
            cuyo valor normalizado contenga ``"ODONTOLOG"``
-        3. Para cada fila de Odontología, normaliza el responsable con
-           ``strip().upper()`` y lo compara contra ``FACTURADOR_ODONTOLOGIA``
+        3. Para cada fila de Odontología, normaliza el responsable:
+           - ``FACTURADOR_ODONTOLOGIA`` → odontología (lopez_rows)
+           - ``FACTURADORES_URGENCIAS``  → odontología con centro costo URGENCIAS (urgencias_rows)
+           - Cualquier otro             → equipos básicos (eb_rows)
 
     Returns:
-        ``(lopez_rows, eb_rows)`` — listas de números de fila (1-indexed)
-        en el sheet original, o ``None`` si no se puede particionar.
+        ``(lopez_rows, urgencias_rows, eb_rows)`` — listas de números de fila,
+        o ``None`` si no se puede particionar.
     """
     responsable_cierra_idx = indices.get("responsable_cierra")
     if responsable_cierra_idx is None:
@@ -83,6 +94,7 @@ def _partition_rows(
     tipo_factura_idx = indices.get("tipo_factura_descripcion")
 
     lopez_rows: list[int] = []
+    urgencias_rows: list[int] = []
     eb_rows: list[int] = []
 
     for row in range(2, data_sheet.max_row + 1):
@@ -93,7 +105,6 @@ def _partition_rows(
             ).value
             tipo_str = str(tipo_val).strip().upper() if tipo_val else ""
             if "ODONTOLOG" not in tipo_str:
-                # No es Odontología → la ignoramos
                 continue
 
         # ── Obtener responsable ──
@@ -104,10 +115,12 @@ def _partition_rows(
 
         if resp == FACTURADOR_ODONTOLOGIA:
             lopez_rows.append(row)
+        elif resp in FACTURADORES_URGENCIAS:
+            urgencias_rows.append(row)
         else:
             eb_rows.append(row)
 
-    return lopez_rows, eb_rows
+    return lopez_rows, urgencias_rows, eb_rows
 
 
 def _merge_results(
@@ -207,10 +220,10 @@ def detect_all_problems_odontologia_por_responsable(
             permitir_todos_centros=permitir_todos_centros,
         )
 
-    lopez_rows, eb_rows = partition
+    lopez_rows, urgencias_rows, eb_rows = partition
 
     # ── 2. Si solo un grupo tiene filas, llamar directamente ──
-    if lopez_rows and not eb_rows:
+    if lopez_rows and not urgencias_rows and not eb_rows:
         logger.info(
             "detect_por_responsable: %d filas → todas son odontología (Lopez Andrade), "
             "llamando detect_all_problems_odontologia directamente",
@@ -223,7 +236,21 @@ def detect_all_problems_odontologia_por_responsable(
             permitir_todos_centros=permitir_todos_centros,
         )
 
-    if eb_rows and not lopez_rows:
+    if urgencias_rows and not lopez_rows and not eb_rows:
+        logger.info(
+            "detect_por_responsable: %d filas → todas son urgencias (facturadores URGENCIAS), "
+            "llamando detect_all_problems_odontologia con centros_validos=['URGENCIAS']",
+            len(urgencias_rows),
+        )
+        return detect_all_problems_odontologia(
+            data_sheet,
+            indices,
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+            centros_validos=["URGENCIAS"],
+        )
+
+    if eb_rows and not lopez_rows and not urgencias_rows:
         logger.info(
             "detect_por_responsable: %d filas → todas son equipos básicos, "
             "llamando detect_all_problems_equipos_basicos directamente",
@@ -236,11 +263,14 @@ def detect_all_problems_odontologia_por_responsable(
             permitir_todos_centros=permitir_todos_centros,
         )
 
-    # ── 3. Ambos grupos tienen filas → subsets + dispatch ──
+    # ── 3. Múltiples grupos tienen filas → subsets + dispatch ──
     logger.info(
-        "detect_por_responsable: %d filas odontología (Lopez), %d filas equipos básicos, "
+        "detect_por_responsable: %d filas odontología (Lopez), "
+        "%d filas urgencias (Arias/España/Meza/Paez), "
+        "%d filas equipos básicos, "
         "creando subsets",
         len(lopez_rows),
+        len(urgencias_rows),
         len(eb_rows),
     )
 
@@ -259,6 +289,21 @@ def detect_all_problems_odontologia_por_responsable(
             permitir_todos_centros=permitir_todos_centros,
         )
         results.append((res_lopez, rmap_lopez))
+
+    if urgencias_rows:
+        sheet_urg = _SimpleSheet(data_sheet, [1] + urgencias_rows)
+        logger.debug(
+            "detect_por_responsable: subset urgencias con %d filas",
+            sheet_urg.max_row - 1,
+        )
+        res_urg, rmap_urg = detect_all_problems_odontologia(
+            sheet_urg,
+            indices,
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+            centros_validos=["URGENCIAS"],
+        )
+        results.append((res_urg, rmap_urg))
 
     if eb_rows:
         sheet_eb = _SimpleSheet(data_sheet, [1] + eb_rows)

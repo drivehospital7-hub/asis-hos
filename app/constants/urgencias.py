@@ -708,10 +708,6 @@ IDE_CONTRATO_REVERSE_ESS118 = {
 # =============================================================================
 
 PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
-    "03007": {
-        "nombre": "OSPINA MARTINEZ LIZETH",
-        "tipo": "ODONTOLOGO",
-    },
     "03568": {
         "nombre": "RIVADENEIRA CABEZAS RENY MARGARITA",
         "tipo": "TRABAJADORA SOCIAL",

@@ -37,6 +37,7 @@ def detect_all_problems_odontologia(
     indices: dict[str, int | None],
     profesional_dias: dict[str, list[int]] | None = None,
     permitir_todos_centros: bool = True,
+    centros_validos: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta TODOS los problemas en facturas de odontología.
@@ -48,6 +49,7 @@ def detect_all_problems_odontologia(
         indices: Índices de columnas
         profesional_dias: Dict {identificacion: [dias]} con días seleccionados
         permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL
+        centros_validos: Lista personalizada de centros válidos (opcional)
 
     Returns:
         (resultado_dict, responsables_map)
@@ -78,6 +80,7 @@ def detect_all_problems_odontologia(
         indices,
         profesional_dias=profesional_dias,
         permitir_todos_centros=permitir_todos_centros,
+        centros_validos=centros_validos,
     )
 
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)

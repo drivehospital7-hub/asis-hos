@@ -1,11 +1,6 @@
 {
-<<<<<<< HEAD
-  "_app-layout-C3pj8u6M.js": {
-    "file": "assets/app-layout-C3pj8u6M.js",
-=======
-  "_app-layout-7IHTHcpW.js": {
-    "file": "assets/app-layout-7IHTHcpW.js",
->>>>>>> origin/main
+  "_app-layout-cT9L0mv_.js": {
+    "file": "assets/app-layout-cT9L0mv_.js",
     "name": "app-layout",
     "imports": [
       "_globals-IEYCF5gg.js",
@@ -19,28 +14,22 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_breadcrumbs-CQhrzMeU.js": {
-    "file": "assets/breadcrumbs-CQhrzMeU.js",
+  "_breadcrumbs-NWWLMxrF.js": {
+    "file": "assets/breadcrumbs-NWWLMxrF.js",
     "name": "breadcrumbs",
     "imports": [
       "_globals-IEYCF5gg.js"
     ]
   },
-<<<<<<< HEAD
-  "_button-D8FVLmP8.js": {
-    "file": "assets/button-D8FVLmP8.js",
-    "name": "button",
+  "_chevron-down-Dc1MMH_1.js": {
+    "file": "assets/chevron-down-Dc1MMH_1.js",
+    "name": "chevron-down",
     "imports": [
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js"
+      "_globals-IEYCF5gg.js"
     ]
   },
-  "_circle-check-BTNX0Fqi.js": {
-    "file": "assets/circle-check-BTNX0Fqi.js",
-=======
   "_circle-check-D7L-pulr.js": {
     "file": "assets/circle-check-D7L-pulr.js",
->>>>>>> origin/main
     "name": "circle-check",
     "imports": [
       "_globals-IEYCF5gg.js"
@@ -85,35 +74,12 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_list-NshXNfY5.js": {
-    "file": "assets/list-NshXNfY5.js",
-    "name": "list",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
-<<<<<<< HEAD
-  "_loader-circle-CNR9O211.js": {
-    "file": "assets/loader-circle-CNR9O211.js",
-    "name": "loader-circle",
-    "imports": [
-      "_globals-BoBHE25F.js"
-    ]
-  },
-  "_page-title-CTJ3W1KM.js": {
-    "file": "assets/page-title-CTJ3W1KM.js",
-    "name": "page-title",
-    "imports": [
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js"
-=======
-  "_page-title-yw6qK8j9.js": {
-    "file": "assets/page-title-yw6qK8j9.js",
+  "_page-title-DjIt2r6v.js": {
+    "file": "assets/page-title-DjIt2r6v.js",
     "name": "page-title",
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js"
->>>>>>> origin/main
+      "_app-layout-cT9L0mv_.js"
     ]
   },
   "_pencil-DccyUFYy.js": {
@@ -130,21 +96,12 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-<<<<<<< HEAD
-  "_status-badge-DDpP9wgG.js": {
-    "file": "assets/status-badge-DDpP9wgG.js",
-    "name": "status-badge",
-    "imports": [
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js"
-=======
-  "_status-badge-CfsJsJV3.js": {
-    "file": "assets/status-badge-CfsJsJV3.js",
+  "_status-badge-Bu4UKBPq.js": {
+    "file": "assets/status-badge-Bu4UKBPq.js",
     "name": "status-badge",
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js"
->>>>>>> origin/main
+      "_app-layout-cT9L0mv_.js"
     ]
   },
   "_trash-2-CHuTzTk0.js": {
@@ -155,88 +112,48 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-<<<<<<< HEAD
-    "file": "assets/index-DZm23FTt.js",
-=======
-    "file": "assets/index-DSCXya3g.js",
->>>>>>> origin/main
+    "file": "assets/index-IzX-4Vbw.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_loader-circle-CNR9O211.js",
-      "_clipboard-copy-CYEFLLgK.js",
-      "_trash-2-0mnNXBQD.js",
-      "_plus-GFGJ5si4.js"
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
+      "_app-layout-cT9L0mv_.js",
+      "_breadcrumbs-NWWLMxrF.js",
+      "_page-title-DjIt2r6v.js",
+      "_chevron-down-Dc1MMH_1.js",
       "_clipboard-copy-Kyd3Hqo0.js",
-      "_trash-2-CHuTzTk0.js",
       "_plus-BLq7eTNT.js",
+      "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
->>>>>>> origin/main
     ]
   },
   "src/pages/catalogo/index.html": {
-    "file": "assets/index-Bm58pzV1.js",
+    "file": "assets/index-iSp1ADrw.js",
     "name": "index",
     "src": "src/pages/catalogo/index.html",
     "isEntry": true,
     "imports": [
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_status-badge-DDpP9wgG.js",
-      "_loader-circle-CNR9O211.js",
-      "_plus-GFGJ5si4.js",
-      "_pencil-D6nS2XbR.js",
-      "_eye-D4ULqSft.js",
-      "_trash-2-0mnNXBQD.js"
+      "_globals-IEYCF5gg.js",
+      "_app-layout-cT9L0mv_.js",
+      "_status-badge-Bu4UKBPq.js",
+      "_plus-BLq7eTNT.js",
+      "_pencil-DccyUFYy.js",
+      "_eye-Cy85FeWW.js",
+      "_trash-2-CHuTzTk0.js"
     ]
   },
   "src/pages/control-novedades/index.html": {
-<<<<<<< HEAD
-    "file": "assets/index-CeQ9EXR9.js",
-=======
-    "file": "assets/index-CpaOadCm.js",
->>>>>>> origin/main
+    "file": "assets/index-BltzSUDu.js",
     "name": "index",
     "src": "src/pages/control-novedades/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_download-C6cZwxGD.js",
-      "_plus-GFGJ5si4.js",
-      "_clock-55-7RBFs.js",
-      "_circle-check-BTNX0Fqi.js",
-      "_eye-D4ULqSft.js",
-      "_pencil-D6nS2XbR.js",
-      "_trash-2-0mnNXBQD.js"
-    ]
-  },
-  "src/pages/derechos/index.html": {
-    "file": "assets/index-Cz1jXk_h.js",
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_breadcrumbs-NWWLMxrF.js",
+      "_page-title-DjIt2r6v.js",
+      "_status-badge-Bu4UKBPq.js",
       "_download-C8wq8Rqr.js",
       "_plus-BLq7eTNT.js",
       "_clock-BKWXDcK3.js",
@@ -247,84 +164,47 @@
     ]
   },
   "src/pages/derechos/index.html": {
-    "file": "assets/index-BzC-1rSM.js",
->>>>>>> origin/main
+    "file": "assets/index-E33dfODk.js",
     "name": "index",
     "src": "src/pages/derechos/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_circle-check-BTNX0Fqi.js"
-    ]
-  },
-  "src/pages/genderize/index.html": {
-    "file": "assets/index-BJzm-DTh.js",
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_breadcrumbs-NWWLMxrF.js",
+      "_page-title-DjIt2r6v.js",
+      "_status-badge-Bu4UKBPq.js",
       "_circle-check-D7L-pulr.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-Bvsp-KqK.js",
->>>>>>> origin/main
+    "file": "assets/index-ANmFesKC.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_status-badge-DDpP9wgG.js",
-      "_download-C6cZwxGD.js"
-    ]
-  },
-  "src/pages/index/index.html": {
-    "file": "assets/index-UHyxyaDh.js",
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_status-badge-Bu4UKBPq.js",
       "_download-C8wq8Rqr.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/index/index.html": {
-    "file": "assets/index-DONt5JnK.js",
->>>>>>> origin/main
+    "file": "assets/index-BRxCZhGA.js",
     "name": "index",
     "src": "src/pages/index/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_clock-55-7RBFs.js",
-      "_circle-check-BTNX0Fqi.js",
-      "_arrow-right-DjVHW9Vj.js"
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_page-title-DjIt2r6v.js",
+      "_status-badge-Bu4UKBPq.js",
       "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
       "_arrow-right-svMThmkB.js",
       "_eye-Cy85FeWW.js"
->>>>>>> origin/main
     ]
   },
   "src/pages/login/index.html": {
@@ -337,105 +217,39 @@
       "_eye-Cy85FeWW.js"
     ]
   },
-  "src/pages/odontologia-equipos-basicos/index.html": {
-<<<<<<< HEAD
-    "file": "assets/index-Cot_6Sly.js",
-=======
-    "file": "assets/index-sRPLAIXO.js",
->>>>>>> origin/main
-    "name": "index",
-    "src": "src/pages/odontologia-equipos-basicos/index.html",
-    "isEntry": true,
-    "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_info-Cg9Znahj.js",
-      "_list-BiCR2aI2.js",
-      "_arrow-right-DjVHW9Vj.js"
-    ]
-  },
-  "src/pages/odontologia/index.html": {
-    "file": "assets/index-DvyYBJXQ.js",
-=======
-      "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
-      "_info-CaFPEwhM.js",
-      "_list-NshXNfY5.js",
-      "_arrow-right-svMThmkB.js",
-      "_eye-Cy85FeWW.js"
-    ]
-  },
-  "src/pages/odontologia/index.html": {
-    "file": "assets/index-DOn57MX6.js",
->>>>>>> origin/main
-    "name": "index",
-    "src": "src/pages/odontologia/index.html",
-    "isEntry": true,
-    "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_info-Cg9Znahj.js",
-      "_list-BiCR2aI2.js",
-      "_arrow-right-DjVHW9Vj.js"
-    ]
-  },
   "src/pages/ordenado-facturado/index.html": {
-    "file": "assets/index-CIBItvBM.js",
-=======
-      "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
-      "_info-CaFPEwhM.js",
-      "_list-NshXNfY5.js",
-      "_arrow-right-svMThmkB.js",
-      "_eye-Cy85FeWW.js"
-    ]
-  },
-  "src/pages/ordenado-facturado/index.html": {
-    "file": "assets/index-DCIgc4xT.js",
->>>>>>> origin/main
+    "file": "assets/index-BlntRcoM.js",
     "name": "index",
     "src": "src/pages/ordenado-facturado/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_arrow-right-DjVHW9Vj.js",
-      "_circle-check-BTNX0Fqi.js",
-      "_info-Cg9Znahj.js",
-      "_clipboard-copy-CYEFLLgK.js"
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_breadcrumbs-NWWLMxrF.js",
+      "_page-title-DjIt2r6v.js",
+      "_status-badge-Bu4UKBPq.js",
       "_arrow-right-svMThmkB.js",
       "_circle-check-D7L-pulr.js",
       "_info-CaFPEwhM.js",
       "_clipboard-copy-Kyd3Hqo0.js",
       "_eye-Cy85FeWW.js"
->>>>>>> origin/main
+    ]
+  },
+  "src/pages/procesar/index.html": {
+    "file": "assets/index-807cVWkz.js",
+    "name": "index",
+    "src": "src/pages/procesar/index.html",
+    "isEntry": true,
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_app-layout-cT9L0mv_.js",
+      "_breadcrumbs-NWWLMxrF.js",
+      "_page-title-DjIt2r6v.js",
+      "_status-badge-Bu4UKBPq.js",
+      "_info-CaFPEwhM.js",
+      "_arrow-right-svMThmkB.js",
+      "_chevron-down-Dc1MMH_1.js",
+      "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/unauthorized/index.html": {
@@ -447,70 +261,22 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "src/pages/urgencias/index.html": {
-<<<<<<< HEAD
-    "file": "assets/index-ubR5PAZL.js",
-=======
-    "file": "assets/index-C1LgPLuP.js",
->>>>>>> origin/main
-    "name": "index",
-    "src": "src/pages/urgencias/index.html",
-    "isEntry": true,
-    "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_breadcrumbs-CSsrtbyg.js",
-      "_page-title-CTJ3W1KM.js",
-      "_status-badge-DDpP9wgG.js",
-      "_info-Cg9Znahj.js",
-      "_arrow-right-DjVHW9Vj.js"
-    ]
-  },
   "src/pages/usuarios/index.html": {
-    "file": "assets/index-DiOfreLi.js",
-=======
-      "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-yw6qK8j9.js",
-      "_status-badge-CfsJsJV3.js",
-      "_info-CaFPEwhM.js",
-      "_arrow-right-svMThmkB.js",
-      "_eye-Cy85FeWW.js"
-    ]
-  },
-  "src/pages/usuarios/index.html": {
-    "file": "assets/index-BHztwxzB.js",
->>>>>>> origin/main
+    "file": "assets/index-Dbf18IhF.js",
     "name": "index",
     "src": "src/pages/usuarios/index.html",
     "isEntry": true,
     "imports": [
-<<<<<<< HEAD
-      "_globals-BoBHE25F.js",
-      "_app-layout-C3pj8u6M.js",
-      "_button-D8FVLmP8.js",
-      "_status-badge-DDpP9wgG.js",
-      "_pencil-D6nS2XbR.js",
-      "_trash-2-0mnNXBQD.js"
-    ]
-  },
-  "style.css": {
-    "file": "assets/style-AtvbFUrS.css",
-=======
       "_globals-IEYCF5gg.js",
-      "_app-layout-7IHTHcpW.js",
-      "_status-badge-CfsJsJV3.js",
+      "_app-layout-cT9L0mv_.js",
+      "_status-badge-Bu4UKBPq.js",
       "_pencil-DccyUFYy.js",
       "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "style.css": {
-    "file": "assets/style-Dcw9bgCB.css",
->>>>>>> origin/main
+    "file": "assets/style-3To0Gjm-.css",
     "src": "style.css"
   }
 }

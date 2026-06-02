@@ -31,7 +31,6 @@ import {
   getSinEgresoButtonConfig,
   type ScheduleDay,
   type FacturaResult,
-  type SinEgresoButtonConfig,
 } from "./utils";
 
 interface AbiertasUrgenciasPageProps {

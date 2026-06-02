@@ -1,6 +1,6 @@
-"""Integration tests for app/routes/excel_headers.py POST route.
+"""Integration tests for app/routes/procesar.py POST route.
 
-Covers the fallback paths in the POST endpoint:
+Covers the unified endpoint:
 - No file uploaded → JSON error (not HTML)
 - Invalid file extension → JSON error
 """
@@ -12,22 +12,22 @@ from io import BytesIO
 from app import PUBLIC_ENDPOINTS
 
 
-class TestExcelHeadersRoutePost:
-    """Integration tests for /odontologia/ POST endpoint."""
+class TestProcesarRoutePost:
+    """Integration tests for /procesar/ POST endpoint."""
 
     def _authenticate(self, app_client) -> None:
-        """Establece sesión autenticada con permiso odontologia."""
+        """Establece sesión autenticada con permiso urgencias."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
-            sess["permisos"] = ["odontologia"]
+            sess["permisos"] = ["urgencias"]
 
     def test_post_no_file_returns_json_error(self, app_client) -> None:
         """POST without file returns JSON error, not HTML."""
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={},
             content_type="multipart/form-data",
         )
@@ -44,7 +44,7 @@ class TestExcelHeadersRoutePost:
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (BytesIO(b"test data"), "test.txt"),
             },

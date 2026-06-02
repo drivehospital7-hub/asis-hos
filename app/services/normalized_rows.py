@@ -203,20 +203,49 @@ def build_normalized_rows(
     # --- Código Entidad vs Afiliación ---
     for item in error_groups.get("Código Entidad vs Afiliación", []):
         factura = item.get("factura", "")
-        cod = item.get("codigo_entidad_cobrar", "")
-        nombre = item.get("entidad_cobrar_nombre", "")
-        proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
-        rows.append({
-            "tipo_error": "Código Entidad vs Afiliación",
-            "factura": factura,
-            "fec_factura": _get_fec_factura(factura),
-            "responsable_cierra": _get_responsable(factura),
-            "descripcion": item.get("problema", ""),
-            "procedimiento": proc_entidad,
-            "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
-            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
-            "_header_override": "Entidad de factura",
-        })
+        # Detectar si es del detector nuevo (tipo_identificacion_entidad) o viejo
+        if "tipo_identificacion" in item:
+            # Nuevo detector: tipo_identificacion_entidad (AS/MS ↔ 86000)
+            tipo_id = item.get("tipo_identificacion", "")
+            cod_actual = item.get("cod_entidad_actual", "")
+            cod_esperado = item.get("cod_entidad_esperado", "")
+            problema_key = item.get("problema", "")
+            if problema_key == "as_ms_requiere_86000":
+                desc = f"Tipo ID {tipo_id} requiere Cód Entidad Cobrar = {cod_esperado}"
+                detalle = f"Actual: {cod_actual}"
+            elif problema_key == "86000_solo_para_as_ms":
+                desc = f"Cód Entidad Cobrar = {cod_actual} solo válido para AS/MS"
+                detalle = f"Tipo ID actual: {tipo_id}"
+            else:
+                desc = item.get("problema", "")
+                detalle = f"Tipo ID: {tipo_id}, Cód: {cod_actual}"
+            rows.append({
+                "tipo_error": "Código Entidad vs Afiliación",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": desc,
+                "procedimiento": cod_actual,
+                "detalle": detalle,
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+                "_header_override": "Código Entidad",
+            })
+        else:
+            # Viejo detector: codigo_entidad_vs_entidad_afiliacion
+            cod = item.get("codigo_entidad_cobrar", "")
+            nombre = item.get("entidad_cobrar_nombre", "")
+            proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
+            rows.append({
+                "tipo_error": "Código Entidad vs Afiliación",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("problema", ""),
+                "procedimiento": proc_entidad,
+                "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+                "_header_override": "Entidad de factura",
+            })
 
     # --- Tipo Usuario ---
     for item in error_groups.get("Tipo Usuario", []):

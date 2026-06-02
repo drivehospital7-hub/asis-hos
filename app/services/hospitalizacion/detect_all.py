@@ -69,6 +69,7 @@ def detect_all_problems_hospitalizacion(
     from app.services.transversales import (
         detect_decimales,
         detect_tipo_documento_edad,
+        detect_tipo_identificacion_entidad,
         detect_codigo_entidad_vs_entidad_afiliacion,
         detect_tipo_usuario,
     )
@@ -87,6 +88,7 @@ def detect_all_problems_hospitalizacion(
     from app.services.urgencias.ide_contrato_urgencias import (
         detect_ide_contrato_urgencias,
     )
+    from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
     from app.services.transversales.detect_copago_entidad import (
         detect_copago_entidad_urgencias,
     )
@@ -103,6 +105,7 @@ def detect_all_problems_hospitalizacion(
     # 3. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
@@ -112,6 +115,12 @@ def detect_all_problems_hospitalizacion(
     cantidades_hospitalizacion = detect_cantidades_hospitalizacion(data_sheet, indices)
     cantidades_soat_hospitalizacion = detect_cantidades_soat_hospitalizacion(data_sheet, indices)
     copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+
+    profesionales = detect_profesionales_urgencias(data_sheet, indices, tipos_validos={"Hospitalización"})
+    logger.info(
+        "detect_all_problems_hospitalizacion - Profesionales encontrados: %d",
+        len(profesionales),
+    )
 
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
     logger.info(
@@ -192,9 +201,10 @@ def detect_all_problems_hospitalizacion(
         "Cantidades SOAT Hospitalización": cantidades_soat_hospitalizacion,
         "Decimales": decimales,
         "Tipo Identificación / Edad": tipo_identificacion_edad,
-        "Código Entidad vs Afiliación": entidad_afiliacion_comparison,
+        "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
         "Tipo Usuario": tipo_usuario,
         "Copago vs Entidad": copago_entidad,
+        "Profesionales": profesionales,
         "Cups Sin Contrato": cups_sin_contrato,
     }
     normalized_rows = build_normalized_rows(
@@ -244,11 +254,13 @@ def detect_all_problems_hospitalizacion(
             ],
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
+            "tipo_identificacion_entidad": tipo_identificacion_entidad,
             "codigo_entidad_vs_afiliacion": entidad_afiliacion_comparison,
             "tipo_usuario": tipo_usuario,
             "cantidades_hospitalizacion": cantidades_hospitalizacion,
             "cantidades_soat_hospitalizacion": cantidades_soat_hospitalizacion,
             "copago_entidad": copago_entidad,
+            "profesionales": profesionales,
             "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
@@ -257,11 +269,13 @@ def detect_all_problems_hospitalizacion(
             "cups_equivalentes": len(problemas_cups_equivalentes),
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
+            "tipo_identificacion_entidad": len(tipo_identificacion_entidad),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario),
             "cantidades_hospitalizacion": len(cantidades_hospitalizacion),
             "cantidades_soat_hospitalizacion": len(cantidades_soat_hospitalizacion),
             "copago_entidad": len(copago_entidad),
+            "profesionales": len(profesionales),
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],

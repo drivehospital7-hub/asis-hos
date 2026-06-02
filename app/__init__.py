@@ -97,8 +97,6 @@ def create_app(config=None):
         return render_template("unauthorized.html"), 401
 
     from app.routes.home import home_bp
-    from app.routes.excel_headers import excel_headers_bp
-    from app.routes.urgencias import urgencias_bp
     from app.routes.procedimientos import procedimientos_bp
     from app.routes.ordenado_facturado import ordenado_facturado_bp
     from app.routes.notas_api import api_bp
@@ -110,7 +108,6 @@ def create_app(config=None):
     from app.routes.control_errores import control_errores_bp
     from app.routes.catalogo import catalogo_bp
     from app.routes.abiertas_urgencias import abiertas_urgencias_bp
-    from app.routes.odontologia_equipos_basicos import odontologia_equipos_basicos_bp
     from app.routes.procesar import procesar_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
@@ -120,8 +117,6 @@ def create_app(config=None):
     # Home ahora es /dashboard
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(excel_headers_bp, url_prefix="/odontologia")
-    app.register_blueprint(urgencias_bp, url_prefix="/urgencias")
     app.register_blueprint(procedimientos_bp)
     app.register_blueprint(ordenado_facturado_bp, url_prefix="/ordenado-facturado")
     app.register_blueprint(api_bp)
@@ -129,7 +124,6 @@ def create_app(config=None):
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
     app.register_blueprint(genderize_bp, url_prefix="/api/genderize")
     app.register_blueprint(import_facturas_bp)
-    app.register_blueprint(odontologia_equipos_basicos_bp, url_prefix="/odontologia-equipos-basicos")
     app.register_blueprint(procesar_bp, url_prefix="/procesar")
 
     return app

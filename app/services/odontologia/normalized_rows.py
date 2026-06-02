@@ -97,10 +97,12 @@ def build_odontologia_normalized_rows(
         identificacion = item.get("identificacion", "")
         facturas_list = item.get("facturas", "")
         cantidad = item.get("cantidad", 0)
+        # Usar la primera factura de la lista para que el filtro por tipo_factura no la elimine
+        primera_factura = facturas_list.split(",")[0].strip() if facturas_list else identificacion
         rows.append({
             "tipo_error": "Ruta Duplicada",
-            "factura": identificacion,
-            "fec_factura": _get_fec_factura(identificacion),
+            "factura": primera_factura,
+            "fec_factura": _get_fec_factura(primera_factura),
             "responsable_cierra": _get_responsable(identificacion),
             "descripcion": f"Paciente con {cantidad} facturas en PyP",
             "procedimiento": facturas_list,
@@ -214,18 +216,43 @@ def build_odontologia_normalized_rows(
     if entidad_afiliacion_comparison:
         for item in entidad_afiliacion_comparison:
             factura = item.get("factura", "")
-            cod = item.get("codigo_entidad_cobrar", "")
-            nombre = item.get("entidad_cobrar_nombre", "")
-            proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
-            rows.append({
-                "tipo_error": "Código Entidad vs Afiliación",
-                "factura": factura,
-                "fec_factura": _get_fec_factura(factura),
-                "responsable_cierra": _get_responsable(factura),
-                "descripcion": item.get("problema", ""),
-                "procedimiento": proc_entidad,
-                "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
-            })
+            # Detectar si es del detector nuevo (tipo_identificacion_entidad) o viejo
+            if "tipo_identificacion" in item:
+                tipo_id = item.get("tipo_identificacion", "")
+                cod_actual = item.get("cod_entidad_actual", "")
+                cod_esperado = item.get("cod_entidad_esperado", "")
+                problema_key = item.get("problema", "")
+                if problema_key == "as_ms_requiere_86000":
+                    desc = f"Tipo ID {tipo_id} requiere Cód Entidad Cobrar = {cod_esperado}"
+                    detalle = f"Actual: {cod_actual}"
+                elif problema_key == "86000_solo_para_as_ms":
+                    desc = f"Cód Entidad Cobrar = {cod_actual} solo válido para AS/MS"
+                    detalle = f"Tipo ID actual: {tipo_id}"
+                else:
+                    desc = item.get("problema", "")
+                    detalle = f"Tipo ID: {tipo_id}, Cód: {cod_actual}"
+                rows.append({
+                    "tipo_error": "Código Entidad vs Afiliación",
+                    "factura": factura,
+                    "fec_factura": _get_fec_factura(factura),
+                    "responsable_cierra": _get_responsable(factura),
+                    "descripcion": desc,
+                    "procedimiento": cod_actual,
+                    "detalle": detalle,
+                })
+            else:
+                cod = item.get("codigo_entidad_cobrar", "")
+                nombre = item.get("entidad_cobrar_nombre", "")
+                proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
+                rows.append({
+                    "tipo_error": "Código Entidad vs Afiliación",
+                    "factura": factura,
+                    "fec_factura": _get_fec_factura(factura),
+                    "responsable_cierra": _get_responsable(factura),
+                    "descripcion": item.get("problema", ""),
+                    "procedimiento": proc_entidad,
+                    "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                })
 
     # --- Tipo Usuario ---
     if tipo_usuario:

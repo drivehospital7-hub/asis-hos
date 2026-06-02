@@ -1,6 +1,6 @@
-"""Integration tests for app/routes/urgencias.py POST route.
+"""Integration tests for app/routes/procesar.py POST route.
 
-Covers the uncovered paths in the POST endpoint:
+Covers the unified endpoint behavior:
 - No file uploaded → JSON error (not HTML)
 - Invalid file extension → JSON error
 - Semaphore timeout → 503
@@ -14,22 +14,22 @@ from unittest.mock import patch
 import pytest
 
 
-class TestUrgenciasRoutePost:
-    """Integration tests for /urgencias/ POST endpoint."""
+class TestProcesarRoutePost:
+    """Integration tests for /procesar/ POST endpoint."""
 
-    def _authenticate(self, app_client) -> None:
-        """Establece sesión autenticada con permiso urgencias."""
+    def _authenticate(self, app_client, permisos: list[str] | None = None) -> None:
+        """Establece sesión autenticada."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
-            sess["permisos"] = ["urgencias"]
+            sess["permisos"] = permisos or ["urgencias"]
 
     def test_post_no_file_returns_json_error(self, app_client) -> None:
         """POST without file returns JSON error, not HTML."""
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/urgencias/",
+            "/procesar/",
             data={},
             content_type="multipart/form-data",
         )
@@ -46,7 +46,7 @@ class TestUrgenciasRoutePost:
         self._authenticate(app_client)
 
         response = app_client.post(
-            "/urgencias/",
+            "/procesar/",
             data={
                 "file_upload": (BytesIO(b"test data"), "test.txt"),
             },
@@ -71,7 +71,7 @@ class TestUrgenciasRoutePost:
             mock_acquire.return_value = False
 
             response = app_client.post(
-                "/urgencias/",
+                "/procesar/",
                 data={
                     "file_upload": (BytesIO(b"test"), "test.xlsx"),
                 },
