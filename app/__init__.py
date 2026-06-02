@@ -109,6 +109,8 @@ def create_app(config=None):
     from app.routes.catalogo import catalogo_bp
     from app.routes.abiertas_urgencias import abiertas_urgencias_bp
     from app.routes.procesar import procesar_bp
+    from app.routes.cronograma_bacteriologas import cronograma_bp
+    from app.routes.cronograma_urgencias import cronograma_urgencias_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
@@ -125,5 +127,7 @@ def create_app(config=None):
     app.register_blueprint(genderize_bp, url_prefix="/api/genderize")
     app.register_blueprint(import_facturas_bp)
     app.register_blueprint(procesar_bp, url_prefix="/procesar")
+    app.register_blueprint(cronograma_bp, url_prefix="/cronograma-bacteriologas")
+    app.register_blueprint(cronograma_urgencias_bp, url_prefix="/cronograma-urgencias")
 
     return app

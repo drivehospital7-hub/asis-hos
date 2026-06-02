@@ -24,6 +24,8 @@ const ALL_NAV: NavItem[] = [
   { label: "Procesar", href: "/procesar", icon: FileText, permiso: "urgencias" },
   { label: "Control de Novedades", href: "/control-errores", icon: ClipboardCheck, permiso: "control_urgencias" },
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
+  { label: "Cronograma Urgencias", href: "/cronograma-urgencias", icon: CalendarClock, permiso: "*" },
+  { label: "Cronograma Bacteriólogas", href: "/cronograma-bacteriologas", icon: CalendarClock, permiso: "*" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },

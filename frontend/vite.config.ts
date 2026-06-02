@@ -33,6 +33,8 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/unauthorized/index.html"),
         path.resolve(__dirname, "src/pages/abiertas-urgencias/index.html"),
         path.resolve(__dirname, "src/pages/catalogo/index.html"),
+        path.resolve(__dirname, "src/pages/cronograma-bacteriologas/index.html"),
+        path.resolve(__dirname, "src/pages/cronograma-urgencias/index.html"),
       ],
     },
   },

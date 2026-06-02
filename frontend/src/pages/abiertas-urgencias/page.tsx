@@ -5,8 +5,6 @@ import {
   Users,
   CalendarDays,
   Upload,
-  FileEdit,
-  Trash2,
   Check,
   ClipboardCopy,
   Plus,
@@ -20,7 +18,6 @@ import { PageTitle } from "@/components/page-title";
 import { cn } from "@/lib/utils";
 import { TOAST_DURATION } from "./constants";
 import {
-  parseScheduleText,
   autoDetectColumns,
   calcularResponsable,
   copiarHorario,
@@ -93,8 +90,6 @@ export function AbiertasUrgenciasPage({
   const [scheduleStatus, setScheduleStatus] = useState<
     "loading" | "loaded" | "empty"
   >("loading");
-  const [scheduleText, setScheduleText] = useState("");
-  const [showParseCard, setShowParseCard] = useState(false);
 
   // ── Responsible assignment state ──
   const [facturasText, setFacturasText] = useState("");
@@ -157,74 +152,6 @@ export function AbiertasUrgenciasPage({
   }, [loadSchedule]);
 
   // ── Schedule handlers ──
-  const handleToggleParseCard = () => {
-    if (!can_write) {
-      showToast("Iniciá sesión para modificar");
-      return;
-    }
-    setShowParseCard((p) => !p);
-  };
-
-  const handleParseAndSave = async () => {
-    if (!can_write) {
-      showToast("Iniciá sesión para modificar");
-      return;
-    }
-    if (!scheduleText.trim()) {
-      showToast("Pegá el texto del horario primero.");
-      return;
-    }
-
-    const dias = parseScheduleText(scheduleText);
-    if (!dias) {
-      showToast("No se pudo parsear el horario. Verificá el formato.");
-      return;
-    }
-
-    try {
-      const res = await fetch("/abiertas-urgencias/api/schedule", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dias }),
-      });
-      const result = await res.json();
-      if (result.status === "success") {
-        showToast("✅ Horario guardado — " + dias.length + " días");
-        setSchedule(dias);
-        setScheduleStatus("loaded");
-        setShowParseCard(false);
-        setScheduleText("");
-      } else {
-        const errs = result.errors || ["Error desconocido"];
-        showToast("Error al guardar: " + errs.join(", "));
-      }
-    } catch {
-      showToast("Error de conexión al guardar el horario.");
-    }
-  };
-
-  const handleDeleteSchedule = async () => {
-    if (!can_write) {
-      showToast("Iniciá sesión para modificar");
-      return;
-    }
-    if (!await window.__showConfirm!("¿Eliminar el horario cargado?")) return;
-
-    try {
-      const res = await fetch("/abiertas-urgencias/api/schedule", {
-        method: "DELETE",
-      });
-      const result = await res.json();
-      if (result.status === "success") {
-        showToast("Horario eliminado");
-        setSchedule(null);
-        setScheduleStatus("empty");
-      }
-    } catch {
-      showToast("Error al eliminar");
-    }
-  };
-
   const handleCopiarHorario = () => {
     if (schedule) copiarHorario(schedule, showToast);
   };
@@ -777,74 +704,15 @@ export function AbiertasUrgenciasPage({
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!can_write}
-              title={
-                !can_write ? "Iniciá sesión para modificar" : undefined
-              }
-              onClick={handleToggleParseCard}
-            >
-              <FileEdit className="h-4 w-4" />
-              {scheduleStatus === "loaded" ? "Editar" : "Cargar"}
-            </Button>
-            {scheduleStatus === "loaded" && (
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={!can_write}
-                title={
-                  !can_write ? "Iniciá sesión para modificar" : undefined
-                }
-                onClick={handleDeleteSchedule}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
-          </div>
         </div>
-      </Card>
-
-      {/* ═══════════════════ Parse Card (collapsible) ═══════════════════ */}
-      {showParseCard && (
-        <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
-          <div className="border-t border-border p-5 bg-muted/20">
-            <textarea
-              value={scheduleText}
-              onChange={(e) => setScheduleText(e.target.value)}
-              placeholder="Pegá acá el texto del horario..."
-              rows={12}
-              className="w-full rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setShowParseCard(false);
-                  setScheduleText("");
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                className="bg-primary hover:bg-primary/90"
-                disabled={!can_write}
-                title={
-                  !can_write ? "Iniciá sesión para modificar" : undefined
-                }
-                onClick={handleParseAndSave}
-              >
-                <Upload className="h-4 w-4" />
-                Parsear y Guardar
-              </Button>
-            </div>
+        {scheduleStatus === "loaded" && (
+          <div className="px-5 pb-4">
+            <p className="text-xs text-muted-foreground">
+              Para cargar o modificar el horario, usá la sección <strong>Cronograma Urgencias</strong> en el menú lateral.
+            </p>
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {/* ═══════════════════ Ver Horario ═══════════════════ */}
       <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
