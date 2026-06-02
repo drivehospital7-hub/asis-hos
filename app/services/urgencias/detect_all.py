@@ -259,7 +259,7 @@ def detect_all_problems_urgencias(
         "Decimales": decimales,
         "Tipo Identificación / Edad": tipo_identificacion_edad,
         "Profesionales": profesionales,
-        "Código Entidad vs Afiliación": entidad_afiliacion_comparison,
+        "Código Entidad vs Afiliación": tipo_identificacion_entidad,
         "Tipo Usuario": tipo_usuario,
         "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
         "Copago vs Entidad": copago_entidad,

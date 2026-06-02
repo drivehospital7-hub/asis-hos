@@ -319,6 +319,22 @@ def build_normalized_rows(
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
+    # --- Cups No CAPITA ---
+    for item in error_groups.get("Cups No CAPITA", []):
+        factura = item.get("factura", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        rows.append({
+            "tipo_error": "Cups No CAPITA",
+            "factura": factura,
+            "fec_factura": _get_fec_factura(factura),
+            "responsable_cierra": _get_responsable(factura),
+            "descripcion": item.get("observacion", ""),
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": "",
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
+        })
+
     return rows
 
 
