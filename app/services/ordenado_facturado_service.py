@@ -78,6 +78,9 @@ CODIGOS_EXCEPCION: set[str] = {
     "S31301", "S31302", "S32301", "S32302", "S33301", "S33302",
 }
 
+# Códigos que también se matchean por número de documento (como CAP)
+CODIGOS_MATCH_POR_DOCUMENTO: set[str] = {"890405", "861801"}
+
 # Códigos a mostrar en el totalizado (solo estos)
 CODIGOS_TOTALIZADO: set[str] = {
     "735301", "90DS02", "890409",
@@ -323,8 +326,27 @@ def procesar_cruce(
         # REPORTE (Excel estándar)
         # ══════════════════════════════════════════════
         rows_reporte = _leer_como_raw(path_reporte)
+
+        # Detectar fila de headers
+        header_row_reporte = _detectar_fila_headers(rows_reporte, REPORTE_REQUIRED_HEADERS)
+        if header_row_reporte is None:
+            headers_detectados = [
+                str(rows_reporte[1][c]) for c in range(1, len(rows_reporte[1]))
+            ]
+            return {
+                "status": "error",
+                "data": {},
+                "errors": [
+                    f"Reporte: no se encontraron las columnas "
+                    f"{list(REPORTE_REQUIRED_HEADERS.values())} en las primeras "
+                    f"{MAX_SCAN_ROWS} filas. "
+                    f"Headers fila 1: {headers_detectados}"
+                ],
+            }
+
         headers_reporte = [
-            str(rows_reporte[1][c]) for c in range(1, len(rows_reporte[1]))
+            str(rows_reporte[header_row_reporte][c])
+            for c in range(1, len(rows_reporte[header_row_reporte]))
         ]
         indices_reporte, missing_reporte = get_column_indices(
             headers_reporte, REPORTE_REQUIRED_HEADERS
@@ -336,10 +358,11 @@ def procesar_cruce(
                 "data": {},
                 "errors": [
                     f"Reporte: columnas no encontradas: {', '.join(missing_reporte)}. "
-                    f"Headers detectados: {headers_reporte}"
+                    f"Headers en fila {header_row_reporte}: {headers_reporte}"
                 ],
             }
 
+        data_start_reporte = header_row_reporte + 1
         idx_fact_reporte = indices_reporte["numero_factura"]
         idx_codigo_reporte = indices_reporte["codigo"]
         idx_proc_reporte = indices_reporte["procedimiento"]
@@ -406,7 +429,7 @@ def procesar_cruce(
         # Contar ocurrencias de cada código en reporte y guardar nombre
         conteo_reporte: dict[str, int] = {}
         nombre_reporte: dict[str, str] = {}
-        for row in range(2, len(rows_reporte)):
+        for row in range(data_start_reporte, len(rows_reporte)):
             codigo = _normalizar_codigo(rows_reporte[row][idx_codigo_reporte + 1])
             if codigo:
                 conteo_reporte[codigo] = conteo_reporte.get(codigo, 0) + 1
@@ -420,7 +443,7 @@ def procesar_cruce(
         # Construir pares facturados en reporte (normal + emssanar por paciente)
         pares_normal: set[tuple[str, str]] = set()
         pares_emssanar: set[tuple[str, str]] = set()
-        for row in range(2, len(rows_reporte)):
+        for row in range(data_start_reporte, len(rows_reporte)):
             factura = _normalizar_factura(rows_reporte[row][idx_fact_reporte + 1])
             codigo = _normalizar_codigo(rows_reporte[row][idx_codigo_reporte + 1])
             if factura and codigo:
@@ -459,6 +482,13 @@ def procesar_cruce(
                 if paciente and (paciente, cups) in pares_emssanar:
                     continue
                 elif not paciente and (factura, cups) in pares_normal:
+                    continue
+            elif cups in CODIGOS_MATCH_POR_DOCUMENTO:
+                # Match por documento Y por factura
+                paciente = str(rows_ayudas[row][idx_identificacion + 1] or "").strip().upper()
+                if paciente and (paciente, cups) in pares_emssanar:
+                    continue
+                if (factura, cups) in pares_normal:
                     continue
             else:
                 if (factura, cups) in pares_normal:
@@ -500,7 +530,7 @@ def procesar_cruce(
         # Construir set de facturas del reporte con códigos de excepción
         excepcion_facturas_reporte: set[str] = set()
         excepcion_pacientes_reporte: set[str] = set()
-        for row in range(2, len(rows_reporte)):
+        for row in range(data_start_reporte, len(rows_reporte)):
             factura = _normalizar_factura(rows_reporte[row][idx_fact_reporte + 1])
             codigo = _normalizar_codigo(rows_reporte[row][idx_codigo_reporte + 1])
             if factura and codigo and codigo in CODIGOS_EXCEPCION:
@@ -601,6 +631,13 @@ def procesar_cruce(
                         continue
                     elif not paciente and (factura, cups) in pares_normal:
                         continue
+                elif cups in CODIGOS_MATCH_POR_DOCUMENTO:
+                    # Match por documento Y por factura
+                    paciente = str(rows_ayudas[row][idx_identificacion + 1] or "").strip().upper()
+                    if paciente and (paciente, cups) in pares_emssanar:
+                        continue
+                    if (factura, cups) in pares_normal:
+                        continue
                 elif (factura, cups) in pares_normal:
                     continue
 
@@ -683,7 +720,7 @@ def procesar_cruce(
         # Advertencia de fechas
         # ══════════════════════════════════════════════
         fecha_warning = None
-        max_fecha_reporte = _max_date_col(rows_reporte, idx_fec_factura + 1)
+        max_fecha_reporte = _max_date_col(rows_reporte, idx_fec_factura + 1, data_start_reporte)
         max_fecha_ayudas = _max_date_col(rows_ayudas, idx_fecha_solicitud + 1, header_row + 1)
         max_fecha_notas = (
             datetime.fromisoformat(notas_data["max_fecha_nota"])
