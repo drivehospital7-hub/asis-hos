@@ -788,10 +788,6 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "PABON GARCIA ALEJANDRA",
         "tipo": "BACTERIOLOGA",
     },
-    "03375": {
-        "nombre": "PEÑA PEÑA LISBETH PAOLA",
-        "tipo": "BACTERIOLOGA",
-    },
     "02217": {
         "nombre": "MADROÑERO BURBANO KAREN LIZETH",
         "tipo": "BACTERIOLOGA",
