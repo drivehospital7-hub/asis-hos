@@ -87,8 +87,8 @@ def detect_profesionales_equipos_basicos(
                 })
                 facturas_procesadas.add(factura_str)
         elif profesional_info.get("tipo") == "ODONTOLOGO":
-            # Odontólogo: no puede usar códigos de PYP_CODES_HIGIENISTA
-            if codigo_str and codigo_str in PYP_CODES_HIGIENISTA:
+            # Odontólogo: no puede usar códigos de PYP_CODES_HIGIENISTA (excepto P0000011)
+            if codigo_str and codigo_str in PYP_CODES_HIGIENISTA and codigo_str != "P0000011":
                 problemas.append({
                     "factura": factura_str,
                     "codigo_profesional": cod_profesional_str,
