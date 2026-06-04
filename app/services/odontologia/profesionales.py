@@ -3,7 +3,7 @@
 Reglas (Odontología):
 - "Código Profesional" DEBE estar en PROFESIONALES_ODONTOLOGIA_VALIDACION
 - HIGIENISTA: Solo puede usar códigos en PYP_CODES_HIGIENISTA
-- ODONTOLOGO: Puede usar cualquier código EXCEPTO los que están en PYP_CODES_HIGIENISTA
+- ODONTOLOGO: Puede usar cualquier código EXCEPTO los que están en PYP_CODES_HIGIENISTA (excepción: P0000011 sí puede)
 """
 
 from __future__ import annotations
@@ -96,7 +96,7 @@ def detect_profesionales_odontologia(
             })
             facturas_procesadas.add(factura_str)
 
-        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA:
+        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA and codigo_str != "P0000011":
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
@@ -104,7 +104,7 @@ def detect_profesionales_odontologia(
                 "tipo": "ODONTOLOGO",
                 "profesional_area": "ODONTOLOGO",
                 "procedimiento": codigo_str,
-                "regla": "No códigos PYP (excepto 890203)",
+                "regla": "No códigos PYP (excepto P0000011)",
                 "problema": "ODONTOLOGO no puede usar código PYP",
             })
             facturas_procesadas.add(factura_str)
