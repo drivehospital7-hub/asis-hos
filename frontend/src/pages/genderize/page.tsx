@@ -183,7 +183,7 @@ export function GenderizePage() {
 
           {/* Action buttons */}
           <div className="flex gap-3">
-            <Button onClick={fetchStatsPreview}
+            <Button onClick={() => fetchStatsPreview()}
                     disabled={!file || loading || previewing}
                     variant="outline"
                     className="flex items-center gap-1.5">

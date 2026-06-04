@@ -1,8 +1,4 @@
-<<<<<<<< HEAD:app/static/react-dist/assets/index-CI4Cvkai.js
-import{b as V,R as Ee,r as l,j as r,c as Ie}from"./globals-IEYCF5gg.js";import{i as Ce,e as D,B as y,U as Re,a as I,A as Te}from"./app-layout-CD8cljYo.js";import{B as Ae}from"./breadcrumbs-NWWLMxrF.js";import{P as Pe}from"./page-title-CSKdFJqz.js";import{S as L}from"./status-badge-Bl7ZqIcb.js";import{D as ke}from"./download-C8wq8Rqr.js";import{P as _e}from"./plus-BLq7eTNT.js";import{C as Se}from"./clock-BKWXDcK3.js";import{C as Le}from"./circle-check-D7L-pulr.js";import{E as Fe}from"./eye-Cy85FeWW.js";import{P as Me}from"./pencil-DccyUFYy.js";import{T as De}from"./trash-2-CHuTzTk0.js";/**
-========
-import{b as _,R as Ee,r as l,j as r,c as Ie}from"./globals-IEYCF5gg.js";import{i as Ce,e as V,B as y,U as Re,a as I,A as Te}from"./app-layout-7IHTHcpW.js";import{B as ke}from"./breadcrumbs-CQhrzMeU.js";import{P as Ae}from"./page-title-yw6qK8j9.js";import{S as F}from"./status-badge-CfsJsJV3.js";import{P as Pe}from"./plus-BLq7eTNT.js";import{C as _e}from"./clock-BKWXDcK3.js";import{C as Se}from"./circle-check-D7L-pulr.js";import{E as Le}from"./eye-Cy85FeWW.js";import{P as Fe}from"./pencil-DccyUFYy.js";import{T as Me}from"./trash-2-CHuTzTk0.js";/**
->>>>>>>> origin/main:app/static/react-dist/assets/index-BZshwbYx.js
+import{b as _,R as Ee,r as l,j as r,c as Ie}from"./globals-IEYCF5gg.js";import{i as Ce,e as V,B as y,U as Re,a as I,A as Te}from"./app-layout-CD8cljYo.js";import{B as ke}from"./breadcrumbs-NWWLMxrF.js";import{P as Ae}from"./page-title-CSKdFJqz.js";import{S as F}from"./status-badge-Bl7ZqIcb.js";import{P as Pe}from"./plus-BLq7eTNT.js";import{C as _e}from"./clock-BKWXDcK3.js";import{C as Se}from"./circle-check-D7L-pulr.js";import{E as Le}from"./eye-Cy85FeWW.js";import{P as Fe}from"./pencil-DccyUFYy.js";import{T as Me}from"./trash-2-CHuTzTk0.js";/**
  * @license lucide-react v0.510.0 - ISC
  *
  * This source code is licensed under the ISC license.
