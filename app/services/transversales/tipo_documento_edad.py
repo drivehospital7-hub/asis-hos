@@ -91,6 +91,8 @@ def detect_tipo_documento_edad(
             
             # Calcular edad en meses para validaciones especiales (CN)
             edad_meses = (fecha_fact.year - fecha_nac.year) * 12 + (fecha_fact.month - fecha_nac.month)
+            if fecha_fact.day < fecha_nac.day:
+                edad_meses -= 1
             
             logger.debug(
                 "Fila %s: FechaNac=%s, FechaFact=%s, Edad calculada=%d años, %d meses",
