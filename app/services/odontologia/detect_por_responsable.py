@@ -17,21 +17,13 @@ import logging
 from typing import Any
 
 from app.constants import AREA_ODONTOLOGIA
+from app.constants.urgencias import FACTURADORES_URGENCIAS
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_all import detect_all_problems_odontologia
 
 logger = logging.getLogger(__name__)
 
 FACTURADOR_ODONTOLOGIA = "LOPEZ ANDRADE CLAUDIA LORENA"
-
-# Facturadores de urgencias que aparecen como Odontología en tipo_factura
-# Para estos, centro de costo debe ser URGENCIAS
-FACTURADORES_URGENCIAS: set[str] = {
-    "ARIAS CULCHA ANGIE CAROLINA",
-    "ESPAÑA DIAZ LORENY ALEJANDRA",
-    "MEZA FERNANDEZ CARLOS OMAR",
-    "PAEZ YULIETH DANIELA",
-}
 
 
 class _SimpleSheet:

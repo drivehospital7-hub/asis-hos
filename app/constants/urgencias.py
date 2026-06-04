@@ -53,11 +53,14 @@ CODIGOS_EXCEPTUADOS = frozenset({
     "232201",
     "25142AFINA",
     "90123501",
+    "901325",
     "90385901",
     "90386401",
     "903883",
     "9038831",
     "904903",
+    "906230",
+    "906836",
 })
 
 # Códigos que deben tener centro de costo "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
@@ -704,6 +707,17 @@ IDE_CONTRATO_REVERSE_ESS118 = {
 }
 
 # =============================================================================
+# URGENCIAS - Facturadores de Urgencias (no usan cronograma para bacteriólogas)
+# =============================================================================
+
+FACTURADORES_URGENCIAS: set[str] = {
+    "ARIAS CULCHA ANGIE CAROLINA",
+    "ESPAÑA DIAZ LORENY ALEJANDRA",
+    "MEZA FERNANDEZ CARLOS OMAR",
+    "PAEZ YULIETH DANIELA",
+}
+
+# =============================================================================
 # PROFESIONALES - Urgencias
 # =============================================================================
 
@@ -760,6 +774,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "LUNA DIAZ RICHARD ALEXANDER",
         "tipo": "MEDICO",
     },
+    "03893": {
+        "nombre": "SAMBONI RAMIREZ MARLEN DANIELA",
+        "tipo": "MEDICO",
+    },
     "03710": {
         "nombre": "MORA JACANAMEJOY YENNY NATALIA",
         "tipo": "JEFE ENFERMERIA",
@@ -782,10 +800,6 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
     },
     "03730": {
         "nombre": "PABON GARCIA ALEJANDRA",
-        "tipo": "BACTERIOLOGA",
-    },
-    "03375": {
-        "nombre": "PEÑA PEÑA LISBETH PAOLA",
         "tipo": "BACTERIOLOGA",
     },
     "02217": {

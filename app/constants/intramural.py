@@ -13,6 +13,17 @@ AREA_INTRAMURAL = "intramural"
 TIPO_FACTURA_INTRAMURAL = "Intramural"
 
 # =============================================================================
+# INTRAMURAL - RESPONSABLES QUE RESTRINGEN SIGLAS EN CRONOGRAMA
+# =============================================================================
+
+# Responsable que solo puede usar sigla PYM en el cronograma de bacteriólogas
+RESPONSABLE_CHAPUEL = "CHAPUEL CASANOVA ANGIE TATIANA"
+
+# Responsables que solo pueden usar sigla CE en el cronograma de bacteriólogas
+RESPONSABLE_TAPIA = "TAPIA PERDOMO ANYI CATALEYA"
+RESPONSABLE_ORDONEZ = "ORDOÑEZ MEZA SILVIA ELEY"
+
+# =============================================================================
 # INTRAMURAL - EXAMENES PYM EVENTO
 # =============================================================================
 
@@ -124,6 +135,85 @@ CODIGOS_PYM_NECESITAN_DX: frozenset[str] = frozenset({
     "Z133",   # EXAMEN DE PESQUISA ESPECIAL PARA TRASTORNOS MENTALES
     "Z352",   # SUPERVISION DE EMBARAZO CON OTRO RIESGO OBSTETRICO
     "Z113",   # EXAMEN DE PESQUISA ESPECIAL PARA INFECCIONES DE TRANSMISION SEXUAL
+})
+
+# =============================================================================
+# INTRAMURAL - TABLA COMPLETA DX (código → descripción)
+# =============================================================================
+
+# =============================================================================
+# INTRAMURAL - Centros de Costo Válidos
+# =============================================================================
+
+INTRAMURAL_CENTROS_COSTO_VALIDOS: frozenset[str] = frozenset({
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO",
+    "APOYO DIAGNOSTICO-IMAGENOLOGIA",
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO.",
+    "SERVICIOS AMBULATORIOS- CONSULTA EXTERNA Y PROCEDIMIENTOS",
+    "SALUD PUBLICA-VACUNACION  REGULAR",
+    "APOYO TERAPEUTICO-FARMACIA E INSUMOS.",
+    "HOSPITALIZACIÓN - ESTANCIA GENERAL",
+    "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO",
+    "TRASLADOS",
+    "SERVICIOS AMBULATORIOS- PROMOCION Y PREVENCION.",
+    "SERVICIOS AMBULATORIOS- PROMOCION/PREVENCION",
+    "URGENCIAS",
+})
+
+# =============================================================================
+# INTRAMURAL - Regla de centro de costo: Salud Pública / Vacunación
+# =============================================================================
+
+# Código Tipo Procedimiento que exige centro SALUD PUBLICA-VACUNACION
+CODIGO_TIPO_PROCEDIMIENTO_VACUNACION = "05"
+# Códigos CUPS excluidos de la regla de vacunación (no exigen centro SALUD PUBLICA)
+CODIGOS_EXCLUIDOS_VACUNACION: frozenset[str] = frozenset({
+    "906249PR",
+    "906249",
+})
+# Centro de costo para procedimientos de vacunación
+CENTRO_COSTO_SALUD_PUBLICA = "SALUD PUBLICA-VACUNACION  REGULAR"
+
+# =============================================================================
+# INTRAMURAL - Regla de centro de costo: Consulta Externa / Procedimientos
+# =============================================================================
+
+# Códigos Tipo Procedimiento que exigen centro SERVICIOS AMBULATORIOS
+CODIGOS_TIPO_PROCEDIMIENTO_AMBULATORIO: frozenset[str] = frozenset({"03", "04"})
+# Centro de costo para consulta externa y procedimientos ambulatorios
+CENTRO_COSTO_AMBULATORIO = "SERVICIOS AMBULATORIOS- CONSULTA EXTERNA Y PROCEDIMIENTOS"
+# Códigos CUPS exceptuados de REGLA7 (tienen su propio centro de costo)
+CODIGOS_EXCEPTUADOS_AMBULATORIO: frozenset[str] = frozenset({
+    "735301",  # QUIRÓFANO
+    "861101",  # URGENCIAS
+})
+# Códigos CUPS exceptuados de REGLA_RESPONSABLE_URGENCIAS
+CODIGOS_EXCEPTUADOS_RESPONSABLE_URGENCIAS: frozenset[str] = frozenset({
+    "735301",  # QUIRÓFANO
+})
+
+# =============================================================================
+# INTRAMURAL - Regla de centro de costo: Promoción y Prevención
+# =============================================================================
+
+# Centros de costo válidos para PyP en Intramural
+CENTROS_COSTO_PYP_INTRAMURAL: frozenset[str] = frozenset({
+    "SERVICIOS AMBULATORIOS- PROMOCION Y PREVENCION.",
+    "SERVICIOS AMBULATORIOS- PROMOCION/PREVENCION",
+})
+
+# =============================================================================
+# INTRAMURAL - Regla de centro de costo: Laboratorio Clínico
+# =============================================================================
+
+# Códigos Tipo Procedimiento que exigen centro LABORATORIO CLINICO
+CODIGOS_TIPO_PROCEDIMIENTO_LABORATORIO: frozenset[str] = frozenset({"02", "05"})
+# Valor esperado en columna Laboratorio para exigir centro LABORATORIO CLINICO
+LABORATORIO_SI = "Si"
+# Centros de costo válidos para laboratorio (con y sin punto)
+CENTROS_COSTO_LABORATORIO_VALIDOS: frozenset[str] = frozenset({
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO",
+    "APOYO DIAGNOSTICO-LABORATOR CLINICO.",
 })
 
 # =============================================================================

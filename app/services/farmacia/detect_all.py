@@ -1,6 +1,6 @@
-"""Orquestador de detección de problemas para Intramural.
+"""Orquestador de detección de problemas para Farmacia.
 
-Agrupa detectores transversales + específicos de Intramural.
+Agrupa detectores transversales + específicos de Farmacia.
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import AREA_INTRAMURAL
+from app.constants import AREA_FARMACIA
 from app.services.transversales import (
     normalize_invoice,
 )
@@ -19,31 +19,19 @@ from app.services.normalized_rows import build_normalized_rows
 logger = logging.getLogger(__name__)
 
 
-def _get_intramural_detectors() -> list[Callable]:
-    """Returns list of Intramural-specific detector callables.
-    
+def _get_farmacia_detectors() -> list[Callable]:
+    """Returns list of Farmacia-specific detector callables.
+
     Used by tipo_factura_registry for lazy import.
     """
-    from app.services.intramural.bacteriologas_cronograma import (
-        detect_bacteriologas_cronograma,
-    )
-    from app.services.intramural.centro_costo_intramural import (
-        detect_centro_costo_intramural,
-    )
-    from app.services.intramural.duplicado_id_codigo import (
-        detect_duplicado_id_codigo,
-    )
-    from app.services.intramural.ide_contrato_intramural import (
-        detect_ide_contrato_intramural,
-    )
-    return [detect_bacteriologas_cronograma, detect_centro_costo_intramural, detect_ide_contrato_intramural, detect_duplicado_id_codigo]
+    return []
 
 
-def detect_all_problems_intramural(
+def detect_all_problems_farmacia(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
 ) -> tuple[dict[str, Any], dict[str, str]]:
-    """Detecta TODOS los problemas en facturas de Intramural.
+    """Detecta TODOS los problemas en facturas de Farmacia.
 
     Args:
         data_sheet: Hoja de Excel con los datos
@@ -119,85 +107,14 @@ def detect_all_problems_intramural(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 5. Bacteriólogas Cronograma
-    from app.services.intramural.bacteriologas_cronograma import (
-        detect_bacteriologas_cronograma,
-    )
-    bacteriologas = detect_bacteriologas_cronograma(
-        data_sheet, indices, responsable_cierra=responsable_cierra,
-    )
-
-    # 6. Centro de Costo
-    from app.services.intramural.centro_costo_intramural import (
-        detect_centro_costo_intramural,
-    )
-    problemas_centros = detect_centro_costo_intramural(data_sheet, indices)
-    logger.info(
-        "Centros de Costo Intramural - Problemas encontrados: %d",
-        len(problemas_centros),
-    )
-
-    # Filtrar centros de costo por prioridad
-    errores_por_factura_codigo: dict[tuple[str, str], list[tuple[dict, int]]] = {}
-    for item in problemas_centros:
-        key = (item.get("factura", ""), item.get("codigo", ""))
-        prioridad = item.get("prioridad", 1)
-        if key not in errores_por_factura_codigo:
-            errores_por_factura_codigo[key] = []
-        errores_por_factura_codigo[key].append((item, prioridad))
-
-    problemas_centros_filtrados = []
-    for key, items in errores_por_factura_codigo.items():
-        prioridades = [p for _, p in items]
-        if 1 in prioridades:
-            for item, p in items:
-                if p == 1:
-                    problemas_centros_filtrados.append(item)
-        else:
-            for item, _ in items:
-                problemas_centros_filtrados.append(item)
-
-    logger.info(
-        "FILTRO centros_de_costos Intramural: %d -> %d",
-        len(problemas_centros),
-        len(problemas_centros_filtrados),
-    )
-
-    # 7. IDE Contrato (aislado en try/except para no romper transversales)
-    from app.services.intramural.ide_contrato_intramural import (
-        detect_ide_contrato_intramural,
-    )
-    try:
-        problemas_ide_contrato = detect_ide_contrato_intramural(data_sheet, indices)
-    except Exception:
-        logger.exception("Error en detect_ide_contrato_intramural")
-        problemas_ide_contrato = []
-
-    # 8. Duplicado ID+Código
-    from app.services.intramural.duplicado_id_codigo import (
-        detect_duplicado_id_codigo,
-    )
-    try:
-        duplicado_id_codigo = detect_duplicado_id_codigo(data_sheet, indices)
-    except Exception:
-        logger.exception("[BACK] Error en detect_duplicado_id_codigo")
-        duplicado_id_codigo = []
-    logger.info(
-        "[BACK] Duplicado ID+Código: %d problemas", len(duplicado_id_codigo)
-    )
-
-    # 9. Build normalized rows
+    # 5. Build normalized rows
     error_groups = {
-        "Centros de Costo": problemas_centros_filtrados,
         "Decimales": decimales,
         "Tipo Identificación / Edad": tipo_identificacion_edad,
         "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
         "Tipo Usuario": tipo_usuario,
         "Copago vs Entidad": copago_entidad,
-        "IDE Contrato": problemas_ide_contrato,
         "Cups Sin Contrato": cups_sin_contrato,
-        "Profesionales": bacteriologas,
-        "Duplicado ID+Código": duplicado_id_codigo,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -206,24 +123,13 @@ def detect_all_problems_intramural(
         fecha_cierre_vacia_map=fecha_cierre_vacia,
     )
 
-    # 10. Build resultado
+    # 6. Build resultado
     resultado: dict[str, Any] = {
-        "area": AREA_INTRAMURAL,
+        "area": AREA_FARMACIA,
         "problemas": {
             "normalizados": normalized_rows,
-            "centros_de_costos": [
-                {
-                    "tipo_factura": item.get("tipo_factura") or "-",
-                    "factura": item["factura"],
-                    "codigo": item.get("codigo", ""),
-                    "procedimiento": item.get("procedimiento", ""),
-                    "centro_actual": item["centro_actual"],
-                    "centro_deberia": item["centro_deberia"],
-                    "prioridad": item.get("prioridad", 1),
-                }
-                for item in problemas_centros_filtrados
-            ],
-            "ide_contrato": problemas_ide_contrato,
+            "centros_de_costos": [],
+            "ide_contrato": [],
             "cups_equivalentes": [],
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
@@ -232,12 +138,10 @@ def detect_all_problems_intramural(
             "tipo_usuario": tipo_usuario,
             "copago_entidad": copago_entidad,
             "cups_sin_contrato": cups_sin_contrato,
-            "profesionales": bacteriologas,
-            "duplicado_id_codigo": duplicado_id_codigo,
         },
         "totales": {
-            "centros_de_costos": len(problemas_centros),
-            "ide_contrato": len(problemas_ide_contrato),
+            "centros_de_costos": 0,
+            "ide_contrato": 0,
             "cups_equivalentes": 0,
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
@@ -246,14 +150,12 @@ def detect_all_problems_intramural(
             "tipo_usuario": len(tipo_usuario),
             "copago_entidad": len(copago_entidad),
             "cups_sin_contrato": len(cups_sin_contrato),
-            "profesionales": len(bacteriologas),
-            "duplicado_id_codigo": len(duplicado_id_codigo),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": [],
     }
 
-    # 11. Enrich errors with responsable
+    # 7. Enrich errors with responsable
     for problem_type, problems in resultado["problemas"].items():
         for p in problems:
             if not isinstance(p, dict):

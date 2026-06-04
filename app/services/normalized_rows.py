@@ -364,6 +364,30 @@ def build_normalized_rows(
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
+    # --- Duplicado ID+Código ---
+    for item in error_groups.get("Duplicado ID+Código", []):
+        identificacion = item.get("identificacion", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        repeticiones = item.get("cantidad_repeticiones", 0)
+        facturas_list = item.get("facturas", [])
+        primer_factura = facturas_list[0] if facturas_list else ""
+
+        detalle_parts = [f"ID: {identificacion}", f"Cód: {codigo}"]
+        if facturas_list:
+            detalle_parts.append(f"Facturas: {', '.join(facturas_list)}")
+
+        rows.append({
+            "tipo_error": "Duplicado ID+Código",
+            "factura": primer_factura,
+            "fec_factura": _get_fec_factura(primer_factura),
+            "responsable_cierra": _get_responsable(primer_factura),
+            "descripcion": f"Procedimiento duplicado x{repeticiones}",
+            "procedimiento": _build_procedimiento(codigo, proc),
+            "detalle": " | ".join(detalle_parts),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(primer_factura),
+        })
+
     return rows
 
 

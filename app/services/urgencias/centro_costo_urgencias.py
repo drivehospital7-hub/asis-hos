@@ -1,7 +1,8 @@
 """Detector de problemas de centro de costo en facturas de Urgencias.
 
-Aplica reglas comunes (1-4, 8, 9) + regla específica de Urgencias:
+Aplica reglas comunes (1-4, 8, 9) + reglas específicas de Urgencias:
 - Urgencias + Centro=HOSPITALIZACIÓN → Error
+- Responsable Cierra Facturar ∈ FACTURADORES_URGENCIAS + Código Tipo Procedimiento 01/04 → Centro debe ser URGENCIAS o HOSPITALIZACIÓN
 
 Las reglas de Intramural, Ambulatoria y Hospitalización se movieron a sus
 respectivos packages (intramural/, ambulatoria/, hospitalizacion/).

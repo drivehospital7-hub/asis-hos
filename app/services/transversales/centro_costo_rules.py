@@ -79,7 +79,7 @@ def apply_common_centro_costo_rules(
 
     # --- Centro de costo inválido ---
     if centro_costo_str not in centros_validos:
-        _error("Centro de costo no válido para Urgencias", prioridad=1, regla="CENTRO_INVALIDO")
+        _error("Centro de costo no válido", prioridad=1, regla="CENTRO_INVALIDO")
 
     # --- Regla 9: Tarifario farmacia → Centro debe ser FARMACIA ---
     if tarifario_str == VALOR_TARIFARIO_FARMACIA:
@@ -93,7 +93,7 @@ def apply_common_centro_costo_rules(
     )
     es_exceptuado = codigo_excluir in CODIGOS_EXCEPTUADOS
     if regla_1_activa and not es_exceptuado and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
-        _error(CENTRO_COSTO_APOYO_DIAGNOSTICO)
+        _error(CENTRO_COSTO_APOYO_DIAGNOSTICO, regla="REGLA1")
 
     # --- Regla 1 REVERSE: Centro=APOYO DIAGNÓSTICO → Código=02 + Lab=No ---
     if centro_costo_str == CENTRO_COSTO_APOYO_DIAGNOSTICO:
@@ -106,7 +106,7 @@ def apply_common_centro_costo_rules(
     # --- Regla 2: Código=14 → Centro TRASLADOS ---
     if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
         if centro_costo_str != CENTRO_COSTO_TRASLADOS:
-            _error(CENTRO_COSTO_TRASLADOS)
+            _error(CENTRO_COSTO_TRASLADOS, regla="REGLA2")
 
     # --- Regla 2 REVERSE: Centro=TRASLADOS → Código debe ser 14 ---
     if centro_costo_str == CENTRO_COSTO_TRASLADOS:
@@ -116,7 +116,7 @@ def apply_common_centro_costo_rules(
     # --- Regla 3: Código en PYP → Centro PYP ---
     if codigo_excluir in CODIGOS_PYP_URGENCIAS:
         if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
-            _error(CENTRO_COSTO_PYP_URGENCIAS)
+            _error(CENTRO_COSTO_PYP_URGENCIAS, regla="REGLA3")
 
     # --- Regla 3 REVERSE: Centro=PYP → Código debe ser PYP ---
     if centro_costo_str == CENTRO_COSTO_PYP_URGENCIAS:
@@ -126,7 +126,7 @@ def apply_common_centro_costo_rules(
     # --- Regla 4: Código en QUIRÓFANOS → Centro QUIRÓFANOS ---
     if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
         if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
-            _error(CENTRO_COSTO_QUIROFANO_URGENCIAS)
+            _error(CENTRO_COSTO_QUIROFANO_URGENCIAS, regla="REGLA4")
 
     # --- Regla 4 REVERSE: Centro=QUIRÓFANOS → Código QUIRÓFANOS ---
     if centro_costo_str == CENTRO_COSTO_QUIROFANO_URGENCIAS:
@@ -141,6 +141,6 @@ def apply_common_centro_costo_rules(
     # --- Regla 8: Código 890601H/39133 → Centro HOSPITALIZACIÓN ESTANCIA ---
     if codigo_excluir in CODIGOS_HOSPITALIZACION_ESTANCIA:
         if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
-            _error(CENTRO_COSTO_HOSPITALIZACION_ESTANCIA)
+            _error(CENTRO_COSTO_HOSPITALIZACION_ESTANCIA, regla="REGLA8")
 
     return errors

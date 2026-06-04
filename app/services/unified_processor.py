@@ -43,6 +43,7 @@ def _get_unique_tipo_factura(
     # Solo procesar tipos que tienen orquestador implementado
     tipos_con_orquestador = {
         "Urgencias", "Hospitalización", "Intramural", "Ambulatoria",
+        "Extramural", "Farmacia",
         "Odontología",
     }
     tipos_presentes = sorted(tipos & tipos_con_orquestador)
@@ -110,6 +111,16 @@ def _get_orquestador(tipo_factura: str):
             detect_all_problems_ambulatoria,
         )
         return detect_all_problems_ambulatoria
+    elif tipo_factura == "Extramural":
+        from app.services.extramural.detect_all import (
+            detect_all_problems_extramural,
+        )
+        return detect_all_problems_extramural
+    elif tipo_factura == "Farmacia":
+        from app.services.farmacia.detect_all import (
+            detect_all_problems_farmacia,
+        )
+        return detect_all_problems_farmacia
     elif tipo_factura == "Odontología":
         from app.services.odontologia.detect_por_responsable import (
             detect_all_problems_odontologia_por_responsable,
@@ -122,8 +133,8 @@ def _merge_normalized_rows(
     base_rows: list[dict[str, Any]],
     new_rows: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
-    """Fusiona filas normalizadas deduplicando por (tipo_error, factura, descripcion)."""
-    seen: set[tuple[str, str, str]] = set()
+    """Fusiona filas normalizadas deduplicando por (tipo_error, factura, descripcion, procedimiento)."""
+    seen: set[tuple[str, str, str, str]] = set()
     merged: list[dict[str, Any]] = []
 
     for row in base_rows:
@@ -131,6 +142,7 @@ def _merge_normalized_rows(
             row.get("tipo_error", ""),
             row.get("factura", ""),
             row.get("descripcion", ""),
+            row.get("procedimiento", ""),
         )
         if key not in seen:
             seen.add(key)
@@ -141,6 +153,7 @@ def _merge_normalized_rows(
             row.get("tipo_error", ""),
             row.get("factura", ""),
             row.get("descripcion", ""),
+            row.get("procedimiento", ""),
         )
         if key not in seen:
             seen.add(key)

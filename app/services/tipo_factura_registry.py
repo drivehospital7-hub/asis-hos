@@ -115,6 +115,18 @@ def get_detectors(tipo_factura: str) -> list[Callable]:
         )
         return transversales + _get_ambulatoria_detectors()
 
+    if tipo_factura == "Extramural":
+        from app.services.extramural.detect_all import (
+            _get_extramural_detectors,
+        )
+        return transversales + _get_extramural_detectors()
+
+    if tipo_factura == "Farmacia":
+        from app.services.farmacia.detect_all import (
+            _get_farmacia_detectors,
+        )
+        return transversales + _get_farmacia_detectors()
+
     if tipo_factura == "Odontología":
         from app.services.odontologia.profesionales import (
             detect_profesionales_odontologia,

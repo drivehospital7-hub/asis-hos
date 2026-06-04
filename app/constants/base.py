@@ -49,6 +49,8 @@ AREA_EQUIPOS_BASICOS = "equipos_basicos"
 AREA_HOSPITALIZACION = "hospitalizacion"
 AREA_INTRAMURAL = "intramural"
 AREA_AMBULATORIA = "ambulatoria"
+AREA_EXTRAMURAL = "extramural"
+AREA_FARMACIA = "farmacia"
 AREA_UNIFICADA = "unificada"
 
 # =============================================================================
