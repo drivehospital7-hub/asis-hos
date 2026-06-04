@@ -49,13 +49,6 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_download-C8wq8Rqr.js": {
-    "file": "assets/download-C8wq8Rqr.js",
-    "name": "download",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
   "_eye-Cy85FeWW.js": {
     "file": "assets/eye-Cy85FeWW.js",
     "name": "eye",
@@ -119,7 +112,11 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
+<<<<<<< HEAD
     "file": "assets/index-BTiOwAGx.js",
+=======
+    "file": "assets/index-oEbu0hBa.js",
+>>>>>>> origin/main
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
@@ -131,6 +128,7 @@
       "_chevron-down-Dc1MMH_1.js",
       "_clipboard-copy-Kyd3Hqo0.js",
       "_plus-BLq7eTNT.js",
+      "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
     ]
   },
@@ -150,17 +148,28 @@
     ]
   },
   "src/pages/control-novedades/index.html": {
+<<<<<<< HEAD
     "file": "assets/index-CI4Cvkai.js",
+=======
+    "file": "assets/index-BZshwbYx.js",
+>>>>>>> origin/main
     "name": "index",
     "src": "src/pages/control-novedades/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
+<<<<<<< HEAD
       "_app-layout-CD8cljYo.js",
       "_breadcrumbs-NWWLMxrF.js",
       "_page-title-CSKdFJqz.js",
       "_status-badge-Bl7ZqIcb.js",
       "_download-C8wq8Rqr.js",
+=======
+      "_app-layout-7IHTHcpW.js",
+      "_breadcrumbs-CQhrzMeU.js",
+      "_page-title-yw6qK8j9.js",
+      "_status-badge-CfsJsJV3.js",
+>>>>>>> origin/main
       "_plus-BLq7eTNT.js",
       "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
@@ -217,15 +226,24 @@
     ]
   },
   "src/pages/genderize/index.html": {
+<<<<<<< HEAD
     "file": "assets/index-DrBLY-pY.js",
+=======
+    "file": "assets/index-B9B78Des.js",
+>>>>>>> origin/main
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
+<<<<<<< HEAD
       "_app-layout-CD8cljYo.js",
       "_status-badge-Bl7ZqIcb.js",
       "_download-C8wq8Rqr.js",
+=======
+      "_app-layout-7IHTHcpW.js",
+      "_status-badge-CfsJsJV3.js",
+>>>>>>> origin/main
       "_eye-Cy85FeWW.js"
     ]
   },
@@ -314,7 +332,11 @@
     ]
   },
   "style.css": {
+<<<<<<< HEAD
     "file": "assets/style-DRBsCtom.css",
+=======
+    "file": "assets/style-CZjEuE1t.css",
+>>>>>>> origin/main
     "src": "style.css"
   }
 }

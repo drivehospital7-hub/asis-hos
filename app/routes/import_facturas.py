@@ -8,6 +8,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 from sqlalchemy.orm import Session
+from urllib.error import HTTPError
 
 from app.database import get_db
 from app.services import genderize_extractor, genderize_service, genderize_verifier
@@ -68,6 +69,14 @@ def extract_facturas_nombres():
     
     try:
         results = genderize_extractor.extract_factura_nombre_sexo(tmp_path)
+        total_raw = len(results)
+        
+        # Deduplicar por factura (un paciente por factura)
+        facturas = {}
+        for r in results:
+            if r.numero_factura not in facturas:
+                facturas[r.numero_factura] = r
+        unique_results = list(facturas.values())
         
         # Convertir a dict para JSON
         data = [
@@ -81,7 +90,7 @@ def extract_facturas_nombres():
                 "sexo": r.sexo,
                 "nombre_normalizado": r.nombre_normalizado,
             }
-            for r in results
+            for r in unique_results
         ]
         
         return jsonify({
@@ -89,6 +98,7 @@ def extract_facturas_nombres():
             "data": {
                 "registros": data,
                 "total": len(data),
+                "total_raw": total_raw,
             },
             "errors": []
         })
@@ -273,6 +283,17 @@ def verify_facturas():
             "data": {},
             "errors": [str(e)]
         }), 400
+    except HTTPError as e:
+        logger.warning("HTTP %d en genderize: %s", e.code, str(e)[:200])
+        if e.code == 429:
+            msg = "La API Genderize tiene un límite de solicitudes. Esperá unos minutos y probá de nuevo."
+        else:
+            msg = f"Error HTTP {e.code} al consultar Genderize. Intentá de nuevo más tarde."
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [msg]
+        }), 429 if e.code == 429 else 502
     except Exception as e:
         logger.exception("Error verificando")
         return jsonify({

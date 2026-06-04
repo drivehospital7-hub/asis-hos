@@ -2,8 +2,8 @@
 
 Reglas (Odontología):
 - "Código Profesional" DEBE estar en PROFESIONALES_ODONTOLOGIA_VALIDACION
-- HIGIENISTA: Solo puede usar códigos PYP
-- ODONTOLOGO: Puede usar cualquier código EXCEPTO los PYP
+- HIGIENISTA: Solo puede usar códigos en PYP_CODES_HIGIENISTA
+- ODONTOLOGO: Puede usar cualquier código EXCEPTO los que están en PYP_CODES_HIGIENISTA (excepción: P0000011 sí puede)
 """
 
 from __future__ import annotations
@@ -15,7 +15,6 @@ from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import (
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
-    PYP_CUPS_CODES,
     PYP_CODES_HIGIENISTA,
 )
 from app.services.transversales.normalize import normalize_invoice
@@ -84,7 +83,7 @@ def detect_profesionales_odontologia(
         tipo_profesional = profesional_info.get("tipo", "")
 
         # Validar según tipo de profesional
-        if tipo_profesional == "HIGIENISTA" and codigo_str not in PYP_CUPS_CODES:
+        if tipo_profesional == "HIGIENISTA" and codigo_str not in PYP_CODES_HIGIENISTA:
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
@@ -97,7 +96,7 @@ def detect_profesionales_odontologia(
             })
             facturas_procesadas.add(factura_str)
 
-        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA:
+        elif tipo_profesional == "ODONTOLOGO" and codigo_str in PYP_CODES_HIGIENISTA and codigo_str != "P0000011":
             problemas.append({
                 "factura": factura_str,
                 "codigo_profesional": cod_profesional_str,
@@ -105,7 +104,7 @@ def detect_profesionales_odontologia(
                 "tipo": "ODONTOLOGO",
                 "profesional_area": "ODONTOLOGO",
                 "procedimiento": codigo_str,
-                "regla": "No códigos PYP (excepto 890203)",
+                "regla": "No códigos PYP (excepto P0000011)",
                 "problema": "ODONTOLOGO no puede usar código PYP",
             })
             facturas_procesadas.add(factura_str)

@@ -814,4 +814,8 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "MARIN ZULUAGA VALENTINA",
         "tipo": "BACTERIOLOGA",
     },
+    "03893": {
+        "nombre": "SAMBONI RAMIREZ MARLEN DANIELA",
+        "tipo": "MEDICO",
+    },
 }

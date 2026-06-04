@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, asdict
 from pathlib import Path
@@ -16,8 +17,9 @@ GENDERIZE_API_URL = "https://api.genderize.io"
 GENDERIZE_API_KEY = os.getenv("GENDERIZE_API_KEY")
 GENDERIZE_COUNTRY_ID = os.getenv("GENDERIZE_COUNTRY_ID", "CO")  # Colombia por defecto
 
-# Cache local
-CACHE_FILE = Path(__file__).parent.parent / "data" / "genderize_cache.json"
+# Cache local — configurable via GENDERIZE_CACHE_FILE env var
+_CACHE_FILE_DEFAULT = Path(__file__).parent.parent / "data" / "genderize_cache.json"
+CACHE_FILE = Path(os.getenv("GENDERIZE_CACHE_FILE") or _CACHE_FILE_DEFAULT)
 CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
 if not CACHE_FILE.exists():
     CACHE_FILE.write_text("{}")
@@ -136,19 +138,41 @@ def predict_genders(names: list[str]) -> tuple[list[GenderResult], RateLimitInfo
         
         logger.info("API call para %d nombres (pais: %s)", len(api_names), GENDERIZE_COUNTRY_ID or "global")
         
-        try:
-            request = Request(url)
-            with urlopen(request, timeout=30) as response:
-                data: list[dict[str, Any]] = json.load(response)
-                api_results = {item["name"]: item for item in data}
-                rate_limit = RateLimitInfo(
-                    limit=int(response.headers.get("X-Rate-Limit-Limit", 0)),
-                    remaining=int(response.headers.get("X-Rate-Limit-Remaining", 0)),
-                    reset=int(response.headers.get("X-Rate-Limit-Reset", 0)),
-                )
-        except HTTPError as e:
-            logger.exception("Error HTTP genderize: %s", e.code)
-            raise
+        # Retry con backoff para 429 Too Many Requests
+        max_retries = 3
+        rate_limit = None
+        
+        for attempt in range(max_retries):
+            try:
+                request = Request(url)
+                with urlopen(request, timeout=30) as response:
+                    data: list[dict[str, Any]] = json.load(response)
+                    api_results = {item["name"]: item for item in data}
+                    rate_limit = RateLimitInfo(
+                        limit=int(response.headers.get("X-Rate-Limit-Limit", 0)),
+                        remaining=int(response.headers.get("X-Rate-Limit-Remaining", 0)),
+                        reset=int(response.headers.get("X-Rate-Limit-Reset", 0)),
+                    )
+                    break  # éxito, salir del loop
+                    
+            except HTTPError as e:
+                if e.code == 429 and attempt < max_retries - 1:
+                    wait = 2 ** attempt  # 1s, 2s, 4s
+                    logger.warning("Rate limit (429) en intento %d/%d — esperando %ds",
+                                   attempt + 1, max_retries, wait)
+                    time.sleep(wait)
+                    continue
+                # Extraer rate limit de headers aunque haya error
+                if e.headers:
+                    rate_limit = RateLimitInfo(
+                        limit=int(e.headers.get("X-Rate-Limit-Limit", 0)),
+                        remaining=int(e.headers.get("X-Rate-Limit-Remaining", 0)),
+                        reset=int(e.headers.get("X-Rate-Limit-Reset", 0)),
+                    )
+                if e.code != 429:
+                    logger.warning("HTTP %d en genderize (no es rate limit)", e.code)
+                logger.exception("Error HTTP genderize: %s", e.code)
+                raise
 
         # Guardar en cache y agregar resultados
         for original, normalized, forced in api_names:

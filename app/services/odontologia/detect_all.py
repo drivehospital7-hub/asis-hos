@@ -57,6 +57,32 @@ def detect_all_problems_odontologia(
     # Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
+
+    # Excepción odontología: código 990203 puede tener múltiples tipos de procedimiento
+    codigo_idx = indices.get("codigo")
+    num_fact_idx = indices.get("numero_factura")
+    if codigo_idx is not None and num_fact_idx is not None:
+        facturas_con_990203: set[str] = set()
+        for row in range(2, data_sheet.max_row + 1):
+            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if codigo_val is not None and str(codigo_val).strip() == "990203":
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura = normalize_invoice(numero)
+                if factura:
+                    facturas_con_990203.add(factura)
+        if facturas_con_990203:
+            antes = len(doble_tipo)
+            doble_tipo = [
+                item for item in doble_tipo
+                if item.get("factura") not in facturas_con_990203
+            ]
+            despues = len(doble_tipo)
+            if despues < antes:
+                logger.info(
+                    "Excepción código 990203: %d facturas excluidas de doble tipo procedimiento",
+                    antes - despues,
+                )
+
     ruta_dup = detect_ruta_duplicada(data_sheet, indices)
     tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
