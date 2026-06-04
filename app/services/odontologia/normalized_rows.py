@@ -33,7 +33,7 @@ def build_odontologia_normalized_rows(
         ruta_dup: Lista de dicts con "identificacion", "facturas", "cantidad"
         profesionales: Lista de dicts con "factura", "codigo_profesional", "procedimiento", ...
         cantidades: Lista de dicts con "factura", "tipo_procedimiento", "cantidad", ...
-        tipo_id_edad: Lista de dicts con "factura", "tipo_actual", "tipo_deberia", "edad"
+        tipo_id_edad: Lista de dicts con "factura", "tipo_actual", "tipo_deberia", "edad_anios", "edad_meses"
         centro_costo: Lista de dicts con "factura", "centro_actual", "centro_deberia", ...
         ide_contrato: Lista de dicts con "factura", "codigo", "cod_entidad", "ide_actual", ...
         responsable_cierra: Dict {factura: responsable}
@@ -144,14 +144,18 @@ def build_odontologia_normalized_rows(
         factura = item.get("factura", "")
         tipo_actual = item.get("tipo_actual", "")
         tipo_deberia = item.get("tipo_deberia", "")
-        edad = item.get("edad", "")
+        edad_anios = item.get("edad_anios", "")
+        edad_meses = item.get("edad_meses", "")
+        edad_str = f"{edad_anios} años"
+        if edad_meses:
+            edad_str += f", {edad_meses} meses"
         rows.append({
             "tipo_error": "Tipo Identificación",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
-            "procedimiento": f"Edad: {edad} años",
+            "procedimiento": f"Edad: {edad_str}",
             "detalle": "",
         })
 

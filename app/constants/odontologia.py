@@ -14,24 +14,23 @@ from __future__ import annotations
 # Estos códigos DEBEN estar en el convenio "Promoción y Prevención"
 # NOTA: No se verifica por nombre de procedimiento, solo por código CUPS
 PYP_CUPS_CODES = frozenset({
-    "890203",  # Consulta de Primera vez por Odontologia General
-    "997002",  # Control de Placa Bacteriana
-    "997106",  # Topización de Fluor en Barniz
-    "997107",  # Aplicación de Sellantes
-    "997301",  # Detartraje Supragingival
+    "890203",   # Consulta de Primera vez por Odontologia General
+    "990203",   # Sesion educativa individual. por odontologia
+    "990212",   # Sesion Educativa Individual. por Higiene Oral
+    "997002",   # Control de Placa Bacteriana
+    "997106",   # Topización de Fluor en Barniz
+    "997107",   # Aplicación de Sellantes
+    "997301",   # Detartraje Supragingival
+    "P0000011", # Demanda Inducida Canalizados Salud Bucal
 })
-
-# Códigos PYP que SOLO pueden usar ODONTOLOGOS (890203 sí puede hygienista)
-PYP_CODES_ONLY_ODONTOLOGO = frozenset({
-    "890203",  # Consulta de Primera vez por Odontologia General
-})
-
 # Códigos PYP que pueden usar HIGIENISTAS (excepto 890203)
 PYP_CODES_HIGIENISTA = frozenset({
-    "997002",  # Control de Placa Bacteriana
-    "997106",  # Topización de Fluor en Barniz
-    "997107",  # Aplicación de Sellantes
-    "997301",  # Detartraje Supragingival
+    "990212",   # Sesion Educativa Individual. por Higiene Oral
+    "997002",   # Control de Placa Bacteriana
+    "997106",   # Topización de Fluor en Barniz
+    "997107",   # Aplicación de Sellantes
+    "997301",   # Detartraje Supragingival
+    "P0000011", # Demanda Inducida Canalizados Salud Bucal
 })
 
 # =============================================================================
