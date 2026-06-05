@@ -13,7 +13,7 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants.urgencias import VALOR_TARIFARIO_FARMACIA
+from app.constants.urgencias import FACTURADORES_URGENCIAS, VALOR_TARIFARIO_FARMACIA
 from app.services.transversales.normalize import normalize_invoice
 
 logger = logging.getLogger(__name__)
@@ -66,6 +66,17 @@ CUPS_SIEMPRE_VALIDOS: set[str] = {
     "907106", "901235", "993122", "993130", "993522", "993120",
     "993104", "993510", "993501", "906249PR",
 }
+
+# Entidades gestionadas dentro de notas técnicas — las demás se omiten
+ENTIDADES_DENTRO_DE_NOTAS: frozenset[str] = frozenset({
+    "ESS118", "ESSC18", "EPSS41", "EPS037", "EPSI05", "EPSIC5", "RES001",
+})
+
+# Facturadores de urgencias — cuando responsable_cierra coincide, validar
+# contra nota_hoja id=1 en vez de contra la cadena contractual de la entidad.
+_FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
+    " ".join(f.upper().split()) for f in FACTURADORES_URGENCIAS
+)
 
 
 def detect_cups_sin_contrato(
@@ -148,6 +159,26 @@ def detect_cups_sin_contrato(
             for ec in eps_list:
                 eps_map[ec.cod_contrato.strip().upper()] = ec.eps
 
+            # Pre-load procedimientos de nota_hoja id=1 (urgencias exception)
+            nota1_results = (
+                session.query(Procedimiento)
+                .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
+                .filter(NotasTecnicas.id_nota_hoja == 1)
+                .all()
+            )
+            nota1_cups: set[str] = {p.cups.strip().upper() for p in nota1_results}
+
+            # Pre-load procedimientos de nota_hoja id=2 y 3 (CAP exception)
+            cap_results = (
+                session.query(NotasTecnicas.id_nota_hoja, Procedimiento.cups)
+                .join(Procedimiento, Procedimiento.id == NotasTecnicas.id_procedimiento)
+                .filter(NotasTecnicas.id_nota_hoja.in_([2, 3]))
+                .all()
+            )
+            nota_cap_cups: dict[int, set[str]] = {2: set(), 3: set()}
+            for nt_id, cups_val in cap_results:
+                nota_cap_cups[nt_id].add(cups_val.strip().upper())
+
         finally:
             session.close()
 
@@ -196,6 +227,29 @@ def detect_cups_sin_contrato(
             codigo_equiv_raw = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
             if codigo_equiv_raw:
                 codigo_equiv = str(codigo_equiv_raw).strip().upper()
+
+        # Solo validar entidades gestionadas dentro de notas técnicas
+        if cod_entidad not in ENTIDADES_DENTRO_DE_NOTAS:
+            continue
+
+        # Excepción: responsable urgencias valida contra nota_hoja id=1
+        responsable_idx = indices.get("responsable_cierra")
+        if responsable_idx is not None:
+            raw_resp = data_sheet.cell(row=row, column=responsable_idx + 1).value
+            resp_name = " ".join(str(raw_resp).upper().split()) if raw_resp else ""
+            if resp_name in _FACTURADORES_URGENCIAS_NORM:
+                if codigo in nota1_cups:
+                    continue
+                if codigo_equiv and codigo_equiv in nota1_cups:
+                    continue
+
+        # CAP invoice exceptions: facturas CAP de ESS118/EPSS41 validan
+        # contra su nota_hoja capitada específica
+        if factura and factura.upper().startswith("CAP"):
+            if cod_entidad == "ESS118" and codigo in nota_cap_cups[3]:
+                continue
+            if cod_entidad == "EPSS41" and codigo in nota_cap_cups[2]:
+                continue
 
         # Saltar entidades sin procedimientos cargados en DB
         if cod_entidad not in entidades_con_datos:

@@ -1,6 +1,7 @@
 """CRUD para nota_hoja."""
 
 import logging
+import traceback
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -43,7 +44,12 @@ def create(db: Session, nota: str) -> NotaHoja:
     db.commit()
     db.refresh(obj)
     
-    logger.info(f"Creada nota hoja: {nota}")
+    # DEBUG: stack trace para identificar quién crea registros V-pattern
+    tb = "".join(traceback.format_stack())
+    logger.warning(
+        "NOTA_HOJA_CREATE | nota=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
+        nota, obj.id, tb,
+    )
     return obj
 
 

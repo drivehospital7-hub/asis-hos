@@ -1,6 +1,7 @@
 """CRUD para procedimiento."""
 
 import logging
+import traceback
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -46,7 +47,12 @@ def create(db: Session, cups: str, procedimiento: str) -> Procedimiento:
     db.commit()
     db.refresh(obj)
     
-    logger.info(f"Creado procedimiento: {procedimiento} ({cups})")
+    # DEBUG: stack trace para identificar quién crea registros V-pattern
+    tb = "".join(traceback.format_stack())
+    logger.warning(
+        "PROCEDIMIENTO_CREATE | cups=%s | proc=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
+        cups, procedimiento, obj.id, tb,
+    )
     return obj
 
 

@@ -54,16 +54,23 @@ def _mock_proc_instance(cups: str) -> MagicMock:
 def _make_mock_session(
     pairs: list[tuple[str, str]],
     eps_names: dict[str, str],
+    nota1_cups: list[str] | None = None,
+    cap_cups: dict[int, list[str]] | None = None,
 ) -> MagicMock:
     """Crea un mock de sesión SQLAlchemy que retorna los datos dados.
 
     Args:
         pairs: Lista de (cod_contrato, cups) — resultados del primer query
         eps_names: Dict {cod_contrato: eps} — resultados del segundo query
+        nota1_cups: Optional lista de CUPS para nota_hoja id=1 (tercer .all())
+        cap_cups: Optional dict {id_nota_hoja: [cups]} para nota_hoja 2 y 3 (4to .all())
     """
+    nota1_cups = nota1_cups or []
+    cap_cups = cap_cups or {}
     mock_session = MagicMock()
     mock_query = MagicMock()
     mock_query.join.return_value = mock_query
+    mock_query.filter.return_value = mock_query
 
     # First .all() → join results
     join_results = [
@@ -74,8 +81,14 @@ def _make_mock_session(
     eps_objects = [
         _mock_eps_instance(cod, name) for cod, name in eps_names.items()
     ]
+    # Third .all() → nota_hoja id=1 procedimientos
+    nota1_objects = [_mock_proc_instance(cups) for cups in nota1_cups]
+    # Fourth .all() → CAP nota_hoja id=2 y 3 (tuples of id_nota_hoja, cups)
+    cap_objects = [
+        (nt_id, cups) for nt_id, cups_list in cap_cups.items() for cups in cups_list
+    ]
 
-    mock_query.all.side_effect = [join_results, eps_objects]
+    mock_query.all.side_effect = [join_results, eps_objects, nota1_objects, cap_objects]
     mock_session.query.return_value = mock_query
     return mock_session
 
@@ -577,3 +590,302 @@ class TestDetectCupsSinContrato:
         # FAC-002 (MALLAMAS, CUPS999 no contratado) → error
         assert len(result) == 1
         assert result[0]["factura"] == "FAC-002"
+
+    # ── 14. Excepción responsable urgencias ──────────────────────────────────
+
+    def test_urgencias_facturador_cups_in_nota1_no_error(self):
+        """Responsable urgencias + CUPS en nota1 → sin error (excepción)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "965201", "ARIAS CULCHA ANGIE CAROLINA"]],
+        )
+        indices = _build_indices(headers)
+        # "965201" NOT in pares_validos para ESS118
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota1_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_urgencias_facturador_cups_not_in_nota1_errors(self):
+        """Responsable urgencias + CUPS no en nota1 → error."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "999999", "ESPAÑA DIAZ LORENY ALEJANDRA"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota1_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "999999"
+
+    def test_urgencias_facturador_codigo_equiv_in_nota1_no_error(self):
+        """Responsable urgencias + codigo_equiv en nota1 → sin error."""
+        headers = REQUIRED + ["codigo_equiv", "responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "CUPS999", "965201", "ARIAS CULCHA ANGIE CAROLINA"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota1_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_urgencias_facturador_nota1_empty_errors(self):
+        """Responsable urgencias + nota1 vacío → error (fails closed)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "965201", "MEZA FERNANDEZ CARLOS OMAR"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota1_cups=[],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "965201"
+
+    def test_urgencias_facturador_column_missing_normal_validation(self):
+        """Columna responsable_cierra ausente → validación normal."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FAC-001", "ESS118", "965201"]],
+        )
+        indices = _build_indices(REQUIRED)
+        # No incluir "responsable_cierra" en indices
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        # 965201 no está contratado para ESS118 → error
+        assert len(result) == 1
+        assert result[0]["codigo"] == "965201"
+
+    def test_urgencias_facturador_empty_cell_normal_validation(self):
+        """Celda responsable_cierra vacía → validación normal."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "965201", None]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        # Celda vacía → no aplica excepción → error normal
+        assert len(result) == 1
+        assert result[0]["codigo"] == "965201"
+
+    def test_urgencias_facturador_double_space_matches_norm(self):
+        """Doble espacio en nombre del facturador -> colapsado -> coincide con FACTURADORES_URGENCIAS."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "878001", "PAEZ  YULIETH DANIELA"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "OTHER")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota1_cups=["878001"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        # Doble espacio colapsado -> coincide con "PAEZ YULIETH DANIELA" -> sin error
+        assert result == []
+
+    # ── 15. CAP exception — ESS118 / EPSS41 ───────────────────────────────────
+
+    def test_cap_ess118_cups_in_nota3_no_error(self):
+        """CAP + ESS118 + CUPS en nota_hoja id=3 → sin error (excepción CAP)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["CAP-2024-001", "ESS118", "878001"]],
+        )
+        indices = _build_indices(REQUIRED)
+        # ESS118 tiene datos contractuales pero 878001 NO está en pares_validos
+        # Sin CAP exception → error. Con CAP exception → no error (capturado antes de entidades_con_datos)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "OTHER_CUPS")],
+            eps_names={"ESS118": "EMSSANAR ESS118"},
+            cap_cups={3: ["878001"]},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_cap_epss41_cups_in_nota2_no_error(self):
+        """CAP + EPSS41 + CUPS en nota_hoja id=2 → sin error (excepción CAP)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["CAP-2024-002", "EPSS41", "965201"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("EPSS41", "OTHER_CUPS")],
+            eps_names={"EPSS41": "NUEVA EPS EPSS41"},
+            cap_cups={2: ["965201"]},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_cap_ess118_cups_not_in_nota3_errors(self):
+        """CAP + ESS118 + CUPS NO en nota_hoja id=3 → error."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["CAP-2024-003", "ESS118", "999999"]],
+        )
+        indices = _build_indices(REQUIRED)
+        # ESS118 tiene datos contractuales para que el fall-through valide
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS118"},
+            cap_cups={3: ["878001"]},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "999999"
+
+    def test_cap_epss41_cups_not_in_nota2_errors(self):
+        """CAP + EPSS41 + CUPS NO en nota_hoja id=2 → error."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["CAP-2024-004", "EPSS41", "888888"]],
+        )
+        indices = _build_indices(REQUIRED)
+        mock_session = _make_mock_session(
+            pairs=[("EPSS41", "965201")],
+            eps_names={"EPSS41": "NUEVA EPS EPSS41"},
+            cap_cups={2: ["965201"]},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "888888"
+
+    def test_cap_ess118_nota3_empty_errors(self):
+        """CAP + ESS118 + nota_hoja id=3 vacía → error (fails closed)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["CAP-2024-005", "ESS118", "878001"]],
+        )
+        indices = _build_indices(REQUIRED)
+        # ESS118 tiene datos contractuales pero 878001 no está contratado
+        # nota_hoja id=3 está vacía → falls through → error
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "333333")],
+            eps_names={"ESS118": "EMSSANAR ESS118"},
+            cap_cups={3: []},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "878001"
+
+    def test_non_cap_ess118_standard_validation(self):
+        """Factura NO-CAP + ESS118 → validación normal (sin excepción)."""
+        ws = _make_ws(
+            headers=REQUIRED,
+            data_rows=[["FAC-2024-001", "ESS118", "878001"]],
+        )
+        indices = _build_indices(REQUIRED)
+        # ESS118 tiene datos pero 878001 no está contratado
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "333333")],
+            eps_names={"ESS118": "EMSSANAR ESS118"},
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "878001"

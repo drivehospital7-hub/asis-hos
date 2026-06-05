@@ -1,6 +1,7 @@
 """CRUD para eps_contratado."""
 
 import logging
+import traceback
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -47,7 +48,12 @@ def create(db: Session, cod_contrato: str, eps: str, regimen: str = "SUBSIDIADO"
     db.commit()
     db.refresh(obj)
     
-    logger.info(f"Creada EPS contratada: {eps} ({cod_contrato})")
+    # DEBUG: stack trace para identificar quién crea registros V-pattern
+    tb = "".join(traceback.format_stack())
+    logger.warning(
+        "EPS_CONTRATADO_CREATE | cod=%s | eps=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
+        cod_contrato, eps, obj.id, tb,
+    )
     return obj
 
 
