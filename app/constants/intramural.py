@@ -220,6 +220,22 @@ CENTROS_COSTO_LABORATORIO_VALIDOS: frozenset[str] = frozenset({
 # INTRAMURAL - TABLA COMPLETA DX (código → descripción)
 # =============================================================================
 
+# =============================================================================
+# INTRAMURAL - REVISIÓN CANTIDAD
+# =============================================================================
+
+CODIGO_TIPO_PROC_02 = "02"
+CODIGOS_TIPO_PROC_03_04: frozenset[str] = frozenset({"03", "04"})
+LABORATORIO_NO = "No"
+CANTIDAD_MAX_02_NO_LAB: int = 2
+CANTIDAD_MAX_03_04: int = 13
+CANTIDAD_MAX_GENERAL_INTRAMURAL: int = 1
+
+# Límites específicos por código (se evalúan ANTES de la cascade general)
+CODIGOS_LIMITE_ESPECIFICO_INTRAMURAL: dict[str, int] = {
+    "901101": 3,
+}
+
 DX_PRINCIPAL_INTRAMURAL: dict[str, str] = {
     "Z359": "SUPERVISION DE EMBARAZO DE ALTO RIESGO, SIN OTRA ESPECIFICACION",
     "Z000": "EXAMEN MEDICO GENERAL",

@@ -186,7 +186,17 @@ def detect_all_problems_intramural(
         "[BACK] Duplicado ID+Código: %d problemas", len(duplicado_id_codigo)
     )
 
-    # 9. Build normalized rows
+    # 9. Revision Cantidad Intramural
+    from app.services.intramural.revision_cantidad_intramural import (
+        detect_revision_cantidad_intramural,
+    )
+    revision_cantidad = detect_revision_cantidad_intramural(data_sheet, indices)
+    logger.info(
+        "[BACK] Revision Cantidad Intramural: %d items",
+        len(revision_cantidad),
+    )
+
+    # 10. Build normalized rows
     error_groups = {
         "Centros de Costo": problemas_centros_filtrados,
         "Decimales": decimales,
@@ -198,6 +208,7 @@ def detect_all_problems_intramural(
         "Cups Sin Contrato": cups_sin_contrato,
         "Profesionales": bacteriologas,
         "Duplicado ID+Código": duplicado_id_codigo,
+        "⚠️ Revisión Necesaria": revision_cantidad,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -206,7 +217,7 @@ def detect_all_problems_intramural(
         fecha_cierre_vacia_map=fecha_cierre_vacia,
     )
 
-    # 10. Build resultado
+    # 11. Build resultado
     resultado: dict[str, Any] = {
         "area": AREA_INTRAMURAL,
         "problemas": {
@@ -234,6 +245,7 @@ def detect_all_problems_intramural(
             "cups_sin_contrato": cups_sin_contrato,
             "profesionales": bacteriologas,
             "duplicado_id_codigo": duplicado_id_codigo,
+            "revision_cantidad": revision_cantidad,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -248,12 +260,13 @@ def detect_all_problems_intramural(
             "cups_sin_contrato": len(cups_sin_contrato),
             "profesionales": len(bacteriologas),
             "duplicado_id_codigo": len(duplicado_id_codigo),
+            "revision_cantidad": len(revision_cantidad),
         },
         "missing_columns": [],
         "codigos_sin_db_ide_969": [],
     }
 
-    # 11. Enrich errors with responsable
+    # 12. Enrich errors with responsable
     for problem_type, problems in resultado["problemas"].items():
         for p in problems:
             if not isinstance(p, dict):
