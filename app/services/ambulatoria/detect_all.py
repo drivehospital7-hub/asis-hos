@@ -152,7 +152,6 @@ def detect_all_problems_ambulatoria(
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
-        "codigos_sin_db_ide_969": [],
     }
 
     # 7. Enrich errors with responsable

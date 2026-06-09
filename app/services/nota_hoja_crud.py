@@ -1,7 +1,8 @@
 """CRUD para nota_hoja."""
 
 import logging
-import traceback
+import os
+import re
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,13 @@ from sqlalchemy.orm import Session
 from app.models import NotaHoja
 
 logger = logging.getLogger(__name__)
+
+# Patrón que identifica datos generados por fixtures de test
+_TEST_DATA_RE = re.compile(r"^NOTA V\d+$")
+
+def _is_production_db() -> bool:
+    """True si estamos usando la base de producción (sin TEST_DB_NAME)."""
+    return not os.getenv("TEST_DB_NAME")
 
 
 def get_all(db: Session) -> List[NotaHoja]:
@@ -39,17 +47,17 @@ def create(db: Session, nota: str) -> NotaHoja:
     if existing:
         raise ValueError(f"Ya existe nota hoja: {nota}")
     
+    if _is_production_db() and _TEST_DATA_RE.match(nota):
+        raise ValueError(
+            f"Nombre de nota coincide con patrón de datos de prueba: {nota}"
+        )
+    
     obj = NotaHoja(nota=nota)
     db.add(obj)
     db.commit()
     db.refresh(obj)
     
-    # DEBUG: stack trace para identificar quién crea registros V-pattern
-    tb = "".join(traceback.format_stack())
-    logger.warning(
-        "NOTA_HOJA_CREATE | nota=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
-        nota, obj.id, tb,
-    )
+    logger.info("Creada nota hoja: %s | ID: %s", nota, obj.id)
     return obj
 
 

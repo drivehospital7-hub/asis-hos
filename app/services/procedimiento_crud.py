@@ -1,7 +1,8 @@
 """CRUD para procedimiento."""
 
 import logging
-import traceback
+import os
+import re
 from typing import List, Optional
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,13 @@ from sqlalchemy.orm import Session
 from app.models import Procedimiento
 
 logger = logging.getLogger(__name__)
+
+# Patrón que identifica datos generados por fixtures de test
+_TEST_DATA_RE = re.compile(r"^PROC V\d+$")
+
+def _is_production_db() -> bool:
+    """True si estamos usando la base de producción (sin TEST_DB_NAME)."""
+    return not os.getenv("TEST_DB_NAME")
 
 
 def get_all(db: Session) -> List[Procedimiento]:
@@ -39,6 +47,11 @@ def create(db: Session, cups: str, procedimiento: str) -> Procedimiento:
     if existing:
         raise ValueError(f"Ya existe procedimiento con CUPS: {cups}")
     
+    if _is_production_db() and _TEST_DATA_RE.match(procedimiento):
+        raise ValueError(
+            f"Nombre de procedimiento coincide con patrón de datos de prueba: {procedimiento}"
+        )
+    
     obj = Procedimiento(
         cups=cups,
         procedimiento=procedimiento
@@ -47,12 +60,7 @@ def create(db: Session, cups: str, procedimiento: str) -> Procedimiento:
     db.commit()
     db.refresh(obj)
     
-    # DEBUG: stack trace para identificar quién crea registros V-pattern
-    tb = "".join(traceback.format_stack())
-    logger.warning(
-        "PROCEDIMIENTO_CREATE | cups=%s | proc=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
-        cups, procedimiento, obj.id, tb,
-    )
+    logger.info("Creado procedimiento: %s | CUPS: %s | ID: %s", procedimiento, cups, obj.id)
     return obj
 
 

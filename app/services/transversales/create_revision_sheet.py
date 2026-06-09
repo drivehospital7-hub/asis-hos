@@ -29,7 +29,6 @@ from app.services.transversales import (
     normalize_invoice,
 )
 from app.services.transversales.column_indices import get_column_indices
-from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
 from app.services.normalized_rows import build_urgencias_normalized_rows
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
@@ -151,18 +150,6 @@ def create_revision_sheet(
                     responsable_cierra[factura] = resp
 
         # --- Detectar todos los problemas ---
-        logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
-        problemas_codigos_no_en_db = get_codigos_no_en_db_ess118(data_sheet, indices)
-        codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
-
-        if problemas_codigos_no_en_db:
-            logger.warning(
-                "Procedimientos NO encontrados en DB para ESS118 (%d errores): %s",
-                len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set),
-            )
-        else:
-            logger.warning("Todos los códigos de ESS118 están en DB")
-
         from app.services.urgencias import (
             detect_centro_costo_urgencias,
             detect_cups_equivalentes,

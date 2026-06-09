@@ -34,7 +34,6 @@ from app.services.urgencias.cantidades_soat_urgencias import (
     detect_cantidades_soat_urgencias,
 )
 from app.services.urgencias.mal_capitado import detect_mal_capitado
-from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
 from app.services.urgencias.ide_contrato_reverse import detect_ide_contrato_reverse_urgencias
 from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
 from app.services.transversales.detect_copago_entidad import (
@@ -45,7 +44,6 @@ from app.services.urgencias.revision_cantidad import detect_revision_cantidad_ur
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
 from app.services.normalized_rows import build_normalized_rows
-from app.services.urgencias.valida_capita import detect_capita_cups_invalidos
 
 logger = logging.getLogger(__name__)
 
@@ -65,20 +63,7 @@ def detect_all_problems_urgencias(
     Returns:
         (resultado_dict, responsables_map)
     """
-    # 1. Códigos sin DB (ESS118 + IDE=969)
-    problemas_codigos_no_en_db = get_codigos_no_en_db_ess118(data_sheet, indices)
-    codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
-
-    if problemas_codigos_no_en_db:
-        logger.warning(
-            "Procedimientos NO en DB (ESS118 + IDE=969): %d errores, códigos: %s",
-            len(problemas_codigos_no_en_db),
-            sorted(codigos_no_en_db_set),
-        )
-    else:
-        logger.warning("No hay códigos sin DB con IDE=969 para ESS118")
-
-    # 2. Centro Costo + IDE Contrato + CUPS equivalentes
+    # 1. Centro Costo + IDE Contrato + CUPS equivalentes
     problemas_centros = detect_centro_costo_urgencias(data_sheet, indices)
     problemas_ide_contrato = detect_ide_contrato_urgencias(data_sheet, indices)
 
@@ -86,18 +71,7 @@ def detect_all_problems_urgencias(
     problemas_cups_equivalentes.extend(detect_cups_equivalentes(data_sheet, indices))
     problemas_cups_equivalentes.extend(detect_sala_observacion(data_sheet, indices))
 
-    # 3. Agregar "Código no en DB" a problemas_ide_contrato
-    for problema in problemas_codigos_no_en_db:
-        problemas_ide_contrato.append({
-            "factura": problema.get("factura", ""),
-            "ide_contrato_actual": "N/A",
-            "ide_contrato_deberia": "Código no en DB",
-            "procedimiento": problema.get("procedimiento", ""),
-            "codigo": problema.get("codigo", ""),
-            "entidad": problema.get("entidad", ""),
-        })
-
-    # 4. Detectores transversales
+    # 3. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
@@ -167,13 +141,6 @@ def detect_all_problems_urgencias(
     logger.info(
         "detect_all_problems_urgencias - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),
-    )
-
-    # 6b. CAPITA inválidos
-    capita_invalidos = detect_capita_cups_invalidos(data_sheet, indices)
-    logger.info(
-        "detect_all_problems_urgencias - Códigos no CAPITA en facturas CAP: %d",
-        len(capita_invalidos),
     )
 
     # 6. Filtrar centros de costo por prioridad
@@ -265,7 +232,6 @@ def detect_all_problems_urgencias(
         "Copago vs Entidad": copago_entidad,
         "Duplicados Farmacia": duplicados_farmacia,
         "Cups Sin Contrato": cups_sin_contrato,
-        "Cups No CAPITA": capita_invalidos,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -328,7 +294,6 @@ def detect_all_problems_urgencias(
             "copago_entidad": copago_entidad,
             "duplicados_farmacia": duplicados_farmacia,
             "cups_sin_contrato": cups_sin_contrato,
-            "capita_invalidos": capita_invalidos,
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
@@ -348,12 +313,8 @@ def detect_all_problems_urgencias(
             "copago_entidad": len(copago_entidad),
             "duplicados_farmacia": len(duplicados_farmacia),
             "cups_sin_contrato": len(cups_sin_contrato),
-            "capita_invalidos": len(capita_invalidos),
         },
         "missing_columns": [],
-        "codigos_sin_db_ide_969": (
-            sorted(codigos_no_en_db_set) if problemas_codigos_no_en_db else []
-        ),
     }
 
     # 12. Enrich errors with responsable from mapping

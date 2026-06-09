@@ -263,7 +263,6 @@ def detect_all_problems_intramural(
             "revision_cantidad": len(revision_cantidad),
         },
         "missing_columns": [],
-        "codigos_sin_db_ide_969": [],
     }
 
     # 12. Enrich errors with responsable

@@ -21,9 +21,6 @@ from app.services.urgencias.ide_contrato_urgencias import (
 from app.services.urgencias.ide_contrato_reverse import (
     detect_ide_contrato_reverse_urgencias,
 )
-from app.services.urgencias.codigos_sin_db import (
-    get_codigos_no_en_db_ess118,
-)
 
 
 # ──────────────────────────────────────────────────────
@@ -256,37 +253,3 @@ class TestIdeContratoReverseFilter:
         assert result[0]["factura"] == "FAC-001"
 
 
-# ──────────────────────────────────────────────────────
-# codigos_sin_db — filter tests
-# ──────────────────────────────────────────────────────
-
-class TestCodigosSinDbFilter:
-    """Filter: non-Urgencias rows skipped by get_codigos_no_en_db_ess118."""
-
-    HEADERS = [
-        "Número Factura",
-        "Código",
-        "Procedimiento",
-        "IDE Contrato",
-        "Código Tipo Procedimiento",
-        "Cód Entidad Cobrar",
-        "Tipo Factura Descripción",
-    ]
-
-    def test_non_urgencias_rows_skipped(self) -> None:
-        """Non-Urgencias rows produce no DB-query errors."""
-        wb = _make_wb(self.HEADERS)
-        ws = wb.active
-        ws.cell(row=2, column=1, value="FAC-001")
-        ws.cell(row=2, column=2, value="890101")
-        ws.cell(row=2, column=3, value="Proc")
-        ws.cell(row=2, column=4, value="969")
-        ws.cell(row=2, column=5, value="02")
-        ws.cell(row=2, column=6, value="ESS118")
-        ws.cell(row=2, column=7, value="Hospitalización")  # NOT Urgencias
-
-        indices = _build_indices_from_headers(self.HEADERS)
-        result = get_codigos_no_en_db_ess118(ws, indices)
-        # All rows are non-Urgencias; filter skips them.
-        # Note: DB connection fails in test env anyway (returns [])
-        assert result == [], f"Expected empty, got {len(result)} errors"

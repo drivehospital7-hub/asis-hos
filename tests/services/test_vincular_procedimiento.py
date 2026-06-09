@@ -17,7 +17,10 @@ class TestVincularProcedimientoIntegration:
 
     @pytest.fixture(autouse=True)
     def setup_data(self, app_client, request):
-        """Create test EPS, NotaHoja, and Procedimiento with unique names."""
+        """Create test EPS, NotaHoja, and Procedimiento with unique names.
+        
+        Teardown: deletes all created records to avoid polluting the database.
+        """
         # Login
         app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
 
@@ -52,6 +55,22 @@ class TestVincularProcedimientoIntegration:
         )
         assert resp.status_code == 201, f"Setup Procedimiento failed: {resp.get_json()}"
         self._proc = resp.get_json()["data"]
+
+        yield  # ── test runs here ──
+
+        # ── Teardown: delete in FK-safe order ──
+        # NotaHoja cascades to eps_nota and notas_tecnicas
+        for endpoint, obj_id in [
+            (f"/api/notas-hoja/{self._nh['id']}", "EpsNota + NotasTecnicas (cascade)"),
+            (f"/api/eps/{self._eps['id']}", "EpsContratado"),
+            (f"/api/procedimientos/{self._proc['id']}", "Procedimiento"),
+        ]:
+            try:
+                resp = app_client.delete(endpoint)
+                if resp.status_code not in (200, 204, 404):
+                    pass  # Already deleted or FK prevents — OK
+            except Exception:
+                pass  # Best-effort cleanup
 
     # ─── Helper ───────────────────────────────────────────────────────
 

@@ -209,7 +209,6 @@ def process_unified(
             "totales": {},
             "totales_por_tipo": {},
             "missing_columns": [],
-            "codigos_sin_db_ide_969": [],
         }, {}
 
     all_normalized: list[dict[str, Any]] = []
@@ -217,7 +216,6 @@ def process_unified(
     all_totales: dict[str, int] = {}
     all_totales_por_tipo: dict[str, dict[str, int]] = {}
     all_responsables: dict[str, str] = {}
-    all_codigos_sin_db: list[dict[str, str]] = []
 
     # Construir mapa factura → tipo para filtrar falsos positivos cruzados
     factura_por_tipo = _build_factura_por_tipo(data_sheet, indices, tipos_presentes)
@@ -264,10 +262,6 @@ def process_unified(
         # Fusionar responsables
         all_responsables.update(responsables)
 
-        # Códigos sin DB (solo Urgencias)
-        codigos = resultado.get("codigos_sin_db_ide_969", [])
-        all_codigos_sin_db.extend(codigos)
-
     # Construir resultado unificado
     unified: dict[str, Any] = {
         "area": "unificada",
@@ -280,9 +274,6 @@ def process_unified(
         "tipos_procesados": tipos_presentes,
         "missing_columns": all_problemas.get("missing_columns", []),
     }
-
-    # Pasar también en el nivel superior para compatibilidad con rutas existentes
-    unified["codigos_sin_db_ide_969"] = all_codigos_sin_db
 
     logger.info(
         "Procesamiento unificado completado: %d tipos, %d filas normalizadas, %d responsables",

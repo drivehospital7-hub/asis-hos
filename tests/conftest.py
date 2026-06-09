@@ -1,13 +1,25 @@
-"""Configuración global de pytest para el proyecto control_system."""
+"""Configuración global de pytest para el proyecto control_system.
+
+Usa TEST_DB_NAME (por defecto asis_hos_test) para no contaminar
+la base de datos de producción durante las pruebas.
+"""
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 from typing import Generator
 
 import pytest
 from openpyxl import Workbook
+
+# ════════════════════════════════════════════════════════════
+# Test DB isolation — debe ejecutarse ANTES de importar la app
+# para que DB_CONFIG tome el nombre de base correcto.
+# ════════════════════════════════════════════════════════════
+if not os.getenv("TEST_DB_NAME"):
+    os.environ["TEST_DB_NAME"] = "asis_hos_test"
 
 from app import create_app
 

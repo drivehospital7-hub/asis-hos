@@ -64,7 +64,6 @@ def get_detectors(tipo_factura: str) -> list[Callable]:
             detect_hospitalizacion_codes,
         )
         from app.services.urgencias.mal_capitado import detect_mal_capitado
-        from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
         from app.services.urgencias.ide_contrato_reverse import detect_ide_contrato_reverse_urgencias
         from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
         from app.services.transversales.detect_copago_entidad import (
@@ -85,7 +84,6 @@ def get_detectors(tipo_factura: str) -> list[Callable]:
             detect_cantidades_hospitalizacion,
             detect_hospitalizacion_codes,
             detect_mal_capitado,
-            get_codigos_no_en_db_ess118,
             detect_ide_contrato_reverse_urgencias,
             detect_profesionales_urgencias,
             detect_copago_entidad_urgencias,

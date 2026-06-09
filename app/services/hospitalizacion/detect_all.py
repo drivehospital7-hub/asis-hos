@@ -279,7 +279,6 @@ def detect_all_problems_hospitalizacion(
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
-        "codigos_sin_db_ide_969": [],
     }
 
     # 11. Enrich errors with responsable

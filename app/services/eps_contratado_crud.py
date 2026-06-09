@@ -1,7 +1,8 @@
 """CRUD para eps_contratado."""
 
 import logging
-import traceback
+import os
+import re
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.orm import Session
@@ -9,6 +10,14 @@ from sqlalchemy.orm import Session
 from app.models import EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento
 
 logger = logging.getLogger(__name__)
+
+# Patrones que identifican datos generados por fixtures de test
+_TEST_EPS_RE = re.compile(r"^EPS V\d+$")
+_TEST_COD_RE = re.compile(r"^V\d+_EPS$")
+
+def _is_production_db() -> bool:
+    """True si estamos usando la base de producción (sin TEST_DB_NAME)."""
+    return not os.getenv("TEST_DB_NAME")
 
 
 def get_all(db: Session) -> List[EpsContratado]:
@@ -39,6 +48,16 @@ def create(db: Session, cod_contrato: str, eps: str, regimen: str = "SUBSIDIADO"
     if existing:
         raise ValueError(f"Ya existe EPS con código de contrato: {cod_contrato}")
     
+    if _is_production_db():
+        if _TEST_EPS_RE.match(eps):
+            raise ValueError(
+                f"Nombre de EPS coincide con patrón de datos de prueba: {eps}"
+            )
+        if _TEST_COD_RE.match(cod_contrato):
+            raise ValueError(
+                f"Código de contrato coincide con patrón de datos de prueba: {cod_contrato}"
+            )
+    
     obj = EpsContratado(
         cod_contrato=cod_contrato,
         eps=eps,
@@ -48,12 +67,7 @@ def create(db: Session, cod_contrato: str, eps: str, regimen: str = "SUBSIDIADO"
     db.commit()
     db.refresh(obj)
     
-    # DEBUG: stack trace para identificar quién crea registros V-pattern
-    tb = "".join(traceback.format_stack())
-    logger.warning(
-        "EPS_CONTRATADO_CREATE | cod=%s | eps=%s | id=%s\n=== STACK TRACE ===\n%s=== END STACK ===",
-        cod_contrato, eps, obj.id, tb,
-    )
+    logger.info("Creada EPS contratada: %s | Cod: %s | ID: %s", eps, cod_contrato, obj.id)
     return obj
 
 

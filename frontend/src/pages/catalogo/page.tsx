@@ -598,6 +598,7 @@ function NotaHojaTab() {
   const [vincProcList, setVincProcList] = useState<ProcedimientoSqlite[]>([]);
   const [vincFormProc, setVincFormProc] = useState("");
   const [vincSearchProc, setVincSearchProc] = useState("");
+  const [vincSearchEps, setVincSearchEps] = useState("");
   const [vincFormEps, setVincFormEps] = useState("");
   const [vincFormTarifa, setVincFormTarifa] = useState("");
   const [vincFormError, setVincFormError] = useState<string | null>(null);
@@ -901,7 +902,7 @@ function NotaHojaTab() {
                   {vinculaciones.eps_vinculadas.map((e) => (
                     <span key={e.id} className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-full"
                       style={{ background: "oklch(0.55 0.04 160 / 0.08)", color: "oklch(0.55 0.04 160)" }}>
-                      {e.eps} ({e.cod_contrato})
+                      {e.cod_contrato} — {e.eps}
                       <button onClick={() => handleEliminarEpsVinculacion(e.eps_nota_id, e.eps)}
                         className="ml-1 hover:text-danger" title="Desvincular">×</button>
                     </span>
@@ -909,19 +910,33 @@ function NotaHojaTab() {
                 </div>
               )}
               {/* Vincular EPS */}
-              <div className="flex gap-2 mt-2">
-                <select value={vincFormEps}
-                  onChange={(e) => setVincFormEps(e.target.value)}
-                  className="rounded-lg border px-3 py-1.5 text-xs outline-none"
-                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
-                  <option value="">-- Vincular EPS --</option>
-                  {vincEpsList.map((e) => (
-                    <option key={e.id} value={e.id}>{e.eps} ({e.cod_contrato})</option>
-                  ))}
-                </select>
-                <Button size="sm" onClick={handleVincularEps} disabled={!vincFormEps}>
-                  <Plus className="h-3 w-3" />
-                </Button>
+              <div className="mt-2">
+                <input type="text" placeholder="Buscar por código o EPS..."
+                  value={vincSearchEps}
+                  onChange={(e) => { setVincSearchEps(e.target.value); setVincFormEps(""); }}
+                  className="w-full rounded-lg border px-3 py-1.5 text-xs mb-1 outline-none"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} />
+                <div className="flex gap-2">
+                  <select value={vincFormEps}
+                    onChange={(e) => setVincFormEps(e.target.value)}
+                    size={4}
+                    className="flex-1 rounded-lg border px-2 py-1 text-xs outline-none"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
+                    <option value="">-- Vincular EPS --</option>
+                    {vincEpsList
+                      .filter((e) =>
+                        !vincSearchEps ||
+                        e.cod_contrato.toLowerCase().includes(vincSearchEps.toLowerCase()) ||
+                        e.eps.toLowerCase().includes(vincSearchEps.toLowerCase())
+                      )
+                      .map((e) => (
+                        <option key={e.id} value={e.id}>{e.cod_contrato} — {e.eps}</option>
+                      ))}
+                  </select>
+                  <Button size="sm" onClick={handleVincularEps} disabled={!vincFormEps}>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
               </div>
             </div>
 
