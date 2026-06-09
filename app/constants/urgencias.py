@@ -542,6 +542,8 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "897012",
     "935304",
     "873313",
+    "902221",
+    "965301",
 })
 
 # =============================================================================
@@ -803,5 +805,9 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
     "03893": {
         "nombre": "SAMBONI RAMIREZ MARLEN DANIELA",
         "tipo": "MEDICO",
+    },
+    "01251": {
+        "nombre": "MOSQUERA LOZANO YENIA YADIRIS",
+        "tipo": "ODONTOLOGO",
     },
 }
