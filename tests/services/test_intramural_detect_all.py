@@ -145,3 +145,4 @@ class TestDetectAllProblemsIntramural:
         assert len(revision_rows) == 1
         assert revision_rows[0]["factura"] == "F001"
         assert "Cant:" in revision_rows[0]["detalle"]
+

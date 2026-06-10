@@ -3,6 +3,7 @@ import {
   Upload,
   AlertTriangle,
   Eye,
+  Download,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -14,6 +15,7 @@ interface StatsData {
   nombres_unicos: number;
   cache_hits: number;
   api_calls_necesarias: number;
+  nombres_no_cache: string[];
 }
 
 interface Discrepancia {
@@ -121,6 +123,18 @@ export function GenderizePage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  /** Exportar nombres no cacheados como .txt */
+  const exportNoCache = () => {
+    const text = "\uFEFF" + (statsPreview?.nombres_no_cache ?? []).join(", ");
+    const blob = new Blob([text], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "nombres_no_cache.txt";
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const corrigeGenero = async (nombreNormalizado: string, sexoExcel: string) => {
@@ -254,6 +268,15 @@ export function GenderizePage() {
               <p className="text-xs mt-2" style={{ color: "oklch(0.25 0.06 160)" }}>
                 ✅ Todos los nombres están en cache — no se gastarán tokens.
               </p>
+            )}
+
+            {statsPreview.nombres_no_cache && statsPreview.nombres_no_cache.length > 0 && (
+              <Button onClick={exportNoCache}
+                      variant="outline"
+                      className="flex items-center gap-1.5 mt-3">
+                <Download className="h-4 w-4" />
+                Exportar no-cache
+              </Button>
             )}
           </Card>
         )}

@@ -24,7 +24,11 @@ def _get_farmacia_detectors() -> list[Callable]:
 
     Used by tipo_factura_registry for lazy import.
     """
-    return []
+    from app.services.farmacia.duplicados_farmacia_farmacia import (
+        detect_duplicados_farmacia_farmacia,
+    )
+
+    return [detect_duplicados_farmacia_farmacia]
 
 
 def detect_all_problems_farmacia(
@@ -51,6 +55,9 @@ def detect_all_problems_farmacia(
         detect_copago_entidad_urgencias,
     )
     from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
+    from app.services.farmacia.duplicados_farmacia_farmacia import (
+        detect_duplicados_farmacia_farmacia,
+    )
 
     # 1. Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
@@ -62,6 +69,7 @@ def detect_all_problems_farmacia(
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
     copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    duplicados_farmacia = detect_duplicados_farmacia_farmacia(data_sheet, indices)
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
@@ -115,6 +123,7 @@ def detect_all_problems_farmacia(
         "Tipo Usuario": tipo_usuario,
         "Copago vs Entidad": copago_entidad,
         "Cups Sin Contrato": cups_sin_contrato,
+        "Duplicados Farmacia": duplicados_farmacia,
     }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
@@ -138,6 +147,7 @@ def detect_all_problems_farmacia(
             "tipo_usuario": tipo_usuario,
             "copago_entidad": copago_entidad,
             "cups_sin_contrato": cups_sin_contrato,
+            "duplicados_farmacia": duplicados_farmacia,
         },
         "totales": {
             "centros_de_costos": 0,
@@ -150,6 +160,7 @@ def detect_all_problems_farmacia(
             "tipo_usuario": len(tipo_usuario),
             "copago_entidad": len(copago_entidad),
             "cups_sin_contrato": len(cups_sin_contrato),
+            "duplicados_farmacia": len(duplicados_farmacia),
         },
         "missing_columns": [],
     }

@@ -47,11 +47,16 @@ class TestGetDetectors:
         result = get_detectors("Ambulatoria")
         assert isinstance(result, list)
 
-    def test_unknown_returns_empty_list(self):
-        """R2: Unknown tipo_factura → empty list, no error."""
+    def test_farmacia_returns_detectors(self):
+        """R1: Farmacia is now a known entry with its own detectors."""
         from app.services.tipo_factura_registry import get_detectors
+        from app.services.farmacia.duplicados_farmacia_farmacia import (
+            detect_duplicados_farmacia_farmacia,
+        )
         result = get_detectors("Farmacia")
-        assert result == []
+        assert isinstance(result, list)
+        assert len(result) > 0
+        assert detect_duplicados_farmacia_farmacia in result
 
     def test_empty_string_returns_empty_list(self):
         """R2: Empty string → empty list."""

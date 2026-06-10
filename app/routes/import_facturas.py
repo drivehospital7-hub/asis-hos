@@ -141,7 +141,7 @@ def get_facturas_stats():
         tmp_path = tmp.name
     
     try:
-        stats, _ = genderize_verifier.get_stats(tmp_path)
+        stats, _, nombres_no_cache = genderize_verifier.get_stats(tmp_path)
         
         return jsonify({
             "status": "success",
@@ -150,6 +150,7 @@ def get_facturas_stats():
                 "nombres_unicos": stats.nombres_unicos,
                 "cache_hits": stats.cache_hits,
                 "api_calls_necesarias": stats.api_calls_necesarias,
+                "nombres_no_cache": nombres_no_cache,
             },
             "errors": []
         })

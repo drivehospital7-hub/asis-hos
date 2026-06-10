@@ -316,16 +316,25 @@ def build_normalized_rows(
             f"{p.get('codigo', '')} x{p.get('cantidad', '')} ({p.get('count', 0)} veces)"
             for p in pares
         )
+        if tipo_proc:
+            descripcion = (
+                f"Duplicados Farmacia — Grupo {tipo_proc}: "
+                f"{total_pares} par(es) duplicado(s)"
+            )
+            procedimiento = f"Grupo {tipo_proc}"
+        else:
+            descripcion = (
+                f"Duplicados Farmacia: "
+                f"{total_pares} par(es) duplicado(s)"
+            )
+            procedimiento = ""
         rows.append({
             "tipo_error": "⚠️ Revisión Necesaria",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": (
-                f"Duplicados Farmacia — Grupo {tipo_proc}: "
-                f"{total_pares} par(es) duplicado(s)"
-            ),
-            "procedimiento": f"Grupo {tipo_proc}",
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
             "detalle": detalle_pares or f"{total_pares} pares",
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })

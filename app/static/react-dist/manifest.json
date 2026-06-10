@@ -49,6 +49,13 @@
       "_globals-IEYCF5gg.js"
     ]
   },
+  "_download-C8wq8Rqr.js": {
+    "file": "assets/download-C8wq8Rqr.js",
+    "name": "download",
+    "imports": [
+      "_globals-IEYCF5gg.js"
+    ]
+  },
   "_eye-Cy85FeWW.js": {
     "file": "assets/eye-Cy85FeWW.js",
     "name": "eye",
@@ -143,7 +150,7 @@
     ]
   },
   "src/pages/control-novedades/index.html": {
-    "file": "assets/index-D56p8hWc.js",
+    "file": "assets/index-CI4Cvkai.js",
     "name": "index",
     "src": "src/pages/control-novedades/index.html",
     "isEntry": true,
@@ -153,6 +160,7 @@
       "_breadcrumbs-NWWLMxrF.js",
       "_page-title-CSKdFJqz.js",
       "_status-badge-Bl7ZqIcb.js",
+      "_download-C8wq8Rqr.js",
       "_plus-BLq7eTNT.js",
       "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
@@ -209,7 +217,7 @@
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-CG_1PWJf.js",
+    "file": "assets/index-DyKQZjaf.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
@@ -217,7 +225,8 @@
       "_globals-IEYCF5gg.js",
       "_app-layout-CD8cljYo.js",
       "_status-badge-Bl7ZqIcb.js",
-      "_eye-Cy85FeWW.js"
+      "_eye-Cy85FeWW.js",
+      "_download-C8wq8Rqr.js"
     ]
   },
   "src/pages/index/index.html": {

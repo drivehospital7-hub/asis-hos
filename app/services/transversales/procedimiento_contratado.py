@@ -19,7 +19,7 @@ from app.services.transversales.normalize import normalize_invoice
 logger = logging.getLogger(__name__)
 
 # Facturadores de urgencias — cuando responsable_cierra coincide, validar
-# contra nota_hoja id=1 en vez de contra la cadena contractual de la entidad.
+# contra nota_hoja id=1 o 27 en vez de contra la cadena contractual de la entidad.
 _FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
     " ".join(f.upper().split()) for f in FACTURADORES_URGENCIAS
 )
@@ -105,14 +105,14 @@ def detect_cups_sin_contrato(
             for ec in eps_list:
                 eps_map[ec.cod_contrato.strip().upper()] = ec.eps
 
-            # Pre-load procedimientos de nota_hoja id=1 (urgencias exception)
-            nota1_results = (
+            # Pre-load procedimientos de nota_hoja id=1 y 27 (urgencias exception)
+            nota_urgencias_results = (
                 session.query(Procedimiento)
                 .join(NotasTecnicas, NotasTecnicas.id_procedimiento == Procedimiento.id)
-                .filter(NotasTecnicas.id_nota_hoja == 1)
+                .filter(NotasTecnicas.id_nota_hoja.in_([1, 27]))
                 .all()
             )
-            nota1_cups: set[str] = {p.cups.strip().upper() for p in nota1_results}
+            nota_urgencias_cups: set[str] = {p.cups.strip().upper() for p in nota_urgencias_results}
 
             # Pre-load procedimientos de nota_hoja id=2 y 3 (CAP exception)
             cap_results = (
@@ -191,17 +191,17 @@ def detect_cups_sin_contrato(
             if codigo_equiv_raw:
                 codigo_equiv = str(codigo_equiv_raw).strip().upper()
 
-        # Excepción: responsable urgencias valida contra nota_hoja id=1.
-        # Si el CUPS no está en nota1_cups, cae a validación normal
+        # Excepción: responsable urgencias valida contra nota_hoja id=1 o 27.
+        # Si el CUPS no está en nota_urgencias_cups, cae a validación normal
         # contra los procedimientos contratados de la entidad.
         responsable_idx = indices.get("responsable_cierra")
         if responsable_idx is not None:
             raw_resp = data_sheet.cell(row=row, column=responsable_idx + 1).value
             resp_name = " ".join(str(raw_resp).upper().split()) if raw_resp else ""
             if resp_name in _FACTURADORES_URGENCIAS_NORM:
-                if codigo in nota1_cups:
+                if codigo in nota_urgencias_cups:
                     continue
-                if codigo_equiv and codigo_equiv in nota1_cups:
+                if codigo_equiv and codigo_equiv in nota_urgencias_cups:
                     continue
 
         # CAP invoice exceptions: facturas CAP de ESS118/EPSS41 validan

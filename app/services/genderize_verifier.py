@@ -42,11 +42,11 @@ def _normalize(name: str) -> str:
     return sin_tilde.lower().strip()
 
 
-def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult]]:
+def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult], list[str]]:
     """Obtiene estadísticas sin hacer llamadas a la API.
     
     Returns:
-        (estadisticas, mapa facturas)
+        (estadisticas, mapa facturas, nombres_no_cache)
     """
     # Extraer datos del Excel
     resultados = extract_factura_nombre_sexo(excel_path)
@@ -69,6 +69,17 @@ def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult]]:
     # API calls necesarias
     api_calls = len(unique_names) - cache_hits
     
+    # Construir lista de nombres_no_cache preservando orden de facturas
+    nombres_no_cache = []
+    for r in facturas.values():
+        if r.nombre_normalizado not in cache:
+            compound_name = (
+                f"{r.primer_nombre} {r.segundo_nombre}".strip()
+                if r.segundo_nombre
+                else r.primer_nombre
+            )
+            nombres_no_cache.append(compound_name)
+    
     stats = Stats(
         total_excel=len(resultados),
         nombres_unicos=len(unique_names),
@@ -77,7 +88,7 @@ def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult]]:
         rate_limit=None,
     )
     
-    return stats, facturas
+    return stats, facturas, nombres_no_cache
 
 
 def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:

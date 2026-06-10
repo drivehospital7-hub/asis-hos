@@ -215,5 +215,24 @@ def detect_ide_contrato_intramural(
         # if entidad == "ESS118" and ide_actual in ("971", "972"):
         #     ...
 
-    logger.info("IDE Contrato Intramural: %d problemas", len(problemas))
-    return problemas
+    # --- Deduplicar por factura: una factura tiene un solo contrato ---
+    # Si múltiples filas de la misma factura tienen el mismo IDE actual y
+    # debería ser el mismo, reportarlo una sola vez.
+    agrupados: dict[tuple[str, str, str], dict[str, Any]] = {}
+    for p in problemas:
+        key = (p["factura"], p["ide_contrato_actual"], p["ide_contrato_deberia"])
+        if key in agrupados:
+            item = agrupados[key]
+            item.setdefault("codigos_afectados", []).append(p["codigo"])
+            # Mantener el procedimiento del primer hallazgo (es representativo)
+        else:
+            item = dict(p)
+            item["codigos_afectados"] = [p["codigo"]]
+            agrupados[key] = item
+
+    resultado = list(agrupados.values())
+    logger.info(
+        "IDE Contrato Intramural: %d problemas crudos -> %d deduplicados por factura",
+        len(problemas), len(resultado),
+    )
+    return resultado

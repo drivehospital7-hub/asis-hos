@@ -54,7 +54,7 @@ def _mock_proc_instance(cups: str) -> MagicMock:
 def _make_mock_session(
     pairs: list[tuple[str, str]],
     eps_names: dict[str, str],
-    nota1_cups: list[str] | None = None,
+    nota_urgencias_cups: list[str] | None = None,
     cap_cups: dict[int, list[str]] | None = None,
 ) -> MagicMock:
     """Crea un mock de sesión SQLAlchemy que retorna los datos dados.
@@ -62,10 +62,10 @@ def _make_mock_session(
     Args:
         pairs: Lista de (cod_contrato, cups) — resultados del primer query
         eps_names: Dict {cod_contrato: eps} — resultados del segundo query
-        nota1_cups: Optional lista de CUPS para nota_hoja id=1 (tercer .all())
+        nota_urgencias_cups: Optional lista de CUPS para nota_hoja id=1 y 27 (tercer .all())
         cap_cups: Optional dict {id_nota_hoja: [cups]} para nota_hoja 2 y 3 (4to .all())
     """
-    nota1_cups = nota1_cups or []
+    nota_urgencias_cups = nota_urgencias_cups or []
     cap_cups = cap_cups or {}
     mock_session = MagicMock()
     mock_query = MagicMock()
@@ -81,14 +81,14 @@ def _make_mock_session(
     eps_objects = [
         _mock_eps_instance(cod, name) for cod, name in eps_names.items()
     ]
-    # Third .all() → nota_hoja id=1 procedimientos
-    nota1_objects = [_mock_proc_instance(cups) for cups in nota1_cups]
+    # Third .all() → nota_hoja id=1 y 27 procedimientos
+    nota_urgencias_objects = [_mock_proc_instance(cups) for cups in nota_urgencias_cups]
     # Fourth .all() → CAP nota_hoja id=2 y 3 (tuples of id_nota_hoja, cups)
     cap_objects = [
         (nt_id, cups) for nt_id, cups_list in cap_cups.items() for cups in cups_list
     ]
 
-    mock_query.all.side_effect = [join_results, eps_objects, nota1_objects, cap_objects]
+    mock_query.all.side_effect = [join_results, eps_objects, nota_urgencias_objects, cap_objects]
     mock_session.query.return_value = mock_query
     return mock_session
 
@@ -594,7 +594,7 @@ class TestDetectCupsSinContrato:
     # ── 14. Excepción responsable urgencias ──────────────────────────────────
 
     def test_urgencias_facturador_cups_in_nota1_no_error(self):
-        """Responsable urgencias + CUPS en nota1 → sin error (excepción)."""
+        """Responsable urgencias + CUPS en nota1/27 → sin error (excepción)."""
         headers = REQUIRED + ["responsable_cierra"]
         ws = _make_ws(
             headers=headers,
@@ -605,7 +605,7 @@ class TestDetectCupsSinContrato:
         mock_session = _make_mock_session(
             pairs=[("ESS118", "878001")],
             eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
-            nota1_cups=["965201"],
+            nota_urgencias_cups=["965201"],
         )
 
         with patch("app.database.SessionLocal", return_value=mock_session):
@@ -617,7 +617,7 @@ class TestDetectCupsSinContrato:
         assert result == []
 
     def test_urgencias_facturador_cups_not_in_nota1_errors(self):
-        """Responsable urgencias + CUPS no en nota1 → error."""
+        """Responsable urgencias + CUPS no en nota1/27 → error."""
         headers = REQUIRED + ["responsable_cierra"]
         ws = _make_ws(
             headers=headers,
@@ -627,7 +627,7 @@ class TestDetectCupsSinContrato:
         mock_session = _make_mock_session(
             pairs=[("ESS118", "878001")],
             eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
-            nota1_cups=["965201"],
+            nota_urgencias_cups=["965201"],
         )
 
         with patch("app.database.SessionLocal", return_value=mock_session):
@@ -640,7 +640,7 @@ class TestDetectCupsSinContrato:
         assert result[0]["codigo"] == "999999"
 
     def test_urgencias_facturador_codigo_equiv_in_nota1_no_error(self):
-        """Responsable urgencias + codigo_equiv en nota1 → sin error."""
+        """Responsable urgencias + codigo_equiv en nota1/27 → sin error."""
         headers = REQUIRED + ["codigo_equiv", "responsable_cierra"]
         ws = _make_ws(
             headers=headers,
@@ -650,7 +650,7 @@ class TestDetectCupsSinContrato:
         mock_session = _make_mock_session(
             pairs=[("ESS118", "878001")],
             eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
-            nota1_cups=["965201"],
+            nota_urgencias_cups=["965201"],
         )
 
         with patch("app.database.SessionLocal", return_value=mock_session):
@@ -662,7 +662,7 @@ class TestDetectCupsSinContrato:
         assert result == []
 
     def test_urgencias_facturador_nota1_empty_errors(self):
-        """Responsable urgencias + nota1 vacío → error (fails closed)."""
+        """Responsable urgencias + nota1/27 vacío → error (fails closed)."""
         headers = REQUIRED + ["responsable_cierra"]
         ws = _make_ws(
             headers=headers,
@@ -672,7 +672,7 @@ class TestDetectCupsSinContrato:
         mock_session = _make_mock_session(
             pairs=[("ESS118", "878001")],
             eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
-            nota1_cups=[],
+            nota_urgencias_cups=[],
         )
 
         with patch("app.database.SessionLocal", return_value=mock_session):
@@ -741,7 +741,7 @@ class TestDetectCupsSinContrato:
         mock_session = _make_mock_session(
             pairs=[("ESS118", "OTHER")],
             eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
-            nota1_cups=["878001"],
+            nota_urgencias_cups=["878001"],
         )
 
         with patch("app.database.SessionLocal", return_value=mock_session):

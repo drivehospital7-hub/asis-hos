@@ -183,3 +183,52 @@ class TestBuildNormalizedRows:
             fec_factura_map=None,
         )
         assert rows[0]["fec_factura"] == ""
+
+    # --- Duplicados Farmacia ---
+
+    def test_duplicados_farmacia_con_tipo_proc(self):
+        """Duplicados Farmacia con codigo_tipo_procedimiento: 'Grupo ' en descripción."""
+        error_groups = {
+            "Duplicados Farmacia": [
+                {
+                    "factura": "FAC-001",
+                    "codigo_tipo_procedimiento": "12",
+                    "total_pares": 2,
+                    "pares_duplicados": [
+                        {"codigo": "A001", "cantidad": 1, "count": 2},
+                        {"codigo": "A002", "cantidad": 2, "count": 2},
+                    ],
+                }
+            ]
+        }
+        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        assert len(rows) == 1
+        r = rows[0]
+        assert r["tipo_error"] == "⚠️ Revisión Necesaria"
+        assert r["factura"] == "FAC-001"
+        assert "Grupo 12" in r["descripcion"]
+        assert "2 par(es) duplicado(s)" in r["descripcion"]
+        assert r["procedimiento"] == "Grupo 12"
+
+    def test_duplicados_farmacia_sin_tipo_proc(self):
+        """Duplicados Farmacia sin codigo_tipo_procedimiento: NO 'Grupo ' en descripción."""
+        error_groups = {
+            "Duplicados Farmacia": [
+                {
+                    "factura": "FAC-001",
+                    "total_pares": 2,
+                    "pares_duplicados": [
+                        {"codigo": "A001", "cantidad": 1, "count": 2},
+                        {"codigo": "A002", "cantidad": 2, "count": 2},
+                    ],
+                }
+            ]
+        }
+        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        assert len(rows) == 1
+        r = rows[0]
+        assert r["tipo_error"] == "⚠️ Revisión Necesaria"
+        assert r["factura"] == "FAC-001"
+        assert "Grupo" not in r["descripcion"]
+        assert r["procedimiento"] == ""
+        assert "2 par(es) duplicado(s)" in r["descripcion"]
