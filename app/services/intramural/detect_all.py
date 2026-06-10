@@ -235,7 +235,6 @@ def detect_all_problems_intramural(
                 for item in problemas_centros_filtrados
             ],
             "ide_contrato": problemas_ide_contrato,
-            "cups_equivalentes": [],
             "decimales": decimales,
             "tipo_identificacion_edad": tipo_identificacion_edad,
             "tipo_identificacion_entidad": tipo_identificacion_entidad,
@@ -250,7 +249,6 @@ def detect_all_problems_intramural(
         "totales": {
             "centros_de_costos": len(problemas_centros),
             "ide_contrato": len(problemas_ide_contrato),
-            "cups_equivalentes": 0,
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),
             "tipo_identificacion_entidad": len(tipo_identificacion_entidad),

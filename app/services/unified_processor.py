@@ -262,6 +262,61 @@ def process_unified(
         # Fusionar responsables
         all_responsables.update(responsables)
 
+    # ── Detectores transversales (se ejecutan UNA vez sobre todo el Excel) ──
+    from app.services.transversales.cups_equivalentes import (
+        detect_cups_equivalentes_transversal,
+    )
+    cups_equiv = detect_cups_equivalentes_transversal(data_sheet, indices)
+    if cups_equiv:
+        if "cups_equivalentes" in all_problemas:
+            all_problemas["cups_equivalentes"].extend(cups_equiv)
+        else:
+            all_problemas["cups_equivalentes"] = cups_equiv
+        all_totales["cups_equivalentes"] = (
+            all_totales.get("cups_equivalentes", 0) + len(cups_equiv)
+        )
+
+        # Construir fec_factura_map para lookup en filas normalizadas
+        fec_factura_map: dict[str, str] = {}
+        num_fact_idx = indices.get("numero_factura")
+        fec_factura_idx = indices.get("fec_factura")
+        if num_fact_idx is not None and fec_factura_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura_norm = normalize_invoice(numero)
+                if not factura_norm:
+                    continue
+                if factura_norm in fec_factura_map:
+                    continue
+                raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+                fec_factura_map[factura_norm] = str(raw).strip() if raw else ""
+
+        # Agregar a filas normalizadas para que se vean en el frontend
+        for item in cups_equiv:
+            factura = item.get("factura", "")
+            codigo_raw = item.get("codigo", "")
+            proc_raw = item.get("procedimiento", "")
+            codigo_str = str(codigo_raw) if not isinstance(codigo_raw, str) else codigo_raw
+            proc_str = str(proc_raw).strip() if proc_raw else ""
+            proc_final = proc_str if proc_str else codigo_str
+            # Buscar tipo_factura de esta factura
+            tipo_factura = "Sin tipo"
+            for tf, facturas in factura_por_tipo.items():
+                if factura in facturas:
+                    tipo_factura = tf
+                    break
+            all_normalized.append({
+                "tipo_error": "Cups Equivalentes",
+                "tipo_factura": tipo_factura,
+                "factura": factura,
+                "fec_factura": fec_factura_map.get(factura, ""),
+                "responsable_cierra": all_responsables.get(factura, ""),
+                "descripcion": item.get("accion", ""),
+                "procedimiento": proc_final,
+                "detalle": codigo_str,
+                "fecha_cierre_vacia": False,
+            })
+
     # Construir resultado unificado
     unified: dict[str, Any] = {
         "area": "unificada",
