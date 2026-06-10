@@ -1,7 +1,7 @@
 """Detector de problemas de CUPS equivalentes en Urgencias.
 
 Reglas extraídas de _detect_centro_costo_urgencias (revision_sheet.py):
-- Código 890201 -> debe usarse 890701
+- Código 890201 -> debe usarse 890701 o 12333
 - Código 129B01 -> debe usarse 129B02
 - Código 890205 -> debe usarse 890405 (excepto ESS118/ESSC18)
 - Código 939402 + Hospitalización -> Error
@@ -115,7 +115,7 @@ def detect_cups_equivalentes(
                 row, codigo_excluir, ERROR_12333_HOSPITALIZACION_NO_PERMITIDO,
             )
 
-        # ----- Regla: Código = 890201 -> ERROR (debe usarse 890701)
+        # ----- Regla: Código = 890201 -> ERROR (debe usarse 890701 o 12333)
         if codigo_excluir == "890201":
             logger.warning(
                 "DETECTADO cups equiv error: factura=%s, codigo=%s", factura_str, codigo_excluir
@@ -124,11 +124,11 @@ def detect_cups_equivalentes(
                 "factura": factura_str,
                 "codigo": codigo_excluir,
                 "codigo_equiv": "",
-                "accion": "Usar 890701",
+                "accion": "Usar 890701 o 12333",
                 "procedimiento": proc_str,
             })
             logger.info(
-                "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 890701",
+                "REGLA (Cups equivalentes): Fila %s: Código=%s -> debe usarse 890701 o 12333",
                 row, codigo_excluir,
             )
 
