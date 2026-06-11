@@ -470,17 +470,22 @@ def procesar_cruce(
         # ══════════════════════════════════════════════
         # Totalizado por código
         # ══════════════════════════════════════════════
-        # Contar ocurrencias de cada código en reporte y guardar nombre
+        # Contar pares únicos (factura, código) en reporte y guardar nombre
         conteo_reporte: dict[str, int] = {}
         nombre_reporte: dict[str, str] = {}
+        seen_reporte: set[tuple[str, str]] = set()
         for row in range(data_start_reporte, len(rows_reporte)):
+            factura = _normalizar_factura(rows_reporte[row][idx_fact_reporte + 1])
             codigo = _normalizar_codigo(rows_reporte[row][idx_codigo_reporte + 1])
-            if codigo:
-                conteo_reporte[codigo] = conteo_reporte.get(codigo, 0) + 1
-                if codigo not in nombre_reporte:
-                    nombre_reporte[codigo] = str(
-                        rows_reporte[row][idx_proc_reporte + 1] or ""
-                    ).strip().upper()
+            if factura and codigo:
+                clave = (factura, codigo)
+                if clave not in seen_reporte:
+                    seen_reporte.add(clave)
+                    conteo_reporte[codigo] = conteo_reporte.get(codigo, 0) + 1
+                    if codigo not in nombre_reporte:
+                        nombre_reporte[codigo] = str(
+                            rows_reporte[row][idx_proc_reporte + 1] or ""
+                        ).strip().upper()
 
         logger.info("Códigos detectados en Reporte: %s", dict(sorted(conteo_reporte.items())))
 
@@ -503,6 +508,7 @@ def procesar_cruce(
         conteo_ayudas: dict[str, int] = {}
         conteo_ayudas_full: dict[str, int] = {}
         nombre_procedimiento: dict[str, str] = {}
+        seen_ayudas_full: set[tuple[str, str]] = set()
         seen_conteo_ayudas: set[tuple[str, str]] = set()
         data_start = header_row + 1
 
@@ -515,9 +521,13 @@ def procesar_cruce(
             if not cups:
                 continue
 
-            # Contar siempre (full) y solo si no está facturado
             factura = _normalizar_factura(rows_ayudas[row][idx_fact_ayudas + 1])
-            conteo_ayudas_full[cups] = conteo_ayudas_full.get(cups, 0) + 1
+
+            # Contar pares únicos (factura, cups) en ayudas
+            clave_full = (factura, cups)
+            if clave_full not in seen_ayudas_full:
+                seen_ayudas_full.add(clave_full)
+                conteo_ayudas_full[cups] = conteo_ayudas_full.get(cups, 0) + 1
 
             # Determinar si factura CAP → match por paciente
             es_cap = factura.startswith(CAP_PREFIX)

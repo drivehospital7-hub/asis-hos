@@ -388,6 +388,65 @@ class TestBackwardCompat:
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Requirement: Dedup by (factura, código) in ayudas_full and reporte
+# ──────────────────────────────────────────────────────────────────────
+
+class TestDedup:
+    """Total Ordenadas y Total Reporte cuentan pares únicos
+    (factura, código), no filas totales."""
+
+    def _run(self, reporte_rows, ayudas_rows):
+        side_effect = [reporte_rows, ayudas_rows]
+        with patch("app.services.ordenado_facturado_service._leer_como_raw") as m:
+            m.side_effect = side_effect
+            return procesar_cruce(Path("r.xlsx"), Path("a.xlsx"))
+
+    def test_ayudas_full_dedup_by_factura_cups(self, base_date):
+        """GIVEN ayudas has duplicate (factura, cups) rows
+           WHEN building totalizado
+           THEN ordenadas counts unique pairs only."""
+        reporte = _build_reporte_rows([
+            ("F001", "735301", "PARTO", "100", base_date),
+        ])
+        # 3 filas en ayudas pero mismo par (F001, 735301)
+        ayudas = _build_ayudas_rows([
+            ("F001", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+            ("F001", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+            ("F001", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+        ])
+        result = self._run(reporte, ayudas)
+
+        assert result["status"] == "success"
+        totalizado = {r["codigo"]: r for r in result["data"]["totalizado"]}
+
+        # 1 par único en ayudas, 1 par único en reporte, 0 no facturados
+        assert totalizado["PARTO"]["total_reporte"] == 1
+        assert totalizado["PARTO"]["total_ordenadas"] == 1
+        assert totalizado["PARTO"]["total_no_facturado"] == 0
+
+    def test_ayudas_dedup_distinct_factura_counts_separately(self, base_date):
+        """GIVEN ayudas has same cups but different facturas
+           WHEN building totalizado
+           THEN each distinct pair counts."""
+        reporte = _build_reporte_rows([
+            ("F001", "735301", "PARTO", "100", base_date),
+        ])
+        ayudas = _build_ayudas_rows([
+            ("F001", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+            ("F002", "735301", "URGENCIAS", "200", base_date, "E1", "PARTO"),
+        ])
+        result = self._run(reporte, ayudas)
+
+        assert result["status"] == "success"
+        totalizado = {r["codigo"]: r for r in result["data"]["totalizado"]}
+
+        # 2 pares únicos en ayudas, 1 en reporte, 1 no facturado (F002, 735301)
+        assert totalizado["PARTO"]["total_reporte"] == 1
+        assert totalizado["PARTO"]["total_ordenadas"] == 2
+        assert totalizado["PARTO"]["total_no_facturado"] == 1
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Edge Cases
 # ──────────────────────────────────────────────────────────────────────
 
