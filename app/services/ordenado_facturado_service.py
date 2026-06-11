@@ -78,15 +78,59 @@ CODIGOS_EXCEPCION: set[str] = {
     "S31301", "S31302", "S32301", "S32302", "S33301", "S33302",
 }
 
+# Códigos de parto procesados que NO se consideran no facturados
+PROCESADOS_PARTO: set[str] = {
+    "735301",
+    "735930",
+    "735950",
+    "P0000450",
+    "717110",
+    "717111",
+    "S21100",
+    "90DS02",
+    "933701",
+    "754101",
+    "750101",
+    "897011",
+    "897012",
+    "735980",
+    "721001",
+    "721002",
+    "732201",
+    "735300",
+    "S21200",
+    "906916",
+}
+
+# Códigos de interconsultas procesados que NO se consideran no facturados
+PROCESADOS_INTERCONSULTAS: set[str] = {
+    "890410",
+    "890402",
+    "890404",
+    "890403",
+    "890408",
+    "890411",
+    "890413",
+    "890412",
+    "890409",
+    "37602",
+    "39140",
+    "890405",
+    "890432",
+    "890401",
+    "890406",
+    "36101",
+    "37701",
+    "890610",
+}
+
+# Códigos de otros procesados que NO se consideran no facturados
+PROCESADOS_OTROS: set[str] = {
+    "861801",
+}
+
 # Códigos que también se matchean por número de documento (como CAP)
 CODIGOS_MATCH_POR_DOCUMENTO: set[str] = {"890405", "861801"}
-
-# Códigos a mostrar en el totalizado (solo estos)
-CODIGOS_TOTALIZADO: set[str] = {
-    "735301", "90DS02", "890409",
-    "890408", "890409", "890406",
-    "890405", "890412", "890411",
-}
 
 # Columnas requeridas para NOTAS ENFERMERÍA (opcional)
 NOTAS_REQUIRED_HEADERS: dict[str, str] = {
@@ -508,24 +552,49 @@ def procesar_cruce(
 
         logger.info("Códigos detectados en Ayudas: %s", dict(sorted(conteo_ayudas.items())))
 
-        # Armar totalizado combinado
-        codigos = sorted(set(list(conteo_ayudas.keys()) + list(conteo_reporte.keys())))
-        totalizado = []
-        total_excepciones_reporte = 0
-        for codigo in codigos:
-            if codigo in CODIGOS_EXCEPCION:
-                total_excepciones_reporte += conteo_reporte.get(codigo, 0)
-                continue
-            if codigo not in CODIGOS_TOTALIZADO:
-                continue
-            totalizado.append({
-                "codigo": codigo,
-                "procedimiento": nombre_procedimiento.get(codigo) or nombre_reporte.get(codigo, ""),
-                "total_reporte": conteo_reporte.get(codigo, 0),
-                "total_ordenadas": conteo_ayudas_full.get(codigo, 0),
-                "total_no_facturado": conteo_ayudas.get(codigo, 0),
-            })
+        # Armar totalizado combinado (4 categorías agregadas)
+        totalizado: list[dict[str, Any]] = []
+        total_excepciones_reporte = sum(
+            conteo_reporte.get(c, 0) for c in CODIGOS_EXCEPCION
+        )
 
+
+        def _agregar_si_no_vacio(
+            codigo: str, procedimiento: str,
+            r: int, o: int, nf: int,
+        ) -> None:
+            if r > 0 or o > 0 or nf > 0:
+                totalizado.append({
+                    "codigo": codigo,
+                    "procedimiento": procedimiento,
+                    "total_reporte": r,
+                    "total_ordenadas": o,
+                    "total_no_facturado": nf,
+                })
+
+        # PARTO
+        _agregar_si_no_vacio(
+            "PARTO", "Procesados Parto",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_PARTO),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_PARTO),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_PARTO),
+        )
+
+        # INTERCONSULTAS
+        _agregar_si_no_vacio(
+            "INTERCONSULTAS", "Procesados Interconsultas",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+        )
+
+        # OTROS
+        _agregar_si_no_vacio(
+            "OTROS", "Procesados Otros",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_OTROS),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_OTROS),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_OTROS),
+        )
 
         # Construir set de facturas del reporte con códigos de excepción
         excepcion_facturas_reporte: set[str] = set()
@@ -607,6 +676,7 @@ def procesar_cruce(
         # ══════════════════════════════════════════════
         # No facturados: cruce ayudas (códigos normales)
         # ══════════════════════════════════════════════
+        VISIBLE_CODES = PROCESADOS_PARTO | PROCESADOS_INTERCONSULTAS | PROCESADOS_OTROS
         no_facturados: list[dict[str, Any]] = []
         seen_no_facturados: set[tuple[str, str]] = set()
         data_start = header_row + 1
@@ -622,8 +692,8 @@ def procesar_cruce(
             if tipo_factura not in ("URGENCIAS", "HOSPITALIZACIÓN"):
                 continue
 
-            # Solo códigos NO excepción: cruce ayudas vs reporte
-            if cups and cups not in CODIGOS_EXCEPCION:
+            # Solo códigos procesados: cruce ayudas vs reporte
+            if cups and cups in VISIBLE_CODES:
                 es_cap = factura.startswith(CAP_PREFIX)
                 if es_cap:
                     paciente = str(rows_ayudas[row][idx_identificacion + 1] or "").strip().upper()
