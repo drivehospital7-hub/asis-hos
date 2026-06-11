@@ -127,6 +127,22 @@ PROCESADOS_INTERCONSULTAS: set[str] = {
 # Códigos de otros procesados que NO se consideran no facturados
 PROCESADOS_OTROS: set[str] = {
     "861801",
+    "965201",
+    "579501",
+    "869401",
+    "993505",
+    "939402",
+    "935301",
+    "865101",
+    "540000",
+    "861102",
+    "39146",
+    "963901",
+    "965301",
+    "9353011",
+    "865205",
+    "P00001",
+    "935302",
 }
 
 # Códigos que también se matchean por número de documento (como CAP)
