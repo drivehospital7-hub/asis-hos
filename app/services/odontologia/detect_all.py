@@ -81,6 +81,36 @@ def detect_all_problems_odontologia(
                 )
 
     ruta_dup = detect_ruta_duplicada(data_sheet, indices)
+
+    # Excepción odontología: ignorar rutas duplicadas si el paciente tiene
+    # códigos 990203, P0000011 o 990212 (códigos de paquete/grupo que
+    # agrupan naturalmente varias facturas en una misma atención)
+    codigo_idx = indices.get("codigo")
+    ident_idx = indices.get("identificacion")
+    if codigo_idx is not None and ident_idx is not None:
+        EXEMPT_RUTA_CODES: set[str] = {"990203", "P0000011", "990212"}
+        pacientes_exentos: set[str] = set()
+        for row in range(2, data_sheet.max_row + 1):
+            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if codigo_val is not None and str(codigo_val).strip() in EXEMPT_RUTA_CODES:
+                ident_val = data_sheet.cell(row=row, column=ident_idx + 1).value
+                if ident_val is not None:
+                    ident_str = str(ident_val).strip()
+                    if ident_str:
+                        pacientes_exentos.add(ident_str)
+        if pacientes_exentos:
+            antes = len(ruta_dup)
+            ruta_dup = [
+                item for item in ruta_dup
+                if item.get("identificacion") not in pacientes_exentos
+            ]
+            despues = len(ruta_dup)
+            if despues < antes:
+                logger.info(
+                    "Excepción rutas duplicadas: %d pacientes excluidos por códigos 990203/P0000011/990212",
+                    antes - despues,
+                )
+
     tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     cantidades = detect_cantidades_anomalas(data_sheet, indices)
