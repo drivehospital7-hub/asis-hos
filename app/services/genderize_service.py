@@ -12,11 +12,10 @@ logger = logging.getLogger(__name__)
 from app.constants.base import GENDER_DISPLAY_MAP, GENDER_VALID_LONG
 
 # Cache local — configurable via GENDERIZE_CACHE_FILE env var
+# NOTA: NO crear archivo vacío al importar — si no existe, _load_cache devuelve {}.
+# El archivo se crea SOLO cuando se guarda algo explícitamente (_save_cache).
 _CACHE_FILE_DEFAULT = Path(__file__).parent.parent / "data" / "genderize_cache.json"
 CACHE_FILE = Path(os.getenv("GENDERIZE_CACHE_FILE") or _CACHE_FILE_DEFAULT)
-CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-if not CACHE_FILE.exists():
-    CACHE_FILE.write_text("{}")
 
 # Patrones para "Hijo de" / "Hija de"
 _RE_HIJO = re.compile(r"^Hijo de\s+", re.IGNORECASE)
@@ -52,7 +51,8 @@ def _load_cache() -> dict[str, dict]:
 
 
 def _save_cache(cache: dict) -> None:
-    """Guarda cache a JSON."""
+    """Guarda cache a JSON. Crea el directorio si no existe."""
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
