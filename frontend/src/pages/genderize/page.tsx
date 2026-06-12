@@ -15,7 +15,7 @@ interface StatsData {
   nombres_unicos: number;
   cache_hits: number;
   api_calls_necesarias: number;
-  nombres_no_cache: string[];
+  nombres_no_cache: { nombre: string; sexo: string }[];
 }
 
 interface Discrepancia {
@@ -125,9 +125,10 @@ export function GenderizePage() {
     }
   };
 
-  /** Exportar nombres no cacheados como .txt */
+  /** Exportar nombres no cacheados como .txt con formato nombre\\tsexo */
   const exportNoCache = () => {
-    const text = "\uFEFF" + (statsPreview?.nombres_no_cache ?? []).join(", ");
+    const items = statsPreview?.nombres_no_cache ?? [];
+    const text = "\uFEFF" + items.map(i => `${i.nombre}\t${i.sexo}`).join(", ");
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -137,12 +138,19 @@ export function GenderizePage() {
     URL.revokeObjectURL(url);
   };
 
-  const corrigeGenero = async (nombreNormalizado: string, sexoExcel: string) => {
+  /** Per-row selected gender for dropdown */
+  const [selectedGenders, setSelectedGenders] = useState<Record<string, string>>({});
+
+  const handleGenderChange = (nombreNormalizado: string, value: string) => {
+    setSelectedGenders((prev) => ({ ...prev, [nombreNormalizado]: value }));
+  };
+
+  const corrigeGenero = async (nombreNormalizado: string, genero: string) => {
     try {
       const res = await fetch("/api/import/cache-corregir", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre_normalizado: nombreNormalizado, genero: sexoExcel }),
+        body: JSON.stringify({ nombre_normalizado: nombreNormalizado, genero }),
       });
       const data = await res.json();
       if (data.status === "success") {
@@ -154,6 +162,8 @@ export function GenderizePage() {
     }
   };
 
+  const GENDER_OPTIONS = ["F", "M", "L", "U"] as const;
+
   return (
     <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
@@ -163,7 +173,7 @@ export function GenderizePage() {
             Verificar Sexo — Genderize
           </h1>
           <p className="text-sm" style={{ color: "oklch(0.55 0.04 160)" }}>
-            Sube el Excel de facturas para verificar el sexo contra la API Genderize
+            Sube el Excel de facturas para verificar el sexo
           </p>
         </div>
 
@@ -208,7 +218,6 @@ export function GenderizePage() {
                     disabled={!file || loading}
                     className="bg-success hover:bg-success/90 text-white">
               Verificar
-              {statsPreview ? ` (${statsPreview.api_calls_necesarias} tokens)` : ""}
             </Button>
           </div>
         </Card>
@@ -241,7 +250,7 @@ export function GenderizePage() {
             <h3 className="text-sm font-semibold mb-3 flex items-center gap-2"
                 style={{ color: "oklch(0.15 0.02 160)" }}>
               <Eye className="h-4 w-4" />
-              Estimación de tokens a gastar
+              Estimación
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               <div>
@@ -254,19 +263,19 @@ export function GenderizePage() {
               </div>
               <div>
                 <p className="font-semibold text-sm">{statsPreview.cache_hits}</p>
-                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>En cache (0 tokens)</p>
+                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>En cache</p>
               </div>
               <div>
                 <p className="font-semibold text-lg"
                     style={{ color: statsPreview.api_calls_necesarias > 0 ? "oklch(0.45 0.18 25)" : "oklch(0.25 0.06 160)" }}>
                   {statsPreview.api_calls_necesarias}
                 </p>
-                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>API calls = tokens</p>
+                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>No procesados</p>
               </div>
             </div>
             {statsPreview.api_calls_necesarias === 0 && (
               <p className="text-xs mt-2" style={{ color: "oklch(0.25 0.06 160)" }}>
-                ✅ Todos los nombres están en cache — no se gastarán tokens.
+                ✅ Todos los nombres serán procesados (están en cache).
               </p>
             )}
 
@@ -303,7 +312,7 @@ export function GenderizePage() {
               </div>
               <div>
                 <p className="font-semibold text-sm">{result.stats.api_calls_necesarias}</p>
-                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>API calls usadas</p>
+                <p className="text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>No procesados</p>
               </div>
             </div>
           </Card>
@@ -327,7 +336,7 @@ export function GenderizePage() {
                       <th className="py-3 px-4 text-left">Número Factura</th>
                       <th className="py-3 px-4 text-left">Nombre Completo</th>
                       <th className="py-3 px-4 text-left">Sexo Excel</th>
-                      <th className="py-3 px-4 text-left">Sexo API</th>
+                      <th className="py-3 px-4 text-left">Sexo JSON</th>
                       <th className="py-3 px-4 text-left">Acción</th>
                     </tr>
                   </thead>
@@ -339,10 +348,21 @@ export function GenderizePage() {
                         <td className="py-3 px-4 font-medium text-xs">{d.nombre_completo}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_excel}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_api}</td>
-                        <td className="py-3 px-4">
+                        <td className="py-3 px-4 flex gap-1.5 items-center">
+                          <select
+                            value={selectedGenders[d.nombre_normalizado] ?? d.sexo_excel}
+                            onChange={(e) => handleGenderChange(d.nombre_normalizado, e.target.value)}
+                            className="h-7 rounded border border-input bg-transparent px-2 text-xs font-medium transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
+                            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+                          >
+                            {GENDER_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>{opt}</option>
+                            ))}
+                          </select>
                           <Button size="sm" variant="outline"
-                                  onClick={() => corrigeGenero(d.nombre_normalizado, d.sexo_excel)}>
-                            Corregir → {d.sexo_excel}
+                                  onClick={() => corrigeGenero(d.nombre_normalizado, selectedGenders[d.nombre_normalizado] ?? d.sexo_excel)}
+                                  className="h-7 text-xs px-2 shrink-0">
+                            Aplicar
                           </Button>
                         </td>
                       </tr>

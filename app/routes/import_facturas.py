@@ -8,7 +8,6 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request, session
 from sqlalchemy.orm import Session
-from urllib.error import HTTPError
 
 from app.database import get_db
 from app.services import genderize_extractor, genderize_service, genderize_verifier
@@ -188,7 +187,7 @@ def corregir_genero():
         }), 400
 
     normalized_name = (data.get("nombre_normalizado") or "").strip()
-    new_gender = (data.get("genero") or "").strip().lower()
+    raw_gender = (data.get("genero") or "").strip()
 
     if not normalized_name:
         return jsonify({
@@ -197,19 +196,22 @@ def corregir_genero():
             "errors": ["Falta 'nombre_normalizado'"]
         }), 400
 
-    # Aceptar tanto 'M'/'F' como 'male'/'female'
-    if new_gender in ("m", "male"):
-        new_gender = "male"
-    elif new_gender in ("f", "female"):
-        new_gender = "female"
-    else:
+    if not raw_gender:
         return jsonify({
             "status": "error",
             "data": {},
-            "errors": ["'genero' debe ser 'M'/'F' o 'male'/'female'"]
+            "errors": ["Falta 'genero'"]
         }), 400
 
-    ok = genderize_service.override_gender(normalized_name, new_gender)
+    try:
+        ok = genderize_service.override_gender(normalized_name, raw_gender)
+    except ValueError:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["'genero' debe ser F/M/L/U o female/male/lastname/undefined"]
+        }), 400
+
     if not ok:
         return jsonify({
             "status": "error",
@@ -221,7 +223,6 @@ def corregir_genero():
         "status": "success",
         "data": {
             "nombre_normalizado": normalized_name,
-            "genero": new_gender,
         },
         "errors": []
     })
@@ -284,17 +285,6 @@ def verify_facturas():
             "data": {},
             "errors": [str(e)]
         }), 400
-    except HTTPError as e:
-        logger.warning("HTTP %d en genderize: %s", e.code, str(e)[:200])
-        if e.code == 429:
-            msg = "La API Genderize tiene un límite de solicitudes. Esperá unos minutos y probá de nuevo."
-        else:
-            msg = f"Error HTTP {e.code} al consultar Genderize. Intentá de nuevo más tarde."
-        return jsonify({
-            "status": "error",
-            "data": {},
-            "errors": [msg]
-        }), 429 if e.code == 429 else 502
     except Exception as e:
         logger.exception("Error verificando")
         return jsonify({

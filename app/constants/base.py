@@ -71,6 +71,32 @@ ALLOWED_PERMISOS = frozenset({
     "derechos",
 })
 
+# =============================================================================
+# GENDERIZE - Valores canónicos de género
+# =============================================================================
+
+GENDER_FEMALE = "female"
+GENDER_MALE = "male"
+GENDER_LASTNAME = "lastname"
+GENDER_UNDEFINED = "undefined"
+
+GENDER_DISPLAY_MAP: dict[str, str] = {
+    "F": "female",
+    "M": "male",
+    "L": "lastname",
+    "U": "undefined",
+}
+
+GENDER_CACHE_MAP: dict[str, str] = {
+    "female": "F",
+    "male": "M",
+    "lastname": "L",
+    "undefined": "U",
+}
+
+GENDER_VALID_SHORT = frozenset({"F", "M", "L", "U"})
+GENDER_VALID_LONG = frozenset({"female", "male", "lastname", "undefined"})
+
 # Pares de permisos que NO pueden convivir en el mismo usuario.
 # Si se asigna uno, el otro debe estar ausente.
 # Formato: {permiso: su_conflictivo}

@@ -103,7 +103,6 @@ def create_app(config=None):
     from app.routes.import_csv import import_csv_bp
     from app.routes.derechos import derechos_bp
     from app.routes.auth import auth_bp
-    from app.routes.genderize_api import genderize_bp
     from app.routes.import_facturas import import_facturas_bp
     from app.routes.control_errores import control_errores_bp
     from app.routes.catalogo import catalogo_bp
@@ -124,7 +123,6 @@ def create_app(config=None):
     app.register_blueprint(api_bp)
     app.register_blueprint(import_csv_bp)
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
-    app.register_blueprint(genderize_bp, url_prefix="/api/genderize")
     app.register_blueprint(import_facturas_bp)
     app.register_blueprint(procesar_bp, url_prefix="/procesar")
     app.register_blueprint(cronograma_bp, url_prefix="/cronograma-bacteriologas")
