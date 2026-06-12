@@ -34,6 +34,7 @@ class Discrepancia:
     sexo_api: str  # male o female
     numero_identificacion: str = ""  # Nº Identificación del Excel
     entidad_cobrar: str = ""  # Entidad Cobrar del Excel
+    tipo_identificacion: str = ""  # Tipo Identificación del Excel
 
 
 def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult], list[dict]]:
@@ -175,6 +176,7 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
                         sexo_api=sexo_api_code,
                         numero_identificacion=r.numero_identificacion,
                         entidad_cobrar=r.entidad_cobrar,
+                        tipo_identificacion=r.tipo_identificacion,
                     ))
                     break
     

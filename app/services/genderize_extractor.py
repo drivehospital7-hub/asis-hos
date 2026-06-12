@@ -18,6 +18,7 @@ COL_SEGUNDO_NOMBRE = "Segundo Nombre"
 COL_SEXO = "Sexo"
 COL_NUMERO_IDENTIFICACION = "Nº Identificación"
 COL_ENTIDAD_COBRAR = "Entidad Cobrar"
+COL_TIPO_IDENTIFICACION = "Tipo Identificación"
 
 
 @dataclass
@@ -34,6 +35,7 @@ class ExtractResult:
     nombre_normalizado: str  # Solo Primer+Segundo Nombre (para API)
     numero_identificacion: str = ""  # Nº Identificación del Excel
     entidad_cobrar: str = ""  # Entidad Cobrar del Excel
+    tipo_identificacion: str = ""  # Tipo Identificación del Excel
 
 
 def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
@@ -62,6 +64,7 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
     num_factura_col = cols.get(COL_NUMERO_FACTURA)
     num_identificacion_col = cols.get(COL_NUMERO_IDENTIFICACION)
     entidad_cobrar_col = cols.get(COL_ENTIDAD_COBRAR)
+    tipo_identificacion_col = cols.get(COL_TIPO_IDENTIFICACION)
     primer_apellido_col = cols.get(COL_PRIMER_APELLIDO)
     segundo_apellido_col = cols.get(COL_SEGUNDO_APELLIDO)
     nombre_col = cols.get(COL_PRIMER_NOMBRE)
@@ -83,6 +86,7 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
         numero_factura = str(row[COL_NUMERO_FACTURA] or "").strip()
         numero_identificacion = str(row.get(COL_NUMERO_IDENTIFICACION, "") or "").strip() if num_identificacion_col is not None else ""
         entidad_cobrar = str(row.get(COL_ENTIDAD_COBRAR, "") or "").strip() if entidad_cobrar_col is not None else ""
+        tipo_identificacion = str(row.get(COL_TIPO_IDENTIFICACION, "") or "").strip() if tipo_identificacion_col is not None else ""
         primer_apellido = str(row.get(COL_PRIMER_APELLIDO, "") or "").strip() if primer_apellido_col is not None else ""
         segundo_apellido = str(row.get(COL_SEGUNDO_APELLIDO, "") or "").strip() if segundo_apellido_col is not None else ""
         primer_nombre = str(row[COL_PRIMER_NOMBRE] or "").strip()
@@ -116,6 +120,7 @@ def extract_factura_nombre_sexo(excel_path: str) -> list[ExtractResult]:
             nombre_normalizado=nombre_normalizado,
             numero_identificacion=numero_identificacion,
             entidad_cobrar=entidad_cobrar,
+            tipo_identificacion=tipo_identificacion,
         ))
     
     logger.info("Extraídos %d registros", len(results))

@@ -22,6 +22,7 @@ interface Discrepancia {
   numero_factura: string;
   numero_identificacion: string;
   entidad_cobrar: string;
+  tipo_identificacion: string;
   nombre_completo: string;
   primer_nombre: string;
   segundo_nombre?: string;
@@ -338,6 +339,7 @@ export function GenderizePage() {
                       <th className="py-3 px-4 text-left">Nº Factura</th>
                       <th className="py-3 px-4 text-left">Nº Identificación</th>
                       <th className="py-3 px-4 text-left">Entidad Cobrar</th>
+                      <th className="py-3 px-4 text-left">Tipo Identificación</th>
                       <th className="py-3 px-4 text-left">Nombre Completo</th>
                       <th className="py-3 px-4 text-left">Sexo Excel</th>
                       <th className="py-3 px-4 text-left">Sexo JSON</th>
@@ -351,6 +353,7 @@ export function GenderizePage() {
                         <td className="py-3 px-4 font-mono text-xs">{d.numero_factura}</td>
                         <td className="py-3 px-4 font-mono text-xs">{d.numero_identificacion}</td>
                         <td className="py-3 px-4 font-mono text-xs">{d.entidad_cobrar}</td>
+                        <td className="py-3 px-4 font-mono text-xs">{d.tipo_identificacion}</td>
                         <td className="py-3 px-4 font-medium text-xs">{d.nombre_completo}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_excel}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_api}</td>
