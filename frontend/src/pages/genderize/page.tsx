@@ -21,6 +21,7 @@ interface StatsData {
 interface Discrepancia {
   numero_factura: string;
   numero_identificacion: string;
+  entidad_cobrar: string;
   nombre_completo: string;
   primer_nombre: string;
   segundo_nombre?: string;
@@ -336,6 +337,7 @@ export function GenderizePage() {
                         style={{ color: "oklch(0.55 0.04 160)" }}>
                       <th className="py-3 px-4 text-left">Nº Factura</th>
                       <th className="py-3 px-4 text-left">Nº Identificación</th>
+                      <th className="py-3 px-4 text-left">Entidad Cobrar</th>
                       <th className="py-3 px-4 text-left">Nombre Completo</th>
                       <th className="py-3 px-4 text-left">Sexo Excel</th>
                       <th className="py-3 px-4 text-left">Sexo JSON</th>
@@ -348,6 +350,7 @@ export function GenderizePage() {
                           style={{ background: "oklch(0.45 0.18 25 / 0.08)", borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
                         <td className="py-3 px-4 font-mono text-xs">{d.numero_factura}</td>
                         <td className="py-3 px-4 font-mono text-xs">{d.numero_identificacion}</td>
+                        <td className="py-3 px-4 font-mono text-xs">{d.entidad_cobrar}</td>
                         <td className="py-3 px-4 font-medium text-xs">{d.nombre_completo}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_excel}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_api}</td>

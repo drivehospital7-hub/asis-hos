@@ -265,6 +265,7 @@ def verify_facturas():
                     {
                         "numero_factura": d.numero_factura,
                         "numero_identificacion": d.numero_identificacion,
+                        "entidad_cobrar": d.entidad_cobrar,
                         "primer_apellido": d.primer_apellido,
                         "segundo_apellido": d.segundo_apellido,
                         "primer_nombre": d.primer_nombre,
