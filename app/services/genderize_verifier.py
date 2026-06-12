@@ -21,7 +21,7 @@ class Stats:
 
 @dataclass
 class Discrepancia:
-    """Registro con discrepancia entre Excel y API."""
+    """Registro con discrepancia entre Excel y cache."""
 
     numero_factura: str
     primer_apellido: str
@@ -32,6 +32,7 @@ class Discrepancia:
     nombre_normalizado: str  # key del cache (solo Primer+Segundo nombre normalizado)
     sexo_excel: str  # M o F
     sexo_api: str  # male o female
+    numero_identificacion: str = ""  # Nº Identificación del Excel
 
 
 def get_stats(excel_path: str) -> tuple[Stats, dict[str, ExtractResult], list[dict]]:
@@ -171,6 +172,7 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
                         nombre_normalizado=r.nombre_normalizado,
                         sexo_excel=sexo_excel,
                         sexo_api=sexo_api_code,
+                        numero_identificacion=r.numero_identificacion,
                     ))
                     break
     

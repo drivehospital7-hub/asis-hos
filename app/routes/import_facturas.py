@@ -264,6 +264,7 @@ def verify_facturas():
                 "discrepancies": [
                     {
                         "numero_factura": d.numero_factura,
+                        "numero_identificacion": d.numero_identificacion,
                         "primer_apellido": d.primer_apellido,
                         "segundo_apellido": d.segundo_apellido,
                         "primer_nombre": d.primer_nombre,
