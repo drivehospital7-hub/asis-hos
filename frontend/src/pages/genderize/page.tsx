@@ -131,7 +131,7 @@ export function GenderizePage() {
   /** Exportar nombres no cacheados como .txt con formato nombre\\tsexo */
   const exportNoCache = () => {
     const items = statsPreview?.nombres_no_cache ?? [];
-    const text = "\uFEFF" + items.map(i => `${i.nombre}\t${i.sexo}`).join(", ");
+    const text = "\uFEFF" + items.map(i => `${i.nombre}\t${i.sexo}`).join("\n");
     const blob = new Blob([text], { type: "text/plain" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");

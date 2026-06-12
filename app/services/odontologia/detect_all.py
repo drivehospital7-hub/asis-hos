@@ -11,7 +11,7 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import AREA_ODONTOLOGIA
+from app.constants import AREA_ODONTOLOGIA, CONVENIO_PYP
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
@@ -84,6 +84,49 @@ def detect_all_problems_odontologia(
                 )
 
     ruta_dup = detect_ruta_duplicada(data_sheet, indices)
+
+    # Excepción odontología: si ruta duplicada es exactamente 3 facturas y
+    # alguna tiene código 990203, P0000011 o 990212, se excluye
+    RUTA_DUP_EXEMPT_CODES = frozenset({"990203", "P0000011", "990212"})
+    codigo_idx = indices.get("codigo")
+    ident_idx = indices.get("identificacion")
+    if ruta_dup and codigo_idx is not None and ident_idx is not None:
+        # Construir mapa de códigos por paciente (solo PyP)
+        codigos_por_paciente: dict[str, set[str]] = {}
+        contrato_idx = indices.get("convenio_facturado")
+        for row in range(2, data_sheet.max_row + 1):
+            contrato_val = (
+                data_sheet.cell(row=row, column=contrato_idx + 1).value
+                if contrato_idx is not None else None
+            )
+            if contrato_idx is not None and contrato_val != CONVENIO_PYP:
+                continue
+            ident_val = data_sheet.cell(row=row, column=ident_idx + 1).value
+            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
+            if ident_val is not None and codigo_val is not None:
+                ident_str = str(ident_val).strip()
+                codigo_str = str(codigo_val).strip()
+                if ident_str and codigo_str:
+                    if ident_str not in codigos_por_paciente:
+                        codigos_por_paciente[ident_str] = set()
+                    codigos_por_paciente[ident_str].add(codigo_str)
+
+        if codigos_por_paciente:
+            antes = len(ruta_dup)
+            ruta_dup = [
+                item for item in ruta_dup
+                if not (
+                    item["cantidad"] == 3
+                    and RUTA_DUP_EXEMPT_CODES & codigos_por_paciente.get(item["identificacion"], set())
+                )
+            ]
+            despues = len(ruta_dup)
+            if despues < antes:
+                logger.info(
+                    "Excepción códigos PyP (990203, P0000011, 990212): %d rutas duplicadas excluidas",
+                    antes - despues,
+                )
+
     tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     cantidades = detect_cantidades_anomalas(data_sheet, indices)
