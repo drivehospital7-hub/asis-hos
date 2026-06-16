@@ -29,6 +29,7 @@ import {
   getUniqueResponsables,
   filterResultsByResponsable,
   getSinEgresoButtonConfig,
+  masDeDosTurnosMismoResponsable,
   type ScheduleDay,
   type FacturaResult,
   type SinEgresoButtonConfig,
@@ -72,8 +73,22 @@ function parseFecha(str: string): Date | null {
   return new Date(+parts[3], +parts[2] - 1, +parts[1]);
 }
 
-function esVencida(estado: string, fechaEgreso: string): boolean {
+function esVencida(
+  estado: string,
+  fechaEgreso: string,
+  responsable?: string,
+  schedule?: ScheduleDay[] | null,
+): boolean {
   if (estado !== "Abierta") return false;
+
+  // Shift rule: when schedule is loaded and responsable exists
+  if (schedule && schedule.length > 0 && responsable) {
+    if (masDeDosTurnosMismoResponsable(fechaEgreso, responsable, schedule)) {
+      return true;
+    }
+  }
+
+  // Fallback: >4 calendar days (unchanged)
   const egreso = parseFecha(fechaEgreso);
   if (!egreso) return false;
   const hoy = new Date();
@@ -644,7 +659,7 @@ export function AbiertasUrgenciasPage({
               </thead>
               <tbody className="divide-y divide-border">
                 {(filteredResults ?? results).map((r, idx) => {
-                  const isVencida = esVencida(r.estado, r.fechaEgreso);
+                  const isVencida = esVencida(r.estado, r.fechaEgreso, r.responsable, schedule);
                   const yaExiste = envioExistentes.current.has(r.factura);
                   const yaEnviada =
                     r._enviada || envioEnviadas.current.has(r.factura);

@@ -355,6 +355,99 @@ export function calcularResponsable(
   return nombreNormalizado || nombreCorto;
 }
 
+// ─── Shift-counting helpers ────────────────────────────────────────────
+
+type ShiftKey = "manana" | "tarde" | "noche";
+
+const SLOT_ORDER: ReadonlyArray<[ShiftKey, number]> = [
+  ["manana", 0],
+  ["tarde", 1],
+  ["noche", 2],
+] as const;
+
+/** Reverse map: full name → short name, built once from NOMBRE_MAP. */
+const REVERSE_NOMBRE_MAP: Record<string, string> = {};
+for (const [shortName, fullName] of Object.entries(NOMBRE_MAP)) {
+  REVERSE_NOMBRE_MAP[fullName] = shortName;
+}
+
+/**
+ * Returns the shift slot index for a given hour-minute value.
+ * 06:30–12:29 → 0 (manana), 12:30–18:29 → 1 (tarde), 18:30–06:29 → 2 (noche).
+ * Uses the same boundaries as `calcularResponsable`.
+ */
+function slotIndex(hourMin: number): 0 | 1 | 2 {
+  if (hourMin >= 6.5 && hourMin < 12.5) return 0;
+  if (hourMin >= 12.5 && hourMin < 18.5) return 1;
+  return 2;
+}
+
+/**
+ * Returns true if the same responsible person appears in ≥2 completed
+ * shifts counting from the egreso's own shift (inclusive), according
+ * to the loaded schedule. The current in-progress shift is NOT counted.
+ *
+ * Falls back to false if egreso is in a different month/year from now.
+ */
+export function masDeDosTurnosMismoResponsable(
+  fechaEgreso: string,
+  responsable: string,
+  schedule: ScheduleDay[],
+  now?: Date,
+): boolean {
+  const egreso = parseDate(fechaEgreso);
+  const nowDate = now ?? new Date();
+
+  // Guard: same month/year
+  if (
+    !egreso ||
+    egreso.getMonth() !== nowDate.getMonth() ||
+    egreso.getFullYear() !== nowDate.getFullYear()
+  ) {
+    return false;
+  }
+
+  // Resolve egreso shift index with night correction
+  const hourMin = egreso.getHours() + egreso.getMinutes() / 60;
+  let egresoSlot = slotIndex(hourMin);
+  let egresoDay = egreso.getDate();
+  if (hourMin < 6.5) {
+    // Before 06:30 → belongs to previous day's noche
+    egresoSlot = 2;
+    egresoDay -= 1;
+  }
+  const egresoIdx = egresoDay * 3 + egresoSlot;
+
+  // Resolve "now" shift index with night correction
+  const hourMinNow = nowDate.getHours() + nowDate.getMinutes() / 60;
+  let nowSlot = slotIndex(hourMinNow);
+  let nowDay = nowDate.getDate();
+  if (hourMinNow < 6.5) {
+    nowSlot = 2;
+    nowDay -= 1;
+  }
+  const nowIdx = nowDay * 3 + nowSlot;
+
+  // Use reverse name map (fullName → shortName)
+  const shortName = REVERSE_NOMBRE_MAP[responsable] ?? responsable;
+
+  // Count matched shifts: egresoIdx inclusive, nowIdx exclusive
+  let count = 0;
+  for (const day of schedule) {
+    for (const [key, idx] of SLOT_ORDER) {
+      const shiftIdx = day.dia * 3 + idx;
+      if (shiftIdx < egresoIdx) continue;
+      if (shiftIdx >= nowIdx) continue;
+      const slotValue = (day[key] ?? "").toUpperCase().trim();
+      if (slotValue === shortName || slotValue === responsable) {
+        count++;
+      }
+    }
+  }
+
+  return count >= 2;
+}
+
 // ─── Sin Egreso Guard ────────────────────────────────────────────────
 
 export interface SinEgresoButtonConfig {

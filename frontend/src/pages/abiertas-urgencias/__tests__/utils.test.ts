@@ -7,6 +7,7 @@ import {
   getUniqueResponsables,
   filterResultsByResponsable,
   getSinEgresoButtonConfig,
+  masDeDosTurnosMismoResponsable,
   type ScheduleDay,
   type FacturaResult,
 } from "../utils";
@@ -541,5 +542,180 @@ describe("escapeHtml", () => {
   it("passes through safe strings unchanged", () => {
     expect(escapeHtml("hello world")).toBe("hello world");
     expect(escapeHtml("CARLOS OMAR")).toBe("CARLOS OMAR");
+  });
+});
+
+// ─── masDeDosTurnosMismoResponsable ───────────────────────────────────
+
+describe("masDeDosTurnosMismoResponsable", () => {
+  const jun = (day: number, hour: number, min = 0) =>
+    new Date(2026, 5, day, hour, min, 0);
+
+  it("returns true when ≥2 shifts of same responsable since egreso (inclusive)", () => {
+    // Scenario: egreso day 1 manana=CARLOS, same day tarde also CARLOS → count=2
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "CARLOS", noche: "" },
+      { dia: 2, manana: "", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(2, 14, 0),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false when only egreso shift matches (count < 2)", () => {
+    // Scenario: only day 1 manana=CARLOS (egreso shift), no other CARLOS slots
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "", noche: "" },
+      { dia: 2, manana: "", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(2, 14, 0),
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns false when current in-progress shift is not counted", () => {
+    // Scenario: day 1 manana=CARLOS, day 2 manana=CARLOS; now=day 2 10:00 (manana in progress)
+    // If current shift were counted → 2; but current excluded → only 1
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "", noche: "" },
+      { dia: 2, manana: "CARLOS", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(2, 10, 0), // day 2 10:00 — manana STILL IN PROGRESS
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns false when egreso is in a different month", () => {
+    // Egreso in May, now in June → month mismatch
+    const schedule: ScheduleDay[] = [
+      { dia: 25, manana: "CARLOS", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "25/05/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(16, 14, 0),
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns false when egreso is in a different year", () => {
+    // Egreso in 2025, now in 2026 → year mismatch
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2025  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(1, 14, 0),
+    );
+    expect(result).toBe(false);
+  });
+
+  it("handles night shift egreso before 06:30 — belongs to previous day noche", () => {
+    // Scenario: egreso at 03:00 day 5 → noche of day 4 (CARLOS)
+    // day 4 noche=CARLOS, day 5 manana=CARLOS → count=2
+    const schedule: ScheduleDay[] = [
+      { dia: 4, manana: "", tarde: "", noche: "CARLOS" },
+      { dia: 5, manana: "CARLOS", tarde: "CARLOS", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "05/06/2026  03:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(5, 18, 30),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("matches responsable name via NOMBRE_MAP reverse mapping", () => {
+    // responsable="CARLOS OMAR" → NOMBRE_MAP says CARLOS→CARLOS OMAR
+    // revMap["CARLOS OMAR"] = "CARLOS" → matches schedule's "CARLOS"
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "CARLOS", noche: "" },
+      { dia: 2, manana: "", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(2, 14, 0),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("matches responsable name not in NOMBRE_MAP as-is", () => {
+    // responsable="PEPE" not in NOMBRE_MAP → compared directly
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "PEPE", tarde: "PEPE", noche: "" },
+      { dia: 2, manana: "", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "PEPE",
+      schedule,
+      jun(2, 14, 0),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("returns false when responsable has no schedule slots after egreso", () => {
+    // Day 1 manana is CARLOS (egreso shift), no other CARLOS slots anywhere
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "ALEJANDRA", noche: "YULIETH" },
+      { dia: 2, manana: "CAROLINA", tarde: "ALEJANDRA", noche: "YULIETH" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(3, 14, 0),
+    );
+    expect(result).toBe(false);
+  });
+
+  it("counts egreso shift as shift #1 (inclusive counting)", () => {
+    // egreso day 1 manana=CARLOS counts as 1; day 2 manana=CARLOS counts as 2
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "", noche: "" },
+      { dia: 2, manana: "CARLOS", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(3, 10, 0),
+    );
+    expect(result).toBe(true);
+  });
+
+  it("stops counting before current in-progress shift at night boundary", () => {
+    // egreso day 1 manana=CARLOS; day 1 noche=CARLOS; now=day 2 05:00 (noche of day 1 in progress)
+    // Current shift = day 1 noche (now before 06:30 → previous day noche) → excluded
+    // Only egreso shift (day 1 manana) counted → count=1
+    const schedule: ScheduleDay[] = [
+      { dia: 1, manana: "CARLOS", tarde: "", noche: "CARLOS" },
+      { dia: 2, manana: "", tarde: "", noche: "" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "01/06/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(2, 5, 0), // day 2 at 05:00 → still in day 1's noche shift
+    );
+    expect(result).toBe(false);
   });
 });
