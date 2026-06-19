@@ -16,11 +16,11 @@ class TestProcesarRoutePost:
     """Integration tests for /procesar/ POST endpoint."""
 
     def _authenticate(self, app_client) -> None:
-        """Establece sesión autenticada con permiso urgencias."""
+        """Establece sesión autenticada con permiso procesar."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
-            sess["permisos"] = ["urgencias"]
+            sess["permisos"] = ["procesar"]
 
     def test_post_no_file_returns_json_error(self, app_client) -> None:
         """POST without file returns JSON error, not HTML."""

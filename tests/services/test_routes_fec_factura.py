@@ -63,6 +63,8 @@ ODONTO_HEADERS = [
     "Tarifario",
     "Tipo Usuario",
     "Vlr. Copago",
+    "Nº Reingreso",
+    "Cód. Dx Principal",
 ]
 
 URGENCIAS_HEADERS = ODONTO_HEADERS[:]  # Same column set for urgencias
@@ -73,8 +75,8 @@ URGENCIAS_HEADERS = ODONTO_HEADERS[:]  # Same column set for urgencias
 # =============================================================================
 
 
-class TestOdontologiaRouteFecFactura:
-    """Spec R3: /odontologia/ POST MUST include fec_factura in JSON."""
+class TestUnifiedRouteFecFactura:
+    """Spec R3: POST /procesar/ MUST include fec_factura in JSON."""
 
     def _make_data_row(self, fac_num="FAC-001", fec_fact="2024-01-15", centro="ODONTOLOGIA", resp_cierra="Resp"):
         """Build a full data row matching ODONTO_HEADERS length."""
@@ -106,57 +108,10 @@ class TestOdontologiaRouteFecFactura:
         row[header_map["Tipo Usuario"]] = "SUBSIDIADO"
         return row
 
-    def test_columnas_starts_with_fec_factura(self, fresh_client):
-        """columnas[0] MUST be 'Fec. Factura'."""
-        with fresh_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["*"]
-            sess["username"] = "admin"
-
-        buf = _make_excel(ODONTO_HEADERS, [self._make_data_row()])
-        resp = fresh_client.post(
-            "/odontologia/",
-            data={"file_upload": (buf, "test_odonto.xlsx")},
-        )
-        assert resp.status_code == 200
-        data = json.loads(resp.data.decode("utf-8"))
-        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
-        columnas = data["data"].get("columnas", [])
-        assert len(columnas) > 0
-        assert columnas[0] == "Fec. Factura"
-
-    def test_all_items_include_fec_factura(self, fresh_client):
-        """Every item in all_items MUST have 'fec_factura' key."""
-        with fresh_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["*"]
-            sess["username"] = "admin"
-
-        buf = _make_excel(ODONTO_HEADERS, [self._make_data_row()])
-        resp = fresh_client.post(
-            "/odontologia/",
-            data={"file_upload": (buf, "test_odonto.xlsx")},
-        )
-        assert resp.status_code == 200
-        data = json.loads(resp.data.decode("utf-8"))
-        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
-        for grupo in data["data"].get("errores", []):
-            for item in grupo.get("facturas", []):
-                assert "fec_factura" in item
-
-
-# =============================================================================
-# Test: Urgencias route
-# =============================================================================
-
-
-class TestUrgenciasRouteFecFactura:
-    """Spec R3: /urgencias/ POST MUST include fec_factura in JSON."""
-
     def _make_urgencias_row(self):
-        """Build a full data row matching URGENCIAS_HEADERS length."""
-        row = [""] * len(URGENCIAS_HEADERS)
-        header_map = {h: i for i, h in enumerate(URGENCIAS_HEADERS)}
+        """Build a full data row for urgencias context."""
+        row = [""] * len(ODONTO_HEADERS)
+        header_map = {h: i for i, h in enumerate(ODONTO_HEADERS)}
         row[header_map["Número Factura"]] = "FAC-001"
         row[header_map["Fec. Factura"]] = "2024-01-15"
         row[header_map["Vlr. Procedimiento"]] = "15000"
@@ -183,55 +138,8 @@ class TestUrgenciasRouteFecFactura:
         row[header_map["Tipo Usuario"]] = "SUBSIDIADO"
         return row
 
-    def test_columnas_starts_with_fec_factura(self, fresh_client):
-        """columnas[0] MUST be 'Fec. Factura'."""
-        with fresh_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["*"]
-            sess["username"] = "admin"
-
-        buf = _make_excel(URGENCIAS_HEADERS, [self._make_urgencias_row()])
-        resp = fresh_client.post(
-            "/urgencias/",
-            data={"file_upload": (buf, "test_urgencias.xlsx")},
-        )
-        assert resp.status_code == 200
-        data = json.loads(resp.data.decode("utf-8"))
-        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
-        columnas = data["data"].get("columnas", [])
-        assert len(columnas) > 0
-        assert columnas[0] == "Fec. Factura"
-
-    def test_all_items_include_fec_factura(self, fresh_client):
-        """Every item in all_items MUST have 'fec_factura' key."""
-        with fresh_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["*"]
-            sess["username"] = "admin"
-
-        buf = _make_excel(URGENCIAS_HEADERS, [self._make_urgencias_row()])
-        resp = fresh_client.post(
-            "/urgencias/",
-            data={"file_upload": (buf, "test_urgencias.xlsx")},
-        )
-        assert resp.status_code == 200
-        data = json.loads(resp.data.decode("utf-8"))
-        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
-        for grupo in data["data"].get("errores", []):
-            for item in grupo.get("facturas", []):
-                assert "fec_factura" in item
-
-
-# =============================================================================
-# Test: Equipos Básicos route
-# =============================================================================
-
-
-class TestEquiposBasicosRouteFecFactura:
-    """Spec R3: /odontologia-equipos-basicos/ POST MUST include fec_factura."""
-
     def _make_eb_row(self):
-        """Build a full data row for EB (same headers as ODONTO)."""
+        """Build a full data row for equipos basicos context."""
         row = [""] * len(ODONTO_HEADERS)
         header_map = {h: i for i, h in enumerate(ODONTO_HEADERS)}
         row[header_map["Número Factura"]] = "FAC-001"
@@ -260,8 +168,84 @@ class TestEquiposBasicosRouteFecFactura:
         row[header_map["Tipo Usuario"]] = "SUBSIDIADO"
         return row
 
-    def test_columnas_starts_with_fec_factura(self, fresh_client):
-        """columnas[0] MUST be 'Fec. Factura'."""
+    def test_columnas_starts_with_fec_factura_odonto(self, fresh_client):
+        """columnas[0] MUST be 'Fec. Factura' (odontologia context)."""
+        with fresh_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        buf = _make_excel(ODONTO_HEADERS, [self._make_data_row(centro="ODONTOLOGIA")])
+        resp = fresh_client.post(
+            "/procesar/",
+            data={"file_upload": (buf, "test_odonto.xlsx")},
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data.decode("utf-8"))
+        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
+        columnas = data["data"].get("columnas", [])
+        assert len(columnas) > 0
+        assert columnas[0] == "Fec. Factura"
+
+    def test_all_items_include_fec_factura_odonto(self, fresh_client):
+        """Every item MUST have 'fec_factura' key (odontologia context)."""
+        with fresh_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        buf = _make_excel(ODONTO_HEADERS, [self._make_data_row(centro="ODONTOLOGIA")])
+        resp = fresh_client.post(
+            "/procesar/",
+            data={"file_upload": (buf, "test_odonto.xlsx")},
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data.decode("utf-8"))
+        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
+        for grupo in data["data"].get("errores", []):
+            for item in grupo.get("facturas", []):
+                assert "fec_factura" in item
+
+    def test_columnas_starts_with_fec_factura_urgencias(self, fresh_client):
+        """columnas[0] MUST be 'Fec. Factura' (urgencias context)."""
+        with fresh_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        buf = _make_excel(ODONTO_HEADERS, [self._make_urgencias_row()])
+        resp = fresh_client.post(
+            "/procesar/",
+            data={"file_upload": (buf, "test_urgencias.xlsx")},
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data.decode("utf-8"))
+        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
+        columnas = data["data"].get("columnas", [])
+        assert len(columnas) > 0
+        assert columnas[0] == "Fec. Factura"
+
+    def test_all_items_include_fec_factura_urgencias(self, fresh_client):
+        """Every item MUST have 'fec_factura' key (urgencias context)."""
+        with fresh_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        buf = _make_excel(ODONTO_HEADERS, [self._make_urgencias_row()])
+        resp = fresh_client.post(
+            "/procesar/",
+            data={"file_upload": (buf, "test_urgencias.xlsx")},
+        )
+        assert resp.status_code == 200
+        data = json.loads(resp.data.decode("utf-8"))
+        assert data.get("status") == "success", f"Expected success, got: {data.get('errors', 'no errors')}"
+        for grupo in data["data"].get("errores", []):
+            for item in grupo.get("facturas", []):
+                assert "fec_factura" in item
+
+    def test_columnas_starts_with_fec_factura_eb(self, fresh_client):
+        """columnas[0] MUST be 'Fec. Factura' (equipos basicos context)."""
         with fresh_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["*"]
@@ -269,7 +253,7 @@ class TestEquiposBasicosRouteFecFactura:
 
         buf = _make_excel(ODONTO_HEADERS, [self._make_eb_row()])
         resp = fresh_client.post(
-            "/odontologia-equipos-basicos/",
+            "/procesar/",
             data={"file_upload": (buf, "test_eb.xlsx")},
         )
         assert resp.status_code == 200
@@ -279,8 +263,8 @@ class TestEquiposBasicosRouteFecFactura:
         assert len(columnas) > 0
         assert columnas[0] == "Fec. Factura"
 
-    def test_all_items_include_fec_factura(self, fresh_client):
-        """Every item in all_items MUST have 'fec_factura' key."""
+    def test_all_items_include_fec_factura_eb(self, fresh_client):
+        """Every item MUST have 'fec_factura' key (equipos basicos context)."""
         with fresh_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["*"]
@@ -288,7 +272,7 @@ class TestEquiposBasicosRouteFecFactura:
 
         buf = _make_excel(ODONTO_HEADERS, [self._make_eb_row()])
         resp = fresh_client.post(
-            "/odontologia-equipos-basicos/",
+            "/procesar/",
             data={"file_upload": (buf, "test_eb.xlsx")},
         )
         assert resp.status_code == 200

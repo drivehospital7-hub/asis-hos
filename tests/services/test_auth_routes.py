@@ -29,10 +29,10 @@ def _seed_users(tmp_path):
             "apellido_2": "",
         },
         {
-            "username": "odontologia",
-            "password_hash": generate_password_hash("odonto123"),
+            "username": "procesar",
+            "password_hash": generate_password_hash("procesar123"),
             "rol": "usuario",
-            "permisos": ["odontologia"],
+            "permisos": ["procesar"],
             "primer_nombre": "",
             "segundo_nombre": "",
             "apellido_1": "",
@@ -42,7 +42,7 @@ def _seed_users(tmp_path):
             "username": "test_user",
             "password_hash": generate_password_hash("test123"),
             "rol": "usuario",
-            "permisos": ["odontologia"],
+            "permisos": ["procesar"],
             "primer_nombre": "Test",
             "segundo_nombre": "",
             "apellido_1": "User",
@@ -118,8 +118,8 @@ class TestListarUsuarios:
         """Non-admin → 403 or redirect."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
-            sess["permisos"] = ["odontologia"]
-            sess["username"] = "odontologia"
+            sess["permisos"] = ["procesar"]
+            sess["username"] = "procesar"
 
         resp = app_client.get("/auth/usuarios", follow_redirects=True)
         # Should be redirected — no flash in React
@@ -137,7 +137,7 @@ class TestListarUsuarios:
 
         templates_file = tmp_path / "templates.json"
         templates = [
-            {"nombre": "odontologia", "descripcion": "...", "permisos": ["odontologia"]},
+            {"nombre": "procesar", "descripcion": "...", "permisos": ["procesar"]},
         ]
         templates_file.write_text(json.dumps(templates, indent=2), encoding="utf-8")
         with patch.object(templates_store, "TEMPLATES_FILE", templates_file):
@@ -152,8 +152,8 @@ class TestListarUsuarios:
         # HTML response — verify templates section in initial_data
         html = resp.data.decode("utf-8")
         assert '"templates"' in html, "templates key missing from initial_data"
-        assert '"nombre":"odontologia"' in html.replace(" ", ""), \
-            "odontologia template not found in initial_data"
+        assert '"nombre":"procesar"' in html.replace(" ", ""), \
+            "procesar template not found in initial_data"
 
 
 # =============================================================================
@@ -179,7 +179,7 @@ class TestCrearUsuario:
                     "username": "nuevo_user",
                     "password": "pass123",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                 },
                 follow_redirects=True,
             )
@@ -201,7 +201,7 @@ class TestCrearUsuario:
                     "username": "admin",
                     "password": "pass123",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                 },
                 follow_redirects=True,
             )
@@ -223,7 +223,7 @@ class TestCrearUsuario:
                     "username": "nuevo_user",
                     "password": "pass123",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                     "primer_nombre": "Ana",
                     "segundo_nombre": "María",
                     "apellido_1": "López",
@@ -293,7 +293,7 @@ class TestEditarUsuario:
                     "username": "test_user",
                     "password": "",
                     "rol": "usuario",
-                    "permisos": ["odontologia", "urgencias"],
+                    "permisos": ["procesar", "control_urgencias"],
                 },
                 follow_redirects=True,
             )
@@ -318,7 +318,7 @@ class TestEditarUsuario:
                 data={
                     "username": "admin",
                     "rol": "admin",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                 },
                 follow_redirects=True,
             )
@@ -344,7 +344,7 @@ class TestEditarUsuario:
                 data={
                     "username": "ghost",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                 },
                 follow_redirects=True,
             )
@@ -363,8 +363,8 @@ class TestEditarUsuario:
         """Session without * → 403 or redirect."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
-            sess["permisos"] = ["odontologia"]
-            sess["username"] = "odontologia"
+            sess["permisos"] = ["procesar"]
+            sess["username"] = "procesar"
 
         resp = app_client.post(
             "/auth/usuarios/test_user/editar",
@@ -388,7 +388,7 @@ class TestEditarUsuario:
                 data={
                     "username": "test_user",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                     "primer_nombre": "Ana",
                     "apellido_1": "López",
                 },
@@ -507,8 +507,8 @@ class TestEliminarUsuario:
         """Session without * → 403 or redirect."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
-            sess["permisos"] = ["odontologia"]
-            sess["username"] = "odontologia"
+            sess["permisos"] = ["procesar"]
+            sess["username"] = "procesar"
 
         resp = app_client.post(
             "/auth/usuarios/admin/eliminar",

@@ -33,7 +33,7 @@ class TestStackedIntegration:
     def _authenticate(self, app_client, permisos=None) -> None:
         """Establece sesión autenticada para sortear before_request y permiso."""
         if permisos is None:
-            permisos = ["odontologia"]
+            permisos = ["procesar"]
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
@@ -88,7 +88,7 @@ class TestStackedIntegration:
 
         # Use a fresh client to ensure rate limiter is clean
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (file_bytes, "facturas_validas.xlsx"),
                 "profesional": "PROF-01",
@@ -141,7 +141,7 @@ class TestStackedIntegration:
             mock_acquire.return_value = False
 
             response = app_client.post(
-                "/odontologia/",
+                "/procesar/",
                 data={"file_upload": (BytesIO(oversize_data), "big_file.xlsx")},
                 content_type="multipart/form-data",
             )
@@ -162,7 +162,7 @@ class TestStackedIntegration:
         oversize_data = b"x" * (test_limit + 1)
 
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={"file_upload": (BytesIO(oversize_data), "big_file.xlsx")},
             content_type="multipart/form-data",
         )
@@ -199,7 +199,7 @@ class TestStackedIntegration:
 
             # 1 request within rate limit window (limit=1, window=120)
             resp = app_client.post(
-                "/odontologia/",
+                "/procesar/",
                 data={
                     "file_upload": (
                         BytesIO(b"small content"),
@@ -219,7 +219,7 @@ class TestStackedIntegration:
 
             # 2nd request should be 429 (rate limit exceeded)
             resp = app_client.post(
-                "/odontologia/",
+                "/procesar/",
                 data={
                     "file_upload": (
                         BytesIO(b"small content"),
@@ -245,7 +245,7 @@ class TestStackedIntegration:
 
         # Send 1 request (within limit)
         app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (
                     BytesIO(b"data"),
@@ -257,7 +257,7 @@ class TestStackedIntegration:
 
         # 2nd should be 429
         resp = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (
                     BytesIO(b"data"),
@@ -299,7 +299,7 @@ class TestStackedIntegration:
         oversize_data = b"x" * (test_limit + 1)
 
         app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={"file_upload": (BytesIO(oversize_data), "big.xlsx")},
             content_type="multipart/form-data",
         )
@@ -321,7 +321,7 @@ class TestStackedIntegration:
 
         # Send 1 request within limit
         app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (
                     BytesIO(b"data"),
@@ -333,7 +333,7 @@ class TestStackedIntegration:
 
         # 2nd request triggers rate limit (limit=1, window=120)
         app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (
                     BytesIO(b"data"),
@@ -356,10 +356,10 @@ class TestStackedIntegration:
     # Issue 1 fix: 503 must propagate through actual routes
     # =========================================================================
 
-    def test_semaphore_timeout_returns_503_via_odontologia_route(
+    def test_semaphore_timeout_returns_503_via_procesar_route(
         self, app_client
     ) -> None:
-        """503 propagates through /odontologia/ when semaphore is exhausted."""
+        """503 propagates through /procesar/ when semaphore is exhausted."""
         self._authenticate(app_client)
         app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
@@ -371,7 +371,7 @@ class TestStackedIntegration:
             mock_acquire.return_value = False
 
             response = app_client.post(
-                "/odontologia/",
+                "/procesar/",
                 data={
                     "file_upload": (BytesIO(b"test data"), "test.xlsx"),
                 },
@@ -393,48 +393,15 @@ class TestStackedIntegration:
             # Verify acquire was actually called (semaphore layer reached)
             mock_acquire.assert_called_once()
 
-    def test_semaphore_timeout_returns_503_via_urgencias_route(
-        self, app_client
-    ) -> None:
-        """503 propagates through /urgencias/ when semaphore is exhausted."""
-        self._authenticate(app_client, permisos=["urgencias"])
-        app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
-
-        with patch(
-            "app.services.exporter.acquire_semaphore"
-        ) as mock_acquire:
-            mock_acquire.return_value = False
-
-            response = app_client.post(
-                "/urgencias/",
-                data={
-                    "file_upload": (BytesIO(b"test data"), "test.xlsx"),
-                },
-                content_type="multipart/form-data",
-            )
-
-            assert response.status_code == 503, (
-                f"Route should return 503 when semaphore is exhausted, "
-                f"got {response.status_code}: {response.data[:500]}"
-            )
-            data = response.get_json()
-            assert data is not None
-            assert data["status"] == "error"
-            assert any(
-                "Servidor ocupado" in e
-                for e in data.get("errors", [])
-            ), f"503 response should include 'Servidor ocupado': {data}"
-            mock_acquire.assert_called_once()
-
     # =========================================================================
     # Coverage: urgencias route with valid and missing-columns Excel
     # =========================================================================
 
-    def test_urgencias_route_with_valid_excel_returns_json(
+    def test_procesar_route_with_valid_excel_returns_json(
         self, app_client
     ) -> None:
-        """POST /urgencias/ with valid Excel returns JSON response."""
-        self._authenticate(app_client, permisos=["urgencias"])
+        """POST /procesar/ with valid Excel returns JSON response."""
+        self._authenticate(app_client)
         app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
         from openpyxl import Workbook
@@ -465,15 +432,15 @@ class TestStackedIntegration:
         file_bytes.seek(0)
 
         response = app_client.post(
-            "/urgencias/",
+            "/procesar/",
             data={
-                "file_upload": (file_bytes, "urgencias_valid.xlsx"),
+                "file_upload": (file_bytes, "valid.xlsx"),
             },
             content_type="multipart/form-data",
         )
 
         assert response.status_code == 200, (
-            f"Valid urgencias Excel should return 200, got {response.status_code}: "
+            f"Valid Excel should return 200, got {response.status_code}: "
             f"{response.data[:500]}"
         )
         data = response.get_json()
@@ -482,11 +449,11 @@ class TestStackedIntegration:
         assert "data" in data
         assert "errors" in data
 
-    def test_urgencias_route_with_missing_columns_returns_json_error(
+    def test_procesar_route_with_missing_columns_returns_json_error(
         self, app_client
     ) -> None:
-        """POST /urgencias/ with Excel missing columns returns JSON error."""
-        self._authenticate(app_client, permisos=["urgencias"])
+        """POST /procesar/ with Excel missing columns returns JSON error."""
+        self._authenticate(app_client)
         app_client.application.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 
         from openpyxl import Workbook
@@ -500,7 +467,7 @@ class TestStackedIntegration:
         file_bytes.seek(0)
 
         response = app_client.post(
-            "/urgencias/",
+            "/procesar/",
             data={
                 "file_upload": (file_bytes, "missing_columns.xlsx"),
             },
@@ -562,7 +529,7 @@ class TestStackedIntegration:
         # Exhaust rate limiter to trigger rate limit [BACK] log
         for i in range(10):
             app_client.post(
-                "/odontologia/",
+                "/procesar/",
                 data={
                     "file_upload": (
                         BytesIO(b"small"),
@@ -574,7 +541,7 @@ class TestStackedIntegration:
 
         # Now trigger rate limit
         app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={
                 "file_upload": (
                     BytesIO(b"small"),

@@ -22,7 +22,7 @@ class TestProcesarRoutePost:
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
-            sess["permisos"] = permisos or ["urgencias"]
+            sess["permisos"] = permisos or ["procesar"]
 
     def test_post_no_file_returns_json_error(self, app_client) -> None:
         """POST without file returns JSON error, not HTML."""

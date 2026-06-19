@@ -259,7 +259,7 @@ class TestConstantsAPI:
         assert isinstance(DEFAULT_TEMPLATES, list)
         assert len(DEFAULT_TEMPLATES) == 3
         nombres = {t["nombre"] for t in DEFAULT_TEMPLATES}
-        assert nombres == {"odontologia", "urgencias", "auditor"}
+        assert nombres == {"procesar", "procesar_control", "auditor"}
         for t in DEFAULT_TEMPLATES:
             assert "nombre" in t
             assert "descripcion" in t

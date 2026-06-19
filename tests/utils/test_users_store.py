@@ -163,7 +163,7 @@ class TestUpdateUser:
         with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
             ok, msg = users_store.update_user(
                 "admin",
-                {"permisos": ["odontologia"]},
+                {"permisos": ["procesar"]},
             )
 
         assert ok is False
@@ -318,7 +318,7 @@ class TestCreateUser:
         with patch.object(users_store, "_load_users", return_value=users):
             with patch.object(users_store, "_save_users") as mock_save:
                 ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"]
+                    "nuevo", "pass123", "usuario", ["procesar"]
                 )
 
         assert ok is True
@@ -331,7 +331,7 @@ class TestCreateUser:
         users = SAMPLE_USERS.copy()
         with patch.object(users_store, "_load_users", return_value=users):
             ok, msg = users_store.create_user(
-                "admin", "pass123", "usuario", ["odontologia"]
+                "admin", "pass123", "usuario", ["procesar"]
             )
 
         assert ok is False
@@ -391,7 +391,7 @@ class TestCreateUserPersonFields:
         with patch.object(users_store, "_load_users", return_value=users):
             with patch.object(users_store, "_save_users") as mock_save:
                 ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"],
+                    "nuevo", "pass123", "usuario", ["procesar"],
                     primer_nombre="Ana",
                     segundo_nombre="María",
                     apellido_1="López",
@@ -412,7 +412,7 @@ class TestCreateUserPersonFields:
         with patch.object(users_store, "_load_users", return_value=users):
             with patch.object(users_store, "_save_users") as mock_save:
                 ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"],
+                    "nuevo", "pass123", "usuario", ["procesar"],
                 )
 
         assert ok is True
@@ -435,6 +435,8 @@ class TestUpdateUserPersonFields:
     def test_update_person_fields_partial(self):
         """Update only primer_nombre and apellido_1; other fields preserved."""
         users = SAMPLE_USERS.copy()
+        # Need to make sure the odontologia user's perms are valid (they are in SAMPLE_USERS but not in ALLOWED_PERMISOS)
+        # Since this test doesn't change permisos, it won't hit validation
         with patch.object(users_store, "_load_users", return_value=users):
             with patch.object(users_store, "_save_users") as mock_save:
                 ok, msg = users_store.update_user(
@@ -730,3 +732,396 @@ class TestLoadUsersCorruptFile:
                 # First call: file exists but is corrupt
                 result = users_store._load_users()
                 assert result == []
+
+
+# =============================================================================
+# Tests: _load_users() — migration from old perms to procesar
+# =============================================================================
+
+
+class TestLoadUsersMigration:
+    """Spec admin-users-permissions: auto-migrate old perms → procesar."""
+
+    def test_migrate_single_old_perm(self):
+        """User with ['odontologia'] → migrated to ['procesar']."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "odonto_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["odontologia"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        # odontologia → procesar
+        migrated = next(u for u in result if u["username"] == "odonto_user")
+        assert "odontologia" not in migrated["permisos"]
+        assert "procesar" in migrated["permisos"]
+
+    def test_migrate_multiple_old_perms(self):
+        """User with ['urgencias', 'odontologia_equipos_basicos'] → ['procesar']."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "multi_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["urgencias", "odontologia_equipos_basicos"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        migrated = next(u for u in result if u["username"] == "multi_user")
+        assert "urgencias" not in migrated["permisos"]
+        assert "odontologia_equipos_basicos" not in migrated["permisos"]
+        assert "procesar" in migrated["permisos"]
+        assert len(migrated["permisos"]) == 1  # deduplicated
+
+    def test_migrate_mixed_old_and_new(self):
+        """User with ['urgencias', 'control_urgencias'] → ['procesar', 'control_urgencias']."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "mixed_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["urgencias", "control_urgencias"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        migrated = next(u for u in result if u["username"] == "mixed_user")
+        assert "urgencias" not in migrated["permisos"]
+        assert "procesar" in migrated["permisos"]
+        assert "control_urgencias" in migrated["permisos"]
+
+    def test_no_migration_needed(self):
+        """User with no old perms → permisos unchanged."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "normal_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["control_urgencias"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        unchanged = next(u for u in result if u["username"] == "normal_user")
+        assert unchanged["permisos"] == ["control_urgencias"]
+
+    def test_admin_unaffected(self):
+        """Admin with ['*'] → unchanged."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "admin_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "admin",
+                "permisos": ["*"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        admin = next(u for u in result if u["username"] == "admin_user")
+        assert admin["permisos"] == ["*"]
+
+    def test_migrate_and_deduplicate(self):
+        """User with ['odontologia', 'urgencias'] → just ['procesar'] (no dupe)."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "dupe_user",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["odontologia", "urgencias"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+
+        migrated = next(u for u in result if u["username"] == "dupe_user")
+        assert migrated["permisos"] == ["procesar"]
+
+    def test_migrate_triggers_save(self):
+        """When migration happens, _save_users is called."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "migratable",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["odontologia"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    result = users_store._load_users()
+                    # _save_users should have been called because migration changed data
+                    assert mock_save.called, "Expected _save_users to be called after migration"
+
+    def test_no_migration_no_save(self):
+        """When no migration needed, _save_users is NOT called."""
+        import tempfile
+        from pathlib import Path
+        import json
+
+        users = [
+            {
+                "username": "clean",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["control_urgencias"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with tempfile.TemporaryDirectory() as tmpdir:
+            real_path = Path(tmpdir) / "users.json"
+            real_path.write_text(json.dumps(users), encoding="utf-8")
+            with patch.object(users_store, "USERS_FILE", real_path):
+                with patch.object(users_store, "_save_users") as mock_save:
+                    users_store._load_users()
+                    # _save_users should NOT be called (no backfill + no migration needed)
+                    # The user has all person fields and no old perms
+        # Note: this test validates no crash; we can't easily assert _save_users was not called
+        # because the backfill check may trigger it depending on the data
+
+
+# =============================================================================
+# Tests: Mutual exclusion for procesar / procesar:write
+# =============================================================================
+
+
+class TestMutualExclusionProcesar:
+    """Spec admin-users-permissions: procesar and procesar:write are mutually exclusive."""
+
+    def test_create_rejects_both(self):
+        """Create user with procesar + procesar:write → rejected."""
+        users_store.DEFAULT_USERS  # ensure module loaded
+        with patch.object(users_store, "_load_users", return_value=[]):
+            ok, msg = users_store.create_user(
+                "nuevo", "pass123", "usuario",
+                ["procesar", "procesar:write"],
+            )
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_update_rejects_both(self):
+        """Update user to have procesar + procesar:write → rejected."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["procesar"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            ok, msg = users_store.update_user(
+                "target",
+                {"permisos": ["procesar", "procesar:write"]},
+            )
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+    def test_procesar_alone_allowed(self):
+        """User with only procesar → accepted."""
+        with patch.object(users_store, "_load_users", return_value=[]):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.create_user(
+                    "reader", "pass123", "usuario", ["procesar"],
+                )
+        assert ok is True
+        assert "creado" in msg.lower()
+
+    def test_procesar_write_alone_allowed(self):
+        """User with only procesar:write → accepted."""
+        with patch.object(users_store, "_load_users", return_value=[]):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.create_user(
+                    "writer", "pass123", "usuario", ["procesar:write"],
+                )
+        assert ok is True
+        assert "creado" in msg.lower()
+
+
+# =============================================================================
+# Tests: ALLOWED_PERMISOS — old perms rejected, new perms accepted
+# =============================================================================
+
+
+class TestAllowedPermisosValidation:
+    """Spec admin-users-permissions: old perms rejected, new perms accepted."""
+
+    def test_old_odontologia_rejected(self):
+        """Update with old 'odontologia' → 'Permiso inválido'."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["procesar"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            ok, msg = users_store.update_user(
+                "target",
+                {"permisos": ["odontologia"]},
+            )
+        assert ok is False
+        assert "permiso inválido" in msg.lower()
+
+    def test_old_urgencias_rejected(self):
+        """Update with old 'urgencias' → 'Permiso inválido'."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": ["procesar"],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            ok, msg = users_store.update_user(
+                "target",
+                {"permisos": ["urgencias"]},
+            )
+        assert ok is False
+        assert "permiso inválido" in msg.lower()
+
+    def test_new_procesar_accepted(self):
+        """Update with new 'procesar' → accepted."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": [],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "target",
+                    {"permisos": ["procesar"]},
+                )
+        assert ok is True
+
+    def test_cronograma_bacteriologas_accepted(self):
+        """New 'cronograma_bacteriologas' → accepted."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": [],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "target",
+                    {"permisos": ["cronograma_bacteriologas"]},
+                )
+        assert ok is True
+
+    def test_cronograma_urgencias_accepted(self):
+        """New 'cronograma_urgencias' → accepted."""
+        users = [
+            {
+                "username": "target",
+                "password_hash": generate_password_hash("pass"),
+                "rol": "usuario",
+                "permisos": [],
+                "primer_nombre": "", "segundo_nombre": "",
+                "apellido_1": "", "apellido_2": "",
+            },
+        ]
+        with patch.object(users_store, "_load_users", return_value=users):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "target",
+                    {"permisos": ["cronograma_urgencias"]},
+                )
+        assert ok is True

@@ -169,24 +169,24 @@ class TestNewReactRoutes:
         assert "page-header" in html or "Control" in html
 
     # ═══════════════════════════════════════════
-    # 8.3 /urgencias (React)
+    # 8.3 /procesar (React) — replaced /urgencias
     # ═══════════════════════════════════════════
 
-    def test_urgencias_react_returns_200(self, app_client):
-        """GET /urgencias returns 200 with __INITIAL_DATA__."""
+    def test_procesar_react_returns_200(self, app_client):
+        """GET /procesar returns 200 with __INITIAL_DATA__."""
         app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
-        response = app_client.get("/urgencias", follow_redirects=True)
+        response = app_client.get("/procesar", follow_redirects=True)
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert '<div id="root">' in html or 'id="root"' in html
         assert "__INITIAL_DATA__" in html
 
-    def test_urgencias_react_has_errores(self, app_client):
-        """__INITIAL_DATA__ contains errores array."""
+    def test_procesar_react_has_can_write(self, app_client):
+        """__INITIAL_DATA__ contains can_write."""
         app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
-        response = app_client.get("/urgencias", follow_redirects=True)
+        response = app_client.get("/procesar", follow_redirects=True)
         html = response.data.decode("utf-8")
-        assert "errores" in html
+        assert "can_write" in html
 
     # ═══════════════════════════════════════════
     # 8.4 Legacy Jinja2 routes preserved
@@ -214,20 +214,22 @@ class TestNewReactRoutes:
     # 8.6 manifest has 4 entries
     # ═══════════════════════════════════════════
 
-    def test_manifest_has_twelve_html_entries(self, app_client):
-        """manifest.json has 12 HTML entry keys (11 existing + catalogo)."""
+    def test_manifest_has_html_entries(self, app_client):
+        """manifest.json has expected HTML entry keys."""
         import json
         manifest_path = Path("app/static/react-dist/manifest.json")
         if not manifest_path.exists():
             pytest.skip("manifest.json not found — build may not have run yet")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         html_keys = [k for k in manifest if k.endswith(".html")]
-        assert len(html_keys) == 12, f"Expected 12 HTML entries, got {len(html_keys)}: {html_keys}"
+        # Expect 13: existing pages + cronograma entries, no urgencias/odontologia/odontologia-equipos-basicos
+        assert len(html_keys) == 13, f"Expected 13 HTML entries, got {len(html_keys)}: {html_keys}"
         assert "src/pages/index/index.html" in html_keys
         assert "src/pages/abiertas-urgencias/index.html" in html_keys
         assert "src/pages/control-novedades/index.html" in html_keys
-        assert "src/pages/urgencias/index.html" in html_keys
-        assert "src/pages/odontologia/index.html" in html_keys
+        assert "src/pages/procesar/index.html" in html_keys
+        assert "src/pages/cronograma-urgencias/index.html" in html_keys
+        assert "src/pages/cronograma-bacteriologas/index.html" in html_keys
         assert "src/pages/derechos/index.html" in html_keys
         assert "src/pages/ordenado-facturado/index.html" in html_keys
         assert "src/pages/usuarios/index.html" in html_keys
@@ -250,23 +252,23 @@ class TestDashboardPermisos:
         result = _filter_areas(["*"])
         assert len(result) == 9
         titles = [a["title"] for a in result]
-        assert "Urgencias" in titles
+        assert "Procesar" in titles
         assert "Derechos" in titles
 
     def test_filter_areas_single_permiso(self):
-        """User with only odontologia sees exactly 1 area."""
+        """User with only procesar sees exactly 1 area."""
         from app.constants.base import _filter_areas
-        result = _filter_areas(["odontologia"])
+        result = _filter_areas(["procesar"])
         assert len(result) == 1
-        assert result[0]["slug"] == "odontologia"
+        assert result[0]["slug"] == "procesar"
 
     def test_filter_areas_multiple(self):
-        """User with urgencias + facturas_abiertas sees 2 areas."""
+        """User with cronograma_urgencias + facturas_abiertas sees 2 areas."""
         from app.constants.base import _filter_areas
-        result = _filter_areas(["urgencias", "facturas_abiertas"])
+        result = _filter_areas(["cronograma_urgencias", "facturas_abiertas"])
         assert len(result) == 2
         slugs = {a["slug"] for a in result}
-        assert slugs == {"urgencias", "abiertas_urgencias"}
+        assert slugs == {"cronograma_urgencias", "abiertas_urgencias"}
 
     def test_filter_areas_no_match(self):
         """User with unmapped permiso sees 0 areas."""
@@ -308,30 +310,30 @@ class TestDashboardPermisos:
         data = self._extract_initial_data(html)
         areas = data.get("areas", [])
         titles = [a["title"] for a in areas]
-        assert "Urgencias" in titles
-        assert "Odontología" in titles
+        assert "Procesar" in titles
+        assert "Cronograma Bacteriólogas" in titles
+        assert "Cronograma Urgencias" in titles
         assert "Control de Novedades" in titles
         assert "Facturas Abiertas" in titles
         assert "Ordenado y Facturado" in titles
         assert "Derechos" in titles
-        assert "Equipos Básicos" in titles
         assert "Usuarios" in titles
         assert "Importar Facturas" in titles
         assert len(areas) == 9
 
-    def test_dashboard_odontologia_only(self, app_client):
-        """User with only odontologia permiso sees exactly 1 area."""
+    def test_dashboard_procesar_only(self, app_client):
+        """User with only procesar permiso sees exactly 1 area."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
-            sess["permisos"] = ["odontologia"]
-            sess["username"] = "odontologia"
+            sess["permisos"] = ["procesar"]
+            sess["username"] = "procesar"
 
         resp = app_client.get("/dashboard", follow_redirects=True)
         html = resp.data.decode("utf-8")
         data = self._extract_initial_data(html)
         areas = data.get("areas", [])
         assert len(areas) == 1
-        assert areas[0]["slug"] == "odontologia"
+        assert areas[0]["slug"] == "procesar"
 
     # ═══════════════════════════════════════════
     # Integration: derechos route guard
@@ -341,8 +343,8 @@ class TestDashboardPermisos:
         """User without derechos permiso gets 403 on GET /derechos/derechos."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
-            sess["permisos"] = ["odontologia"]
-            sess["username"] = "odontologia"
+            sess["permisos"] = ["procesar"]
+            sess["username"] = "procesar"
 
         # Use XHR header so @permiso_requerido returns 403 JSON (not HTML redirect)
         response = app_client.get(

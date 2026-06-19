@@ -1250,3 +1250,85 @@ class TestDetectAllPassesResponsableCierra:
         ])
         result, _ = detect_all_problems_intramural(wb.active, indices)
         assert "profesionales" in result["problemas"]
+
+
+# =============================================================================
+# PROFESIONALES_EXCEPTUADOS_CRONOGRAMA — bypass tests
+# =============================================================================
+
+
+class TestProfesionalesExceptuados:
+    """PROFESIONALES_EXCEPTUADOS_CRONOGRAMA bypass tests."""
+
+    def test_madronero_sin_cronograma_no_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """02217 (MADROÑERO) NO está en cronograma → NO error."""
+        monkeypatch.setattr(
+            "app.services.intramural.bacteriologas_cronograma.get_turno_del_dia",
+            lambda mes, anio, dia, siglas_filter=None: [
+                {"nombre": "PABON GARCIA ALEJANDRA"}  # otra bacterióloga
+            ],
+        )
+        wb, indices = _build_workbook([
+            {
+                "Numero Factura": "FAC-001",
+                "Tipo Factura Descripcion": "Intramural",
+                "Codigo Tipo Procedimiento": "02",
+                "Laboratorio": "Si",
+                "Codigo": "904902",
+                "Codigo Profesional": "02217",
+                "Profesional Atiende": "MADROÑERO BURBANO KAREN LIZETH",
+                "Procedimiento": "Hormona Estimulante del Tiroides [TSH]",
+                "Fec Factura": "15/03/2024",
+            },
+        ])
+        result = detect_bacteriologas_cronograma(wb.active, indices)
+        assert result == []
+
+    def test_madronero_con_cronograma_no_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """02217 (MADROÑERO) SÍ está en cronograma → NO error."""
+        monkeypatch.setattr(
+            "app.services.intramural.bacteriologas_cronograma.get_turno_del_dia",
+            lambda mes, anio, dia, siglas_filter=None: [
+                {"nombre": "MADROÑERO BURBANO KAREN LIZETH"}
+            ],
+        )
+        wb, indices = _build_workbook([
+            {
+                "Numero Factura": "FAC-001",
+                "Tipo Factura Descripcion": "Intramural",
+                "Codigo Tipo Procedimiento": "02",
+                "Laboratorio": "Si",
+                "Codigo": "904902",
+                "Codigo Profesional": "02217",
+                "Profesional Atiende": "MADROÑERO BURBANO KAREN LIZETH",
+                "Procedimiento": "Hormona Estimulante del Tiroides [TSH]",
+                "Fec Factura": "15/03/2024",
+            },
+        ])
+        result = detect_bacteriologas_cronograma(wb.active, indices)
+        assert result == []
+
+    def test_otra_bacteriologa_sin_cronograma_si_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """03374 (MOLINA ALVAREZ) NO está en cronograma → ERROR."""
+        monkeypatch.setattr(
+            "app.services.intramural.bacteriologas_cronograma.get_turno_del_dia",
+            lambda mes, anio, dia, siglas_filter=None: [
+                {"nombre": "PABON GARCIA ALEJANDRA"}  # otra bacterióloga, no MOLINA
+            ],
+        )
+        wb, indices = _build_workbook([
+            {
+                "Numero Factura": "FAC-001",
+                "Tipo Factura Descripcion": "Intramural",
+                "Codigo Tipo Procedimiento": "02",
+                "Laboratorio": "Si",
+                "Codigo": "904902",
+                "Codigo Profesional": "03374",
+                "Profesional Atiende": "MOLINA ALVAREZ KAROL DAYANNA",
+                "Procedimiento": "Hormona Estimulante del Tiroides [TSH]",
+                "Fec Factura": "15/03/2024",
+            },
+        ])
+        result = detect_bacteriologas_cronograma(wb.active, indices)
+        assert len(result) == 1
+        assert "no está en el cronograma" in result[0]["problema"].lower()

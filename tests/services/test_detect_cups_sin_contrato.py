@@ -889,3 +889,119 @@ class TestDetectCupsSinContrato:
 
         assert len(result) == 1
         assert result[0]["codigo"] == "878001"
+
+    # ── 16. Urgencias bypass — entidades EN _ENTIDADES_NOTA_URGENCIAS ─────────
+
+    def test_urgencias_facturador_entity_en_lista_cups_in_nota(self):
+        """EPSS08 (en _ENTIDADES_NOTA_URGENCIAS) + urgencias + CUPS en nota → no error (regression)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "EPSS08", "965201", "MEZA FERNANDEZ CARLOS OMAR"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("EPSS08", "878001")],
+            eps_names={"EPSS08": "EPS S08"},
+            nota_urgencias_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_urgencias_facturador_entity_en_lista_cups_not_in_nota(self):
+        """EPSS08 + urgencias + CUPS ni nota ni pares → error."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "EPSS08", "999999", "MEZA FERNANDEZ CARLOS OMAR"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("EPSS08", "878001")],
+            eps_names={"EPSS08": "EPS S08"},
+            nota_urgencias_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "999999"
+
+    # ── 17. Urgencias bypass — entidades FUERA de _ENTIDADES_NOTA_URGENCIAS ───
+
+    def test_urgencias_entity_no_lista_cups_in_pares_validos(self):
+        """ESS118 (FUERA de lista) + urgencias + CUPS en pares_validos → no error (fallback)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "878001", "ARIAS CULCHA ANGIE CAROLINA"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota_urgencias_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_urgencias_bug_scenario(self):
+        """ESS118 + CUPS 903437 + MEZA FERNANDEZ CARLOS OMAR → no error (original bug)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "903437", "MEZA FERNANDEZ CARLOS OMAR"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota_urgencias_cups=["903437"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert result == []
+
+    def test_non_urgencias_biller_unaffected(self):
+        """ESS118 + CUPS 965201 + facturador NO urgencias → error (normal validation)."""
+        headers = REQUIRED + ["responsable_cierra"]
+        ws = _make_ws(
+            headers=headers,
+            data_rows=[["FAC-001", "ESS118", "965201", "UN NOMBRE CUALQUIERA"]],
+        )
+        indices = _build_indices(headers)
+        mock_session = _make_mock_session(
+            pairs=[("ESS118", "878001")],
+            eps_names={"ESS118": "EMSSANAR ESS E.S.S."},
+            nota_urgencias_cups=["965201"],
+        )
+
+        with patch("app.database.SessionLocal", return_value=mock_session):
+            from app.services.transversales.procedimiento_contratado import (
+                detect_cups_sin_contrato,
+            )
+            result = detect_cups_sin_contrato(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == "965201"
