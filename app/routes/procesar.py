@@ -40,11 +40,11 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 
 
 @procesar_bp.get("/")
-@permiso_requerido("urgencias", "odontologia", "odontologia_equipos_basicos")
+@permiso_requerido("procesar")
 def procesar_react():
     """React shell for Procesar."""
     permisos = session.get("permisos", [])
-    can_write = "*" in permisos or "urgencias:write" in permisos
+    can_write = "*" in permisos or "procesar:write" in permisos
     manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
     entry_js = _get_manifest_asset(manifest_path, "src/pages/procesar/index.html", "file")
     entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
@@ -63,7 +63,7 @@ def procesar_react():
 
 @procesar_bp.post("/")
 @rate_limit(1, 120, admin_exempt=True)
-@permiso_requerido("urgencias", "odontologia", "odontologia_equipos_basicos")
+@permiso_requerido("procesar")
 def procesar_unificado_api():
     """Procesa un Excel aplicando reglas según Tipo Factura Descripción.
 

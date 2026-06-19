@@ -33,22 +33,22 @@ DEFAULT_USERS = [
         "apellido_2": "",
     },
     {
-        "username": "odontologia",
-        "password": "odonto123",
+        "username": "procesar",
+        "password": "procesar123",
         "rol": "usuario",
-        "permisos": ["odontologia"],
-        "descripcion": "Solo /odontologia",
+        "permisos": ["procesar"],
+        "descripcion": "Solo módulo de procesamiento unificado",
         "primer_nombre": "",
         "segundo_nombre": "",
         "apellido_1": "",
         "apellido_2": "",
     },
     {
-        "username": "urgencias",
-        "password": "urgencias123",
+        "username": "procesar_full",
+        "password": "full123",
         "rol": "usuario",
-        "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
-        "descripcion": "/urgencias + control urgencias (solo lectura) + facturas abiertas",
+        "permisos": ["procesar", "control_urgencias", "facturas_abiertas"],
+        "descripcion": "Procesar + control urgencias (solo lectura) + facturas abiertas",
         "primer_nombre": "",
         "segundo_nombre": "",
         "apellido_1": "",
@@ -93,6 +93,17 @@ def _load_users() -> list:
             if field not in u:
                 u[field] = ""
                 changed = True
+
+    # Migration: auto-replace old perms (urgencias, odontologia, odontologia_equipos_basicos) with procesar
+    OLD_PERMS = {"urgencias", "odontologia", "odontologia_equipos_basicos"}
+    for u in users:
+        perms = u.get("permisos", [])
+        if any(p in OLD_PERMS for p in perms):
+            new_perms = [p for p in perms if p not in OLD_PERMS]
+            if "procesar" not in new_perms:
+                new_perms.append("procesar")
+            u["permisos"] = new_perms
+            changed = True
 
     if changed:
         _save_users(users)

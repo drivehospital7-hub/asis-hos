@@ -21,6 +21,7 @@ api_bp = Blueprint("api", __name__, url_prefix="/api")
 # ============================================================================
 
 @api_bp.route("/eps", methods=["GET"])
+@admin_requerido
 def list_eps():
     """Lista todas las EPS contratadas."""
     db: Session = next(get_db())
@@ -36,6 +37,7 @@ def list_eps():
 
 
 @api_bp.route("/eps/<int:id>", methods=["GET"])
+@admin_requerido
 def get_eps(id):
     """Obtiene EPS por ID."""
     db: Session = next(get_db())
@@ -58,6 +60,7 @@ def get_eps(id):
 
 
 @api_bp.route("/eps", methods=["POST"])
+@admin_requerido
 def create_eps():
     """Crea nueva EPS contratada."""
     db: Session = next(get_db())
@@ -96,6 +99,7 @@ def create_eps():
 
 
 @api_bp.route("/eps/<int:id>", methods=["PUT"])
+@admin_requerido
 def update_eps(id):
     """Actualiza EPS contratada."""
     db: Session = next(get_db())
@@ -120,6 +124,7 @@ def update_eps(id):
 
 
 @api_bp.route("/eps/<int:id>", methods=["DELETE"])
+@admin_requerido
 def delete_eps(id):
     """Elimina EPS contratada."""
     db: Session = next(get_db())
@@ -253,6 +258,7 @@ def vincular_procedimiento(eps_id):
 # ============================================================================
 
 @api_bp.route("/procedimientos", methods=["GET"])
+@admin_requerido
 def list_procedimientos():
     """Lista todos los procedimientos."""
     db: Session = next(get_db())
@@ -268,6 +274,7 @@ def list_procedimientos():
 
 
 @api_bp.route("/procedimientos/<int:id>", methods=["GET"])
+@admin_requerido
 def get_procedimiento(id):
     """Obtiene procedimiento por ID."""
     db: Session = next(get_db())
@@ -290,6 +297,7 @@ def get_procedimiento(id):
 
 
 @api_bp.route("/procedimientos", methods=["POST"])
+@admin_requerido
 def create_procedimiento():
     """Crea nuevo procedimiento."""
     db: Session = next(get_db())
@@ -327,6 +335,7 @@ def create_procedimiento():
 
 
 @api_bp.route("/procedimientos/<int:id>", methods=["PUT"])
+@admin_requerido
 def update_procedimiento(id):
     """Actualiza procedimiento."""
     db: Session = next(get_db())
@@ -351,6 +360,7 @@ def update_procedimiento(id):
 
 
 @api_bp.route("/procedimientos/<int:id>", methods=["DELETE"])
+@admin_requerido
 def delete_procedimiento(id):
     """Elimina procedimiento."""
     db: Session = next(get_db())
@@ -378,6 +388,7 @@ def delete_procedimiento(id):
 # ============================================================================
 
 @api_bp.route("/notas-hoja", methods=["GET"])
+@admin_requerido
 def list_notas_hoja():
     """Lista todas las notas hojas."""
     db: Session = next(get_db())
@@ -393,6 +404,7 @@ def list_notas_hoja():
 
 
 @api_bp.route("/notas-hoja/<int:id>", methods=["GET"])
+@admin_requerido
 def get_nota_hoja(id):
     """Obtiene nota hoja por ID."""
     db: Session = next(get_db())
@@ -415,6 +427,7 @@ def get_nota_hoja(id):
 
 
 @api_bp.route("/notas-hoja", methods=["POST"])
+@admin_requerido
 def create_nota_hoja():
     """Crea nueva nota hoja."""
     db: Session = next(get_db())
@@ -446,6 +459,7 @@ def create_nota_hoja():
 
 
 @api_bp.route("/notas-hoja/<int:id>", methods=["PUT"])
+@admin_requerido
 def update_nota_hoja(id):
     """Actualiza nota hoja."""
     db: Session = next(get_db())
@@ -470,6 +484,7 @@ def update_nota_hoja(id):
 
 
 @api_bp.route("/notas-hoja/<int:id>/dependencias", methods=["GET"])
+@admin_requerido
 def get_nota_hoja_dependencias(id):
     """Retorna las dependencias de una nota hoja (EPS y procedimientos vinculados)."""
     db: Session = next(get_db())
@@ -515,6 +530,7 @@ def get_nota_hoja_dependencias(id):
 
 
 @api_bp.route("/notas-hoja/<int:id>", methods=["DELETE"])
+@admin_requerido
 def delete_nota_hoja(id):
     """Elimina nota hoja."""
     db: Session = next(get_db())
@@ -538,6 +554,7 @@ def delete_nota_hoja(id):
 
 
 @api_bp.route("/notas-hoja/<int:id>/vinculaciones", methods=["GET"])
+@admin_requerido
 def get_nota_hoja_vinculaciones(id):
     """Retorna procedimientos y EPS vinculados a una nota hoja."""
     db: Session = next(get_db())
@@ -599,6 +616,7 @@ def get_nota_hoja_vinculaciones(id):
 
 
 @api_bp.route("/notas-hoja/<int:id>/vincular-procedimiento", methods=["POST"])
+@admin_requerido
 def vincular_procedimiento_a_nota(id):
     """Vincula un procedimiento a una nota hoja (solo NotasTecnicas, sin EPS)."""
     db: Session = next(get_db())
@@ -667,6 +685,7 @@ def vincular_procedimiento_a_nota(id):
 
 
 @api_bp.route("/notas-hoja/<int:id>/vincular-eps", methods=["POST"])
+@admin_requerido
 def vincular_eps_a_nota(id):
     """Vincula una EPS a una nota hoja (crea EpsNota)."""
     db: Session = next(get_db())
@@ -737,6 +756,7 @@ def vincular_eps_a_nota(id):
 # ============================================================================
 
 @api_bp.route("/notas-tecnicas", methods=["GET"])
+@admin_requerido
 def list_notas_tecnicas():
     """Lista todas las notas técnicas."""
     db: Session = next(get_db())
@@ -752,6 +772,7 @@ def list_notas_tecnicas():
 
 
 @api_bp.route("/notas-tecnicas/<int:id>", methods=["GET"])
+@admin_requerido
 def get_nota_tecnica(id):
     """Obtiene nota técnica por ID."""
     db: Session = next(get_db())
@@ -774,6 +795,7 @@ def get_nota_tecnica(id):
 
 
 @api_bp.route("/notas-tecnicas", methods=["POST"])
+@admin_requerido
 def create_nota_tecnica():
     """Crea nueva nota técnica."""
     db: Session = next(get_db())
@@ -812,6 +834,7 @@ def create_nota_tecnica():
 
 
 @api_bp.route("/notas-tecnicas/<int:id>", methods=["PUT"])
+@admin_requerido
 def update_nota_tecnica(id):
     """Actualiza nota técnica."""
     db: Session = next(get_db())
@@ -836,6 +859,7 @@ def update_nota_tecnica(id):
 
 
 @api_bp.route("/notas-tecnicas/<int:id>", methods=["DELETE"])
+@admin_requerido
 def delete_nota_tecnica(id):
     """Elimina nota técnica."""
     db: Session = next(get_db())
@@ -863,6 +887,7 @@ def delete_nota_tecnica(id):
 # ============================================================================
 
 @api_bp.route("/eps-nota", methods=["GET"])
+@admin_requerido
 def list_eps_nota():
     """Lista todas las relaciones EPS-Nota."""
     db: Session = next(get_db())
@@ -878,6 +903,7 @@ def list_eps_nota():
 
 
 @api_bp.route("/eps-nota/<int:id>", methods=["GET"])
+@admin_requerido
 def get_eps_nota(id):
     """Obtiene relación EPS-Nota por ID."""
     db: Session = next(get_db())
@@ -900,6 +926,7 @@ def get_eps_nota(id):
 
 
 @api_bp.route("/eps-nota", methods=["POST"])
+@admin_requerido
 def create_eps_nota():
     """Crea nueva relación EPS-Nota."""
     db: Session = next(get_db())
@@ -937,6 +964,7 @@ def create_eps_nota():
 
 
 @api_bp.route("/eps-nota/<int:id>", methods=["DELETE"])
+@admin_requerido
 def delete_eps_nota(id):
     """Elimina relación EPS-Nota."""
     db: Session = next(get_db())

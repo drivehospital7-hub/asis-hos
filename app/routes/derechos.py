@@ -114,6 +114,7 @@ def derechos_react():
 
 
 @derechos_bp.get("/texto")
+@permiso_requerido("derechos")
 def derechos_texto():
     """
     Devuelve el texto RAW de un PDF para debugging.
@@ -174,6 +175,7 @@ def derechos_texto():
 
 
 @derechos_bp.post("/procesar")
+@permiso_requerido("derechos")
 def procesar_derechos():
     """
     Procesa la ruta de carpeta y busca archivos .PDE de manera recursiva.

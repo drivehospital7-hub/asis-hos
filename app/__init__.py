@@ -15,6 +15,10 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.unauthorized_react",
     # Static — CSS, JS, imágenes
     "static",
+    # Procedimientos — write endpoints descontinuados (410 Gone)
+    "procedimientos.create_procedimiento_gone",
+    "procedimientos.update_procedimiento_gone",
+    "procedimientos.delete_procedimiento_gone",
 })
 
 

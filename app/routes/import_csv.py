@@ -7,6 +7,7 @@ from flask import Blueprint, jsonify, request
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.utils.auth import admin_requerido
 from app.services import (
     eps_contratado_crud,
     procedimiento_crud,
@@ -45,6 +46,7 @@ def parse_csv(content: str) -> list[dict]:
 # ============================================================================
 
 @import_csv_bp.route("/eps", methods=["POST"])
+@admin_requerido
 def import_eps():
     """Importa EPS desde CSV."""
     if "file" not in request.files:
@@ -106,6 +108,7 @@ def import_eps():
 # ============================================================================
 
 @import_csv_bp.route("/procedimientos", methods=["POST"])
+@admin_requerido
 def import_procedimientos():
     """Importa procedimientos desde CSV."""
     if "file" not in request.files:
@@ -166,6 +169,7 @@ def import_procedimientos():
 # ============================================================================
 
 @import_csv_bp.route("/notas-hoja", methods=["POST"])
+@admin_requerido
 def import_notas_hoja():
     """Importa notas hoja desde CSV."""
     if "file" not in request.files:
@@ -225,6 +229,7 @@ def import_notas_hoja():
 # ============================================================================
 
 @import_csv_bp.route("/notas-tecnicas", methods=["POST"])
+@admin_requerido
 def import_notas_tecnicas():
     """Importa notas técnicas desde CSV."""
     if "file" not in request.files:
@@ -286,6 +291,7 @@ def import_notas_tecnicas():
 # ============================================================================
 
 @import_csv_bp.route("/eps-nota", methods=["POST"])
+@admin_requerido
 def import_eps_nota():
     """Importa relaciones EPS-Nota desde CSV."""
     if "file" not in request.files:
