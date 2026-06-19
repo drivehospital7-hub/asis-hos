@@ -24,6 +24,13 @@ RESPONSABLE_TAPIA = "TAPIA PERDOMO ANYI CATALEYA"
 RESPONSABLE_ORDONEZ = "ORDOÑEZ MEZA SILVIA ELEY"
 
 # =============================================================================
+# INTRAMURAL - Profesionales exentos de validación de cronograma
+# =============================================================================
+
+# Bacteriólogas que pueden facturar cualquier día sin restricción de cronograma
+PROFESIONALES_EXCEPTUADOS_CRONOGRAMA: frozenset[str] = frozenset({"02217"})
+
+# =============================================================================
 # INTRAMURAL - EXAMENES PYM EVENTO
 # =============================================================================
 

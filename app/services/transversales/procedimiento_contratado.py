@@ -24,6 +24,19 @@ _FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
     " ".join(f.upper().split()) for f in FACTURADORES_URGENCIAS
 )
 
+# Entidades que pueden usar nota_hoja 1/27 como pase directo cuando
+# el responsable es un facturador de urgencias.
+# Si la entidad NO está en esta lista, cae a validación normal contra
+# los procedimientos contratados en DB.
+_ENTIDADES_NOTA_URGENCIAS: frozenset[str] = frozenset({
+    "EPSS12", "ESSC62", "ESS207", "EPS048", "CCF055", "EPS008",
+    "EPSS08", "EPSS34", "CCF102", "EPS010", "EPS018", "EPS017",
+    "EPSS17", "ESSC24", "EPS042", "EPSI06", "EPSS40", "EPSI04",
+    "EPS025", "EPSS02", "EPSS10", "CCF050", "ESS062", "EPS047",
+    "EPSS018", "EPSC005", "EPSS005", "EPS002", "CCF033", "EPSI01",
+    "EPS001", "EPS012", "EPS040", "EPSI03", "CCFC33", "EPSC34",
+})
+
 
 def detect_cups_sin_contrato(
     data_sheet: Worksheet,
@@ -191,9 +204,10 @@ def detect_cups_sin_contrato(
             if codigo_equiv_raw:
                 codigo_equiv = str(codigo_equiv_raw).strip().upper()
 
-        # Excepción: responsable urgencias valida contra nota_hoja id=1 o 27.
-        # Si el CUPS no está en nota_urgencias_cups, cae a validación normal
-        # contra los procedimientos contratados de la entidad.
+        # Excepción: responsable urgencias valida contra nota_hoja id=1 o 27
+        # como fuente adicional, independientemente de si la entidad está
+        # o no en _ENTIDADES_NOTA_URGENCIAS. Si el CUPS está en nota_hoja
+        # 1/27, se acepta; si no, cae a validación normal contra pares_validos.
         responsable_idx = indices.get("responsable_cierra")
         if responsable_idx is not None:
             raw_resp = data_sheet.cell(row=row, column=responsable_idx + 1).value

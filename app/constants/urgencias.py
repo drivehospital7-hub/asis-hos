@@ -45,6 +45,7 @@ CODIGOS_EXCLUIDOS_MEDICO = frozenset({
 
 # Excepciones para Bacterióloga (no requiere Tipo=02/05 ni Laboratorio=Si)
 EXCEPCIONES_BACTERIOLOGA = frozenset({"904903", "903883"})
+
 CODIGOS_EXCEPTUADOS = frozenset({
     "194901",
     "23105",

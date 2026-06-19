@@ -28,7 +28,7 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 
 
 @cronograma_urgencias_bp.get("/")
-@permiso_requerido("*")
+@permiso_requerido("cronograma_urgencias")
 def cronograma_urgencias_react():
     """React shell for Cronograma Urgencias."""
     permisos = session.get("permisos", [])
@@ -48,7 +48,7 @@ def cronograma_urgencias_react():
 
 
 @cronograma_urgencias_bp.route("/api", methods=["GET", "POST"])
-@permiso_requerido("*")
+@permiso_requerido("cronograma_urgencias")
 def api_cronograma_urgencias():
     if request.method == "GET":
         mes = request.args.get("mes", type=int)
@@ -63,7 +63,7 @@ def api_cronograma_urgencias():
 
 
 @cronograma_urgencias_bp.route("/api/delete", methods=["POST"])
-@permiso_requerido("*")
+@permiso_requerido("cronograma_urgencias")
 def api_delete_cronograma():
     data = request.get_json(silent=True) or {}
     mes = data.get("mes")

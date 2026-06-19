@@ -13,6 +13,7 @@ from typing import Any
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants.intramural import (
+    PROFESIONALES_EXCEPTUADOS_CRONOGRAMA,
     RESPONSABLE_CHAPUEL,
     RESPONSABLE_ORDONEZ,
     RESPONSABLE_TAPIA,
@@ -303,6 +304,10 @@ def detect_bacteriologas_cronograma(
                 ),
                 "fec_factura": fec_factura_str,
             })
+            continue
+
+        # ★ PROFESIONALES_EXCEPTUADOS_CRONOGRAMA — bypass total de cronograma
+        if codigo_prof in PROFESIONALES_EXCEPTUADOS_CRONOGRAMA:
             continue
 
         # ── Determine siglas_filter based on responsable_cierra ──

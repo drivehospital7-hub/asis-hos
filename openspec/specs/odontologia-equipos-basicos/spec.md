@@ -1,5 +1,7 @@
 # Odontología — Equipos Básicos Specification
 
+> **⚠️ DEPRECATION NOTICE (2026-06-16)**: This module has been partially superseded by the unified `/procesar` endpoint. The `POST /odontologia-equipos-basicos/` handler no longer processes files — all file processing is unified at `POST /procesar/`. Users with `odontologia_equipos_basicos` permission can now access `/procesar/` instead. The GET handler and React shell remain functional for UI display. This spec is retained for historical reference and to document the legacy route structure.
+
 ## Purpose
 
 Equipos Básicos (EB) as an independent module: upload Excel files, detect billing problems, and export processed results. Only accessible to users with the `odontologia_equipos_basicos` permission.

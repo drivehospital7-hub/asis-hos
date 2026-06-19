@@ -29,7 +29,7 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 
 
 @cronograma_bp.get("/")
-@permiso_requerido("*")
+@permiso_requerido("cronograma_bacteriologas")
 def cronograma_react():
     """React shell for Cronograma Bacteriólogas."""
     permisos = session.get("permisos", [])
@@ -50,7 +50,7 @@ def cronograma_react():
 
 
 @cronograma_bp.get("/api")
-@permiso_requerido("*")
+@permiso_requerido("cronograma_bacteriologas")
 def api_get_cronograma():
     mes = request.args.get("mes", type=int)
     anio = request.args.get("anio", type=int)
@@ -59,7 +59,7 @@ def api_get_cronograma():
 
 
 @cronograma_bp.post("/api")
-@permiso_requerido("*")
+@permiso_requerido("cronograma_bacteriologas")
 def api_save_cronograma():
     body = request.get_json()
     if not body:
@@ -73,7 +73,7 @@ def api_save_cronograma():
 
 
 @cronograma_bp.get("/api/turno")
-@permiso_requerido("*")
+@permiso_requerido("cronograma_bacteriologas")
 def api_turno():
     mes = request.args.get("mes", type=int)
     anio = request.args.get("anio", type=int)

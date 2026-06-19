@@ -11,6 +11,7 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.constants import CODIGOS_LABORATORIO_ENVIO
 from app.constants.intramural import (
     TIPO_FACTURA_INTRAMURAL,
     CODIGOS_PYM_RUTAS,
@@ -30,11 +31,11 @@ logger = logging.getLogger(__name__)
 
 # PYM_RUTAS + Dx: según prefijo factura
 _PYM_RUTAS_IDE_MAP: dict[str, set[str]] = {
-    # "EPSS41": {"955"},
-    # "EPS037": {"961"},
-    # "RES001": {"993"},
-    # "ESSC62": {"863"},
-    # "ESS062": {"922"},
+    "EPSS41": {"955"},
+    "EPS037": {"961"},
+    "RES001": {"993"},
+    "ESSC62": {"863"},
+    "ESS062": {"922"},
     "RES004": {"908"},
     "EPSI04": {"901"},
     "EPSI03": {"965"},
@@ -78,7 +79,7 @@ _PYM_RUTAS_IDE_MAP: dict[str, set[str]] = {
     "RES001": {"993"},
     "RES002": {"952"},
     "RES004": {"908"},
-    # "ESSC18": {"975"},
+    "ESSC18": {"975"},
 }
 _PYM_RUTAS_FEV_MAP: dict[str, set[str]] = {
     # "EPSS41": {"958", "959"},
@@ -141,6 +142,32 @@ def detect_ide_contrato_intramural(
         )
         return []
 
+    # =========================================================================
+    # Pre-scan: detectar facturas donde TODOS los códigos son laboratorio envío
+    # (excepción: si toda la factura son exámenes de laboratorio derivados,
+    #  no se exige el IDE Contrato específico de PyM rutas)
+    # =========================================================================
+    _facturas_con_no_lab: set[str] = set()
+    for row in range(2, data_sheet.max_row + 1):
+        if tipo_fact_desc_idx is not None:
+            tipo_fact_val = data_sheet.cell(row=row, column=tipo_fact_desc_idx + 1).value
+            if str(tipo_fact_val or "").strip().upper() != TIPO_FACTURA_INTRAMURAL.upper():
+                continue
+
+        numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura = normalize_invoice(numero)
+        if not factura:
+            continue
+
+        codigo = str(data_sheet.cell(row=row, column=codigo_idx + 1).value or "").strip()
+        if not codigo:
+            continue
+
+        if codigo not in CODIGOS_LABORATORIO_ENVIO:
+            _facturas_con_no_lab.add(factura)
+    # Una factura es "solo laboratorio de envío" si aparece en Intramural
+    # y NO está en _facturas_con_no_lab.
+
     problemas: list[dict[str, Any]] = []
 
     for row in range(2, data_sheet.max_row + 1):
@@ -198,6 +225,15 @@ def detect_ide_contrato_intramural(
 
         ides_validos = _check_pym_ruta_con_dx_ides(codigo, entidad, dx_principal, factura)
         if ides_validos is not None and ide_actual not in ides_validos:
+            # Excepción: si TODOS los códigos de la factura son laboratorio de
+            # envío (CODIGOS_LABORATORIO_ENVIO), no se exige el IDE específico.
+            if factura not in _facturas_con_no_lab:
+                logger.info(
+                    "Excepción IDE para factura %s: todos los códigos son "
+                    "laboratorio de envío, se omite validación PyM ruta",
+                    factura,
+                )
+                continue
             problemas.append({
                 "factura": factura,
                 "codigo": codigo,
