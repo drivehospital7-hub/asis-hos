@@ -149,17 +149,15 @@ def build_odontologia_normalized_rows(
         tipo_deberia = item.get("tipo_deberia", "")
         edad_anios = item.get("edad_anios", "")
         edad_meses = item.get("edad_meses", "")
-        edad_str = f"{edad_anios} años"
-        if edad_meses:
-            edad_str += f", {edad_meses} meses"
+        num_id = item.get("numero_identificacion", "")
         rows.append({
             "tipo_error": "Tipo Identificación",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
-            "procedimiento": f"Edad: {edad_str}",
-            "detalle": "",
+            "procedimiento": num_id,
+            "detalle": f"{edad_anios} años {edad_meses} meses",
         })
 
     # --- Tipo Identificación vs Cód Entidad Cobrar ---
