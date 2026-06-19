@@ -545,6 +545,7 @@ URGENCIAS_CAPITA_CUPS_CODES = frozenset({
     "873313",
     "902221",
     "965301",
+    "935302",
 })
 
 # =============================================================================
@@ -573,6 +574,7 @@ LABORATORIO_REVISION_EXENTO = "No"
 CODIGOS_TIPO_PROC_09_12 = frozenset({
     "09",
     "12",
+    "13",
 })
 CODIGO_EXENTO_V03AN0101 = "V03AN0101"
 CANTIDAD_MAX_09_12 = 20

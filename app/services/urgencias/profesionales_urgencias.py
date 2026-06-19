@@ -54,10 +54,11 @@ def detect_profesionales_urgencias(
     cod_prof_idx = indices.get("codigo_profesional")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
+    prof_atiende_idx = indices.get("profesional_atiende")
 
     logger.warning(
-        "numero_factura idx: %s, codigo_profesional idx: %s, codigo idx: %s, procedimiento idx: %s",
-        num_fact_idx, cod_prof_idx, codigo_idx, procedimiento_idx,
+        "numero_factura idx: %s, codigo_profesional idx: %s, codigo idx: %s, procedimiento idx: %s, profesional_atiende idx: %s",
+        num_fact_idx, cod_prof_idx, codigo_idx, procedimiento_idx, prof_atiende_idx,
     )
 
     if num_fact_idx is None or cod_prof_idx is None:
@@ -98,6 +99,12 @@ def detect_profesionales_urgencias(
         if not cod_profesional_str:
             continue
 
+        # Leer nombre del profesional directo del Excel (columna "Profesional Atiende")
+        prof_atiende_val = ""
+        if prof_atiende_idx is not None:
+            prof_raw = data_sheet.cell(row=row, column=prof_atiende_idx + 1).value
+            prof_atiende_val = str(prof_raw).strip() if prof_raw else ""
+
         # Buscar profesional en el diccionario de Urgencias
         profesional_info = PROFESIONALES_URGENCIAS.get(cod_profesional_str)
 
@@ -115,6 +122,7 @@ def detect_profesionales_urgencias(
                 "tipo": "",
                 "profesional_area": "",
                 "procedimiento": procedimiento,
+                "profesional_atiende": prof_atiende_val,
                 "regla": "Profesional debe estar en listado",
                 "problema": "Profesional no existe en el listado de Urgencias",
             })
@@ -143,6 +151,7 @@ def detect_profesionales_urgencias(
                     "tipo": "TRABAJADORA SOCIAL",
                     "profesional_area": "TRABAJADORA SOCIAL",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser uno de: {codigos_validos}",
                     "problema": f"TRABAJADORA SOCIAL con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -167,6 +176,7 @@ def detect_profesionales_urgencias(
                     "tipo": "PSICOLOGA",
                     "profesional_area": "PSICOLOGA",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser uno de: {codigos_validos}",
                     "problema": f"PSICOLOGA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -191,6 +201,7 @@ def detect_profesionales_urgencias(
                     "tipo": "NUTRICIONISTA",
                     "profesional_area": "NUTRICIONISTA",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser uno de: {codigos_validos}",
                     "problema": f"NUTRICIONISTA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -215,6 +226,7 @@ def detect_profesionales_urgencias(
                     "tipo": "FISIOTERAPEUTA",
                     "profesional_area": "FISIOTERAPEUTA",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser {codigos_validos}",
                     "problema": f"FISIOTERAPEUTA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -239,6 +251,7 @@ def detect_profesionales_urgencias(
                     "tipo": "JEFE ENFERMERIA",
                     "profesional_area": "JEFE ENFERMERIA",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser {codigos_validos}",
                     "problema": f"JEFE ENFERMERIA con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -287,6 +300,7 @@ def detect_profesionales_urgencias(
                     "tipo": "BACTERIOLOGA",
                     "profesional_area": "BACTERIOLOGA",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": "Código Tipo=02/05 + Laboratorio=Si",
                     "problema": "LABORATORIO NO IDENTIFICADO: BACTERIOLOGA requiere Código Tipo Procedimiento=02/05 y Laboratorio=Si",
                 })
@@ -311,6 +325,7 @@ def detect_profesionales_urgencias(
                     "tipo": "ODONTOLOGO",
                     "profesional_area": "ODONTOLOGO",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"Código debe ser {codigos_validos}",
                     "problema": f"ODONTOLOGO con código no permitido ({codigo_str}). Debería usar {codigos_validos}",
                 })
@@ -335,6 +350,7 @@ def detect_profesionales_urgencias(
                     "tipo": "MEDICO",
                     "profesional_area": "MEDICO",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": f"No usar: {', '.join(sorted(CODIGOS_EXCLUIDOS_MEDICO))}",
                     "problema": f"MEDICO con código no permitido ({codigo_str}). Código reservado para otro tipo de profesional",
                 })
@@ -373,6 +389,7 @@ def detect_profesionales_urgencias(
                     "tipo": "MEDICO",
                     "profesional_area": "MEDICO",
                     "procedimiento": procedimiento,
+                    "profesional_atiende": prof_atiende_val,
                     "regla": "No usar Tipo=02/05 + Lab=Si (reservado BACTERIOLOGA)",
                     "problema": "MEDICO no puede usar código de Laboratorio (Tipo 02/05 + Lab=Si). Reserved for BACTERIOLOGA",
                 })
