@@ -36,20 +36,23 @@ interface UsuariosData {
 const initialData = (window as unknown as { __INITIAL_DATA__?: UsuariosData }).__INITIAL_DATA__;
 
 const ALL_PERMISOS = [
-  { value: "odontologia", label: "Odontología" },
-  { value: "urgencias", label: "Urgencias" },
+  { value: "procesar", label: "Procesar (lectura)" },
+  { value: "procesar:write", label: "Procesar (modificar)" },
+  { value: "cronograma_bacteriologas", label: "Cronograma Bacteriólogas" },
+  { value: "cronograma_urgencias", label: "Cronograma Urgencias" },
   { value: "control_urgencias", label: "Control de Urgencias (lectura)" },
   { value: "control_urgencias:write", label: "Control de Urgencias (modificar)" },
   { value: "facturas_abiertas", label: "Facturas Abiertas (lectura)" },
   { value: "facturas_abiertas:write", label: "Facturas Abiertas (modificar)" },
   { value: "cruce_facturas", label: "Cruce de Reportes" },
   { value: "equipos_basicos", label: "Ordenado y Facturado" },
-  { value: "odontologia_equipos_basicos", label: "Equipos Básicos" },
   { value: "derechos", label: "Derechos" },
 ];
 
 // Pares mutuamente excluyentes: si se marca uno, se desmarca el otro
 const PERMISO_PAIRS: Record<string, string> = {
+  "procesar": "procesar:write",
+  "procesar:write": "procesar",
   "control_urgencias": "control_urgencias:write",
   "control_urgencias:write": "control_urgencias",
   "facturas_abiertas": "facturas_abiertas:write",

@@ -22,14 +22,6 @@ export interface ProcedimientoSqlite {
   procedimiento: string;
 }
 
-export interface ProcedimientoPg {
-  id: string;
-  eps: string;
-  codigo_cups: string;
-  descripcion: string | null;
-  tarifa: number | null;
-}
-
 export interface NotaHoja {
   id: number;
   nota: string;
@@ -110,17 +102,6 @@ export async function fetchProcSqlite(): Promise<ProcedimientoSqlite[]> {
   return apiGet<ProcedimientoSqlite[]>("/api/procedimientos");
 }
 
-/** Fetch Procedimientos tariffs from PostgreSQL for a given EPS. */
-export async function fetchProcPg(eps: string): Promise<ProcedimientoPg[]> {
-  return apiGet<ProcedimientoPg[]>(`/procedimientos?eps=${encodeURIComponent(eps)}&all=true`);
-}
-
-/** Fetch available EPS list from PostgreSQL. */
-export async function fetchEpsDisponibles(): Promise<string[]> {
-  const data = await apiGet<{ eps_disponibles: string[] }>("/procedimientos/eps");
-  return data.eps_disponibles;
-}
-
 /** Fetch the chain EpsContratado → Procedimientos for a given EPS id. */
 export async function fetchProcedimientosPorEps(epsId: number): Promise<EpsProcedimientosChain> {
   return apiGet<EpsProcedimientosChain>(`/api/eps/${epsId}/procedimientos`);
@@ -155,16 +136,6 @@ export async function createNotaHoja(data: { nota: string }): Promise<NotaHoja> 
   return apiPost<NotaHoja>("/api/notas-hoja", data);
 }
 
-/** Create a new Procedimiento tariff in PostgreSQL. */
-export async function createProcPg(data: {
-  eps: string;
-  codigo_cups: string;
-  descripcion?: string | null;
-  tarifa?: number | null;
-}): Promise<ProcedimientoPg> {
-  return apiPost<ProcedimientoPg>("/procedimientos", data);
-}
-
 // ─── PUT / UPDATE ───────────────────────────────────────────────────
 
 /** Update an existing NotaHoja in SQLite. */
@@ -189,19 +160,6 @@ export async function updateProcSqlite(
   data: Partial<{ cups: string; procedimiento: string }>,
 ): Promise<ProcedimientoSqlite> {
   return apiPut<ProcedimientoSqlite>(`/api/procedimientos/${id}`, data);
-}
-
-/** Update an existing Procedimiento tariff in PostgreSQL. */
-export async function updateProcPg(
-  id: string,
-  data: Partial<{ eps: string; codigo_cups: string; descripcion: string | null; tarifa: number | null }>,
-): Promise<{ message: string }> {
-  return apiPut<{ message: string }>(`/procedimientos/${id}`, data);
-}
-
-/** Delete a Procedimiento tariff in PostgreSQL by id. */
-export async function deleteProcPg(id: string): Promise<void> {
-  return apiDelete(`/procedimientos/${id}`);
 }
 
 // ─── DELETE ──────────────────────────────────────────────────────────

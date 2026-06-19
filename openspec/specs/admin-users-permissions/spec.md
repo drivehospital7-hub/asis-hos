@@ -76,14 +76,29 @@ Each user row MUST have a delete button. Clicking SHALL show a JS confirmation d
 | Cancel delete | admin on `/auth/usuarios` | clicks "Eliminar", cancels | no request sent; user not deleted |
 | Delete for "admin" | admin on `/auth/usuarios` | sees "admin" row | delete button disabled; tooltip "No se puede eliminar el usuario admin" |
 
-### R6: Fix Checkbox Duplicado
+### R6: Fix Checkbox Duplicado (extended)
 
 The permisos form MUST have distinct checkboxes for `cruce_facturas` (label: "Cruce de Reportes") and `equipos_basicos` (label: "Equipos Básicos") in BOTH the create form and the edit modal.
 
+Additionally, the permisos form MUST replace the old area-specific checkboxes with the new unified ones:
+
+| Action | Old Checkbox | New Checkbox |
+|--------|-------------|-------------|
+| REMOVED | `value="odontologia"` label "Odontología" | — |
+| REMOVED | `value="urgencias"` label "Urgencias" | — |
+| REMOVED | `value="odontologia_equipos_basicos"` label "Equipos Básicos" | — |
+| ADDED | — | `value="procesar"` label "Procesar (lectura)" |
+| ADDED | — | `value="procesar:write"` label "Procesar (modificar)" |
+| ADDED | — | `value="cronograma_bacteriologas"` label "Cronograma Bacteriólogas" |
+| ADDED | — | `value="cronograma_urgencias"` label "Cronograma Urgencias" |
+
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
-| Create form | admin on `/auth/usuarios` | views permisos section | `value="cruce_facturas"` and `value="equipos_basicos"` are distinct checkboxes with correct labels |
-| Edit modal | admin editing user | views edit modal | same distinct checkboxes as create form |
+| Create form — distinct | admin on `/auth/usuarios` | views permisos section | `value="cruce_facturas"` and `value="equipos_basicos"` are distinct checkboxes with correct labels |
+| Edit modal — distinct | admin editing user | views edit modal | same distinct checkboxes as create form |
+| Create form — new perms | admin on `/auth/usuarios` | views permisos section | checkboxes `procesar`, `procesar:write`, `cronograma_bacteriologas`, `cronograma_urgencias` SHALL be present |
+| Create form — old perms gone | admin on `/auth/usuarios` | views permisos section | `odontologia`, `urgencias`, `odontologia_equipos_basicos` SHALL NOT be present |
+| Edit modal — new perms | admin editing user | views edit modal | same updated checkbox set as create form |
 
 ### R7: Enlace Admin en `home.html`
 
@@ -135,6 +150,65 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 | Default users | no `users.json` | first `_load_users()` | each default user has `""` for all 4 |
 | Legacy JSON | `users.json` missing fields | `_load_users()` | missing fields added as `""`; existing preserved |
 
+### R12: New Permisos in ALLOWED_PERMISOS
+
+`ALLOWED_PERMISOS` MUST include `procesar`, `procesar:write`, `cronograma_bacteriologas`, and `cronograma_urgencias`. The old area-specific permisos `odontologia`, `urgencias`, and `odontologia_equipos_basicos` SHALL be removed.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| New permisos accepted | `procesar` in user permisos list | `update_user("u", {"permisos": ["procesar"]})` | accepted — validated against ALLOWED_PERMISOS |
+| New write permiso accepted | `procesar:write` in user permisos list | `update_user("u", {"permisos": ["procesar:write"]})` | accepted |
+| Cronograma bacteriologas | `cronograma_bacteriologas` in list | `update_user("u", {"permisos": ["cronograma_bacteriologas"]})` | accepted |
+| Cronograma urgencias | `cronograma_urgencias` in list | `update_user("u", {"permisos": ["cronograma_urgencias"]})` | accepted |
+| Old perm rejected | `odontologia` in list | `update_user("u", {"permisos": ["odontologia"]})` | returns `(False, "Permiso inválido: odontologia")` |
+| Mutual exclusion | both `procesar` and `procesar:write` | `update_user("u", {"permisos": ["procesar", "procesar:write"]})` | returns `(False, msg)` — cannot have both |
+
+### R13: Permission Migration (Backfill)
+
+`_load_users()` MUST migrate legacy permisos from the old area-specific values to the new unified values. Old `odontologia` and `odontologia_equipos_basicos` SHALL be replaced with `procesar`. Old `urgencias` SHALL also be replaced with `procesar`. Legacy `equipos_basicos` SHALL remain unchanged (it controls "Ordenado y Facturado").
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Migrate odontologia | user has `"odontologia"` in permisos | `_load_users()` or `list_users()` | `"odontologia"` replaced with `"procesar"` |
+| Migrate urgencias | user has `"urgencias"` in permisos | migration runs | `"urgencias"` replaced with `"procesar"` |
+| Migrate odontologia_equipos_basicos | user has `"odontologia_equipos_basicos"` | migration runs | replaced with `"procesar"` |
+| Preserve equipos_basicos | user has `"equipos_basicos"` | migration runs | `"equipos_basicos"` preserved unchanged |
+| Admin untouched | user has `"*"` | migration runs | `"*"` preserved, no changes |
+| Multiple legacy perms | user has `["odontologia", "equipos_basicos"]` | migration runs | becomes `["procesar", "equipos_basicos"]` |
+
+### R14: DEFAULT_USERS Updated
+
+`DEFAULT_USERS` MUST include users with `procesar` and combined permisos instead of the old area-specific defaults.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Default admin | no `users.json` | first `_load_users()` | admin user with `["*"]` present |
+| Default procesar | no `users.json` | first `_load_users()` | procesar user with `["procesar"]` present |
+| Default procesar_full | no `users.json` | first `_load_users()` | procesar_full user with `["procesar", "control_urgencias", "facturas_abiertas"]` present |
+| No old defaults | no `users.json` | first `_load_users()` | no users with `odontologia` or `urgencias` perms |
+
+### R15: PERMISO_MUTUAL_EXCLUSION — `procesar` / `procesar:write`
+
+`PERMISO_MUTUAL_EXCLUSION` MUST include the `procesar` / `procesar:write` pair alongside the existing `control_urgencias` and `facturas_abiertas` pairs.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Both assigned | user update includes `procesar` and `procesar:write` | `update_user()` | returns `(False, msg)` — mutual exclusion enforced |
+| Single assigned | user update includes only `procesar` | `update_user()` | accepted — no conflict |
+| Other pairs unaffected | user with `control_urgencias:write` | update with `control_urgencias` | mutual exclusion enforced for that pair |
+
+### R16: ALL_PERMISOS (Frontend) Updated
+
+The frontend `ALL_PERMISOS` array in the usuarios React page MUST include the new permisos with correct labels.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Has procesar | frontend renders all permisos | usuarios page loads | `procesar` with label "Procesar (lectura)" present |
+| Has procesar:write | frontend renders all permisos | usuarios page loads | `procesar:write` with label "Procesar (modificar)" present |
+| Has cronograma_bacteriologas | frontend renders all permisos | usuarios page loads | `cronograma_bacteriologas` with label "Cronograma Bacteriólogas" present |
+| Has cronograma_urgencias | frontend renders all permisos | usuarios page loads | `cronograma_urgencias` with label "Cronograma Urgencias" present |
+| No old perms | frontend renders all permisos | usuarios page loads | `odontologia`, `urgencias`, `odontologia_equipos_basicos` NOT in list |
+
 ---
 
 ## Validation Rules
@@ -146,9 +220,13 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 | `username` | MUST exist in store | `"Usuario no encontrado"` |
 | `password` | If non-empty string → MUST be hashed. If `None` or `""` → SKIP (keep existing) | — |
 | `rol` | MUST be `"admin"` or `"usuario"` | `"Rol inválido: debe ser admin o usuario"` |
-| `permisos` | MUST be a list. Each element MUST be in `ALLOWED_PERMISOS` (defined in constants) | `"Permiso inválido: {value}"` |
+| `permisos` | MUST be a list. Each element MUST be in `ALLOWED_PERMISOS` (defined in constants). Valid values: `"*"`, `"procesar"`, `"procesar:write"`, `"control_urgencias"`, `"control_urgencias:write"`, `"facturas_abiertas"`, `"facturas_abiertas:write"`, `"equipos_basicos"`, `"cruce_facturas"`, `"derechos"`, `"cronograma_bacteriologas"`, `"cronograma_urgencias"`. Old values `"odontologia"`, `"urgencias"`, `"odontologia_equipos_basicos"` are NO LONGER valid. | `"Permiso inválido: {value}"` |
 | Self-`*` removal | Store: si `"*"` está en permisos actuales Y no está en los nuevos → REJECT (protege cualquier usuario, no solo sesión actual) | `"No puedes remover el permiso de administrador de este usuario"` |
 | Self-`*` removal (route) | Ruta: si `session["username"] == username` Y `"*"` no está en nuevos permisos → flash error + redirect (antes de llamar al store) | `"No puedes remover tus propios permisos de administrador"` |
+| `procesar` / `procesar:write` mutual exclusion | Si ambos están en la lista de permisos → REJECT | `"No puedes tener permisos procesar y procesar:write al mismo tiempo"` |
+| Migration: old `odontologia` | MUST be replaced by `procesar` during `_load_users()` or `list_users()` | Internal — no error message |
+| Migration: old `urgencias` | MUST be replaced by `procesar` during migration | Internal |
+| Migration: old `odontologia_equipos_basicos` | MUST be replaced by `procesar` during migration | Internal |
 
 ### R2: `delete_user()` — Guard Rules
 
@@ -194,6 +272,13 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 - [ ] `POST /auth/usuarios/<username>/editar` extracts person fields from form
 - [ ] `DEFAULT_USERS` includes `""` for all 4 person fields
 - [ ] `_load_users()` backfills legacy users missing person fields
+- [ ] `procesar`, `procesar:write`, `cronograma_bacteriologas`, `cronograma_urgencias` in `ALLOWED_PERMISOS`
+- [ ] `odontologia`, `urgencias`, `odontologia_equipos_basicos` removed from `ALLOWED_PERMISOS`
+- [ ] `PERMISO_MUTUAL_EXCLUSION` includes `procesar`/`procesar:write` pair
+- [ ] `_load_users()` migrates old `odontologia` → `procesar`, `urgencias` → `procesar`, `odontologia_equipos_basicos` → `procesar`
+- [ ] `DEFAULT_USERS` has `procesar` and `procesar_full` users (no old area-specific defaults)
+- [ ] Frontend `ALL_PERMISOS` includes `procesar`, `procesar:write`, `cronograma_bacteriologas`, `cronograma_urgencias` with correct labels
+- [ ] Frontend `ALL_PERMISOS` excludes `odontologia`, `urgencias`, `odontologia_equipos_basicos`
 
 ---
 
@@ -269,15 +354,19 @@ return redirect(url_for("auth.listar_usuarios"))
         <option value="admin">Admin</option>
       </select>
 
-      <!-- Permisos: checkboxes (same as create form, distinct cruce_facturas/equipos_basicos) -->
+      <!-- Permisos: checkboxes (rendered by React usuarios page, but remains as reference for server-rendered fallback) -->
       <fieldset>
         <legend>Permisos</legend>
-        <label><input type="checkbox" name="permisos" value="odontologia" /> Odontología</label>
-        <label><input type="checkbox" name="permisos" value="urgencias" /> Urgencias</label>
-        <label><input type="checkbox" name="permisos" value="control_urgencias" /> Control Urgencias</label>
-        <label><input type="checkbox" name="permisos" value="facturas_abiertas" /> Facturas Abiertas</label>
+        <label><input type="checkbox" name="permisos" value="procesar" /> Procesar (lectura)</label>
+        <label><input type="checkbox" name="permisos" value="procesar:write" /> Procesar (modificar)</label>
+        <label><input type="checkbox" name="permisos" value="cronograma_bacteriologas" /> Cronograma Bacteriólogas</label>
+        <label><input type="checkbox" name="permisos" value="cronograma_urgencias" /> Cronograma Urgencias</label>
+        <label><input type="checkbox" name="permisos" value="control_urgencias" /> Control Urgencias (lectura)</label>
+        <label><input type="checkbox" name="permisos" value="control_urgencias:write" /> Control Urgencias (modificar)</label>
+        <label><input type="checkbox" name="permisos" value="facturas_abiertas" /> Facturas Abiertas (lectura)</label>
+        <label><input type="checkbox" name="permisos" value="facturas_abiertas:write" /> Facturas Abiertas (modificar)</label>
         <label><input type="checkbox" name="permisos" value="cruce_facturas" /> Cruce de Reportes</label>
-        <label><input type="checkbox" name="permisos" value="equipos_basicos" /> Equipos Básicos</label>
+        <label><input type="checkbox" name="permisos" value="equipos_basicos" /> Ordenado y Facturado</label>
         <label><input type="checkbox" name="permisos" value="derechos" /> Derechos</label>
       </fieldset>
 
@@ -343,6 +432,26 @@ return redirect(url_for("auth.listar_usuarios"))
     <span class="icon">👥</span> Usuarios
   </a>
 {% endif %}
+```
+
+### React `ALL_PERMISOS` — Frontend Reference
+
+The usuarios React page (`frontend/src/pages/usuarios/page.tsx`) renders the permisos checkboxes from the `ALL_PERMISOS` constant array:
+
+```typescript
+const ALL_PERMISOS = [
+  { value: "procesar", label: "Procesar (lectura)" },
+  { value: "procesar:write", label: "Procesar (modificar)" },
+  { value: "cronograma_bacteriologas", label: "Cronograma Bacteriólogas" },
+  { value: "cronograma_urgencias", label: "Cronograma Urgencias" },
+  { value: "control_urgencias", label: "Control de Urgencias (lectura)" },
+  { value: "control_urgencias:write", label: "Control de Urgencias (modificar)" },
+  { value: "facturas_abiertas", label: "Facturas Abiertas (lectura)" },
+  { value: "facturas_abiertas:write", label: "Facturas Abiertas (modificar)" },
+  { value: "cruce_facturas", label: "Cruce de Reportes" },
+  { value: "equipos_basicos", label: "Ordenado y Facturado" },
+  { value: "derechos", label: "Derechos" },
+];
 ```
 
 ### `auth.js` — Event Listener Contract

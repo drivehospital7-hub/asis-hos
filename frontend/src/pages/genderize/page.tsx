@@ -330,16 +330,26 @@ export function GenderizePage() {
                 Discrepancias encontradas:{" "}
                 <StatusBadge tone="danger">{result.total_discrepancies}</StatusBadge>
               </p>
-              <div className="overflow-x-auto rounded-lg border"
+              <div className="rounded-lg border"
                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-                <table className="w-full text-sm">
+                <table className="w-full text-sm table-fixed">
+                  <colgroup>
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "14%" }} />
+                    <col style={{ width: "16%" }} />
+                    <col style={{ width: "10%" }} />
+                    <col style={{ width: "20%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "6%" }} />
+                    <col style={{ width: "18%" }} />
+                  </colgroup>
                   <thead>
                     <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider"
                         style={{ color: "oklch(0.55 0.04 160)" }}>
-                      <th className="py-3 px-4 text-left">Nº Factura</th>
-                      <th className="py-3 px-4 text-left">Nº Identificación</th>
-                      <th className="py-3 px-4 text-left">Entidad Cobrar</th>
-                      <th className="py-3 px-4 text-left">Tipo Identificación</th>
+                      <th className="py-3 px-4 text-left truncate">Nº Factura</th>
+                      <th className="py-3 px-4 text-left truncate">Nº Identificación</th>
+                      <th className="py-3 px-4 text-left truncate">Entidad Cobrar</th>
+                      <th className="py-3 px-4 text-left truncate">Tipo Identificación</th>
                       <th className="py-3 px-4 text-left">Nombre Completo</th>
                       <th className="py-3 px-4 text-left">Sexo Excel</th>
                       <th className="py-3 px-4 text-left">Sexo JSON</th>
@@ -350,11 +360,11 @@ export function GenderizePage() {
                     {result.discrepancies.map((d, i) => (
                       <tr key={i} className="border-b"
                           style={{ background: "oklch(0.45 0.18 25 / 0.08)", borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                        <td className="py-3 px-4 font-mono text-xs">{d.numero_factura}</td>
-                        <td className="py-3 px-4 font-mono text-xs">{d.numero_identificacion}</td>
-                        <td className="py-3 px-4 font-mono text-xs">{d.entidad_cobrar}</td>
-                        <td className="py-3 px-4 font-mono text-xs">{d.tipo_identificacion}</td>
-                        <td className="py-3 px-4 font-medium text-xs">{d.nombre_completo}</td>
+                        <td className="py-3 px-4 font-mono text-xs truncate" title={d.numero_factura}>{d.numero_factura}</td>
+                        <td className="py-3 px-4 font-mono text-xs truncate" title={d.numero_identificacion}>{d.numero_identificacion}</td>
+                        <td className="py-3 px-4 font-mono text-xs truncate" title={d.entidad_cobrar}>{d.entidad_cobrar}</td>
+                        <td className="py-3 px-4 font-mono text-xs truncate" title={d.tipo_identificacion}>{d.tipo_identificacion}</td>
+                        <td className="py-3 px-4 font-medium text-xs break-words">{d.nombre_completo}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_excel}</td>
                         <td className="py-3 px-4 text-xs">{d.sexo_api}</td>
                         <td className="py-3 px-4 flex gap-1.5 items-center">
