@@ -1358,6 +1358,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     loadErrores();
   }
   
+  /** Sanitiza un valor CSV para evitar que Excel lo interprete como fórmula.
+   *  Antepone un apóstrofe si el valor arranca con =, -, + o @. */
+  function _sanitizeCSV(val) {
+    if (typeof val !== 'string') return val;
+    return val.replace(/^([=\-+@])/, "'$1");
+  }
+
   function exportToCSV() {
     if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
@@ -1384,7 +1391,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const monthName = monthNames[parseInt(month) - 1];
     const filename = `control-errores-${monthName}-${year}.csv`;
     
-    const headers = ['Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Estado'];
+    const headers = ['Validador', 'Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Observación del Facturador', 'Estado'];
     const rows = erroresDelMes.map(e => {
       // Formatear fecha
       let fecha = '-';
@@ -1393,11 +1400,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         fecha = d.toLocaleDateString('es-CO');
       }
       return [
+        e.validador || '',
         e.factura || 'ERR-' + e.id,
         fecha,
         e.tipo_error || '',
-        (e.observacion || '').replace(/"/g, '""'), // Escape comillas
+        e.observacion || '',
         e.responsable || '',
+        e.observacion_facturador || '',
         e.estado === 'S' ? 'Pendiente' : 'Resuelto'
       ];
     });
@@ -1405,7 +1414,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     // Construir CSV con BOM para UTF-8
     const csvContent = [
       headers.join(','),
-      ...rows.map(r => r.map(c => `"${c}"`).join(','))
+      ...rows.map(r => r.map(c => {
+        const sanitized = _sanitizeCSV(c);
+        return `"${sanitized.replace(/"/g, '""')}"`;
+      }).join(','))
     ].join('\n');
     
     // Agregar BOM para que Excel detecte UTF-8 correctamente
