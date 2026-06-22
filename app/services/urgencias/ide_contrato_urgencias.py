@@ -88,12 +88,15 @@ def detect_ide_contrato_urgencias(
                     identificaciones_con_890405.add(codigo_normalized)
 
     problemas_ide_contrato: list[dict[str, Any]] = []
+    facturas_procesadas: set[str] = set()
 
     # ----- Loop principal: validar IDE Contrato por fila
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:
+            continue
+        if factura_str in facturas_procesadas:
             continue
 
         codigo = data_sheet.cell(row=row, column=codigo_idx + 1).value
@@ -133,6 +136,7 @@ def detect_ide_contrato_urgencias(
                         "ide_contrato_actual": ide_contrato_str,
                         "ide_contrato_deberia": rule["expected"],
                     })
+                    facturas_procesadas.add(factura_str)
                     logger.debug(
                         "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
                         row, codigo_entidad_str, codigo_excluir,
@@ -154,6 +158,7 @@ def detect_ide_contrato_urgencias(
                         "ide_contrato_deberia": ide_esperado,
                         "tiene_insercion": tiene_insercion,
                     })
+                    facturas_procesadas.add(factura_str)
                     logger.debug(
                         "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: '%s', Inserción: %s)",
                         row, codigo_entidad_str, codigo_excluir,
@@ -175,6 +180,7 @@ def detect_ide_contrato_urgencias(
                         "ide_contrato_deberia": ide_esperado,
                         "tiene_890405": tiene_890405_flag,
                     })
+                    facturas_procesadas.add(factura_str)
                     logger.debug(
                         "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado: '%s', Tiene 890405: %s)",
                         row, codigo_entidad_str, codigo_excluir,
@@ -194,6 +200,7 @@ def detect_ide_contrato_urgencias(
                         "ide_contrato_deberia": f"uno de: {sorted(rule['expected_set'])}",
                         "nota": rule["note"],
                     })
+                    facturas_procesadas.add(factura_str)
                     logger.debug(
                         "Fila %s: Entidad=%s, Código=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
                         row, codigo_entidad_str, codigo_excluir,
@@ -240,6 +247,7 @@ def detect_ide_contrato_urgencias(
                         "ide_contrato_deberia": ide_contrato_requerido,
                         "nota": "Regla Entidad->Contrato",
                     })
+                    facturas_procesadas.add(factura_str)
                     logger.debug(
                         "Fila %s: Entidad=%s, IDE incorrecto (Actual: '%s', Esperado: %s)",
                         row, codigo_entidad_str, ide_contrato_str, ide_contrato_requerido,
@@ -258,6 +266,7 @@ def detect_ide_contrato_urgencias(
                     "ide_contrato_deberia": f"uno de: {sorted(contratos_validos)}",
                     "nota": "Entidad con múltiples contratos válidos",
                 })
+                facturas_procesadas.add(factura_str)
                 logger.debug(
                     "Fila %s: Entidad=%s, IDE incorrecto (Actual: '%s', Esperado uno de: %s)",
                     row, codigo_entidad_str, ide_contrato_str, sorted(contratos_validos),

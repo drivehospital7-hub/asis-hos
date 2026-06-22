@@ -179,11 +179,14 @@ def detect_ide_contrato_odontologia(
         return []
 
     problemas: list[dict[str, str]] = []
+    facturas_procesadas: set[str] = set()
 
     for row in range(2, data_sheet.max_row + 1):
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:
+            continue
+        if factura_str in facturas_procesadas:
             continue
 
         codigo_entidad = data_sheet.cell(row=row, column=codigo_entidad_idx + 1).value
@@ -216,13 +219,14 @@ def detect_ide_contrato_odontologia(
             continue
 
         if ide_str not in ide_esperado_set:
-            problemas.append({
-                "factura": factura_str,
-                "codigo": codigo_str,
-                "cod_entidad": codigo_entidad_str,
-                "ide_actual": ide_str,
-                "ide_deberia": " o ".join(sorted(ide_esperado_set)),
-                "nota": nota,
-            })
+                problemas.append({
+                    "factura": factura_str,
+                    "codigo": codigo_str,
+                    "cod_entidad": codigo_entidad_str,
+                    "ide_actual": ide_str,
+                    "ide_deberia": " o ".join(sorted(ide_esperado_set)),
+                    "nota": nota,
+                })
+                facturas_procesadas.add(factura_str)
 
     return problemas

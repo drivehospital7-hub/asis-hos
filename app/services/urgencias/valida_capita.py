@@ -80,6 +80,14 @@ def detect_capita_cups_invalidos(
         if codigo_str in URGENCIAS_CAPITA_CUPS_CODES:
             continue
 
+        # Fallback: verificar Cód. Equivalente CUPS
+        codigo_equiv_idx = indices.get("codigo_equiv")
+        if codigo_equiv_idx is not None:
+            equiv_val = data_sheet.cell(row=row, column=codigo_equiv_idx + 1).value
+            equiv_str = str(equiv_val).strip().upper() if equiv_val else ""
+            if equiv_str in URGENCIAS_CAPITA_CUPS_CODES:
+                continue  # válido por equivalencia
+
         procedimiento = ""
         if procedimiento_idx is not None:
             proc_value = data_sheet.cell(row=row, column=procedimiento_idx + 1).value

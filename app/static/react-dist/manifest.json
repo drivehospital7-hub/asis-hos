@@ -1,4 +1,12 @@
 {
+  "_app-layout-CWhRcpOd.js": {
+    "file": "assets/app-layout-CWhRcpOd.js",
+    "name": "app-layout",
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_eye-Cy85FeWW.js"
+    ]
+  },
   "_app-layout-7IHTHcpW.js": {
     "file": "assets/app-layout-7IHTHcpW.js",
     "name": "app-layout",
@@ -89,12 +97,27 @@
       "_globals-IEYCF5gg.js"
     ]
   },
+  "_status-badge-QgZOOh3r.js": {
+    "file": "assets/status-badge-QgZOOh3r.js",
+    "name": "status-badge",
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_app-layout-7IHTHcpW.js"
+    ]
+  },
   "_status-badge-CfsJsJV3.js": {
     "file": "assets/status-badge-CfsJsJV3.js",
     "name": "status-badge",
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-7IHTHcpW.js"
+    ]
+  },
+  "_download-C8wq8Rqr.js": {
+    "file": "assets/download-C8wq8Rqr.js",
+    "name": "download",
+    "imports": [
+      "_globals-IEYCF5gg.js"
     ]
   },
   "_trash-2-CHuTzTk0.js": {
@@ -155,15 +178,16 @@
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-B9B78Des.js",
+    "file": "assets/index-DZgNYO8r.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-7IHTHcpW.js",
-      "_status-badge-CfsJsJV3.js",
-      "_eye-Cy85FeWW.js"
+      "_status-badge-QgZOOh3r.js",
+      "_eye-Cy85FeWW.js",
+      "_download-C8wq8Rqr.js"
     ]
   },
   "src/pages/index/index.html": {

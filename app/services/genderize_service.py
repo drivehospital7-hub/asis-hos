@@ -1,28 +1,21 @@
-"""Servicio Genderize con cache local."""
+"""Servicio Genderize con cache local (sin API)."""
 import json
 import logging
 import os
 import re
-import time
 import unicodedata
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
-from urllib.error import HTTPError
-from urllib.parse import urlencode
-from urllib.request import urlopen, Request
 
 logger = logging.getLogger(__name__)
-GENDERIZE_API_URL = "https://api.genderize.io"
-GENDERIZE_API_KEY = os.getenv("GENDERIZE_API_KEY")
-GENDERIZE_COUNTRY_ID = os.getenv("GENDERIZE_COUNTRY_ID", "CO")  # Colombia por defecto
+
+from app.constants.base import GENDER_DISPLAY_MAP, GENDER_VALID_LONG
 
 # Cache local — configurable via GENDERIZE_CACHE_FILE env var
-_CACHE_FILE_DEFAULT = Path(__file__).parent.parent / "data" / "genderize_cache.json"
+# NOTA: NO crear archivo vacío al importar — si no existe, _load_cache devuelve {}.
+# El archivo se crea SOLO cuando se guarda algo explícitamente (_save_cache).
+_CACHE_FILE_DEFAULT = Path("D:/CODE/genderize_cache.json")
 CACHE_FILE = Path(os.getenv("GENDERIZE_CACHE_FILE") or _CACHE_FILE_DEFAULT)
-CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-if not CACHE_FILE.exists():
-    CACHE_FILE.write_text("{}")
 
 # Patrones para "Hijo de" / "Hija de"
 _RE_HIJO = re.compile(r"^Hijo de\s+", re.IGNORECASE)
@@ -39,16 +32,42 @@ def _normalize(name: str) -> str:
 
 
 def _load_cache() -> dict[str, dict]:
-    """Carga cache desde JSON."""
+    """Carga cache desde JSON, limpiando BOM/zero-width chars de keys."""
     try:
-        return json.loads(CACHE_FILE.read_text(encoding="utf-8"))
+        raw: dict[str, dict] = json.loads(CACHE_FILE.read_text(encoding="utf-8-sig"))
+        # Limpiar BOM (U+FEFF) y otros caracteres invisibles de keys
+        # para que nombres pegados con caracteres ocultos matcheen correctamente
+        cleaned: dict[str, dict] = {}
+        for k, v in raw.items():
+            clean_key = k.replace("\ufeff", "").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").strip()
+            # Mapear null → "undefined" en memoria
+            # La cache física NO se reescribe a menos que se haga un override explícito
+            if v.get("gender") is None:
+                v["gender"] = "undefined"
+            cleaned[clean_key] = v
+        return cleaned
     except Exception:
         return {}
 
 
 def _save_cache(cache: dict) -> None:
-    """Guarda cache a JSON."""
+    """Guarda cache a JSON. Crea el directorio si no existe."""
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
     CACHE_FILE.write_text(json.dumps(cache, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _normalize_gender(value: str) -> str:
+    """Normaliza un valor de género a su forma larga canónica.
+
+    Acepta short codes (F/M/L/U) y long forms (female/male/lastname/undefined).
+    """
+    upper = value.strip().upper()
+    if upper in GENDER_DISPLAY_MAP:
+        return GENDER_DISPLAY_MAP[upper]
+    lower = value.strip().lower()
+    if lower in GENDER_VALID_LONG:
+        return lower
+    raise ValueError(f"genero invalido: '{value}'. Debe ser F/M/L/U o female/male/lastname/undefined")
 
 
 def override_gender(normalized_name: str, new_gender: str) -> bool:
@@ -56,19 +75,24 @@ def override_gender(normalized_name: str, new_gender: str) -> bool:
 
     Args:
         normalized_name: Nombre normalizado (key del cache).
-        new_gender: Nuevo género ('male' o 'female').
+        new_gender: Nuevo género: short code (F/M/L/U) o long form (female/male/lastname/undefined).
 
     Returns:
         True si se actualizó, False si no existía en cache.
+
+    Raises:
+        ValueError: Si new_gender no es un valor válido.
     """
+    gender = _normalize_gender(new_gender)
+
     cache = _load_cache()
     if normalized_name not in cache:
         logger.warning("Nombre no encontrado en cache: %s", normalized_name)
         return False
 
-    cache[normalized_name]["gender"] = new_gender
+    cache[normalized_name]["gender"] = gender
     _save_cache(cache)
-    logger.info("Override cache: %s → %s", normalized_name, new_gender)
+    logger.info("Override cache: %s → %s", normalized_name, gender)
     return True
 
 
@@ -89,27 +113,24 @@ class GenderResult:
     count: int | None
 
 
-@dataclass
-class RateLimitInfo:
-    limit: int
-    remaining: int
-    reset: int
+def predict_genders(names: list[str]) -> list[GenderResult]:
+    """Predict gender usando solo cache local (sin API).
 
-
-def predict_genders(names: list[str]) -> tuple[list[GenderResult], RateLimitInfo | None]:
-    """Predict gender con cache local."""
+    Cache hit → retorna GenderResult con datos cacheados.
+    Cache miss → skip silencioso (no asigna U, no muta cache).
+    "Hijo de"/"Hija de" → clasificado localmente via _classify().
+    """
     if not names:
-        return [], None
+        return []
 
     cache = _load_cache()
     results: list[GenderResult] = []
-    api_names: list[tuple[str, str, str | None]] = []  # (original, normalized, forced_gender)
 
     for original in names:
         original, forced = _classify(original)
         normalized = _normalize(original)
-        
-        # Lookup en cache
+
+        # Cache hit → devolver valor cacheado
         if normalized in cache:
             logger.info("Cache hit: %s", normalized)
             cached = cache[normalized]
@@ -119,84 +140,18 @@ def predict_genders(names: list[str]) -> tuple[list[GenderResult], RateLimitInfo
                 probability=cached["probability"],
                 count=cached["count"],
             ))
-        else:
-            api_names.append((original, normalized, forced))
-
-    # Si hay nombres sin cache, consultar API
-    if api_names:
-        originals = [n[0] for n in api_names]
-        normals = [n[1] for n in api_names]
-        forceds = [n[2] for n in api_names]
-        
-        params = [(f"name[{i}]", n) for i, n in enumerate(originals)]
-        if GENDERIZE_API_KEY:
-            params.append(("apikey", GENDERIZE_API_KEY))
-        if GENDERIZE_COUNTRY_ID:
-            params.append(("country_id", GENDERIZE_COUNTRY_ID))
-        query = urlencode(params)
-        url = f"{GENDERIZE_API_URL}?{query}"
-        
-        logger.info("API call para %d nombres (pais: %s)", len(api_names), GENDERIZE_COUNTRY_ID or "global")
-        
-        # Retry con backoff para 429 Too Many Requests
-        max_retries = 3
-        rate_limit = None
-        
-        for attempt in range(max_retries):
-            try:
-                request = Request(url)
-                with urlopen(request, timeout=30) as response:
-                    data: list[dict[str, Any]] = json.load(response)
-                    api_results = {item["name"]: item for item in data}
-                    rate_limit = RateLimitInfo(
-                        limit=int(response.headers.get("X-Rate-Limit-Limit", 0)),
-                        remaining=int(response.headers.get("X-Rate-Limit-Remaining", 0)),
-                        reset=int(response.headers.get("X-Rate-Limit-Reset", 0)),
-                    )
-                    break  # éxito, salir del loop
-                    
-            except HTTPError as e:
-                if e.code == 429 and attempt < max_retries - 1:
-                    wait = 2 ** attempt  # 1s, 2s, 4s
-                    logger.warning("Rate limit (429) en intento %d/%d — esperando %ds",
-                                   attempt + 1, max_retries, wait)
-                    time.sleep(wait)
-                    continue
-                # Extraer rate limit de headers aunque haya error
-                if e.headers:
-                    rate_limit = RateLimitInfo(
-                        limit=int(e.headers.get("X-Rate-Limit-Limit", 0)),
-                        remaining=int(e.headers.get("X-Rate-Limit-Remaining", 0)),
-                        reset=int(e.headers.get("X-Rate-Limit-Reset", 0)),
-                    )
-                if e.code != 429:
-                    logger.warning("HTTP %d en genderize (no es rate limit)", e.code)
-                logger.exception("Error HTTP genderize: %s", e.code)
-                raise
-
-        # Guardar en cache y agregar resultados
-        for original, normalized, forced in api_names:
-            api_item = api_results.get(original, {})
-            gender = forced or api_item.get("gender")
-            
-            # Guardar en cache (key = normalized)
-            cache[normalized] = {
-                "gender": gender,
-                "probability": api_item.get("probability"),
-                "count": api_item.get("count"),
-            }
-            
+        elif forced:
+            # Hijo de/Hija de sin cache → clasificar localmente
             results.append(GenderResult(
                 name=original,
-                gender=gender,
-                probability=api_item.get("probability"),
-                count=api_item.get("count"),
+                gender=forced,
+                probability=None,
+                count=None,
             ))
-        
-        _save_cache(cache)
+        # Cache miss → skip (no API call, no auto-U)
 
     # Ordenar resultados igual al input
     results_dict = {r.name: r for r in results}
     ordered = [results_dict[n] for n in names if n in results_dict]
 
-    return ordered, rate_limit if api_names else None
+    return ordered

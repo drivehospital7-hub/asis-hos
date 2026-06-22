@@ -113,3 +113,144 @@ class TestDetectIdeContratoOdontologia:
         result = detect_ide_contrato_odontologia(ws, indices)
 
         assert len(result) == 0
+
+
+class TestDedupIdeContratoOdontologia:
+    """Tests para deduplicación de errores de contrato por factura (R1)."""
+
+    def test_misma_factura_tres_filas_un_error(
+        self, workbook_with_ide_contrato_headers: Workbook
+    ) -> None:
+        """Misma factura con 3 filas violando la regla → exactamente 1 error.
+
+        Spec R1 Happy path: 12 rows all violating → exactly 1 contract error.
+        """
+        ws = workbook_with_ide_contrato_headers.active
+        for row in [2, 3, 4]:
+            ws.cell(row=row, column=1, value="FAC-001")
+            ws.cell(row=row, column=2, value="ESS118")
+            ws.cell(row=row, column=3, value="997002")  # PyP
+            ws.cell(row=row, column=4, value="969")  # Inválido
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_odontologia(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["factura"] == "FAC-001"
+
+    def test_dos_facturas_distintas_dos_errores(
+        self, workbook_with_ide_contrato_headers: Workbook
+    ) -> None:
+        """2 facturas distintas con errores → 2 errores (1 por factura).
+
+        Spec R1 Mixed invoices: 2 invoices, 24 rows → exactly 2 errors.
+        """
+        ws = workbook_with_ide_contrato_headers.active
+        # FAC-001: 2 filas violando
+        ws.cell(row=2, column=1, value="FAC-001")
+        ws.cell(row=2, column=2, value="ESS118")
+        ws.cell(row=2, column=3, value="997002")
+        ws.cell(row=2, column=4, value="969")
+
+        ws.cell(row=3, column=1, value="FAC-001")
+        ws.cell(row=3, column=2, value="ESS118")
+        ws.cell(row=3, column=3, value="997002")
+        ws.cell(row=3, column=4, value="969")
+
+        # FAC-002: 2 filas violando
+        ws.cell(row=4, column=1, value="FAC-002")
+        ws.cell(row=4, column=2, value="ESS118")
+        ws.cell(row=4, column=3, value="997002")
+        ws.cell(row=4, column=4, value="969")
+
+        ws.cell(row=5, column=1, value="FAC-002")
+        ws.cell(row=5, column=2, value="ESS118")
+        ws.cell(row=5, column=3, value="997002")
+        ws.cell(row=5, column=4, value="969")
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_odontologia(ws, indices)
+
+        assert len(result) == 2
+        facturas = {r["factura"] for r in result}
+        assert facturas == {"FAC-001", "FAC-002"}
+
+    def test_sin_violaciones_cero_errores(
+        self, workbook_with_ide_contrato_headers: Workbook
+    ) -> None:
+        """Factura sin violaciones de contrato → 0 errores (regression).
+
+        Spec R1 No violations: all rows correct → 0 errors.
+        """
+        ws = workbook_with_ide_contrato_headers.active
+        for row in [2, 3, 4]:
+            ws.cell(row=row, column=1, value="FAC-001")
+            ws.cell(row=row, column=2, value="ESS118")
+            ws.cell(row=row, column=3, value="997002")  # PyP
+            ws.cell(row=row, column=4, value="970")  # Correcto
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_odontologia(ws, indices)
+
+        assert len(result) == 0
+
+    def test_factura_sin_error_no_contamina_otras(
+        self, workbook_with_ide_contrato_headers: Workbook
+    ) -> None:
+        """Factura sin error + factura con error → solo 1 error.
+
+        Triangulation: verify no cross-invoice contamination when one
+        invoice has no violations and another does.
+        """
+        ws = workbook_with_ide_contrato_headers.active
+        # FAC-001: 2 filas SIN error (IDE 970 correcto para ESS118+PyP)
+        ws.cell(row=2, column=1, value="FAC-001")
+        ws.cell(row=2, column=2, value="ESS118")
+        ws.cell(row=2, column=3, value="997002")
+        ws.cell(row=2, column=4, value="970")
+
+        ws.cell(row=3, column=1, value="FAC-001")
+        ws.cell(row=3, column=2, value="ESS118")
+        ws.cell(row=3, column=3, value="997002")
+        ws.cell(row=3, column=4, value="970")
+
+        # FAC-002: 2 filas con error
+        ws.cell(row=4, column=1, value="FAC-002")
+        ws.cell(row=4, column=2, value="ESS118")
+        ws.cell(row=4, column=3, value="997002")
+        ws.cell(row=4, column=4, value="969")
+
+        ws.cell(row=5, column=1, value="FAC-002")
+        ws.cell(row=5, column=2, value="ESS118")
+        ws.cell(row=5, column=3, value="997002")
+        ws.cell(row=5, column=4, value="969")
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_odontologia(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["factura"] == "FAC-002"
+
+    def test_fila_sin_factura_se_ignora(
+        self, workbook_with_ide_contrato_headers: Workbook
+    ) -> None:
+        """Fila sin número de factura se ignora, no crash (R3).
+
+        Spec R3: Missing invoice → no error, no crash.
+        """
+        ws = workbook_with_ide_contrato_headers.active
+        # Fila sin factura (None)
+        ws.cell(row=2, column=1, value=None)
+        ws.cell(row=2, column=2, value="ESS118")
+        ws.cell(row=2, column=3, value="997002")
+        ws.cell(row=2, column=4, value="969")
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_odontologia(ws, indices)
+
+        assert len(result) == 0
