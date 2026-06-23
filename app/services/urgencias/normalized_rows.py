@@ -62,7 +62,7 @@ def build_urgencias_normalized_rows(
         fecha_cierre_vacia_map: Dict {factura: True si Fecha Cierre está vacía} (opcional)
         revision_entidad_86: Lista de revisiones necesarias para entidad 86 (opcional)
         revision_cantidad: Lista de revisiones necesarias por cantidad > 1 (opcional)
-        duplicados_farmacia: Lista de revisiones por J07BG01 > 1 (opcional)
+        duplicados_farmacia: Lista de grupos duplicados de farmacia (opcional)
 
     Returns:
         Lista de dicts normalizados listos para escribir en Excel o renderizar en HTML
@@ -403,23 +403,28 @@ def build_urgencias_normalized_rows(
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
-    # --- ⚠️ Revisión Necesaria: Farmacia (J07BG01 > 1) ---
+    # --- ⚠️ Revisión Necesaria: Duplicados Farmacia ---
     if duplicados_farmacia:
         for item in duplicados_farmacia:
             factura = item.get("factura", "")
-            codigo = item.get("codigo", "")
-            cantidad = item.get("cantidad", "")
+            tipo_proc = item.get("codigo_tipo_procedimiento", "")
+            total_pares = item.get("total_pares", 0)
+            pares = item.get("pares_duplicados", [])
+            detalle_pares = "; ".join(
+                f"{p.get('codigo', '')} x{p.get('cantidad', '')} ({p.get('count', 0)} veces)"
+                for p in pares
+            )
             rows.append({
                 "tipo_error": "⚠️ Revisión Necesaria",
                 "factura": factura,
                 "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": (
-                    f"Farmacia — Código {codigo} con cantidad {cantidad} > 1 "
-                    "requiere revisión manual"
+                    f"Duplicados Farmacia — Grupo {tipo_proc}: "
+                    f"{total_pares} par(es) duplicado(s)"
                 ),
-                "procedimiento": codigo,
-                "detalle": f"Cant: {cantidad}",
+                "procedimiento": f"Grupo {tipo_proc}",
+                "detalle": detalle_pares or f"{total_pares} pares",
                 "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
