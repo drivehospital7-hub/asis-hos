@@ -335,16 +335,15 @@ def api_simulate():
 @admin_requerido
 def api_clear_evidence():
     """Delete all evidence and audit records (testing only)."""
-    db = next(get_db())
+    from app.database import _get_engine
+    engine = _get_engine()
     try:
-        db.execute(text("DELETE FROM resultados_auditoria"))
-        db.execute(text("DELETE FROM evidencias"))
-        db.commit()
+        with engine.connect() as conn:
+            conn.execute(text("DELETE FROM resultados_auditoria"))
+            conn.execute(text("DELETE FROM evidencias"))
+            conn.commit()
         logger.warning("All evidence and audit records deleted (testing cleanup)")
         return jsonify({"status": "success", "data": {"message": "Datos de evidencia y auditoria eliminados"}, "errors": []})
     except Exception as exc:
-        db.rollback()
         logger.exception("Error clearing evidence data")
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
-    finally:
-        db.close()
