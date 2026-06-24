@@ -76,6 +76,17 @@ def detect_all_problems_urgencias(
     decimales = detect_decimales(data_sheet, indices)
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(data_sheet, indices)
+            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(data_sheet, indices)
+            tipo_identificacion_entidad = r1 + r2
+            session.commit()
+        finally:
+            session.close()
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
     if is_rule_engine_enabled():
         from app.services.engine.rule_based_detector import RuleBasedDetector
