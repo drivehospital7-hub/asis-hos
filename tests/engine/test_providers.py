@@ -83,3 +83,65 @@ class TestContextProviderABC:
         from app.services.engine.providers import ContextProvider
         import inspect
         assert inspect.isabstract(ContextProvider)
+
+
+class TestGroupProvider:
+    """Tests for GroupProvider (prefix='group')."""
+
+    def test_resolves_simple_path(self):
+        from app.services.engine.providers import GroupProvider
+        from app.services.engine.context import EvaluationContext
+        provider = GroupProvider()
+        ctx = EvaluationContext(invoice_data={"collect_set_codigo": ["5DSB01", "890701"]})
+        result = provider.resolve("group.collect_set_codigo", ctx)
+        assert result == ["5DSB01", "890701"]
+
+    def test_returns_none_for_missing_key(self):
+        from app.services.engine.providers import GroupProvider
+        from app.services.engine.context import EvaluationContext
+        provider = GroupProvider()
+        ctx = EvaluationContext(invoice_data={})
+        result = provider.resolve("group.missing_key", ctx)
+        assert result is None
+
+    def test_none_invoice_data(self):
+        from app.services.engine.providers import GroupProvider
+        from app.services.engine.context import EvaluationContext
+        provider = GroupProvider()
+        ctx = EvaluationContext(invoice_data=None)
+        result = provider.resolve("group.any", ctx)
+        assert result is None
+
+    def test_prefix_property(self):
+        from app.services.engine.providers import GroupProvider
+        provider = GroupProvider()
+        assert provider.prefix == "group"
+
+    def test_resolves_value_counts(self):
+        from app.services.engine.providers import GroupProvider
+        from app.services.engine.context import EvaluationContext
+        provider = GroupProvider()
+        vc = [{"codigo": "A", "cantidad": 1, "count": 2}]
+        ctx = EvaluationContext(invoice_data={"collect_value_counts": vc})
+        result = provider.resolve("group.collect_value_counts", ctx)
+        assert result == vc
+
+
+class TestGroupProviderRegistry:
+    """Tests for GroupProvider registration in PROVIDER_REGISTRY."""
+
+    def test_group_provider_registered(self):
+        from app.services.engine.providers import PROVIDER_REGISTRY
+        assert "group" in PROVIDER_REGISTRY
+
+    def test_group_provider_is_group_provider(self):
+        from app.services.engine.providers import PROVIDER_REGISTRY, GroupProvider
+        assert isinstance(PROVIDER_REGISTRY["group"], GroupProvider)
+
+    def test_resolve_via_registry(self):
+        from app.services.engine.providers import PROVIDER_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        provider = PROVIDER_REGISTRY["group"]
+        ctx = EvaluationContext(invoice_data={"collect_set_codigo": ["A", "B"]})
+        result = provider.resolve("group.collect_set_codigo", ctx)
+        assert result == ["A", "B"]

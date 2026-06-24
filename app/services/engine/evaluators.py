@@ -443,6 +443,85 @@ class SalaObservacionEvaluator(AtomicEvaluator):
         return "5DSB01"
 
 
+class SetContainsAllEvaluator(AtomicEvaluator):
+    """Checks if ALL expected values are present in row_value (set ⊆ check).
+
+    operator = "set_contains_all"
+    row_value is expected to be a list (from collect_set aggregation).
+    expected is a list of values to check for.
+    """
+
+    operator = "set_contains_all"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return False
+        # Both must be iterable — convert to set for subset check
+        row_set = set(row_value)
+        expected_set = set(expected) if isinstance(expected, (list, tuple, set)) else {expected}
+        return expected_set.issubset(row_set)
+
+
+class SetIntersectsEvaluator(AtomicEvaluator):
+    """Checks if row_value intersects with expected values.
+
+    operator = "set_intersects"
+    row_value is expected to be a list (from collect_set aggregation).
+    expected is a list of values to check intersection with.
+    """
+
+    operator = "set_intersects"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return False
+        row_set = set(row_value)
+        expected_set = set(expected) if isinstance(expected, (list, tuple, set)) else {expected}
+        return bool(row_set & expected_set)
+
+
+class AllValuesMatchEvaluator(AtomicEvaluator):
+    """Checks if ALL pairs in row_value have count >= threshold.
+
+    operator = "all_values_match"
+    row_value is a list of dicts with a 'count' key (from collect_value_counts).
+    expected is an integer threshold.
+    """
+
+    operator = "all_values_match"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return False
+        if not isinstance(row_value, (list, tuple)):
+            return False
+        threshold = int(expected) if expected is not None else 0
+        for item in row_value:
+            if not isinstance(item, dict):
+                return False
+            if item.get("count", 0) < threshold:
+                return False
+        return True
+
+
 class CentroCostoCheckEvaluator(AtomicEvaluator):
     """Centro de costo common rules — checks all REGLA1-9 + REVERSE.
 
@@ -537,6 +616,9 @@ def _register_builtins() -> None:
         CodigoEntidadCoincideEvaluator(),
         SalaObservacionEvaluator(),
         CentroCostoCheckEvaluator(),
+        SetContainsAllEvaluator(),
+        SetIntersectsEvaluator(),
+        AllValuesMatchEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev

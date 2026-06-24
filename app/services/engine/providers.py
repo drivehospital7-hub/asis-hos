@@ -147,6 +147,22 @@ class ContractProvider(ContextProvider):
         return None
 
 
+class GroupProvider(ContextProvider):
+    """Resolves group-level aggregated data: group.collect_set_codigo, group.collect_value_counts.
+
+    Path format: "group.{field_name}" — looks up field_name in context.invoice_data.
+    The aggregated data is stored at invoice_data level by GroupEvaluator.
+    """
+
+    prefix = "group"
+
+    def resolve(self, path: str, context: "EvaluationContext") -> Any:
+        if context.invoice_data is None:
+            return None
+        field_name = path.split(".", 1)[-1] if "." in path else path
+        return context.invoice_data.get(field_name)
+
+
 class DateProvider(ContextProvider):
     """Computes derived date fields from invoice row data.
 
@@ -257,6 +273,7 @@ def _register_builtins() -> None:
         CatalogProvider(),
         ContractProvider(),
         DateProvider(),
+        GroupProvider(),
     ]
     for p in builtins:
         PROVIDER_REGISTRY[p.prefix] = p

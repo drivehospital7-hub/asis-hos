@@ -112,6 +112,15 @@ class GroupEvaluator:
                 agg_data[target] = GroupEvaluator._agg_sum(
                     rows, data_sheet, indices, field
                 )
+            elif func == "collect_set":
+                agg_data[target] = GroupEvaluator._agg_collect_set(
+                    rows, data_sheet, indices, field
+                )
+            elif func == "collect_value_counts":
+                fields = config.get("fields", [field])
+                agg_data[target] = GroupEvaluator._agg_collect_value_counts(
+                    rows, data_sheet, indices, fields
+                )
             else:
                 logger.warning("Unknown aggregation function: %s", func)
 
@@ -154,6 +163,58 @@ class GroupEvaluator:
             except (ValueError, TypeError):
                 pass
         return total
+
+    @staticmethod
+    def _agg_collect_set(
+        rows: list[int],
+        data_sheet: "Worksheet",
+        indices: dict[str, int | None],
+        field: str,
+    ) -> list[str]:
+        """Collect unique non-None values of a field across rows.
+
+        Returns a list (not set) for JSONB serialization compatibility.
+        """
+        values: set[str] = set()
+        field_idx = indices.get(field)
+        if field_idx is None:
+            return []
+        for row_idx in rows:
+            val = data_sheet.cell(row=row_idx, column=field_idx + 1).value
+            if val is not None:
+                values.add(str(val).strip())
+        return list(values)
+
+    @staticmethod
+    def _agg_collect_value_counts(
+        rows: list[int],
+        data_sheet: "Worksheet",
+        indices: dict[str, int | None],
+        fields: list[str],
+    ) -> list[dict[str, object]]:
+        """Count occurrences of (field1, field2) pairs across rows.
+
+        Returns a list of dicts with keys: codigo, cantidad, count.
+        JSONB-compatible output format.
+        """
+        from collections import Counter
+        field_indices = [indices.get(f) for f in fields]
+        pairs: Counter = Counter()
+        for row_idx in rows:
+            key = tuple(
+                str(data_sheet.cell(row=row_idx, column=col_idx + 1).value or "").strip()
+                for col_idx in field_indices
+                if col_idx is not None
+            )
+            pairs[key] += 1
+        result = []
+        for k, v in pairs.items():
+            entry: dict[str, object] = {"count": v}
+            for i, field_name in enumerate(fields):
+                if i < len(k):
+                    entry[field_name] = k[i]
+            result.append(entry)
+        return result
 
     @staticmethod
     def evaluate(

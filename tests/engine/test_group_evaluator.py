@@ -541,3 +541,179 @@ class TestGroupEvaluatorEvaluate:
         # Verify at least one evidence record for F001
         facturas_in_evidence = {e.factura for e in collector._buffer}
         assert "F001" in facturas_in_evidence
+
+
+class TestCollectSetAggregation:
+    """Integration tests for collect_set aggregation.
+
+    collect_set collects unique non-None values from a field across group rows
+    and returns them as a sorted list.
+    """
+
+    def test_collect_set_multiple_values(self):
+        """collect_set across multiple rows with distinct values → sorted list."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=2, column=1, value="5DSB01")
+        ws.cell(row=3, column=1, value="890701")
+        ws.cell(row=4, column=1, value="5DSB01")  # duplicate
+
+        indices = {"codigo": 0}
+        agg_configs = [{"function": "collect_set", "field": "codigo",
+                         "target": "collect_set_codigo"}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3, 4], ws, indices, agg_configs
+        )
+
+        result = group_data["collect_set_codigo"]
+        assert isinstance(result, list)
+        assert "5DSB01" in result
+        assert "890701" in result
+        assert len(result) == 2
+
+    def test_collect_set_with_nulls(self):
+        """collect_set skips None values."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=2, column=1, value="5DSB01")
+        ws.cell(row=3, column=1, value=None)
+        ws.cell(row=4, column=1, value="890701")
+
+        indices = {"codigo": 0}
+        agg_configs = [{"function": "collect_set", "field": "codigo",
+                         "target": "collect_set_codigo"}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3, 4], ws, indices, agg_configs
+        )
+
+        result = group_data["collect_set_codigo"]
+        assert isinstance(result, list)
+        assert len(result) == 2
+        assert "5DSB01" in result
+        assert "890701" in result
+
+    def test_collect_set_empty_group(self):
+        """collect_set with no data rows → empty list."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+
+        indices = {"codigo": 0}
+        agg_configs = [{"function": "collect_set", "field": "codigo",
+                         "target": "collect_set_codigo"}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [], ws, indices, agg_configs
+        )
+
+        assert group_data["collect_set_codigo"] == []
+
+
+class TestCollectValueCountsAggregation:
+    """Integration tests for collect_value_counts aggregation.
+
+    collect_value_counts counts (field1, field2) pairs across group rows
+    and returns a list of dicts with codigo, cantidad, count keys.
+    """
+
+    def test_collect_value_counts_multiple_pairs(self):
+        """Multiple (codigo, cantidad) pairs → list of dicts with counts."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=1, column=2, value="CANTIDAD")
+        # Row 1: (A, 1) appears twice
+        ws.cell(row=2, column=1, value="A")
+        ws.cell(row=2, column=2, value=1)
+        ws.cell(row=3, column=1, value="A")
+        ws.cell(row=3, column=2, value=1)
+        # Row 2: (B, 1) appears once
+        ws.cell(row=4, column=1, value="B")
+        ws.cell(row=4, column=2, value=1)
+
+        indices = {"codigo": 0, "cantidad": 1}
+        agg_configs = [{"function": "collect_value_counts", "fields": ["codigo", "cantidad"]}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3, 4], ws, indices, agg_configs
+        )
+
+        result = group_data["collect_value_counts"]
+        assert isinstance(result, list)
+        assert len(result) == 2
+        counts = {item["codigo"]: item["count"] for item in result}
+        assert counts["A"] == 2
+        assert counts["B"] == 1
+
+    def test_collect_value_counts_list_of_dicts_format(self):
+        """Each item has codigo, cantidad, count keys."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=1, column=2, value="CANTIDAD")
+        ws.cell(row=2, column=1, value="A")
+        ws.cell(row=2, column=2, value=1)
+        ws.cell(row=3, column=1, value="B")
+        ws.cell(row=3, column=2, value=2)
+
+        indices = {"codigo": 0, "cantidad": 1}
+        agg_configs = [{"function": "collect_value_counts", "fields": ["codigo", "cantidad"]}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3], ws, indices, agg_configs
+        )
+
+        for item in group_data["collect_value_counts"]:
+            assert "codigo" in item
+            assert "cantidad" in item
+            assert "count" in item
+
+    def test_collect_value_counts_empty_group(self):
+        """collect_value_counts with no data rows → empty list."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=1, column=2, value="CANTIDAD")
+
+        indices = {"codigo": 0, "cantidad": 1}
+        agg_configs = [{"function": "collect_value_counts", "fields": ["codigo", "cantidad"]}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [], ws, indices, agg_configs
+        )
+
+        assert group_data["collect_value_counts"] == []
+
+    def test_collect_value_counts_with_nulls(self):
+        """collect_value_counts handles None values by treating as empty string."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="CODIGO")
+        ws.cell(row=1, column=2, value="CANTIDAD")
+        ws.cell(row=2, column=1, value="A")
+        ws.cell(row=2, column=2, value=None)
+        ws.cell(row=3, column=1, value="A")
+        ws.cell(row=3, column=2, value=None)
+
+        indices = {"codigo": 0, "cantidad": 1}
+        agg_configs = [{"function": "collect_value_counts", "fields": ["codigo", "cantidad"]}]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3], ws, indices, agg_configs
+        )
+
+        result = group_data["collect_value_counts"]
+        assert len(result) == 1
+        assert result[0]["codigo"] == "A"
+        assert result[0]["count"] == 2

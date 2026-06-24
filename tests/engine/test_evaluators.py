@@ -186,7 +186,8 @@ class TestRegistry:
 
     def test_all_builtins_registered(self):
         from app.services.engine.evaluators import EVALUATOR_REGISTRY
-        expected = {"eq", "gt", "gte", "lt", "lte", "in", "contains", "regex", "regex_extract", "exists_in_db"}
+        expected = {"eq", "gt", "gte", "lt", "lte", "in", "contains", "regex", "regex_extract", "exists_in_db",
+                    "set_contains_all", "set_intersects", "all_values_match"}
         for op in expected:
             assert op in EVALUATOR_REGISTRY, f"Missing evaluator: {op}"
 
@@ -372,6 +373,190 @@ class TestExistsInDBEvaluator:
         assert result is True
 
     def test_db_error_returns_false_gracefully(self):
+        """When DB query throws, returns False (never crashes)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        session = MagicMock()
+        session.execute.side_effect = RuntimeError("DB down")
+        ctx = EvaluationContext(session=session)
+
+        result = evaluator.evaluate(
+            {}, "990203", {"table": "procedimiento", "field": "cups"}, context=ctx,
+        )
+        assert result is False
+
+
+class TestSetContainsAllEvaluator:
+    """Tests for SetContainsAllEvaluator (operator=set_contains_all).
+
+    set_contains_all: True iff set(row_value) ⊇ set(expected).
+    row_value is a list (from collect_set), expected is a list of values.
+    """
+
+    def test_full_contain(self):
+        """All expected values present → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, ["A", "B", "C"], ["A", "B"]) is True
+
+    def test_partial_overlap(self):
+        """Only some expected values present → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, ["A", "B"], ["A", "C"]) is False
+
+    def test_empty_row_value(self):
+        """Empty row_value list with non-empty expected → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, [], ["A"]) is False
+
+    def test_empty_expected(self):
+        """Empty expected list → True (vacuous truth)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, ["A", "B"], []) is True
+
+    def test_none_row_value(self):
+        """None row_value → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, None, ["A"]) is False
+
+    def test_row_value_not_a_list(self):
+        """String row_value → set() iterates chars, False likely."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        # set("A,B,C") = {",", "A", "B", "C"} — "A" is in it but this is a degenerate case
+        # We test that it doesn't crash and returns a bool
+        result = evaluator.evaluate({}, "A,B,C", ["A"])
+        assert isinstance(result, bool)
+
+    def test_string_numbers(self):
+        """Mixed string/numeric values compared as strings."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_contains_all"]
+        assert evaluator.evaluate({}, ["5DSB01", "890701"], ["5DSB01"]) is True
+
+
+class TestSetIntersectsEvaluator:
+    """Tests for SetIntersectsEvaluator (operator=set_intersects).
+
+    set_intersects: True iff set(row_value) ∩ set(expected) ≠ ∅.
+    """
+
+    def test_partial_intersect(self):
+        """Some values overlap → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, ["A", "B", "C"], ["C", "D"]) is True
+
+    def test_no_intersect(self):
+        """No overlapping values → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, ["A", "B"], ["C", "D"]) is False
+
+    def test_full_intersect(self):
+        """All values overlap → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, ["A", "B"], ["A", "B"]) is True
+
+    def test_empty_reference(self):
+        """Empty expected list → False (no intersection possible)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, ["A", "B"], []) is False
+
+    def test_empty_row_value(self):
+        """Empty row_value → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, [], ["A"]) is False
+
+    def test_none_row_value(self):
+        """None row_value → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, None, ["A"]) is False
+
+    def test_single_element_match(self):
+        """Single element row_value matching expected → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["set_intersects"]
+        assert evaluator.evaluate({}, ["5DSB01"], ["5DSB01", "129B02"]) is True
+
+
+class TestAllValuesMatchEvaluator:
+    """Tests for AllValuesMatchEvaluator (operator=all_values_match).
+
+    all_values_match: True iff ALL pairs in row_value have count >= expected.
+    row_value is list of dicts with 'count' key.
+    expected is an integer threshold.
+    """
+
+    def test_all_above_threshold(self):
+        """All counts >= threshold → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        data = [
+            {"codigo": "A", "cantidad": 1, "count": 3},
+            {"codigo": "B", "cantidad": 1, "count": 5},
+        ]
+        assert evaluator.evaluate({}, data, 2) is True
+
+    def test_some_below_threshold(self):
+        """Some counts < threshold → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        data = [
+            {"codigo": "A", "cantidad": 1, "count": 1},
+            {"codigo": "B", "cantidad": 1, "count": 3},
+        ]
+        assert evaluator.evaluate({}, data, 2) is False
+
+    def test_empty_list(self):
+        """Empty list → True (vacuous truth)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        assert evaluator.evaluate({}, [], 2) is True
+
+    def test_none_row_value(self):
+        """None row_value → False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        assert evaluator.evaluate({}, None, 2) is False
+
+    def test_exact_threshold(self):
+        """Count equal to threshold → True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        data = [
+            {"codigo": "A", "cantidad": 1, "count": 2},
+        ]
+        assert evaluator.evaluate({}, data, 2) is True
+
+    def test_threshold_zero(self):
+        """Threshold of 0 → True (all counts >= 0)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        data = [
+            {"codigo": "A", "cantidad": 1, "count": 0},
+        ]
+        assert evaluator.evaluate({}, data, 0) is True
+
+    def test_row_value_not_list(self):
+        """String row_value → tries iteration and may raise."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["all_values_match"]
+        # A string is iterable but has no 'count' key
+        assert evaluator.evaluate({}, "not_a_list", 2) is False
         """When DB query throws, returns False (never crashes)."""
         from app.services.engine.evaluators import EVALUATOR_REGISTRY
         from app.services.engine.context import EvaluationContext
