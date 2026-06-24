@@ -1,4 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+
+// Modal.confirm() from modal.js
+declare global {
+  interface Window {
+    Modal?: {
+      confirm: (msg: string) => Promise<boolean>;
+    };
+  }
+}
 import {
   Plus,
   Trash2,
@@ -1235,8 +1244,8 @@ function EvidenceDashboard() {
           Evidencias y Auditoría
         </h2>
         <Button size="sm" variant="destructive" onClick={async () => {
-          if (!window.__showConfirm) return;
-          const ok = await window.__showConfirm(
+          if (!window.Modal?.confirm) return;
+          const ok = await window.Modal.confirm(
             "ACCION DE PRUEBA.\n\nSe van a eliminar TODOS los registros de evidencia y auditoría.\n¿Estás seguro?"
           );
           if (!ok) return;
