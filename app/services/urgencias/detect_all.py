@@ -135,6 +135,15 @@ def detect_all_problems_urgencias(
     )
 
     copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            copago_entidad = RuleBasedDetector("copago_entidad_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     logger.info(
         "detect_all_problems_urgencias - Copago vs Entidad encontrados: %d",
         len(copago_entidad),
