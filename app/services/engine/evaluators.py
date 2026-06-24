@@ -443,6 +443,79 @@ class SalaObservacionEvaluator(AtomicEvaluator):
         return "5DSB01"
 
 
+class CentroCostoCheckEvaluator(AtomicEvaluator):
+    """Centro de costo common rules — checks all REGLA1-9 + REVERSE.
+
+    Returns True if ANY rule detects a violation. NOT wrapper makes it MATCH.
+    """
+    operator = "centro_costo_check"
+
+    def evaluate(self, condition, row_value, expected, context=None):
+        if context is None:
+            return False
+        from app.constants import (
+            CODIGO_TIPO_PROCEDIMIENTO_DIAGNOSTICO as COD_DIAG,
+            CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS as COD_TRASL,
+            LABORATORIO_NO as LAB_NO,
+            CENTRO_COSTO_APOYO_DIAGNOSTICO as CC_DIAG,
+            CENTRO_COSTO_FARMACIA as CC_FARM,
+            CENTRO_COSTO_HOSPITALIZACION_ESTANCIA as CC_HOSP,
+            CENTRO_COSTO_QUIROFANO_URGENCIAS as CC_QUIR,
+            CENTRO_COSTO_TRASLADOS as CC_TRAS,
+            CENTRO_COSTO_PYP_URGENCIAS as CC_PYP,
+            VALOR_TARIFARIO_FARMACIA as TAR_FARM,
+            CODIGOS_EXCEPTUADOS as EXCEPT,
+            CODIGOS_HOSPITALIZACION_ESTANCIA as COD_HOSP,
+            CODIGOS_PYP_URGENCIAS as COD_PYP,
+            CODIGOS_QUIROFANO_URGENCIAS as COD_QUIR,
+        )
+        inv = getattr(context, "invoice_data", {}) or {}
+        centro = str(inv.get("centro_costo", "")).strip().upper()
+        codigo = str(inv.get("codigo", "")).strip().upper()
+        cod_tipo = str(inv.get("codigo_tipo_procedimiento", "")).strip().upper()
+        lab = str(inv.get("laboratorio", "")).strip().upper()
+        tarif = str(inv.get("tarifario", "")).strip().upper()
+
+        if not centro:
+            return False
+
+        # REGLA9: Tarifario farmacia → centro=FARMACIA
+        if tarif == TAR_FARM and centro != CC_FARM:
+            return True
+        # REGLA1: Cod=diagnostico + Lab=NO → centro=APOYO_DIAG
+        if cod_tipo == COD_DIAG and lab == LAB_NO and codigo not in EXCEPT and centro != CC_DIAG:
+            return True
+        # REVERSE1: centro=APOYO_DIAG → cod=diag + lab=NO
+        if centro == CC_DIAG and (cod_tipo != COD_DIAG or lab != LAB_NO):
+            return True
+        # REGLA2: Cod=traslados → centro=TRASLADOS
+        if cod_tipo == COD_TRASL and centro != CC_TRAS:
+            return True
+        # REVERSE2: centro=TRASLADOS → cod=traslados
+        if centro == CC_TRAS and cod_tipo != COD_TRASL:
+            return True
+        # REGLA3: Cod PYP → centro=PYP
+        if codigo in COD_PYP and centro != CC_PYP:
+            return True
+        # REVERSE3: centro=PYP → cod PYP
+        if centro == CC_PYP and codigo not in COD_PYP:
+            return True
+        # REGLA4: Cod quirofano → centro=QUIROFANO
+        if codigo in COD_QUIR and centro != CC_QUIR:
+            return True
+        # REVERSE4: centro=QUIROFANO → cod quirofano
+        if centro == CC_QUIR and codigo not in COD_QUIR:
+            return True
+        # REGLA9REVERSE: centro=FARMACIA → tarifario farmacia
+        if centro == CC_FARM and tarif != TAR_FARM:
+            return True
+        # REGLA8: Cod hospitalizacion → centro=HOSPITALIZACION
+        if codigo in COD_HOSP and centro != CC_HOSP:
+            return True
+
+        return False
+
+
 # ── Registry ──────────────────────────────────────────────────────────────
 
 EVALUATOR_REGISTRY: dict[str, AtomicEvaluator] = {}
@@ -463,6 +536,7 @@ def _register_builtins() -> None:
         ExistsInDBEvaluator(),
         CodigoEntidadCoincideEvaluator(),
         SalaObservacionEvaluator(),
+        CentroCostoCheckEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev
