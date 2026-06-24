@@ -78,6 +78,23 @@ const FUENTES_DATOS = [
   "invoice.entidad_cobrar",
   "invoice.factura_count",
   "invoice.tipo_usuario",
+  "invoice.codigo_entidad_cobrar",
+  "invoice.vlr_copago",
+  "invoice.ide_contrato",
+  "invoice.tarifario",
+  "invoice.fec_nacimiento",
+  "invoice.fec_factura",
+  "invoice.laboratorio",
+  "invoice.tipo_factura_descripcion",
+  "invoice.codigo_equiv",
+  "invoice.codigo_tipo_procedimiento",
+  "invoice.entidad_afiliacion",
+  "invoice.responsable_cierra",
+  "invoice.profesional_atiende",
+  "date.edad",
+  "date.horas",
+  "invoice.distinct_count_tipo_procedimiento",
+  "invoice.sum_cantidad",
 ];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
@@ -190,9 +207,10 @@ function RulesListView() {
 
   useEffect(() => { load(); }, [load]);
 
-  const filteredItems = searchTerm
+  const filteredItems = (searchTerm
     ? items.filter((r) => r.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
-    : items;
+    : items
+  ).sort((a, b) => b.id - a.id);
 
   const handleViewDetail = async (item: Regla) => {
     try {
@@ -311,23 +329,29 @@ function RulesListView() {
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No hay reglas</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-          <table className="w-full text-sm">
+        <div className="rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                <th className="py-3 px-4 text-left w-14">#</th>
                 <th className="py-3 px-4 text-left">Nombre</th>
-                <th className="py-3 px-4 text-left">Dominio</th>
-                <th className="py-3 px-4 text-left">Estado</th>
-                <th className="py-3 px-4 text-left">Versión</th>
-                <th className="py-3 px-4 text-left">Prioridad</th>
-                <th className="py-3 px-4 text-left">Severidad</th>
-                <th className="py-3 px-4 text-left">Acciones</th>
+                <th className="py-3 px-4 text-left w-28">Dominio</th>
+                <th className="py-3 px-4 text-left w-24">Estado</th>
+                <th className="py-3 px-4 text-left w-16">Versión</th>
+                <th className="py-3 px-4 text-left w-20">Prioridad</th>
+                <th className="py-3 px-4 text-left w-24">Severidad</th>
+                <th className="py-3 px-4 text-left w-72">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                  <td className="py-3 px-4 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.nombre}</td>
+                  <td className="py-3 px-4 text-xs text-muted-foreground font-mono" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
+                  <td className="py-3 px-4 font-medium truncate cursor-pointer" style={{ color: "oklch(0.15 0.02 160)" }}
+                      title={item.nombre}
+                      onClick={() => handleViewDetail(item)}>
+                    {item.nombre}
+                  </td>
                   <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
                   <td className="py-3 px-4"><EstadoBadge estado={item.estado} /></td>
                   <td className="py-3 px-4">v{item.version}</td>
@@ -570,7 +594,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               ← Volver
             </Button>
             <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-              {rule.nombre} <span className="text-sm font-normal text-muted-foreground">v{rule.version}</span>
+              {rule.nombre} <span className="text-xs font-mono text-muted-foreground">(#{rule.id})</span> <span className="text-sm font-normal text-muted-foreground">v{rule.version}</span>
             </h2>
             <EstadoBadge estado={rule.estado} />
           </div>
@@ -1162,6 +1186,7 @@ function EvidenceDashboard() {
           factura: factura || undefined,
           regla_id: reglaId ? Number(reglaId) : undefined,
           dominio: dominio || undefined,
+          outcome: resultado || undefined,
           desde: desde || undefined,
           hasta: hasta || undefined,
           limit,
@@ -1249,9 +1274,19 @@ function EvidenceDashboard() {
             className="rounded-lg border px-3 py-1.5 text-sm outline-none"
             style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
             <option value="">Todos</option>
-            <option value="MATCH">Match</option>
-            <option value="NO_MATCH">No Match</option>
-            <option value="ERROR">Error</option>
+            <option value="FAIL">FAIL</option>
+            <option value="PASS">PASS</option>
+            <option value="ERROR">ERROR</option>
+          </select>
+        )}
+        {tab === "evidencias" && (
+          <select value={resultado} onChange={(e) => setResultado(e.target.value)}
+            className="rounded-lg border px-3 py-1.5 text-sm outline-none"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
+            <option value="">Todos</option>
+            <option value="MATCH">MATCH</option>
+            <option value="NO_MATCH">NO_MATCH</option>
+            <option value="ERROR">ERROR</option>
           </select>
         )}
         <input type="date" value={desde} onChange={(e) => setDesde(e.target.value)}
@@ -1272,7 +1307,7 @@ function EvidenceDashboard() {
 
       {error && <p className="text-sm text-danger mb-3">{error}</p>}
 
-      {loading ? (
+          {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin" />
         </div>
@@ -1281,6 +1316,44 @@ function EvidenceDashboard() {
           <p className="text-xs text-muted-foreground mb-2">Total: {results.total} resultados</p>
           {results.items.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">Sin resultados</p>
+          ) : tab === "evidencias" ? (
+            <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                    <th className="py-2 px-3 text-left">Factura</th>
+                    <th className="py-2 px-3 text-left">Regla</th>
+                    <th className="py-2 px-3 text-left">Outcome</th>
+                    <th className="py-2 px-3 text-left">Dominio</th>
+                    <th className="py-2 px-3 text-left">Traza</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(results.items as EvidenciaItem[]).map((item) => (
+                    <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                      <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.factura}</td>
+                      <td className="py-2 px-3">#{item.regla_id}</td>
+                      <td className="py-2 px-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{
+                            background: item.outcome === "MATCH" ? "oklch(0.6 0.2 145 / 0.1)" : "oklch(0.6 0.2 25 / 0.1)",
+                            color: item.outcome === "MATCH" ? "oklch(0.4 0.2 145)" : "oklch(0.6 0.2 25)",
+                          }}>
+                          {item.outcome}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3 text-xs">{item.dominio}</td>
+                      <td className="py-2 px-3">
+                        <span className="text-xs font-mono text-muted-foreground truncate block max-w-[200px]"
+                          title={JSON.stringify(item.arbol_evaluado)}>
+                          {JSON.stringify(item.arbol_evaluado).slice(0, 60)}...
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
               <table className="w-full text-sm">
@@ -1288,32 +1361,31 @@ function EvidenceDashboard() {
                   <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
                     <th className="py-2 px-3 text-left">Factura</th>
                     <th className="py-2 px-3 text-left">Regla</th>
-                    <th className="py-2 px-3 text-left">{tab === "evidencias" ? "Outcome" : "Resultado"}</th>
+                    <th className="py-2 px-3 text-left">Resultado</th>
+                    <th className="py-2 px-3 text-left">Severidad</th>
+                    <th className="py-2 px-3 text-left">Mensaje</th>
                     <th className="py-2 px-3 text-left">Fecha</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(results.items as Array<EvidenciaItem | AuditItem>).map((item) => {
-                    const outcome = "outcome" in item ? item.outcome : ("resultado" in item ? item.resultado : "");
-                    const label = String(outcome ?? "");
-                    const isMatch = label === "MATCH";
-                    return (
-                      <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                        <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.factura}</td>
-                        <td className="py-2 px-3">#{item.regla_id}</td>
-                        <td className="py-2 px-3">
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
-                            style={{
-                              background: isMatch ? "oklch(0.6 0.2 145 / 0.1)" : "oklch(0.6 0.2 25 / 0.1)",
-                              color: isMatch ? "oklch(0.4 0.2 145)" : "oklch(0.6 0.2 25)",
-                            }}>
-                            {label}
-                          </span>
-                        </td>
-                        <td className="py-2 px-3 text-xs text-muted-foreground">{item.creado_en ? String(item.creado_en).slice(0, 10) : "—"}</td>
-                      </tr>
-                    );
-                  })}
+                  {(results.items as AuditItem[]).map((item) => (
+                    <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                      <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.factura}</td>
+                      <td className="py-2 px-3">#{item.regla_id}</td>
+                      <td className="py-2 px-3">
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium"
+                          style={{
+                            background: item.resultado === "FAIL" ? "oklch(0.6 0.2 145 / 0.1)" : item.resultado === "PASS" ? "oklch(0.6 0.2 160 / 0.1)" : "oklch(0.5 0.2 55 / 0.1)",
+                            color: item.resultado === "FAIL" ? "oklch(0.4 0.2 145)" : item.resultado === "PASS" ? "oklch(0.4 0.2 160)" : "oklch(0.5 0.2 55)",
+                          }}>
+                          {item.resultado}
+                        </span>
+                      </td>
+                      <td className="py-2 px-3"><SeveridadBadge severidad={item.severidad} /></td>
+                      <td className="py-2 px-3 text-xs text-muted-foreground truncate max-w-[250px]">{item.mensaje ?? "—"}</td>
+                      <td className="py-2 px-3 text-xs text-muted-foreground">{item.creado_en ? String(item.creado_en).slice(0, 10) : "—"}</td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

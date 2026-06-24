@@ -22,6 +22,7 @@ def query_evidence(
     regla_id: int | None = None,
     factura: str | None = None,
     dominio: str | None = None,
+    outcome: str | None = None,
     desde: str | None = None,
     hasta: str | None = None,
     limit: int = _DEFAULT_LIMIT,
@@ -34,6 +35,7 @@ def query_evidence(
         regla_id: Filter by rule ID
         factura: Filter by factura number
         dominio: Filter by domain
+        outcome: Filter by outcome (MATCH, NO_MATCH, ERROR)
         desde: Start date (ISO string, inclusive)
         hasta: End date (ISO string, inclusive)
         limit: Max results per page (default 100)
@@ -52,6 +54,8 @@ def query_evidence(
         query = query.filter(Evidencia.factura == factura)
     if dominio is not None:
         query = query.filter(Evidencia.dominio == dominio)
+    if outcome is not None:
+        query = query.filter(Evidencia.outcome == outcome)
     if desde is not None:
         try:
             dt_desde = datetime.fromisoformat(desde)

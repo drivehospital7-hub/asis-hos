@@ -65,17 +65,26 @@ def build_odontologia_normalized_rows(
         if isinstance(item, dict):
             factura = item.get("factura", "")
             valores = item.get("valores", "")
+            # Engine output uses vlr_subsidiado/vlr_procedimiento
+            vlr_sub = item.get("vlr_subsidiado", "")
+            vlr_proc = item.get("vlr_procedimiento", "")
+            if not valores and (vlr_sub or vlr_proc):
+                valores = f"Sub: {vlr_sub}, Proc: {vlr_proc}"
+            codigo = item.get("codigo", "")
+            proc_nombre = item.get("procedimiento", "")
         else:
             factura = str(item) if item else ""
             valores = ""
+            codigo = ""
+            proc_nombre = ""
         rows.append({
             "tipo_error": "Decimales",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
             "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
-            "procedimiento": valores,
-            "detalle": "",
+            "procedimiento": _build_procedimiento(codigo, proc_nombre) or valores,
+            "detalle": f"Vlr.Sub: {vlr_sub}" if isinstance(item, dict) and item.get("vlr_subsidiado") else "",
         })
 
     # --- Doble tipo procedimiento ---

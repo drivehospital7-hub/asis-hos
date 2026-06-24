@@ -145,6 +145,18 @@ class RuleEvaluationEngine:
                         "severidad": rule.severidad,
                         "param_config_id": config_idx,
                     }
+                    # Include relevant Excel row data for display in /procesar
+                    for field in ("codigo", "codigo_equiv", "procedimiento", "tipo_identificacion",
+                                  "codigo_entidad_cobrar", "tipo_procedimiento", "vlr_subsidiado",
+                                  "vlr_procedimiento", "cantidad", "convenio_facturado",
+                                  "centro_costo", "ide_contrato", "entidad_cobrar",
+                                  "entidad_afiliacion", "tipo_usuario", "vlr_copago",
+                                  "codigo_tipo_procedimiento", "laboratorio", "tarifario",
+                                  "tipo_factura_descripcion", "responsable_cierra",
+                                  "profesional_atiende", "identificacion",
+                                  "fec_nacimiento", "fec_factura", "edad"):
+                        if field in row_data:
+                            problem[field] = row_data[field]
                     results.append(problem)
 
         # Flush all evidence and capture records with IDs

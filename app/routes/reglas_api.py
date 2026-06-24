@@ -238,6 +238,7 @@ def api_query_evidence():
         regla_id = request.args.get("regla_id", type=int)
         factura = request.args.get("factura")
         dominio = request.args.get("dominio")
+        outcome = request.args.get("outcome")
         desde = request.args.get("desde")
         hasta = request.args.get("hasta")
         limit = request.args.get("limit", default=100, type=int)
@@ -248,6 +249,7 @@ def api_query_evidence():
             regla_id=regla_id,
             factura=factura,
             dominio=dominio,
+            outcome=outcome,
             desde=desde,
             hasta=hasta,
             limit=limit,

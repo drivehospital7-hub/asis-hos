@@ -59,6 +59,7 @@ export interface EvidenciaItem {
   dominio: string;
   factura: string;
   outcome: string;
+  arbol_evaluado: Record<string, unknown>;
   creado_en: string | null;
 }
 
@@ -234,6 +235,7 @@ export async function queryEvidencias(params?: {
   regla_id?: number;
   factura?: string;
   dominio?: string;
+  outcome?: string;
   desde?: string;
   hasta?: string;
   limit?: number;
@@ -243,6 +245,7 @@ export async function queryEvidencias(params?: {
   if (params?.regla_id) searchParams.set("regla_id", String(params.regla_id));
   if (params?.factura) searchParams.set("factura", params.factura);
   if (params?.dominio) searchParams.set("dominio", params.dominio);
+  if (params?.outcome) searchParams.set("outcome", params.outcome);
   if (params?.desde) searchParams.set("desde", params.desde);
   if (params?.hasta) searchParams.set("hasta", params.hasta);
   if (params?.limit) searchParams.set("limit", String(params.limit));
