@@ -165,7 +165,7 @@ def build_odontologia_normalized_rows(
                 tipo_deberia = "RC"
             elif "mayor_18" in regla:
                 tipo_deberia = "CC"
-        desc = f"Tipo ID {tipo_actual} debería ser {tipo_deberia}" if tipo_deberia else f"Tipo ID incorrecto: {tipo_actual}"
+        desc = item.get("problema", "") or f"Tipo ID {tipo_actual} debería ser {tipo_deberia}" if tipo_deberia else f"Tipo ID incorrecto: {tipo_actual}"
         rows.append({
             "tipo_error": "Tipo Identificación / Edad",
             "factura": factura,
