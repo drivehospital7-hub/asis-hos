@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, request
+from sqlalchemy import text
 
 from app.database import get_db
 from app.services.reglas.rule_service import (
@@ -325,6 +326,25 @@ def api_simulate():
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
         logger.exception("Error running simulator")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/evidencias", methods=["DELETE"])
+@admin_requerido
+def api_clear_evidence():
+    """Delete all evidence and audit records (testing only)."""
+    db = next(get_db())
+    try:
+        db.execute(text("DELETE FROM resultados_auditoria"))
+        db.execute(text("DELETE FROM evidencias"))
+        db.commit()
+        logger.warning("All evidence and audit records deleted (testing cleanup)")
+        return jsonify({"status": "success", "data": {"message": "Datos de evidencia y auditoria eliminados"}, "errors": []})
+    except Exception as exc:
+        db.rollback()
+        logger.exception("Error clearing evidence data")
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()

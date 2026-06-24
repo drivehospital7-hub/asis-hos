@@ -276,6 +276,16 @@ export async function queryAuditoria(params?: {
   return apiGet<AuditResult>(`/api/auditoria${qs ? `?${qs}` : ""}`);
 }
 
+/** Delete all evidence and audit records (testing only). */
+export async function clearEvidencias(): Promise<{ message: string }> {
+  const res = await fetch("/api/evidencias", { method: "DELETE" });
+  const json: ApiResponse<{ message: string }> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error al limpiar datos");
+  }
+  return json.data;
+}
+
 // ─── Simulator ───────────────────────────────────────────────────────
 
 /** Run a dry-run simulation comparing engine vs legacy detectors. */
