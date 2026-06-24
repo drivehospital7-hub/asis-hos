@@ -354,6 +354,48 @@ class ExistsInDBEvaluator(AtomicEvaluator):
             return False
 
 
+class CodigoEntidadCoincideEvaluator(AtomicEvaluator):
+    """Cross-field entity code match: extracts code from entidad_afiliacion
+    using regex and compares with codigo_entidad_cobrar.
+
+    Uses the evaluation context to access both fields from the row.
+    Designed for the codigo_entidad_vs_entidad_afiliacion detector.
+    """
+
+    operator = "ent_code_match"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: Any = None,
+    ) -> bool:
+        import re
+        if context is None:
+            return False
+        invoice = getattr(context, "invoice_data", {}) or {}
+
+        codigo = str(row_value).strip() if row_value else ""
+        entidad_afiliacion = str(invoice.get("entidad_afiliacion", "")).strip()
+
+        if not codigo or not entidad_afiliacion:
+            return False
+
+        pattern_str = str(expected) if expected else r"[A-Z0-9]+"
+        # Wrap in brace extraction with capture group: {CODE}
+        pattern_str = r"\{(%s)\}" % pattern_str
+        try:
+            pattern = re.compile(pattern_str)
+            match = pattern.search(entidad_afiliacion)
+            if not match:
+                return False
+            extracted = match.group(1)
+            return extracted.upper() == codigo.upper()
+        except re.error:
+            return False
+
+
 # ── Registry ──────────────────────────────────────────────────────────────
 
 EVALUATOR_REGISTRY: dict[str, AtomicEvaluator] = {}
@@ -372,6 +414,7 @@ def _register_builtins() -> None:
         RegexEvaluator(),
         RegexExtractEvaluator(),
         ExistsInDBEvaluator(),
+        CodigoEntidadCoincideEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev
