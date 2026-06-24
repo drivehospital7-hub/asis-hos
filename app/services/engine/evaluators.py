@@ -396,6 +396,53 @@ class CodigoEntidadCoincideEvaluator(AtomicEvaluator):
             return False
 
 
+class SalaObservacionEvaluator(AtomicEvaluator):
+    """Sala de observacion rules for Urgencias — per-row check."""
+    operator = "sala_obs_check"
+    SALA_CODES = frozenset({"5DSB01", "05DSB01", "129B02", "38114", "38915"})
+    ENTITIES_05DSB01 = frozenset({"ESS118", "ESSC18"})
+
+    def evaluate(self, condition, row_value, expected, context=None):
+        if context is None:
+            return False
+        inv = getattr(context, "invoice_data", {}) or {}
+        tipo = str(inv.get("tipo_factura_descripcion", "")).strip()
+        if tipo != "Urgencias":
+            return False
+        code = str(row_value).strip() if row_value else ""
+        if code not in self.SALA_CODES:
+            return False
+        entidad = str(inv.get("codigo_entidad_cobrar", "")).strip()
+        tarifario = str(inv.get("tarifario", "")).strip().upper()
+        estancia = self._calc_estancia(inv)
+        if estancia is None:
+            return False
+        expected_code = self._codigo_esperado(estancia, entidad, tarifario)
+        if expected_code is None:
+            return False
+        return code != expected_code
+
+    def _calc_estancia(self, inv):
+        from datetime import datetime
+        try:
+            f1, f2 = inv.get("fec_factura"), inv.get("fecha_cierre")
+            if not f1 or not f2: return None
+            d1 = datetime.strptime(str(f1).strip()[:19], "%Y-%m-%d %H:%M:%S")
+            d2 = datetime.strptime(str(f2).strip()[:19], "%Y-%m-%d %H:%M:%S")
+            return (d2 - d1).total_seconds() / 3600
+        except (ValueError, TypeError):
+            return None
+
+    def _codigo_esperado(self, estancia, entidad, tarifario):
+        if estancia <= 2:
+            return None  # any code besides 5DSB01 is error
+        if tarifario == "SOAT":
+            return "38114" if estancia > 6 else "38915"
+        if estancia > 6:
+            return "05DSB01" if entidad in self.ENTITIES_05DSB01 else "129B02"
+        return "5DSB01"
+
+
 # ── Registry ──────────────────────────────────────────────────────────────
 
 EVALUATOR_REGISTRY: dict[str, AtomicEvaluator] = {}
@@ -415,6 +462,7 @@ def _register_builtins() -> None:
         RegexExtractEvaluator(),
         ExistsInDBEvaluator(),
         CodigoEntidadCoincideEvaluator(),
+        SalaObservacionEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev
