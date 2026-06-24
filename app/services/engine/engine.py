@@ -111,6 +111,11 @@ class RuleEvaluationEngine:
                     session=self._session,
                 )
 
+                # Pre-resolve common computed fields so they appear in problem output
+                date_edad = self._resolve_computed("date.edad", eval_ctx)
+                if date_edad is not None:
+                    eval_ctx.invoice_data["date.edad"] = date_edad
+
                 eval_result = self._evaluator.evaluate(tree, eval_ctx)
                 outcome = eval_result.get("outcome", False)
                 error_msg = eval_result.get("error")
@@ -154,9 +159,12 @@ class RuleEvaluationEngine:
                                   "codigo_tipo_procedimiento", "laboratorio", "tarifario",
                                   "tipo_factura_descripcion", "responsable_cierra",
                                   "profesional_atiende", "identificacion",
-                                  "fec_nacimiento", "fec_factura", "edad"):
+                                  "fec_nacimiento", "fec_factura", "edad",
+                                  "date.edad", "numero_identificacion"):
                         if field in row_data:
                             problem[field] = row_data[field]
+                        elif field in eval_ctx.invoice_data:
+                            problem[field] = eval_ctx.invoice_data[field]
                     results.append(problem)
 
         # Flush all evidence and capture records with IDs
@@ -349,3 +357,15 @@ class RuleEvaluationEngine:
                 factura = str(value).strip()
 
         return row_data, factura
+
+    def _resolve_computed(self, path: str, ctx: "EvaluationContext") -> Any:
+        """Resolve a computed field like 'date.edad' for inclusion in problem output."""
+        from app.services.engine.providers import PROVIDER_REGISTRY
+        prefix = path.split(".")[0] if "." in path else path
+        provider = PROVIDER_REGISTRY.get(prefix)
+        if provider:
+            try:
+                return provider.resolve(path, ctx)
+            except Exception:
+                pass
+        return None

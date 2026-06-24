@@ -156,7 +156,7 @@ def build_odontologia_normalized_rows(
         factura = item.get("factura", "")
         tipo_actual = item.get("tipo_actual", "") or item.get("tipo_identificacion", "")
         tipo_deberia = item.get("tipo_deberia", "")
-        anios = item.get("edad_anios", "") or item.get("edad", "")
+        anios = item.get("edad_anios", "") or item.get("edad", "") or item.get("date.edad", "")
         num_id = item.get("numero_identificacion", "") or item.get("identificacion", "")
         # Map rule name to expected document type
         regla = item.get("regla", "")
