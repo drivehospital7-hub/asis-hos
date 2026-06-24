@@ -66,14 +66,36 @@ def detect_all_problems_equipos_basicos(
     """
     # Detectores transversales
     decimales = detect_decimales(data_sheet, indices)
-    doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
 
     # Ruta duplicada con threshold de Equipos Básicos
     ruta_dup = detect_ruta_duplicada(
         data_sheet, indices, threshold=EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
     )
 
-    tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices)
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices)
+            tipo_id_edad = r1 + r2
+            session.commit()
+        finally:
+            session.close()
+    else:
+        tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     if is_rule_engine_enabled():
         from app.services.engine.rule_based_detector import RuleBasedDetector
@@ -103,6 +125,15 @@ def detect_all_problems_equipos_basicos(
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     tipo_usuario_eb = detect_tipo_usuario(data_sheet, indices)
     if is_rule_engine_enabled():
         from app.services.engine.rule_based_detector import RuleBasedDetector
@@ -120,18 +151,47 @@ def detect_all_problems_equipos_basicos(
     logger.info("detect_all_problems_equipos_basicos - IDE Contrato encontrados: %d", len(ide_contrato))
 
     logger.info("detect_all_problems_equipos_basicos - Llamando detect_profesionales_equipos_basicos")
-    profesionales = detect_profesionales_equipos_basicos(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            profesionales = RuleBasedDetector("profesional_equipos_validos", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        profesionales = detect_profesionales_equipos_basicos(data_sheet, indices)
     logger.info("detect_all_problems_equipos_basicos - Profesionales encontrados: %d", len(profesionales))
 
-    centro_costo = detect_centro_costo_odontologia(
-        data_sheet,
-        indices,
-        profesional_dias=profesional_dias,
-        permitir_todos_centros=permitir_todos_centros,
-        centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
-    )
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            centro_costo = RuleBasedDetector("centro_costo_equipos_basicos_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        centro_costo = detect_centro_costo_odontologia(
+            data_sheet,
+            indices,
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+            centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
+        )
 
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     logger.info(
         "detect_all_problems_equipos_basicos - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),

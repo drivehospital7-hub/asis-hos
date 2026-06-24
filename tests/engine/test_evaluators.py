@@ -186,7 +186,7 @@ class TestRegistry:
 
     def test_all_builtins_registered(self):
         from app.services.engine.evaluators import EVALUATOR_REGISTRY
-        expected = {"eq", "gt", "gte", "lt", "lte", "in", "contains"}
+        expected = {"eq", "gt", "gte", "lt", "lte", "in", "contains", "regex", "regex_extract", "exists_in_db"}
         for op in expected:
             assert op in EVALUATOR_REGISTRY, f"Missing evaluator: {op}"
 
@@ -203,3 +203,188 @@ class TestRegistry:
         from app.services.engine.evaluators import EVALUATOR_REGISTRY
         for op, evaluator in EVALUATOR_REGISTRY.items():
             assert evaluator.operator == op
+
+
+class TestRegexExtractEvaluator:
+    """Tests for RegexExtractEvaluator (operator=regex_extract)."""
+
+    def test_extracts_capture_group(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        result = evaluator.evaluate({}, "EMSSANAR - {ESSC18} «Contributivo»", r"\{([A-Z0-9]+)\}")
+        assert result is True
+
+    def test_no_match_returns_false(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        result = evaluator.evaluate({}, "no pattern here", r"\{([A-Z0-9]+)\}")
+        assert result is False
+
+    def test_none_text_returns_false(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        assert evaluator.evaluate({}, None, r"\{([A-Z0-9]+)\}") is False
+
+    def test_empty_pattern_returns_false(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        assert evaluator.evaluate({}, "text", "") is False
+
+    def test_invalid_regex_returns_false(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        assert evaluator.evaluate({}, "text", r"[invalid") is False
+
+    def test_no_capture_group_returns_true(self):
+        """regex_extract still returns True if pattern matches (even without groups)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        result = evaluator.evaluate({}, "hello world", r"hello")
+        assert result is True
+
+    def test_extract_utility_method(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        text = "EMSSANAR - {ESSC18} «Contributivo»"
+        extracted = evaluator.extract(text, r"\{([A-Z0-9]+)\}")
+        assert extracted == "ESSC18"
+
+    def test_extract_utility_no_match(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY["regex_extract"]
+        extracted = evaluator.extract("no pattern", r"\{([A-Z0-9]+)\}")
+        assert extracted is None
+
+
+class TestExistsInDBEvaluator:
+    """Tests for ExistsInDBEvaluator (operator=exists_in_db)."""
+
+    def test_match_found(self):
+        """When DB query returns a row, evaluate returns True."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        session = MagicMock()
+        session.execute.return_value.fetchone.return_value = (1,)
+        ctx = EvaluationContext(session=session)
+
+        result = evaluator.evaluate(
+            {},
+            "990203",
+            {"table": "procedimiento", "field": "cups"},
+            context=ctx,
+        )
+        assert result is True
+
+    def test_no_match_returns_false(self):
+        """When DB query returns no rows, evaluate returns False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        session = MagicMock()
+        session.execute.return_value.fetchone.return_value = None
+        ctx = EvaluationContext(session=session)
+
+        result = evaluator.evaluate(
+            {},
+            "NONEXIST",
+            {"table": "procedimiento", "field": "cups"},
+            context=ctx,
+        )
+        assert result is False
+
+    def test_cache_hit(self):
+        """Second lookup for same (table, field, value) uses cache, not DB."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        session = MagicMock()
+        session.execute.return_value.fetchone.return_value = (1,)
+        ctx = EvaluationContext(session=session)
+
+        # First call — hits DB
+        result1 = evaluator.evaluate({}, "990203", {"table": "proc", "field": "cups"}, context=ctx)
+        assert result1 is True
+        assert session.execute.call_count == 1
+
+        # Second call — cache hit, no DB query
+        result2 = evaluator.evaluate({}, "990203", {"table": "proc", "field": "cups"}, context=ctx)
+        assert result2 is True
+        assert session.execute.call_count == 1  # Still 1
+
+    def test_no_session_returns_false(self):
+        """Without a DB session, evaluate returns False gracefully."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        ctx = EvaluationContext(session=None)
+        result = evaluator.evaluate(
+            {}, "990203", {"table": "proc", "field": "cups"}, context=ctx,
+        )
+        assert result is False
+
+    def test_none_row_value_returns_false(self):
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        ctx = EvaluationContext(session=MagicMock())
+        result = evaluator.evaluate(
+            {}, None, {"table": "proc", "field": "cups"}, context=ctx,
+        )
+        assert result is False
+
+    def test_invalid_expected_dict_returns_false(self):
+        """Non-dict or missing keys returns False."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        ctx = EvaluationContext(session=MagicMock())
+
+        assert evaluator.evaluate({}, "X", "not_a_dict", context=ctx) is False
+        assert evaluator.evaluate({}, "X", {}, context=ctx) is False
+        assert evaluator.evaluate({}, "X", {"table": "t"}, context=ctx) is False
+        assert evaluator.evaluate({}, "X", {"field": "f"}, context=ctx) is False
+
+    def test_context_passed_to_existing_evaluators_ignored(self):
+        """Existing evaluators accept context=None without errors (backward compat)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        eq_eval = EVALUATOR_REGISTRY["eq"]
+        result = eq_eval.evaluate({}, "A", "A", context=None)
+        assert result is True
+
+    def test_db_error_returns_false_gracefully(self):
+        """When DB query throws, returns False (never crashes)."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        from app.services.engine.context import EvaluationContext
+        from unittest.mock import MagicMock
+
+        evaluator = EVALUATOR_REGISTRY["exists_in_db"]
+        evaluator._cache.clear()
+
+        session = MagicMock()
+        session.execute.side_effect = RuntimeError("DB down")
+        ctx = EvaluationContext(session=session)
+
+        result = evaluator.evaluate(
+            {}, "990203", {"table": "procedimiento", "field": "cups"}, context=ctx,
+        )
+        assert result is False

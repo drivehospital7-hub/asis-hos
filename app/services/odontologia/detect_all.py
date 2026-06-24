@@ -67,7 +67,17 @@ def detect_all_problems_odontologia(
             session.close()
     else:
         decimales = detect_decimales(data_sheet, indices)
-    doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
 
     # Excepción odontología: código 990203 puede tener múltiples tipos de procedimiento
     codigo_idx = indices.get("codigo")
@@ -148,7 +158,19 @@ def detect_all_problems_odontologia(
                     antes - despues,
                 )
 
-    tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices)
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices)
+            tipo_id_edad = r1 + r2
+            session.commit()
+        finally:
+            session.close()
+    else:
+        tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     if is_rule_engine_enabled():
         from app.services.engine.rule_based_detector import RuleBasedDetector
@@ -177,6 +199,15 @@ def detect_all_problems_odontologia(
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
     if is_rule_engine_enabled():
         from app.services.engine.rule_based_detector import RuleBasedDetector
@@ -190,22 +221,61 @@ def detect_all_problems_odontologia(
 
     # Detectores específicos de odontología
     logger.info("detect_all_problems_odontologia - Llamando detect_ide_contrato_odontologia")
-    ide_contrato = detect_ide_contrato_odontologia(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            ide_contrato = RuleBasedDetector("ide_contrato_odontologia_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        ide_contrato = detect_ide_contrato_odontologia(data_sheet, indices)
     logger.info("detect_all_problems_odontologia - IDE Contrato encontrados: %d", len(ide_contrato))
 
     logger.info("detect_all_problems_odontologia - Llamando detect_profesionales_odontologia")
-    profesionales = detect_profesionales_odontologia(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            profesionales = RuleBasedDetector("profesional_odontologia_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        profesionales = detect_profesionales_odontologia(data_sheet, indices)
     logger.info("detect_all_problems_odontologia - Profesionales encontrados: %d", len(profesionales))
 
-    centro_costo = detect_centro_costo_odontologia(
-        data_sheet,
-        indices,
-        profesional_dias=profesional_dias,
-        permitir_todos_centros=permitir_todos_centros,
-        centros_validos=centros_validos,
-    )
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            centro_costo = RuleBasedDetector("centro_costo_odontologia_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        centro_costo = detect_centro_costo_odontologia(
+            data_sheet,
+            indices,
+            profesional_dias=profesional_dias,
+            permitir_todos_centros=permitir_todos_centros,
+            centros_validos=centros_validos,
+        )
 
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     logger.info(
         "detect_all_problems_odontologia - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),

@@ -246,7 +246,7 @@ class ConditionEvaluator:
             }
 
         try:
-            outcome = evaluator.evaluate(node, row_value, valor_esperado)
+            outcome = evaluator.evaluate(node, row_value, valor_esperado, context=context)
         except Exception as exc:
             logger.exception("Evaluator %s failed for value=%s, expected=%s", operador, row_value, valor_esperado)
             return {

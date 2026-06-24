@@ -14,6 +14,7 @@ from app.services.engine.context import EvaluationContext
 from app.services.engine.condition_evaluator import ConditionEvaluator
 from app.services.engine.evidence_collector import EvidenceCollector
 from app.services.engine.exception_handler import ExceptionHandler
+from app.services.engine.group_evaluator import GroupEvaluator
 from app.services.engine.rule_resolver import RuleResolver
 
 if TYPE_CHECKING:
@@ -74,6 +75,13 @@ class RuleEvaluationEngine:
         if not param_configs:
             param_configs = [{}]  # Default: single evaluation with no overrides
 
+        # ── Group-by routing ──────────────────────────────────────────────
+        first_param = param_configs[0] if param_configs else {}
+        if isinstance(first_param, dict) and first_param.get("group_by"):
+            return self._evaluate_sheet_group_by(
+                rule, tree, data_sheet, indices, first_param
+            )
+
         results: list[dict[str, Any]] = []
 
         # Iterate over rows (row 1 = header, data starts at row 2)
@@ -82,7 +90,7 @@ class RuleEvaluationEngine:
             if not factura:
                 continue
 
-            ctx = EvaluationContext(invoice_data=row_data, indices=indices)
+            ctx = EvaluationContext(invoice_data=row_data, indices=indices, session=self._session)
 
             # Check exceptions
             effect, overrides = self._exception_handler.apply_exceptions(
@@ -100,6 +108,7 @@ class RuleEvaluationEngine:
                 eval_ctx = EvaluationContext(
                     invoice_data={**row_data, **(params if isinstance(params, dict) else {})},
                     indices=indices,
+                    session=self._session,
                 )
 
                 eval_result = self._evaluator.evaluate(tree, eval_ctx)
@@ -142,6 +151,111 @@ class RuleEvaluationEngine:
         evidencias = self._evidence_collector.flush_batch(self._session)
 
         # Create ResultadoAuditoria for each evidence record
+        for ev in evidencias:
+            if ev.outcome == "MATCH":
+                resultado_str = "FAIL"
+            elif ev.outcome == "ERROR":
+                resultado_str = "ERROR"
+            else:
+                resultado_str = "PASS"
+
+            ra = ResultadoAuditoria(
+                evidencia_id=ev.id,
+                regla_id=ev.regla_id,
+                regla_version=ev.regla_version,
+                factura=ev.factura,
+                param_config_id=ev.param_config_id,
+                resultado=resultado_str,
+                severidad=rule.severidad,
+                mensaje=ev.error_mensaje or rule.descripcion,
+                detalles={"outcome": ev.outcome},
+            )
+            self._session.add(ra)
+
+        self._session.flush()
+
+        return results
+
+    def evaluate_sheet_domain(
+        self,
+        domain: str,
+        data_sheet: "Worksheet",
+        indices: dict[str, int | None],
+    ) -> list[dict[str, Any]]:
+        """Evaluate all active rules for a domain (including transversal) against a sheet.
+
+        Loads rules via RuleResolver, evaluates each rule in priority order,
+        and returns the combined detection results.
+
+        Args:
+            domain: Domain filter (e.g., 'odontologia', 'urgencias').
+            data_sheet: openpyxl Worksheet with invoice data.
+            indices: Column name → 0-based column index mapping.
+
+        Returns:
+            Combined list of detection dicts from all active rules.
+            Empty list if no rules found or no problems detected.
+        """
+        rules = self._resolver.resolve(domain, self._session)
+        all_results: list[dict[str, Any]] = []
+        for rule in rules:
+            results = self.evaluate_sheet(rule.nombre, data_sheet, indices)
+            all_results.extend(results)
+        return all_results
+
+    def _evaluate_sheet_group_by(
+        self,
+        rule: Regla,
+        tree: dict,
+        data_sheet: "Worksheet",
+        indices: dict[str, int | None],
+        param_config: dict[str, Any],
+    ) -> list[dict[str, Any]]:
+        """Evaluate a group-by rule: pre-scan → partition → aggregate → evaluate.
+
+        Args:
+            rule: The loaded Regla ORM object.
+            tree: Condition tree root node.
+            data_sheet: openpyxl Worksheet.
+            indices: Column name → index mapping.
+            param_config: The parametros config dict with group_by + aggregations.
+
+        Returns:
+            List of detection dicts with factura, problema, regla, severidad.
+        """
+        group_by_field = param_config.get("group_by", "numero_factura")
+        agg_configs = param_config.get("aggregations", [])
+
+        # 1. Pre-scan: build groups
+        groups = GroupEvaluator.build_groups(data_sheet, indices, group_by_field)
+        if not groups:
+            logger.debug("Group-by rule %s: no groups found", rule.nombre)
+            return []
+
+        # 2. Prepare rule info for GroupEvaluator
+        rule_info = {
+            "id": rule.id,
+            "version": rule.version,
+            "dominio": rule.dominio,
+            "nombre": rule.nombre,
+            "descripcion": rule.descripcion,
+            "severidad": rule.severidad,
+        }
+
+        # 3. Delegate to GroupEvaluator
+        results = GroupEvaluator.evaluate(
+            groups=groups,
+            data_sheet=data_sheet,
+            indices=indices,
+            agg_configs=agg_configs,
+            condition_tree=tree,
+            condition_evaluator=self._evaluator,
+            rule_info=rule_info,
+            evidence_collector=self._evidence_collector,
+        )
+
+        # 4. Flush evidence and create ResultadoAuditoria (same as row-by-row path)
+        evidencias = self._evidence_collector.flush_batch(self._session)
         for ev in evidencias:
             if ev.outcome == "MATCH":
                 resultado_str = "FAIL"
