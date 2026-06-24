@@ -168,6 +168,8 @@ class DateProvider(ContextProvider):
 
         if field == "edad":
             return self._compute_edad(context)
+        elif field == "edad_meses":
+            return self._compute_edad_meses(context)
         elif field == "horas":
             return self._compute_horas(context)
         else:
@@ -179,13 +181,25 @@ class DateProvider(ContextProvider):
         fec_fact = self._parse_date(context.invoice_data.get("fec_factura"))
         if fec_nac is None or fec_fact is None:
             return None
-        # Future birth date (data error) → return None
         if fec_nac > fec_fact:
             return None
         edad = fec_fact.year - fec_nac.year
         if (fec_fact.month, fec_fact.day) < (fec_nac.month, fec_nac.day):
             edad -= 1
         return edad
+
+    def _compute_edad_meses(self, context: "EvaluationContext") -> int | None:
+        """Compute age in months from fec_nacimiento and fec_factura."""
+        fec_nac = self._parse_date(context.invoice_data.get("fec_nacimiento"))
+        fec_fact = self._parse_date(context.invoice_data.get("fec_factura"))
+        if fec_nac is None or fec_fact is None:
+            return None
+        if fec_nac > fec_fact:
+            return None
+        meses = (fec_fact.year - fec_nac.year) * 12 + (fec_fact.month - fec_nac.month)
+        if fec_fact.day < fec_nac.day:
+            meses -= 1
+        return meses
 
     def _compute_horas(self, context: "EvaluationContext") -> int | None:
         """Compute hours difference between fec_factura and fecha_cierre."""

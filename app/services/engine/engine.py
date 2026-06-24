@@ -115,6 +115,9 @@ class RuleEvaluationEngine:
                 date_edad = self._resolve_computed("date.edad", eval_ctx)
                 if date_edad is not None:
                     eval_ctx.invoice_data["date.edad"] = date_edad
+                date_edad_meses = self._resolve_computed("date.edad_meses", eval_ctx)
+                if date_edad_meses is not None:
+                    eval_ctx.invoice_data["date.edad_meses"] = date_edad_meses
 
                 eval_result = self._evaluator.evaluate(tree, eval_ctx)
                 outcome = eval_result.get("outcome", False)

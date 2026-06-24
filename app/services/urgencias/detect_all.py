@@ -113,7 +113,12 @@ def detect_all_problems_urgencias(
         try:
             r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices)
             r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices)
-            tipo_identificacion_edad = r1 + r2
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(data_sheet, indices)
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(data_sheet, indices)
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(data_sheet, indices)
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(data_sheet, indices)
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(data_sheet, indices)
+            tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
             session.commit()
         finally:
             session.close()
