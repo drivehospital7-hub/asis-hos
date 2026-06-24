@@ -1,4 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+
+declare global {
+  interface Window {
+    Modal?: {
+      confirm: (msg: string) => Promise<boolean>;
+    };
+  }
+}
 import {
   Plus,
   Trash2,
@@ -1236,7 +1244,9 @@ function EvidenceDashboard() {
           Evidencias y Auditoría
         </h2>
         <Button size="sm" variant="destructive" onClick={async () => {
-          if (!window.confirm("ACCION DE PRUEBA - Se borraran TODOS los registros de evidencia y auditoria.\n\nSeguro?")) return;
+          if (!window.Modal) return;
+          const ok = await window.Modal.confirm("ACCION DE PRUEBA - Se borraran TODOS los registros de evidencia y auditoria.\n\nSeguro?");
+          if (!ok) return;
           try {
             const resp = await fetch("/api/evidencias", { method: "DELETE" });
             const json = await resp.json();
