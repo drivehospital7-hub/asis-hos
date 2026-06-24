@@ -1,13 +1,4 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-
-// Modal.confirm() from modal.js
-declare global {
-  interface Window {
-    Modal?: {
-      confirm: (msg: string) => Promise<boolean>;
-    };
-  }
-}
 import {
   Plus,
   Trash2,
@@ -50,7 +41,6 @@ import {
   queryEvidencias,
   queryAuditoria,
   simulateReglas,
-  clearEvidencias,
 } from "@/lib/api-reglas";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -1244,16 +1234,14 @@ function EvidenceDashboard() {
           Evidencias y Auditoría
         </h2>
         <Button size="sm" variant="destructive" onClick={async () => {
-          if (!window.Modal?.confirm) return;
-          const ok = await window.Modal.confirm(
-            "ACCION DE PRUEBA.\n\nSe van a eliminar TODOS los registros de evidencia y auditoría.\n¿Estás seguro?"
-          );
-          if (!ok) return;
+          if (!window.confirm("ACCION DE PRUEBA - Se borraran TODOS los registros de evidencia y auditoria.\n\nSeguro?")) return;
           try {
-            await clearEvidencias();
+            const resp = await fetch("/api/evidencias", { method: "DELETE" });
+            const json = await resp.json();
+            if (json.status !== "success") throw new Error(json.errors?.[0] || "Error");
             setResults(null);
             setError("Datos eliminados (solo para pruebas)");
-          } catch (e) {
+          } catch (e: unknown) {
             setError(e instanceof Error ? e.message : "Error al limpiar");
           }
         }}>
