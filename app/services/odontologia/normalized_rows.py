@@ -154,26 +154,25 @@ def build_odontologia_normalized_rows(
     # --- Tipo Identificación vs Edad ---
     for item in tipo_id_edad:
         factura = item.get("factura", "")
-        # Legacy fields
-        tipo_actual = item.get("tipo_actual", "")
+        tipo_actual = item.get("tipo_actual", "") or item.get("tipo_identificacion", "")
         tipo_deberia = item.get("tipo_deberia", "")
-        anios = item.get("edad_anios", "")
-        meses = item.get("edad_meses", "")
-        num_id = item.get("numero_identificacion", "")
-        # Engine fields (fallback)
-        if not tipo_actual:
-            tipo_actual = item.get("tipo_identificacion", "")
+        anios = item.get("edad_anios", "") or item.get("edad", "")
+        num_id = item.get("numero_identificacion", "") or item.get("identificacion", "")
+        # Map rule name to expected document type
+        regla = item.get("regla", "")
         if not tipo_deberia:
-            tipo_deberia = item.get("regla", "").replace("tipo_documento_edad_", "").replace("_", " / ")
-        if not anios and "edad" in item:
-            anios = str(item.get("edad", ""))
+            if "menor_7" in regla:
+                tipo_deberia = "RC"
+            elif "mayor_18" in regla:
+                tipo_deberia = "CC"
+        desc = f"Tipo ID {tipo_actual} debería ser {tipo_deberia}" if tipo_deberia else f"Tipo ID incorrecto: {tipo_actual}"
         rows.append({
             "tipo_error": "Tipo Identificación / Edad",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"{tipo_actual} debería ser {tipo_deberia}" if tipo_deberia else f"Tipo ID incorrecto: {tipo_actual}",
-            "procedimiento": num_id,
+            "descripcion": desc,
+            "procedimiento": num_id or "",
             "detalle": f"{anios} años" if anios else "",
         })
 
