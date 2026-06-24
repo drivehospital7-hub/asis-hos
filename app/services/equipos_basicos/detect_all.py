@@ -17,6 +17,7 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
+    EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
 )
 from app.constants.base import is_rule_engine_enabled
 from app.services.transversales import (
