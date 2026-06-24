@@ -1234,6 +1234,23 @@ function EvidenceDashboard() {
         <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
           Evidencias y Auditoría
         </h2>
+        <Button size="sm" variant="destructive" onClick={async () => {
+          if (!window.__showConfirm) return;
+          const ok = await window.__showConfirm(
+            "ACCION DE PRUEBA.\n\nSe van a eliminar TODOS los registros de evidencia y auditoría.\n¿Estás seguro?"
+          );
+          if (!ok) return;
+          try {
+            await clearEvidencias();
+            setResults(null);
+            setError("Datos eliminados (solo para pruebas)");
+          } catch (e) {
+            setError(e instanceof Error ? e.message : "Error al limpiar");
+          }
+        }}>
+          <Trash2 className="h-3.5 w-3.5 mr-1" />
+          Limpiar datos
+        </Button>
       </div>
 
       {/* Sub-tabs */}
@@ -1303,23 +1320,6 @@ function EvidenceDashboard() {
         <Button size="sm" variant="secondary" onClick={handleClear}>
           <RefreshCw className="h-3.5 w-3.5 mr-1" />
           Limpiar
-        </Button>
-        <Button size="sm" variant="destructive" onClick={async () => {
-          if (!window.__showConfirm) return;
-          const ok = await window.__showConfirm(
-            "ESTA ACCION ES PARA PRUEBAS.\n\nSe van a eliminar TODOS los registros de evidencia y auditoría.\n¿Estás seguro?"
-          );
-          if (!ok) return;
-          try {
-            await clearEvidencias();
-            setResults(null);
-            setError("Datos de evidencia y auditoría eliminados (solo para pruebas)");
-          } catch (e) {
-            setError(e instanceof Error ? e.message : "Error al limpiar");
-          }
-        }}>
-          <Trash2 className="h-3.5 w-3.5 mr-1" />
-          Limpiar datos
         </Button>
       </div>
 
