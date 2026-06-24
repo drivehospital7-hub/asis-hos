@@ -79,6 +79,7 @@ export interface AuditItem {
   resultado: string;
   severidad: string;
   mensaje: string | null;
+  detalles: Record<string, unknown> | null;
   creado_en: string | null;
 }
 

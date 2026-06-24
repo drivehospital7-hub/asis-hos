@@ -1174,6 +1174,8 @@ function EvidenceDashboard() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [offset, setOffset] = useState(0);
+  const [detailItem, setDetailItem] = useState<EvidenciaItem | AuditItem | null>(null);
+  const [detailType, setDetailType] = useState<"evidencia" | "auditoria">("evidencia");
   const limit = 25;
 
   const handleSearch = async (newOffset = 0) => {
@@ -1345,7 +1347,8 @@ function EvidenceDashboard() {
                 </thead>
                 <tbody>
                   {(results.items as EvidenciaItem[]).map((item) => (
-                    <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                    <tr key={item.id} className="border-b cursor-pointer hover:bg-gray-50" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}
+                        onClick={() => { setDetailItem(item); setDetailType("evidencia"); }}>
                       <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.factura}</td>
                       <td className="py-2 px-3">#{item.regla_id}</td>
                       <td className="py-2 px-3">
@@ -1384,7 +1387,8 @@ function EvidenceDashboard() {
                 </thead>
                 <tbody>
                   {(results.items as AuditItem[]).map((item) => (
-                    <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                    <tr key={item.id} className="border-b cursor-pointer hover:bg-gray-50" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}
+                        onClick={() => { setDetailItem(item); setDetailType("auditoria"); }}>
                       <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.factura}</td>
                       <td className="py-2 px-3">#{item.regla_id}</td>
                       <td className="py-2 px-3">
@@ -1426,6 +1430,70 @@ function EvidenceDashboard() {
           )}
         </>
       ) : null}
+
+      {/* Detail overlay */}
+      {detailItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+             onClick={() => setDetailItem(null)}>
+          <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-2xl mx-4 max-h-[85vh] overflow-y-auto"
+               onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
+                {detailType === "evidencia" ? "Evidencia" : "Auditoría"} — #{detailItem.id}
+              </h2>
+              <button onClick={() => setDetailItem(null)} className="p-1 rounded-md hover:bg-gray-100">
+                <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
+              </button>
+            </div>
+
+            {/* Basic info */}
+            <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
+              <div><span className="font-medium">Factura:</span> {(detailItem as any).factura}</div>
+              <div><span className="font-medium">Regla ID:</span> #{(detailItem as any).regla_id}</div>
+              <div><span className="font-medium">Versión:</span> v{(detailItem as any).regla_version}</div>
+              <div><span className="font-medium">Creado:</span> {(detailItem as any).creado_en?.slice(0, 19) ?? "—"}</div>
+              {detailType === "evidencia" && (
+                <>
+                  <div><span className="font-medium">Outcome:</span> {(detailItem as EvidenciaItem).outcome}</div>
+                  <div><span className="font-medium">Dominio:</span> {(detailItem as EvidenciaItem).dominio}</div>
+                </>
+              )}
+              {detailType === "auditoria" && (
+                <>
+                  <div><span className="font-medium">Resultado:</span> {(detailItem as AuditItem).resultado}</div>
+                  <div><span className="font-medium">Severidad:</span> {(detailItem as AuditItem).severidad}</div>
+                  <div className="col-span-2"><span className="font-medium">Mensaje:</span> {(detailItem as AuditItem).mensaje ?? "—"}</div>
+                </>
+              )}
+            </div>
+
+            {/* Trace / Details */}
+            {detailType === "evidencia" && (detailItem as EvidenciaItem).arbol_evaluado && (
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>Árbol evaluado (traza)</h3>
+                <pre className="text-xs font-mono bg-gray-50 p-3 rounded-lg overflow-x-auto max-h-48"
+                     style={{ border: "1px solid oklch(0.55 0.04 160 / 0.1)" }}>
+                  {JSON.stringify((detailItem as EvidenciaItem).arbol_evaluado, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            {detailType === "auditoria" && (detailItem as AuditItem).detalles && (
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>Detalles adicionales</h3>
+                <pre className="text-xs font-mono bg-gray-50 p-3 rounded-lg overflow-x-auto max-h-48"
+                     style={{ border: "1px solid oklch(0.55 0.04 160 / 0.1)" }}>
+                  {JSON.stringify((detailItem as AuditItem).detalles, null, 2)}
+                </pre>
+              </div>
+            )}
+
+            <div className="flex justify-end mt-4">
+              <Button size="sm" variant="secondary" onClick={() => setDetailItem(null)}>Cerrar</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }
