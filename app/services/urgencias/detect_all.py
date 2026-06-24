@@ -280,6 +280,15 @@ def detect_all_problems_urgencias(
     )
 
     duplicados_farmacia = detect_duplicados_farmacia(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
     logger.info(
         "detect_all_problems_urgencias - Duplicados Farmacia encontrados: %d",
         len(duplicados_farmacia),
