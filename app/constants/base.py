@@ -139,6 +139,27 @@ DEFAULT_TEMPLATES = [
 ]
 
 # =============================================================================
+# ENGINE - Motor de Reglas de Auditoría
+# =============================================================================
+
+ENGINE_DOMAIN_TRANSVERSAL = "transversal"
+RULE_STATES: frozenset[str] = frozenset({"draft", "active", "deprecated", "retired"})
+DEFAULT_SEVERITY = "error"
+
+import os as _os
+
+
+def is_rule_engine_enabled() -> bool:
+    """Check if the DB-backed rule engine is enabled via env var.
+
+    Set USE_RULE_ENGINE=true to delegate migrated detectors to the engine.
+    Default: false (legacy Python detectors are used).
+    """
+    from dotenv import load_dotenv
+    load_dotenv()
+    return _os.getenv("USE_RULE_ENGINE", "false").lower() == "true"
+
+# =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
 # =============================================================================
 

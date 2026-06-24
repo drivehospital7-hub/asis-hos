@@ -2,6 +2,11 @@
 
 Extraído de revision_sheet.py._detect_ruta_duplicada y _detect_ruta_duplicada_equipos_basicos.
 Unificada en UNA función parametrizada.
+
+Migration note (2026-06): This detector has been migrated to the DB-backed
+rule engine as rule 'ruta_duplicada'. When USE_RULE_ENGINE=true, the engine
+version is used instead via RuleBasedDetector in detect_all.py.
+This legacy Python implementation is preserved for rollback (USE_RULE_ENGINE=false).
 """
 
 from __future__ import annotations

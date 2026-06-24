@@ -89,6 +89,13 @@
       "_globals-IEYCF5gg.js"
     ]
   },
+  "_play-gVmlGjCx.js": {
+    "file": "assets/play-gVmlGjCx.js",
+    "name": "play",
+    "imports": [
+      "_globals-IEYCF5gg.js"
+    ]
+  },
   "_plus-BLq7eTNT.js": {
     "file": "assets/plus-BLq7eTNT.js",
     "name": "plus",
@@ -99,6 +106,13 @@
   "_save-vk5YE_L_.js": {
     "file": "assets/save-vk5YE_L_.js",
     "name": "save",
+    "imports": [
+      "_globals-IEYCF5gg.js"
+    ]
+  },
+  "_search-LxrtnBFT.js": {
+    "file": "assets/search-LxrtnBFT.js",
+    "name": "search",
     "imports": [
       "_globals-IEYCF5gg.js"
     ]
@@ -134,6 +148,23 @@
       "_eye-Cy85FeWW.js"
     ]
   },
+  "src/pages/admin-reglas/index.html": {
+    "file": "assets/index-8au-6duZ.js",
+    "name": "index",
+    "src": "src/pages/admin-reglas/index.html",
+    "isEntry": true,
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_app-layout-CWhRcpOd.js",
+      "_status-badge-QgZOOh3r.js",
+      "_plus-BLq7eTNT.js",
+      "_search-LxrtnBFT.js",
+      "_eye-Cy85FeWW.js",
+      "_trash-2-CHuTzTk0.js",
+      "_play-gVmlGjCx.js",
+      "_circle-check-D7L-pulr.js"
+    ]
+  },
   "src/pages/catalogo/index.html": {
     "file": "assets/index-Di7rp4ql.js",
     "name": "index",
@@ -150,7 +181,7 @@
     ]
   },
   "src/pages/control-novedades/index.html": {
-    "file": "assets/index-ia2Ss0xD.js",
+    "file": "assets/index-DgWFljC4.js",
     "name": "index",
     "src": "src/pages/control-novedades/index.html",
     "isEntry": true,
@@ -164,6 +195,7 @@
       "_plus-BLq7eTNT.js",
       "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
+      "_search-LxrtnBFT.js",
       "_eye-Cy85FeWW.js",
       "_pencil-DccyUFYy.js",
       "_trash-2-CHuTzTk0.js"
@@ -202,7 +234,7 @@
     ]
   },
   "src/pages/derechos/index.html": {
-    "file": "assets/index-DHYz3Jx5.js",
+    "file": "assets/index-B64ZIQhh.js",
     "name": "index",
     "src": "src/pages/derechos/index.html",
     "isEntry": true,
@@ -212,6 +244,7 @@
       "_breadcrumbs-NWWLMxrF.js",
       "_page-title-3azOtSa3.js",
       "_status-badge-QgZOOh3r.js",
+      "_play-gVmlGjCx.js",
       "_circle-check-D7L-pulr.js",
       "_eye-Cy85FeWW.js"
     ]
@@ -314,7 +347,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-5ALepkMc.css",
+    "file": "assets/style-CIDNaXCd.css",
     "src": "style.css"
   }
 }

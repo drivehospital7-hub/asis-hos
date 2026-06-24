@@ -12,6 +12,7 @@ from typing import Any
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import AREA_ODONTOLOGIA, CONVENIO_PYP
+from app.constants.base import is_rule_engine_enabled
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
@@ -55,7 +56,17 @@ def detect_all_problems_odontologia(
         (resultado_dict, responsables_map)
     """
     # Detectores transversales
-    decimales = detect_decimales(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            decimales = RuleBasedDetector("valores_decimales", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        decimales = detect_decimales(data_sheet, indices)
     doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
 
     # Excepción odontología: código 990203 puede tener múltiples tipos de procedimiento
@@ -83,7 +94,17 @@ def detect_all_problems_odontologia(
                     antes - despues,
                 )
 
-    ruta_dup = detect_ruta_duplicada(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            ruta_dup = RuleBasedDetector("ruta_duplicada", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
+    else:
+        ruta_dup = detect_ruta_duplicada(data_sheet, indices)
 
     # Excepción odontología: si ruta duplicada es exactamente 3 facturas y
     # alguna tiene código 990203, P0000011 o 990212, se excluye
