@@ -162,6 +162,18 @@ def detect_all_problems_odontologia(
         finally:
             session.close()
     cantidades = detect_cantidades_anomalas(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            c1 = RuleBasedDetector("cantidad_consultas_anomalas", session).detect(data_sheet, indices)
+            c2 = RuleBasedDetector("cantidad_general_anomalas", session).detect(data_sheet, indices)
+            c3 = RuleBasedDetector("cantidad_pyp_anomalas", session).detect(data_sheet, indices)
+            cantidades = c1 + c2 + c3
+            session.commit()
+        finally:
+            session.close()
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
