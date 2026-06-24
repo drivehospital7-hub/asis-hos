@@ -12,6 +12,7 @@ from typing import Any
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import AREA_URGENCIAS
+from app.constants.base import is_rule_engine_enabled
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
@@ -76,6 +77,15 @@ def detect_all_problems_urgencias(
     tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
     tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
 
     # 5. Detectores específicos de urgencias
     profesionales = detect_profesionales_urgencias(data_sheet, indices)

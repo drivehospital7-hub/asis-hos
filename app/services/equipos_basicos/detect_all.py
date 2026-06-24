@@ -17,8 +17,8 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
     EQUIPOS_BASICOS_CANTIDAD_MAX,
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
-    EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
 )
+from app.constants.base import is_rule_engine_enabled
 from app.services.transversales import (
     detect_cantidades_anomalas,
     detect_codigo_entidad_vs_entidad_afiliacion,
@@ -93,6 +93,15 @@ def detect_all_problems_equipos_basicos(
         data_sheet, indices, limit_log=5
     )
     tipo_usuario_eb = detect_tipo_usuario(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            tipo_usuario_eb = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
 
     # Detectores específicos de equipos básicos
     logger.info("detect_all_problems_equipos_basicos - Llamando detect_ide_contrato_odontologia")

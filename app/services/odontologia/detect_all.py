@@ -155,6 +155,15 @@ def detect_all_problems_odontologia(
         data_sheet, indices, limit_log=5
     )
     tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            tipo_usuario_od = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices)
+            session.commit()
+        finally:
+            session.close()
 
     # Detectores específicos de odontología
     logger.info("detect_all_problems_odontologia - Llamando detect_ide_contrato_odontologia")
