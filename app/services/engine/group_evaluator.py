@@ -38,6 +38,8 @@ class GroupEvaluator:
         data_sheet: "Worksheet",
         indices: dict[str, int | None],
         group_by_field: str = "numero_factura",
+        filter_field: str | None = None,
+        filter_value: str | None = None,
     ) -> dict[str, list[int]]:
         """Pre-scan: build groups from sheet data keyed by factura.
 
@@ -45,6 +47,8 @@ class GroupEvaluator:
             data_sheet: openpyxl Worksheet with invoice data.
             indices: Column name → 0-based column index mapping.
             group_by_field: Column to group by (default: numero_factura).
+            filter_field: Optional column to filter rows before grouping.
+            filter_value: Required value for filter_field when filtering.
 
         Returns:
             Dict mapping factura string → list of 1-based row numbers.
@@ -55,7 +59,15 @@ class GroupEvaluator:
         if num_fact_idx is None:
             return groups
 
+        filter_idx = indices.get(filter_field) if filter_field else None
+
         for row in range(2, data_sheet.max_row + 1):
+            # Apply row filter if configured
+            if filter_idx is not None:
+                val = str(data_sheet.cell(row=row, column=filter_idx + 1).value or "").strip().upper()
+                if val != filter_value.upper():
+                    continue
+
             factura = str(
                 data_sheet.cell(row=row, column=num_fact_idx + 1).value or ""
             ).strip()

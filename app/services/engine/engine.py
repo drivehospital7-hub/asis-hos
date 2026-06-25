@@ -247,10 +247,12 @@ class RuleEvaluationEngine:
             List of detection dicts with factura, problema, regla, severidad.
         """
         group_by_field = param_config.get("group_by", "numero_factura")
+        filter_field = param_config.get("filter_field")
+        filter_value = param_config.get("filter_value")
         agg_configs = param_config.get("aggregations", [])
 
-        # 1. Pre-scan: build groups
-        groups = GroupEvaluator.build_groups(data_sheet, indices, group_by_field)
+        # 1. Pre-scan: build groups (optionally filtered)
+        groups = GroupEvaluator.build_groups(data_sheet, indices, group_by_field, filter_field, filter_value)
         if not groups:
             logger.debug("Group-by rule %s: no groups found", rule.nombre)
             return []
