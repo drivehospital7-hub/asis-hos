@@ -72,49 +72,66 @@ def build_odontologia_normalized_rows(
                 valores = f"Sub: {vlr_sub}, Proc: {vlr_proc}"
             codigo = item.get("codigo", "")
             proc_nombre = item.get("procedimiento", "")
+            problema = item.get("problema", "")
         else:
             factura = str(item) if item else ""
             valores = ""
             codigo = ""
             proc_nombre = ""
+            problema = ""
+        descripcion = problema or (f"Valores con decimales: {valores}" if valores else "Valores con decimales")
+        procedimiento = _build_procedimiento(codigo, proc_nombre) or valores
+        detalle = f"Vlr.Sub: {vlr_sub}" if isinstance(item, dict) and item.get("vlr_subsidiado") else ""
         rows.append({
             "tipo_error": "Decimales",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
-            "procedimiento": _build_procedimiento(codigo, proc_nombre) or valores,
-            "detalle": f"Vlr.Sub: {vlr_sub}" if isinstance(item, dict) and item.get("vlr_subsidiado") else "",
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- Doble tipo procedimiento ---
     for item in doble_tipo:
         factura = item.get("factura", "")
         tipos = item.get("tipos", "")
+        problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        detalle = item.get("tipo_procedimiento", "") or tipos
+        procedimiento = _build_procedimiento(codigo, proc_nombre)
+        descripcion = problema or "Múltiples tipos de procedimiento"
         rows.append({
             "tipo_error": "Doble tipo procedimiento",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": "Múltiples tipos de procedimiento",
-            "procedimiento": "",
-            "detalle": tipos,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- Ruta Duplicada ---
     for item in ruta_dup:
         identificacion = item.get("identificacion", "")
-        facturas_list = item.get("facturas", "")
-        cantidad = item.get("cantidad", 0)
-        # Usar la primera factura de la lista para que el filtro por tipo_factura no la elimine
-        primera_factura = facturas_list.split(",")[0].strip() if facturas_list else identificacion
+        facturas_str = item.get("facturas", "")
+        cantidad = item.get("cantidad", 0) or item.get("cantidad_repeticiones", 0)
+        # P0: engine may not provide facturas string — fallback to identificacion
+        if facturas_str:
+            primera_factura = facturas_str.split(",")[0].strip()
+        else:
+            primera_factura = identificacion
+        procedimiento = facturas_str or identificacion
+        problema = item.get("problema", "")
+        descripcion = problema or f"Paciente con {cantidad} facturas en PyP"
         rows.append({
             "tipo_error": "Ruta Duplicada",
             "factura": primera_factura,
             "fec_factura": _get_fec_factura(primera_factura),
             "responsable_cierra": _get_responsable(identificacion),
-            "descripcion": f"Paciente con {cantidad} facturas en PyP",
-            "procedimiento": facturas_list,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
             "detalle": identificacion,
         })
 
@@ -141,13 +158,17 @@ def build_odontologia_normalized_rows(
         tipo_proc = item.get("tipo_procedimiento", "")
         cantidad_val = item.get("cantidad", "")
         problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        descripcion = problema or f"Cantidad anómala: {cantidad_val}"
+        procedimiento = _build_procedimiento(codigo, proc_nombre) or tipo_proc
         rows.append({
             "tipo_error": "Cantidades",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": problema or f"Cantidad anómala: {cantidad_val}",
-            "procedimiento": tipo_proc,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
             "detalle": str(cantidad_val),
         })
 
@@ -203,14 +224,20 @@ def build_odontologia_normalized_rows(
         factura = item.get("factura", "")
         centro_actual = item.get("centro_actual", "")
         centro_deberia = item.get("centro_deberia", "")
+        problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        descripcion = problema or f"Centro de costo debería ser {centro_deberia}"
+        procedimiento = _build_procedimiento(codigo, proc_nombre)
+        detalle = centro_actual or item.get("centro_costo", "")
         rows.append({
             "tipo_error": "Centro Costo",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Centro de costo debería ser {centro_deberia}",
-            "procedimiento": "",
-            "detalle": centro_actual,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- IDE Contrato ---
@@ -220,12 +247,16 @@ def build_odontologia_normalized_rows(
         ide_actual = item.get("ide_actual", "")
         ide_deberia = item.get("ide_deberia", "")
         nota = item.get("nota", "")
+        problema = item.get("problema", "")
+        descripcion = problema or (
+            f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}"
+        )
         rows.append({
             "tipo_error": "IDE Contrato",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}",
+            "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, ""),
             "detalle": ide_actual,
         })
@@ -277,15 +308,20 @@ def build_odontologia_normalized_rows(
         for item in tipo_usuario:
             factura = item.get("factura", "")
             tipo_actual = item.get("tipo_actual", "")
+            problema = item.get("problema", "")
+            codigo = item.get("codigo", "")
+            proc_nombre = item.get("procedimiento", "")
+            descripcion = problema or "Revisar tipo usuario en Targetero"
+            procedimiento = _build_procedimiento(codigo, proc_nombre)
             rows.append({
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
                 "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": "Revisar tipo usuario en Targetero",
-                "procedimiento": "",
-            "detalle": tipo_actual,
-        })
+                "descripcion": descripcion,
+                "procedimiento": procedimiento,
+                "detalle": tipo_actual,
+            })
 
     # --- Cups Sin Contrato ---
     if cups_sin_contrato:
@@ -304,5 +340,35 @@ def build_odontologia_normalized_rows(
                 "procedimiento": _build_procedimiento(codigo, proc),
                 "detalle": f"Entidad: {cod_ent}, {entidad}",
             })
+
+    # Generic fallback: if procedimiento AND detalle are both empty,
+    # find the original item by factura and use its first non-factura key:value.
+    # This handles group-by rules (sparse dicts with only factura + problema).
+    if rows:
+        all_items: list[dict] = []
+        for collection in (decimales, doble_tipo, ruta_dup, profesionales, cantidades,
+                           tipo_id_edad, centro_costo, ide_contrato,
+                           tipo_id_entidad or [], entidad_afiliacion_comparison or [],
+                           tipo_usuario or [], cups_sin_contrato or []):
+            if isinstance(collection, list):
+                for item in collection:
+                    if isinstance(item, dict):
+                        all_items.append(item)
+        factura_to_item = {}
+        for item in all_items:
+            f = item.get("factura", "")
+            if f:
+                factura_to_item[f] = item
+        for row in rows:
+            if not row.get("procedimiento") and not row.get("detalle"):
+                item = factura_to_item.get(row.get("factura", ""))
+                if item:
+                    for key in ("codigo", "vlr_subsidiado", "tipo_identificacion",
+                                "cantidad", "centro_costo", "codigo_entidad_cobrar",
+                                "observacion", "accion", "identificacion"):
+                        val = item.get(key, "")
+                        if val:
+                            row["procedimiento"] = str(val)
+                            break
 
     return rows

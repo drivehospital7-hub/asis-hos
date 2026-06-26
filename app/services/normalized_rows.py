@@ -52,14 +52,17 @@ def build_normalized_rows(
         factura = item.get("factura", str(item.get("invoice", "")))
         codigo = item.get("codigo", "")
         proc = item.get("procedimiento", "")
+        problema = item.get("problema", "")
+        descripcion = problema or f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}"
+        detalle = item.get("centro_actual", "") or item.get("centro_costo", "")
         rows.append({
             "tipo_error": "Centros de Costo",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Centro de costo debería ser {item.get('centro_deberia', 'N/A')}",
+            "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, proc),
-            "detalle": item.get("centro_actual", ""),
+            "detalle": detalle,
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
@@ -69,7 +72,10 @@ def build_normalized_rows(
         codigo = item.get("codigo", "")
         proc = item.get("procedimiento", "")
         ide_deberia = item.get("ide_contrato_deberia", "N/A")
-        if ide_deberia in ("Código no en DB", "CÓDIGO NO EN DB"):
+        problema = item.get("problema", "")
+        if problema:
+            descripcion = problema
+        elif ide_deberia in ("Código no en DB", "CÓDIGO NO EN DB"):
             descripcion = ide_deberia
         else:
             descripcion = f"IDE Contrato debería ser {ide_deberia}"
@@ -97,12 +103,13 @@ def build_normalized_rows(
         proc_str = str(proc_raw).strip() if proc_raw else ""
         proc_final = proc_str if proc_str else codigo_str
         detalle = f"Estancia: {estancia_str}" if estancia_str else codigo_str
+        problema = item.get("problema", "")
         rows.append({
             "tipo_error": "Cups Equivalentes",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": item.get("accion", ""),
+            "descripcion": problema or item.get("accion", ""),
             "procedimiento": proc_final,
             "detalle": detalle,
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -113,14 +120,17 @@ def build_normalized_rows(
         factura = item.get("factura", "")
         codigo = item.get("codigo", "")
         proc = item.get("procedimiento", "")
+        problema = item.get("problema", "")
+        descripcion = problema or item.get("observacion", "")
+        detalle = item.get("ide_contrato", "") or item.get("ide_contrato_actual", "")
         rows.append({
             "tipo_error": "MAL CAPITADO",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": item.get("observacion", ""),
+            "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, proc),
-            "detalle": item.get("ide_contrato_actual", ""),
+            "detalle": detalle,
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
@@ -137,10 +147,14 @@ def build_normalized_rows(
             proc = item.get("procedimiento", "")
             cantidad = item.get("cantidad", "")
             cantidad_esperada = item.get("cantidad_esperada", "")
-            descripcion = desc_template.format(
-                cantidad=cantidad,
-                cantidad_esperada=cantidad_esperada,
-            )
+            problema = item.get("problema", "")
+            if problema:
+                descripcion = problema
+            else:
+                descripcion = desc_template.format(
+                    cantidad=cantidad,
+                    cantidad_esperada=cantidad_esperada,
+                )
             rows.append({
                 "tipo_error": tipo_error,
                 "factura": factura,
@@ -173,12 +187,14 @@ def build_normalized_rows(
         meses = item.get("edad_meses", "")
         tipo_actual = item.get("tipo_actual", "")
         tipo_deberia = item.get("tipo_deberia", "")
+        problema = item.get("problema", "")
+        descripcion = problema or f"Tipo actual {tipo_actual} debería ser {tipo_deberia}"
         rows.append({
             "tipo_error": "Tipo Identificación / Edad",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
+            "descripcion": descripcion,
             "procedimiento": num_id,
             "detalle": f"{anios} años {meses} meses",
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -251,13 +267,17 @@ def build_normalized_rows(
     for item in error_groups.get("Tipo Usuario", []):
         factura = item.get("factura", "")
         tipo_actual = item.get("tipo_actual", "")
+        codigo = item.get("codigo", "")
+        proc = item.get("procedimiento", "")
+        problema = item.get("problema", "")
+        descripcion = problema or "Revisar tipo usuario en Targetero"
         rows.append({
             "tipo_error": "Tipo Usuario",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": "Revisar tipo usuario en Targetero",
-            "procedimiento": "",
+            "descripcion": descripcion,
+            "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": tipo_actual,
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
@@ -312,11 +332,17 @@ def build_normalized_rows(
         tipo_proc = item.get("codigo_tipo_procedimiento", "")
         total_pares = item.get("total_pares", 0)
         pares = item.get("pares_duplicados", [])
+        problema = item.get("problema", "")
         detalle_pares = "; ".join(
             f"{p.get('codigo', '')} x{p.get('cantidad', '')} ({p.get('count', 0)} veces)"
             for p in pares
-        )
-        if tipo_proc:
+        ) if pares else ""
+        if problema:
+            descripcion = problema
+            procedimiento = _build_procedimiento(
+                item.get("codigo", ""), item.get("procedimiento", "")
+            ) or (f"Grupo {tipo_proc}" if tipo_proc else "")
+        elif tipo_proc:
             descripcion = (
                 f"Duplicados Farmacia — Grupo {tipo_proc}: "
                 f"{total_pares} par(es) duplicado(s)"
@@ -362,12 +388,13 @@ def build_normalized_rows(
         factura = item.get("factura", "")
         codigo = item.get("codigo", "")
         proc = item.get("procedimiento", "")
+        problema = item.get("problema", "")
         rows.append({
             "tipo_error": "Cups No CAPITA",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": item.get("observacion", ""),
+            "descripcion": problema or item.get("observacion", ""),
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": "",
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
@@ -381,21 +408,50 @@ def build_normalized_rows(
         repeticiones = item.get("cantidad_repeticiones", 0)
         facturas_list = item.get("facturas", [])
         primer_factura = facturas_list[0] if facturas_list else ""
+        problema = item.get("problema", "")
 
         detalle_parts = [f"ID: {identificacion}", f"Cód: {codigo}"]
         if facturas_list:
             detalle_parts.append(f"Facturas: {', '.join(facturas_list)}")
 
+        descripcion = problema or f"Procedimiento duplicado x{repeticiones}"
         rows.append({
             "tipo_error": "Duplicado ID+Código",
             "factura": primer_factura,
             "fec_factura": _get_fec_factura(primer_factura),
             "responsable_cierra": _get_responsable(primer_factura),
-            "descripcion": f"Procedimiento duplicado x{repeticiones}",
+            "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, proc),
             "detalle": " | ".join(detalle_parts),
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(primer_factura),
         })
+
+    # Generic fallback: if procedimiento AND detalle are both empty,
+    # find the original item by factura and use its first matching key.
+    # This handles group-by rules (sparse dicts with only factura + problema).
+    if rows:
+        all_items: list[dict] = []
+        for group_list in error_groups.values():
+            if isinstance(group_list, list):
+                for item in group_list:
+                    if isinstance(item, dict):
+                        all_items.append(item)
+        factura_to_item = {}
+        for item in all_items:
+            f = item.get("factura", "")
+            if f:
+                factura_to_item[f] = item
+        for row in rows:
+            if not row.get("procedimiento") and not row.get("detalle"):
+                item = factura_to_item.get(row.get("factura", ""))
+                if item:
+                    for key in ("codigo", "vlr_subsidiado", "tipo_identificacion",
+                                "cantidad", "centro_costo", "codigo_entidad_cobrar",
+                                "observacion", "accion", "identificacion"):
+                        val = item.get(key, "")
+                        if val:
+                            row["procedimiento"] = str(val)
+                            break
 
     return rows
 
