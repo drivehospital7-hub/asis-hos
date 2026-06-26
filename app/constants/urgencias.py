@@ -1070,4 +1070,8 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "MOSQUERA LOZANO YENIA YADIRIS",
         "tipo": "ODONTOLOGO",
     },
+    "01952": {
+        "nombre": "SANTACRUZ SALAS MONICA ALEXANDRA",
+        "tipo": "PSICOLOGA",
+    },
 }
