@@ -595,6 +595,39 @@ class CentroCostoCheckEvaluator(AtomicEvaluator):
         return False
 
 
+class CatalogInEvaluator(AtomicEvaluator):
+    """Checks if row_value is in a catalog list stored in the catalogos DB table.
+
+    valor_esperado is the catalog key (e.g. 'profesionales_odontologia').
+    The actual list is queried from the catalogos table at evaluation time.
+    Requires context.session to be available (DB connection).
+
+    Use this instead of hardcoding lists in conditions for better maintainability.
+    """
+    operator = "cat_in"
+
+    def evaluate(self, condition, row_value, expected, context=None):
+        if context is None or context.session is None:
+            from sqlalchemy import text
+            return False
+        if not isinstance(expected, str) or not expected.strip():
+            return False
+        from sqlalchemy import text
+        try:
+            result = context.session.execute(
+                text("SELECT value FROM catalogos WHERE key = :key"),
+                {"key": expected.strip()}
+            ).fetchone()
+            if not result:
+                return False
+            catalog_list = result[0]
+            if not isinstance(catalog_list, (list, tuple, set, frozenset)):
+                return False
+            return row_value in catalog_list
+        except Exception:
+            return False
+
+
 # ── Registry ──────────────────────────────────────────────────────────────
 
 EVALUATOR_REGISTRY: dict[str, AtomicEvaluator] = {}
@@ -616,6 +649,7 @@ def _register_builtins() -> None:
         CodigoEntidadCoincideEvaluator(),
         SalaObservacionEvaluator(),
         CentroCostoCheckEvaluator(),
+        CatalogInEvaluator(),
         SetContainsAllEvaluator(),
         SetIntersectsEvaluator(),
         AllValuesMatchEvaluator(),
