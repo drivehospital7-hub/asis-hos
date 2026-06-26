@@ -1074,4 +1074,8 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "SANTACRUZ SALAS MONICA ALEXANDRA",
         "tipo": "PSICOLOGA",
     },
+    "03379": {
+        "nombre": "RENDON CHAMORRO JENNY FERNANDA",
+        "tipo": "JEFE ENFERMERIA",
+    },
 }
