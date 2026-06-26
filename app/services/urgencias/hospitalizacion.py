@@ -308,7 +308,11 @@ def detect_hospitalizacion_codes(
         # ----- Regla SOAT: Hospitalización debe tener 39133, 38114, 39131
         if tarifario.upper() == VALOR_TARIFARIO_SOAT:
             codigos_soat_hosp_obligatorios = data.get("codigos_soat_hosp_obligatorios", set())
-            faltan_soat_oblig = CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS - codigos_soat_hosp_obligatorios
+            codigos_requeridos = set(CODIGOS_SOAT_HOSPITALIZACION_OBLIGATORIOS)
+            # Excepción: 39131 no es obligatorio si estancia < 24h
+            if estancia_horas is not None and estancia_horas < 24:
+                codigos_requeridos.discard("39131")
+            faltan_soat_oblig = codigos_requeridos - codigos_soat_hosp_obligatorios
             if faltan_soat_oblig:
                 estancia_str = _format_estancia_hosp(estancia_horas) if estancia_horas is not None else "N/A"
                 problemas_cups_equivalentes.append({
