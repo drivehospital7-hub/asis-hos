@@ -109,6 +109,7 @@ def create_app(config=None):
     from app.routes.control_errores import control_errores_bp
     from app.routes.abiertas_urgencias import abiertas_urgencias_bp
     from app.routes.odontologia_equipos_basicos import odontologia_equipos_basicos_bp
+    from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
@@ -125,5 +126,6 @@ def create_app(config=None):
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
     app.register_blueprint(import_facturas_bp)
     app.register_blueprint(odontologia_equipos_basicos_bp, url_prefix="/odontologia-equipos-basicos")
+    app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
 
     return app
