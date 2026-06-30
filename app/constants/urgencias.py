@@ -1078,4 +1078,8 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "RENDON CHAMORRO JENNY FERNANDA",
         "tipo": "JEFE ENFERMERIA",
     },
+    "01346": {
+        "nombre": "BURBANO NARVAEZ MARITZA ELIANA",
+        "tipo": "JEFE ENFERMERIA",
+    },
 }

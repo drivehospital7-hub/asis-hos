@@ -227,7 +227,7 @@ def detect_sala_observacion(
             if estancia_horas <= 2:
                 codigo_requerido = None
             elif entidad in ENTIDADES_SALA_OBSERVACION_05DSB01:
-                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
+                codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_ESS if estancia_horas >= 6 else CODIGO_SALA_OBSERVACION_CORTA
             else:
                 codigo_requerido = CODIGO_SALA_OBSERVACION_LARGA_OTRAS if estancia_horas > 6 else CODIGO_SALA_OBSERVACION_CORTA
 
