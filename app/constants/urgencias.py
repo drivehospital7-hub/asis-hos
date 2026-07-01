@@ -1002,20 +1002,12 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "YANDAR PANTOJA LUIS FELIPE",
         "tipo": "MEDICO",
     },
-    "03222": {
-        "nombre": "CHILAMA HERNANDEZ SAMIR AMILCAR",
-        "tipo": "MEDICO",
-    },
     "03384": {
         "nombre": "ROSERO QUINTERO DARWIN DARIO",
         "tipo": "MEDICO",
     },
     "03154": {
         "nombre": "BASANTE RUANO VIVIANA JERALDINE",
-        "tipo": "MEDICO",
-    },
-    "01289": {
-        "nombre": "DELGADO CARVAJAL YASMANI",
         "tipo": "MEDICO",
     },
     "03628": {
