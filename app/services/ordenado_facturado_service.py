@@ -122,6 +122,7 @@ PROCESADOS_INTERCONSULTAS: set[str] = {
     "36101",
     "37701",
     "890610",
+    "890703",
 }
 
 # Códigos de otros procesados que NO se consideran no facturados
