@@ -93,7 +93,12 @@ def procesar_ordenado_facturado():
             archivo_notas.filename if archivo_notas and archivo_notas.filename else "(no)",
         )
 
-        resultado = procesar_cruce(path_reporte, path_ayudas, path_notas=path_notas)
+        cerradas = request.form.get("cerradas") == "true"
+        resultado = procesar_cruce(
+            path_reporte, path_ayudas,
+            path_notas=path_notas,
+            cerradas=cerradas,
+        )
 
         if resultado["status"] == "error":
             return jsonify(resultado), 400
