@@ -53,6 +53,36 @@ def _build_ayudas_rows(data_rows: list[tuple]) -> list[list]:
     return rows
 
 
+def _build_ayudas_rows_con_cierre(data_rows: list[tuple]) -> list[list]:
+    """Build mock _leer_como_raw output for ayudas with Fecha Cierre column.
+
+    data_rows: list of (factura, cups, tipo, identificacion, fecha, entidad, proc, fecha_cierre)
+    Returns list-of-lists 1-based, matching _leer_como_raw format.
+    """
+    headers = [None, "N° Factura", "CUPS", "Tipo Factura (Servicio)",
+               "Nº Identificación", "Fecha Solicitud",
+               "Entidad Administradora", "Procedimiento Solicitado",
+               "Fecha Cierre"]
+    rows: list[list] = [[None], headers]
+    for factura, cups, tipo, identificacion, fecha, entidad, proc_, fecha_cierre in data_rows:
+        rows.append([None, factura, cups, tipo, identificacion, fecha, entidad, proc_, fecha_cierre])
+    return rows
+
+
+def _build_reporte_rows_con_cierre(data_rows: list[tuple]) -> list[list]:
+    """Build mock _leer_como_raw for reporte with Fecha Cierre column.
+
+    data_rows: list of (factura, codigo, procedimiento, identificacion, fecha, fecha_cierre)
+    Returns list-of-lists 1-based, matching _leer_como_raw format.
+    """
+    headers = [None, "Número Factura", "Código", "Procedimiento",
+               "Nº Identificación", "Fec. Factura", "Fecha Cierre"]
+    rows: list[list] = [[None], headers]
+    for factura, codigo, procedimiento, identificacion, fecha, fecha_cierre in data_rows:
+        rows.append([None, factura, codigo, procedimiento, identificacion, fecha, fecha_cierre])
+    return rows
+
+
 def _cups_set(no_facturados: list[dict]) -> set[str]:
     """Extract raw CUPS values from no_facturados list."""
     return {item["cups"] for item in no_facturados}
@@ -566,3 +596,100 @@ def test_codigos_totalizado_removed():
     assert "CODIGOS_TOTALIZADO" not in source, (
         "CODIGOS_TOTALIZADO constant must be removed"
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Requirement: Cerradas Toggle
+# ──────────────────────────────────────────────────────────────────────
+
+class TestCerradasFilter:
+    """Cerradas toggle: filtra registros sin Fecha Cierre."""
+
+    def _run(self, reporte_rows, ayudas_rows, cerradas=False):
+        side_effect = [reporte_rows, ayudas_rows]
+        with patch("app.services.ordenado_facturado_service._leer_como_raw") as m:
+            m.side_effect = side_effect
+            return procesar_cruce(Path("r.xlsx"), Path("a.xlsx"), cerradas=cerradas)
+
+    @pytest.fixture
+    def ayudas_con_cierre(self, base_date: datetime) -> list[list]:
+        """Ayudas con datos varios."""
+        return _build_ayudas_rows([
+            ("A-CON", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+            ("A-SIN", "890410", "URGENCIAS", "200", base_date, "E1", "INTER"),
+            ("A-VACIO", "861801", "URGENCIAS", "300", base_date, "E1", "OTROS"),
+            ("A-NAN", "735930", "URGENCIAS", "400", base_date, "E1", "PARTO"),
+        ])
+
+    @pytest.fixture
+    def reporte_con_cierre(self, base_date: datetime) -> list[list]:
+        """Reporte con columna Fecha Cierre y valores mixtos.
+        Usa códigos dummy para que no matcheen con ayudas y todo sea no_facturado.
+        La factura A-CON tiene fecha cargada, las demás están vacías."""
+        return _build_reporte_rows_con_cierre([
+            ("A-CON", "999990", "DUMMY", "100", base_date, base_date),
+            ("A-SIN", "999991", "DUMMY", "200", base_date, None),
+            ("A-VACIO", "999992", "DUMMY", "300", base_date, ""),
+            ("A-NAN", "999993", "DUMMY", "400", base_date, float("nan")),
+        ])
+
+    def test_cerradas_false_includes_all(self, reporte_con_cierre, ayudas_con_cierre):
+        """GIVEN cerradas=False
+           WHEN processing
+           THEN all records appear regardless of Fecha Cierre."""
+        result = self._run(reporte_con_cierre, ayudas_con_cierre, cerradas=False)
+        assert result["status"] == "success"
+        assert len(result["data"]["no_facturados"]) == 4
+
+    def test_cerradas_true_filters_empty(self, reporte_con_cierre, ayudas_con_cierre):
+        """GIVEN cerradas=True
+           WHEN processing
+           THEN records with empty Fecha Cierre are excluded."""
+        result = self._run(reporte_con_cierre, ayudas_con_cierre, cerradas=True)
+        assert result["status"] == "success"
+        cups = _cups_set(result["data"]["no_facturados"])
+        assert "735301" in cups     # con fecha
+        assert "890410" not in cups  # None
+        assert "861801" not in cups  # ""
+        assert "735930" not in cups  # NaN
+        assert len(result["data"]["no_facturados"]) == 1
+
+    def test_cerradas_true_totals_recalculated(self, base_date):
+        """GIVEN cerradas=True
+           WHEN processing
+           THEN total_no_facturado and totalizado are recalculated."""
+        reporte = _build_reporte_rows_con_cierre([
+            ("R-DUMMY", "000000", "DUMMY", "000", base_date, base_date),
+            ("A-CON", "999991", "DUMMY", "100", base_date, base_date),
+            ("A-SIN", "999992", "DUMMY", "200", base_date, None),
+        ])
+        ayudas = _build_ayudas_rows([
+            ("A-CON", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+            ("A-SIN", "735930", "URGENCIAS", "200", base_date, "E1", "PARTO"),
+        ])
+        result = self._run(reporte, ayudas, cerradas=True)
+
+        assert result["status"] == "success"
+        assert result["data"]["total_no_facturado"] == 1
+        totalizado = {r["codigo"]: r for r in result["data"]["totalizado"]}
+        assert totalizado["PARTO"]["total_no_facturado"] == 1
+
+    def test_columna_ausente_no_error(self, dummy_reporte, base_date):
+        """GIVEN reporte without Fecha Cierre column
+           WHEN cerradas=True
+           THEN no error, no filtering."""
+        ayudas = _build_ayudas_rows([
+            ("A-CON", "735301", "URGENCIAS", "100", base_date, "E1", "PARTO"),
+        ])
+        result = self._run(dummy_reporte, ayudas, cerradas=True)
+        assert result["status"] == "success"
+        assert len(result["data"]["no_facturados"]) == 1
+
+    def test_valores_mixtos(self, reporte_con_cierre, ayudas_con_cierre):
+        """GIVEN mixed Fecha Cierre values
+           WHEN cerradas=True
+           THEN only empty ones are excluded."""
+        result = self._run(reporte_con_cierre, ayudas_con_cierre, cerradas=True)
+        assert result["status"] == "success"
+        cups = _cups_set(result["data"]["no_facturados"])
+        assert cups == {"735301"}, f"Expected only 735301, got {cups}"
