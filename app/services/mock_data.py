@@ -69,7 +69,7 @@ def _errores_sample() -> list[dict]:
             "creado_en": (datetime.now() - timedelta(weeks=2)).isoformat(),
             "tipo_error": "Equipamiento",
             "observacion": "Insumo no registrado en el inventario del servicio",
-            "responsable": "ANGIE ARIAS",
+            "responsable": "MARINEY DIAZ",
             "estado": "N",
             "imagenes_count": 0,
             "observacion_facturador": "Ya se realizó el ajuste en inventario",

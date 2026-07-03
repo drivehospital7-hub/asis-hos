@@ -306,7 +306,7 @@ describe("calcularResponsable", () => {
       "05/05/2026  10:15:00",
       cronograma,
     );
-    expect(result).toBe("ANGIE ARIAS"); // day 5 manana = CAROLINA → NOMBRE_MAP
+    expect(result).toBe("MARINEY DIAZ"); // day 5 manana = CAROLINA → NOMBRE_MAP
   });
 
   it("assigns tarde shift for egreso between 12:30 and 18:29", () => {
@@ -362,7 +362,7 @@ describe("calcularResponsable", () => {
       "05/05/2026  06:30:00",
       cronograma,
     );
-    expect(result).toBe("ANGIE ARIAS"); // day 5 manana = CAROLINA → ANGIE ARIAS
+    expect(result).toBe("MARINEY DIAZ"); // day 5 manana = MARINEY → MARINEY DIAZ
   });
 
   it("respects 30-min reception boundary at 12:29 (mañana ends)", () => {
@@ -372,7 +372,7 @@ describe("calcularResponsable", () => {
       "05/05/2026  12:29:00",
       cronograma,
     );
-    expect(result).toBe("ANGIE ARIAS"); // day 5 manana = CAROLINA → ANGIE ARIAS
+    expect(result).toBe("MARINEY DIAZ"); // day 5 manana = MARINEY → MARINEY DIAZ
   });
 
   it("respects 30-min reception boundary at 12:30 (tarde starts)", () => {

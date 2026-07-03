@@ -21,7 +21,7 @@ export const Route = createFileRoute("/urgencias")({
 const errores = [
   {
     factura: "CAP500990",
-    responsable: "ARIAS CULCHA ANGIE CAROLINA",
+    responsable: "CANGREJO DIAZ MARINEY DEL CARMEN",
     descripcion: "Centro de costo debería ser HOSPITALIZACIÓN - ESTANCIA GENERAL",
     procedimiento: "890601H - Valoración Inicial Intrahospitalaria por el Médico General",
     detalle: "URGENCIAS",
@@ -29,7 +29,7 @@ const errores = [
   },
   {
     factura: "FEV421550",
-    responsable: "ARIAS CULCHA ANGIE CAROLINA",
+    responsable: "CANGREJO DIAZ MARINEY DEL CARMEN",
     descripcion: "Centro de costo debería ser HOSPITALIZACIÓN - ESTANCIA GENERAL",
     procedimiento: "890601H - Valoración Inicial Intrahospitalaria por el Médico General",
     detalle: "URGENCIAS",
@@ -37,7 +37,7 @@ const errores = [
   },
   {
     factura: "FEV421557",
-    responsable: "ARIAS CULCHA ANGIE CAROLINA",
+    responsable: "CANGREJO DIAZ MARINEY DEL CARMEN",
     descripcion: "Centro de costo debería ser APOYO DIAGNÓSTICO",
     procedimiento: "873420 - Radiografía de Rodilla Ap. Lateral u Oblicua",
     detalle: "URGENCIAS",
