@@ -82,7 +82,7 @@ def detect_mal_capitado(
                 "codigo": codigo_str,
                 "procedimiento": procedimiento,
                 "ide_contrato_actual": ide_contrato_actual,
-                "observacion": "Número Factura debe tener prefijo FEV (ej: FEV12345)",
+                "observacion": "En caso de ser IVE pasar a Evento",
             })
             facturas_procesadas.add(factura_str)
 
