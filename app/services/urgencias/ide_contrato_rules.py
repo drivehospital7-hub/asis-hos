@@ -144,14 +144,6 @@ IDE_SIMPLE_RULES: list[dict[str, Any]] = [
         "expected": "974",
         "note": "890405 + ESS118 -> IDE 974",
     },
-    # ESS118 + Código=890205 -> IDE 970
-    {
-        "codigo": "890205",
-        "entidad": "ESS118",
-        "type": "exact",
-        "expected": "970",
-        "note": "890205 + ESS118 -> IDE 970",
-    },
 ]
 
 # =============================================================================
@@ -271,5 +263,13 @@ IDE_MULTIPLE_RULES: list[dict[str, Any]] = [
         "type": "multiple",
         "expected_set": frozenset({"970", "974"}),
         "note": "861801 + ESS118 -> IDE 970 o 974",
+    },
+    # ESS118 + Código=890205 -> IDE 970 o 974
+    {
+        "codigo": "890205",
+        "entidad": "ESS118",
+        "type": "multiple",
+        "expected_set": frozenset({"970", "974"}),
+        "note": "890205 + ESS118 -> IDE 970 o 974",
     },
 ]
