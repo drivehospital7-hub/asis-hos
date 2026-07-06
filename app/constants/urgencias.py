@@ -1058,6 +1058,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "JOJOA TULCAN DAVID ALEJANDRO",
         "tipo": "MEDICO",
     },
+    "03928": {
+        "nombre": "PORTILLA GUERRON GLORIA ISABEL",
+        "tipo": "MEDICO",
+    },
     "01251": {
         "nombre": "MOSQUERA LOZANO YENIA YADIRIS",
         "tipo": "ODONTOLOGO",
