@@ -46,6 +46,8 @@ const ALL_PERMISOS = [
   { value: "equipos_basicos", label: "Ordenado y Facturado" },
   { value: "odontologia_equipos_basicos", label: "Equipos Básicos" },
   { value: "derechos", label: "Derechos" },
+  { value: "monitoreo_carpetas", label: "Monitoreo de Carpetas" },
+  { value: "monitoreo_carpetas:write", label: "Monitoreo de Carpetas (configurar rutas)" },
 ];
 
 // Pares mutuamente excluyentes: si se marca uno, se desmarca el otro
@@ -54,6 +56,8 @@ const PERMISO_PAIRS: Record<string, string> = {
   "control_urgencias:write": "control_urgencias",
   "facturas_abiertas": "facturas_abiertas:write",
   "facturas_abiertas:write": "facturas_abiertas",
+  "monitoreo_carpetas": "monitoreo_carpetas:write",
+  "monitoreo_carpetas:write": "monitoreo_carpetas",
 };
 
 type ModalMode = "edit" | null;

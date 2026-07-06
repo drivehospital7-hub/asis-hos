@@ -89,6 +89,8 @@ ALLOWED_PERMISOS = frozenset({
     "odontologia_equipos_basicos",
     "cruce_facturas",
     "derechos",
+    "monitoreo_carpetas",
+    "monitoreo_carpetas:write",
 })
 
 # Pares de permisos que NO pueden convivir en el mismo usuario.
@@ -99,6 +101,8 @@ PERMISO_MUTUAL_EXCLUSION: dict[str, str] = {
     "control_urgencias:write": "control_urgencias",
     "facturas_abiertas": "facturas_abiertas:write",
     "facturas_abiertas:write": "facturas_abiertas",
+    "monitoreo_carpetas": "monitoreo_carpetas:write",
+    "monitoreo_carpetas:write": "monitoreo_carpetas",
 }
 
 # =============================================================================
@@ -229,6 +233,15 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "pendientes",
         "description": "Procesamiento de facturas de odontología para equipos básicos.",
+    },
+    {
+        "title": "Monitoreo de Carpetas",
+        "slug": "monitoreo_carpetas",
+        "permiso": "monitoreo_carpetas",
+        "href": "/monitoreo-carpetas",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Escaneo y monitoreo de carpetas de red de facturadores.",
     },
     {
         "title": "Usuarios",

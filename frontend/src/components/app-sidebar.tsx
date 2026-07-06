@@ -6,6 +6,7 @@ import {
   CalendarClock,
   FileSpreadsheet,
   Scale,
+  FolderSearch,
   Users,
   Upload,
   LogOut,
@@ -28,6 +29,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
+  { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
   { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
 ];
