@@ -10,13 +10,14 @@ Recorrer directorios de red configurados, enumerar subcarpetas de facturadores, 
 
 ### R1: Scan Configured Roots
 
-The system MUST scan all directories listed in scanner config and enumerate first-level subdirectories as facturador folders.
+The system MUST read root directories from the **folder-scanner-config store** and enumerate first-level subdirectories as facturador folders.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
-| Single root | one root dir with 3 facturadores | scan runs | all 3 subdirs returned |
-| Multiple roots | 2 root dirs configured | scan runs | subdirs from both roots returned |
-| Empty root | root dir contains no subfolders | scan runs | empty list returned |
+| Single root | store returns one root dir with 3 facturadores | scan runs | all 3 subdirs returned |
+| Multiple roots | store returns 2 root dirs | scan runs | subdirs from both roots returned |
+| Empty root | store returns empty list | scan runs | empty result returned (no error) |
+| Store corrupt | store falls back to env var with 1 root | scan runs | that 1 root is scanned |
 
 ### R2: Infer Status from Folder Name
 

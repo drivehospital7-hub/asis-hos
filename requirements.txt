@@ -17,3 +17,6 @@ waitress==3.0.2
 # Database
 psycopg>=3
 sqlalchemy<2.0.40
+
+# Watchdog — filesystem monitoring for monitoreo_carpetas
+watchdog>=4.0.0

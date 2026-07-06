@@ -55,9 +55,9 @@ class TestValidateName:
         result = validate_name("CAP_ABC.pdf")
         assert result == ("CAP", False)
 
-    def test_invalid_cap_trailing_underscore(self) -> None:
-        """validate_name returns ('CAP', False) for CAP with trailing underscore."""
-        result = validate_name("CAP123_.pdf")
+    def test_invalid_cap_no_digits(self) -> None:
+        """validate_name returns ('CAP', False) for CAP without digits."""
+        result = validate_name("CAPABC.pdf")
         assert result == ("CAP", False)
 
     def test_unknown_no_match(self) -> None:

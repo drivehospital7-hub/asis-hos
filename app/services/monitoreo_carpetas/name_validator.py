@@ -64,12 +64,12 @@ def validate_name(filename: str) -> tuple[str, bool]:
     # Strip known prefixes (like INV_) for matching
     stripped = _strip_prefix(name)
 
-    # Try FEV full match on stripped name
+    # Try FEV full match on stripped name (strict: whole name must be FEV\d+)
     if _FEV_PATTERN.fullmatch(stripped):
         return _INVOICE_TYPE_FEV, True
 
-    # Try CAP full match on stripped name
-    if _CAP_PATTERN.fullmatch(stripped):
+    # Try CAP match (anchored at start: CAP\d+ prefix is enough)
+    if _CAP_PATTERN.match(stripped):
         return _INVOICE_TYPE_CAP, True
 
     # Has FEV prefix but didn't match fully -> invalid FEV

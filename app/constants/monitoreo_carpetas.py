@@ -29,8 +29,8 @@ STATUS_KEYWORDS: dict[str, list[str]] = {
 # FEV seguido de uno o más dígitos (case-insensitive)
 FEV_REGEX: str = r"FEV\d+"
 
-# CAP seguido de dígitos, guion bajo, letras mayúsculas y dígitos
-CAP_REGEX: str = r"CAP\d+_[A-Z]+\d+"
+# CAP seguido de uno o más dígitos (case-insensitive)
+CAP_REGEX: str = r"CAP\d+"
 
 # =============================================================================
 # ENV VAR - Configuración de rutas de red
@@ -47,6 +47,22 @@ SCAN_TIMEOUT_PER_FACTURADOR: int = 120
 
 MAX_CONCURRENT_SCANS: int = 3
 """Máximo de escaneos simultáneos (semáforo de concurrencia)."""
+
+# =============================================================================
+# WATCHDOG — Configuración del observador de filesystem
+# =============================================================================
+
+WATCHDOG_POLL_INTERVAL: float = 1.0
+"""Intervalo en segundos entre polls del watchdog observer."""
+
+WATCHDOG_EVENT_TYPES: list[str] = ["created", "modified", "deleted", "moved"]
+"""Tipos de eventos del filesystem que watchdog debe monitorear."""
+
+# =============================================================================
+# CONFIG FILE - Ruta del archivo de configuración persistente
+# =============================================================================
+
+MONITOREO_CONFIG_FILE: str = "data/monitoreo_carpetas_config.json"
 
 # =============================================================================
 # EXCEL - Configuración del reporte

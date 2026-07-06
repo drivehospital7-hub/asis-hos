@@ -35,7 +35,7 @@ def _infer_status_from_parts(parts: list[str]) -> str:
     return "En revisión"
 
 
-def _scan_dir_controlled(
+def scan_subtree(
     dir_path_str: str,
     root_str: str,
     depth: int,
@@ -43,7 +43,19 @@ def _scan_dir_controlled(
     empty_folders: list[dict[str, Any]],
     errors: list[dict[str, Any]],
 ) -> None:
-    """Recorrido controlado: para en carpetas FEV/CAP, no las abre."""
+    """Recorrido controlado de un subárbol: para en carpetas FEV/CAP, no las abre.
+
+    Escanea recursivamente el directorio dado (hasta _MAX_SCAN_DEPTH niveles)
+    y recolecta facturas, carpetas vacías y errores en las listas provistas.
+
+    Args:
+        dir_path_str: Ruta del directorio a escanear.
+        root_str: Ruta raíz del escaneo (para calcular rutas relativas).
+        depth: Profundidad actual de recursión.
+        invoices: Lista donde se agregan los InvoiceRecord encontrados.
+        empty_folders: Lista donde se agregan las carpetas vacías detectadas.
+        errors: Lista donde se agregan los errores de escaneo.
+    """
 
     if depth > _MAX_SCAN_DEPTH:
         return
@@ -64,7 +76,7 @@ def _scan_dir_controlled(
 
         # Pre-filter: skip folders that can't possibly be invoices
         if not name.upper().startswith(("FEV", "CAP")):
-            _scan_dir_controlled(path_str, root_str, depth + 1, invoices, empty_folders, errors)
+            scan_subtree(path_str, root_str, depth + 1, invoices, empty_folders, errors)
             continue
 
         # May be an invoice folder → validate
@@ -91,7 +103,7 @@ def _scan_dir_controlled(
 
         if not is_valid:
             # Non-empty but invalid → recurse for nested valid invoices
-            _scan_dir_controlled(path_str, root_str, depth + 1, invoices, empty_folders, errors)
+            scan_subtree(path_str, root_str, depth + 1, invoices, empty_folders, errors)
             continue
 
         # Valid, non-empty invoice folder → register but DON'T recurse
@@ -128,7 +140,7 @@ def _scan_root(root_path: Path) -> dict[str, Any]:
     empty_folders: list[dict[str, Any]] = []
     errors: list[dict[str, Any]] = []
 
-    _scan_dir_controlled(root_str, root_str, 0, invoices, empty_folders, errors)
+    scan_subtree(root_str, root_str, 0, invoices, empty_folders, errors)
 
     return {
         "invoices": invoices,

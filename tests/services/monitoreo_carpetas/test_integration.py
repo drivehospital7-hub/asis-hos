@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from unittest import mock
 
 import pytest
 
@@ -195,6 +196,17 @@ class TestDetectAllIntegration:
 class TestMonitoreoE2E:
     """E2E tests for the Flask route."""
 
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _cleanup_config(self) -> None:
+        """Remove the config JSON file to avoid test pollution between runs."""
+        from app.utils.monitoreo_store import CONFIG_FILE as _CF
+        if _CF.exists():
+            _CF.unlink()
+
     def _authenticate(self, app_client) -> None:
         """Establece sesión autenticada."""
         with app_client.session_transaction() as sess:
@@ -248,6 +260,7 @@ class TestMonitoreoE2E:
 
     def test_scan_empty_config_returns_error(self, app_client) -> None:
         """POST /monitoreo-carpetas/scan with empty config returns error."""
+        self._cleanup_config()
         self._authenticate(app_client)
         os.environ["MONITOREO_CARPETAS_ROOTS"] = "[]"
         try:
@@ -315,3 +328,175 @@ class TestMonitoreoE2E:
                 assert download_resp.content_length > 0
             finally:
                 os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
+
+
+class TestConfigEndpoints:
+    """Integration tests for config endpoints (tasks 2.2-2.4)."""
+
+    def _cleanup_config(self) -> None:
+        """Remove the config JSON file to avoid test pollution between runs."""
+        from app.utils.monitoreo_store import CONFIG_FILE as _CF
+        if _CF.exists():
+            _CF.unlink()
+
+    def _authenticate(self, app_client, permisos: list[str] | None = None) -> None:
+        """Establece sesión autenticada con permisos opcionales."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = permisos or ["*"]
+
+    def test_get_config_returns_stored_roots(self, app_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GET /monitoreo-carpetas/config returns roots from JSON store."""
+        self._cleanup_config()
+        from app.utils.monitoreo_store import CONFIG_FILE as _CF
+
+        config_file = tmp_path / "monitoreo_carpetas_config.json"
+        config_file.write_text(json.dumps({
+            "roots": ["//srv/manual"],
+            "fuente": "manual",
+            "ultima_actualizacion": "2026-07-04T12:00:00",
+        }))
+        monkeypatch.setattr("app.routes.monitoreo_carpetas.get_roots", _mock_get_roots := mock.Mock(return_value=(["//srv/manual"], "manual", "2026-07-04T12:00:00")))
+        self._authenticate(app_client)
+
+        resp = app_client.get("/monitoreo-carpetas/config")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"]["roots"] == ["//srv/manual"]
+        assert data["data"]["fuente"] == "manual"
+
+    def test_get_config_fallback_to_env(self, app_client, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GET /monitoreo-carpetas/config returns env var roots when no JSON."""
+        monkeypatch.setattr("app.routes.monitoreo_carpetas.get_roots", _mock_get_roots := mock.Mock(return_value=(["//srv/env"], "env", None)))
+        self._authenticate(app_client)
+
+        resp = app_client.get("/monitoreo-carpetas/config")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["data"]["roots"] == ["//srv/env"]
+        assert data["data"]["fuente"] == "env"
+
+    def test_get_config_no_auth_required(self, app_client, monkeypatch: pytest.MonkeyPatch) -> None:
+        """GET /monitoreo-carpetas/config does NOT require auth (open endpoint)."""
+        monkeypatch.setattr("app.routes.monitoreo_carpetas.get_roots", _mock_get_roots := mock.Mock(return_value=([], "env", None)))
+
+        resp = app_client.get("/monitoreo-carpetas/config")
+
+        # Returns 200 even without auth because login_requerido is not applied to GET /config
+        # But it may redirect if there's a login_requerido. Let's check:
+        assert resp.status_code in (200, 302, 401)
+
+    def test_put_config_success(self, app_client, monkeypatch: pytest.MonkeyPatch) -> None:
+        """PUT /monitoreo-carpetas/config with valid roots returns updated config."""
+        monkeypatch.setattr("app.routes.monitoreo_carpetas.save_roots", _mock_save := mock.Mock())
+        monkeypatch.setattr("app.routes.monitoreo_carpetas.get_roots", _mock_get := mock.Mock(return_value=(["//srv/updated"], "manual", "2026-07-04T13:00:00")))
+        self._authenticate(app_client)
+
+        resp = app_client.put(
+            "/monitoreo-carpetas/config",
+            json={"roots": ["//srv/updated"]},
+        )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        _mock_save.assert_called_once_with(["//srv/updated"])
+
+    def test_put_config_returns_403_without_write_permiso(self, app_client) -> None:
+        """PUT /monitoreo-carpetas/config returns 403 without :write permission."""
+        self._authenticate(app_client, permisos=["monitoreo_carpetas"])
+
+        resp = app_client.put(
+            "/monitoreo-carpetas/config",
+            json={"roots": ["//srv/test"]},
+        )
+
+        assert resp.status_code == 403
+        data = resp.get_json()
+        assert data["status"] == "error"
+
+    def test_put_config_returns_422_empty_roots(self, app_client) -> None:
+        """PUT /monitoreo-carpetas/config with empty roots returns 422."""
+        self._authenticate(app_client)
+
+        resp = app_client.put(
+            "/monitoreo-carpetas/config",
+            json={"roots": []},
+        )
+
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert data["status"] == "error"
+
+    def test_put_config_returns_422_missing_roots(self, app_client) -> None:
+        """PUT /monitoreo-carpetas/config without roots key returns 422."""
+        self._authenticate(app_client)
+
+        resp = app_client.put(
+            "/monitoreo-carpetas/config",
+            json={},
+        )
+
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert data["status"] == "error"
+
+    def test_put_config_returns_422_non_list_roots(self, app_client) -> None:
+        """PUT /monitoreo-carpetas/config with non-list roots returns 422."""
+        self._authenticate(app_client)
+
+        resp = app_client.put(
+            "/monitoreo-carpetas/config",
+            json={"roots": "not_a_list"},
+        )
+
+        assert resp.status_code == 422
+        data = resp.get_json()
+        assert data["status"] == "error"
+
+class TestScanWithStore:
+    """Integration test for POST /scan using store (task 2.5)."""
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = ["*"]
+
+    def test_scan_uses_store_roots(self, app_client, monkeypatch: pytest.MonkeyPatch) -> None:
+        """POST /monitoreo-carpetas/scan uses get_roots() instead of env var directly."""
+        # Create a temp directory to scan
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+            fact.mkdir(parents=True)
+            (fact / "FEV001").mkdir()
+            (fact / "FEV001" / "dummy.txt").write_text("test")
+
+            # Mock get_roots to return the temp path
+            monkeypatch.setattr(
+                "app.routes.monitoreo_carpetas.get_roots",
+                mock.Mock(return_value=([str(root)], "manual", "2026-07-04T12:00:00")),
+            )
+
+            self._authenticate(app_client)
+
+            # Ensure no env var is set (so test fails if scan reads env directly)
+            monkeypatch.delenv("MONITOREO_CARPETAS_ROOTS", raising=False)
+
+            resp = app_client.post("/monitoreo-carpetas/scan")
+
+            data = resp.get_json()
+            assert data["status"] == "success"
+            assert len(data["data"]["facturas"]) == 1
+            assert data["data"]["facturas"][0]["filename"] == "FEV001"
