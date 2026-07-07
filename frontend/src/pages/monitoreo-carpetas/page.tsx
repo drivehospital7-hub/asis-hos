@@ -111,6 +111,15 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
 
   const handleRemoveRoot = (idx: number) => {
     setConfigRoots((prev) => prev.filter((_, i) => i !== idx));
+    // Al eliminar una ruta el snapshot queda inválido — lo borramos
+    fetch("/monitoreo-carpetas/clear-snapshot", { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success") {
+          setResult(null);
+        }
+      })
+      .catch(() => {});
   };
 
   const handleRootChange = (idx: number, value: string) => {
@@ -307,15 +316,15 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
             )}
           </div>
           <Button onClick={handleScan} disabled={loading}>
-            {loading ? (
-              "Verificando..."
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Verificar
-              </>
-            )}
-          </Button>
+              {loading ? (
+                "Verificando..."
+              ) : (
+                <>
+                  <Play className="h-4 w-4" />
+                  Verificar
+                </>
+              )}
+            </Button>
         </div>
       </Card>
 

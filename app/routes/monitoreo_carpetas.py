@@ -4,6 +4,7 @@ GET  /monitoreo-carpetas/config                → Lee configuración de rutas
 PUT  /monitoreo-carpetas/config                → Guarda rutas (requiere :write)
 POST /monitoreo-carpetas/config/reset          → Restablece a env var (requiere :write)
 POST /monitoreo-carpetas/scan                  → Escanea (1°) o devuelve cache (subsiguientes)
+POST /monitoreo-carpetas/clear-snapshot        → Elimina el snapshot escaneado y reinicia el watcher
 GET  /monitoreo-carpetas/data                  → Retorna datos cacheados (para recarga de página)
 GET  /monitoreo-carpetas/download/<filename>   → Descarga reporte Excel generado
 """
@@ -238,6 +239,24 @@ def trigger_scan():
     return jsonify({
         "status": "success",
         "data": response_data,
+        "errors": [],
+    }), 200
+
+
+@monitoreo_carpetas_bp.post("/clear-snapshot")
+@permiso_requerido("monitoreo_carpetas:write")
+def clear_snapshot():
+    """Elimina el snapshot escaneado y reinicia el watcher.
+
+    Detiene el watchdog, limpia el cache en memoria y borra el archivo
+    de snapshot del disco. La próxima vez que se haga clic en Verificar
+    se ejecutará un escaneo completo desde cero.
+    """
+    _watcher.reset()
+    logger.info("Snapshot eliminado por el usuario")
+    return jsonify({
+        "status": "success",
+        "data": {"message": "Snapshot eliminado. Hacé clic en Verificar para un nuevo escaneo completo."},
         "errors": [],
     }), 200
 

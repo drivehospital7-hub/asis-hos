@@ -362,33 +362,20 @@ class FolderWatcher:
             logger.exception("Failed to save snapshot")
 
     def _load_snapshot(self) -> None:
-        """Load ScanResult from disk snapshot if available."""
+        """Load roots from disk snapshot (NOT the old scan data).
+
+        On server restart after an outage, the cached scan result is stale —
+        files may have been added/removed while the server was down.
+        We keep the roots so they don't get lost, but discard the ScanResult
+        to force a full scan on next POST /scan.
+        """
         if not _SNAPSHOT_FILE.exists():
             return
         try:
             data = json.loads(_SNAPSHOT_FILE.read_text(encoding="utf-8"))
             self._roots = data.get("roots", [])
-            result_data = data.get("result", {})
-            facturas = [
-                InvoiceRecord(
-                    filename=inv["filename"],
-                    facturador=inv["facturador"],
-                    full_path=inv["full_path"],
-                    status=inv["status"],
-                    invoice_type=inv["invoice_type"],
-                    invoice_code=inv["invoice_code"],
-                )
-                for inv in result_data.get("facturas", [])
-            ]
-            self._result = ScanResult(
-                facturas=facturas,
-                indicadores=result_data.get("indicadores", {}),
-                duplicados=result_data.get("duplicados", []),
-                vacias=result_data.get("vacias", []),
-                errores_scan=result_data.get("errores_scan", []),
-                excel_path=result_data.get("excel_path"),
-            )
-            logger.info("Snapshot loaded: %d invoices, %d roots", len(facturas), len(self._roots))
+            # Intentionally NOT loading result data — see docstring
+            logger.info("Snapshot roots loaded (%d roots). Scan data discarded — will full-scan on next request.", len(self._roots))
         except Exception:
             logger.exception("Failed to load snapshot — starting fresh")
 
