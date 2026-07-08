@@ -130,6 +130,9 @@ export function AbiertasUrgenciasPage({
     [results, filterResponsable],
   );
 
+  // ── Facturadores (dynamic responsables from backend) ──
+  const [facturadores, setFacturadores] = useState<string[]>([]);
+
   // ── Envío tracking refs (no re-renders needed) ──
   const envioExistentes = useRef(new Set<string>());
   const envioEnviadas = useRef(new Set<string>());
@@ -170,6 +173,23 @@ export function AbiertasUrgenciasPage({
   useEffect(() => {
     loadSchedule();
   }, [loadSchedule]);
+
+  // ── Fetch facturadores on mount ──
+  useEffect(() => {
+    fetch("/auth/api/users/facturadores")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.status === "success" && data.data?.facturadores) {
+          const names = data.data.facturadores.map(
+            (f: { nombre_completo: string }) => f.nombre_completo,
+          ).filter(Boolean);
+          setFacturadores(names);
+        }
+      })
+      .catch(() => {
+        // Fallback: keep hardcoded NOMBRE_MAP behavior
+      });
+  }, []);
 
   // ── Schedule handlers ──
   const handleToggleParseCard = () => {
