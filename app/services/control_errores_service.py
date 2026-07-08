@@ -1,6 +1,7 @@
 """Servicio de control de errores de urgencias."""
 
 import logging
+import re
 from typing import Any
 
 from flask import session
@@ -20,48 +21,87 @@ from app.utils.errores_storage import (
     check_cambios,
 )
 
-from app.utils.users_store import get_facturadores
+from app.utils.users_store import list_users
 
 logger = logging.getLogger(__name__)
+
+
+def _build_user_data(roles_filter: set[str] | None = None
+                     ) -> tuple[list[str], dict[str, str], dict[str, str]]:
+    """Construye listas de responsables, nombres completos y roles desde los usuarios.
+
+    Args:
+        roles_filter: si se pasa, solo incluye usuarios con rol en este set.
+                      Si es None, incluye todos los usuarios con primer_nombre.
+
+    Returns:
+        (responsables, responsables_nombres_completos, responsables_roles)
+    """
+    usuarios = list_users()
+    if not usuarios:
+        from app.constants import (
+            ERROR_RESPONSABLE_URGENCIAS,
+            ERROR_RESPONSABLE_ROLES,
+            RESPONSABLE_NOMBRES_COMPLETOS,
+        )
+        logger.warning("No hay usuarios en users.json, usando fallback hardcodeado")
+        return (
+            list(ERROR_RESPONSABLE_URGENCIAS),
+            dict(RESPONSABLE_NOMBRES_COMPLETOS),
+            {k: v.upper() for k, v in ERROR_RESPONSABLE_ROLES.items()},
+        )
+
+    responsables = []
+    nombres_completos = {}
+    roles = {}
+    for u in usuarios:
+        if roles_filter and u.get("rol") not in roles_filter:
+            continue
+        primer_nombre = (u.get("primer_nombre") or "").strip()
+        if not primer_nombre:
+            continue
+        apellido_1 = (u.get("apellido_1") or "").strip()
+        nombre_completo = " ".join(n for n in [primer_nombre, apellido_1] if n).upper()
+
+        responsables.append(nombre_completo)
+
+        nombre_full = " ".join(
+            p for p in [
+                u.get("primer_nombre", ""),
+                u.get("segundo_nombre", ""),
+                u.get("apellido_1", ""),
+                u.get("apellido_2", ""),
+            ] if p
+        ).upper()
+        nombres_completos[nombre_completo] = nombre_full
+        roles[nombre_completo] = u.get("rol", "-").upper()
+
+    return responsables, nombres_completos, roles
 
 
 def get_opciones() -> dict[str, list[str] | dict[str, str]]:
     """Obtener opciones para los selects.
 
-    Los responsables se obtienen dinámicamente desde users_store.
-    Si no hay facturadores registrados, se usa el fallback hardcodeado.
+    El dropdown de responsables solo incluye usuarios con rol
+    ``"facturador"`` o ``"medico"``. Los roles se proveen como mapa
+    para que el frontend pueda actualizar la celda Rol dinámicamente.
+    Si no hay usuarios registrados, se usa el fallback hardcodeado.
     """
     from app.constants import (
         ERROR_TIPO_URGENCIAS,
         ERROR_ESTADO_URGENCIAS,
-        ERROR_RESPONSABLE_URGENCIAS,
-        RESPONSABLE_NOMBRES_COMPLETOS,
     )
 
-    facturadores = get_facturadores()
-    if facturadores:
-        responsables = [f["nombre_completo"] for f in facturadores]
-        responsables_nombres_completos = {
-            f["nombre_completo"]: " ".join(
-                p for p in [
-                    f.get("primer_nombre", ""),
-                    f.get("segundo_nombre", ""),
-                    f.get("apellido_1", ""),
-                    f.get("apellido_2", ""),
-                ] if p
-            ).upper()
-            for f in facturadores
-        }
-    else:
-        logger.warning("No hay facturadores en users.json, usando fallback hardcodeado")
-        responsables = ERROR_RESPONSABLE_URGENCIAS
-        responsables_nombres_completos = RESPONSABLE_NOMBRES_COMPLETOS
+    responsables, responsables_nombres_completos, responsables_roles = _build_user_data(
+        roles_filter={"facturador", "medico"},
+    )
 
     return {
         "tipos_error": ERROR_TIPO_URGENCIAS,
         "estados": ERROR_ESTADO_URGENCIAS,
         "responsables": responsables,
         "responsables_nombres_completos": responsables_nombres_completos,
+        "responsables_roles": responsables_roles,
     }
 
 
@@ -70,7 +110,11 @@ def get_errores(
     estado: str | None = None,
     responsable: str | None = None,
 ) -> dict[str, Any]:
-    """Listar errores con filtros."""
+    """Listar errores con filtros.
+
+    Enriches each error with ``responsable_rol`` from todos los usuarios
+    del sistema usando un mapa ``nombre_completo → rol``.
+    """
     try:
         errores = listar_errores(tipo_error, estado, responsable)
         logger.info(
@@ -80,6 +124,14 @@ def get_errores(
             responsable,
             len(errores),
         )
+
+        # Build rol_map from ALL system users (sin filtro de rol)
+        _, _, responsables_roles = _build_user_data()
+        for error in errores:
+            # Normalizar: sacar espacios extra del stored value (viene de formato viejo)
+            responsable = re.sub(r'\s+', ' ', error.get("responsable", "").strip())
+            error["responsable_rol"] = responsables_roles.get(responsable, "-")
+
         return {"status": "success", "data": {"errores": errores}, "errors": []}
     except Exception as e:
         logger.exception("Error listando errores")

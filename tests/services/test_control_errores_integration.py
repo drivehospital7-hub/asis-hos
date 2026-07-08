@@ -224,3 +224,66 @@ class TestValidadorIntegration:
         assert data["status"] == "success"
         assert data["data"]["error"]["validador"] == "Maria Gomez"
         assert data["data"]["error"]["validador"] != "hacker"
+
+
+class TestGetErroresRolIntegration:
+    """Integration tests: GET /api/control-errores returns responsable_rol."""
+
+    def test_get_returns_responsable_rol_in_every_error(self, app_client):
+        """GET /api/control-errores MUST return responsable_rol in every error dict."""
+        fake_errores = [
+            {"id": "e1", "responsable": "JUAN PEREZ", "tipo_error": "X", "creado_en": "2026-01-01"},
+            {"id": "e2", "responsable": "MARIA GOMEZ", "tipo_error": "Y", "creado_en": "2026-01-02"},
+        ]
+        fake_usuarios = [
+            {"username": "jperez", "rol": "facturador", "permisos": [], "primer_nombre": "JUAN", "segundo_nombre": "", "apellido_1": "PEREZ", "apellido_2": ""},
+            {"username": "mgomez", "rol": "medico", "permisos": [], "primer_nombre": "MARIA", "segundo_nombre": "", "apellido_1": "GOMEZ", "apellido_2": ""},
+        ]
+
+        with (
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = fake_usuarios
+
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["control_urgencias"]
+                sess["username"] = "urgencias"
+
+            resp = app_client.get("/api/control-errores")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        errores = data["data"]["errores"]
+        assert len(errores) == 2
+        assert errores[0]["responsable_rol"] == "FACTURADOR"
+        assert errores[1]["responsable_rol"] == "MEDICO"
+
+    def test_get_empty_facturadores_all_dash(self, app_client):
+        """GET with empty usuarios MUST fallback to hardcoded roles."""
+        fake_errores = [
+            {"id": "e1", "responsable": "JUAN PEREZ", "tipo_error": "X", "creado_en": "2026-01-01"},
+        ]
+
+        with (
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = []
+
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["control_urgencias"]
+                sess["username"] = "urgencias"
+
+            resp = app_client.get("/api/control-errores")
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        # JUAN PEREZ not in hardcoded fallback → gets "-"
+        assert data["data"]["errores"][0]["responsable_rol"] == "-"

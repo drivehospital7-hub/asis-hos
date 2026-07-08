@@ -11,7 +11,7 @@ import pytest
 from flask import session
 
 from app import create_app
-from app.services.control_errores_service import update_error, add_error, get_opciones
+from app.services.control_errores_service import update_error, add_error, get_opciones, get_errores
 from app.utils.errores_storage import crear_error, actualizar_error
 
 # Application fixture for test request context
@@ -337,23 +337,23 @@ class TestGetOpcionesFacturadores:
         """Facturadores exist → responsables come from get_facturadores()."""
         from app.constants import ERROR_TIPO_URGENCIAS, ERROR_ESTADO_URGENCIAS
 
-        fake_facturadores = [
+        fake_usuarios = [
             {
                 "username": "jperez",
+                "rol": "facturador",
+                "permisos": [],
                 "primer_nombre": "JUAN",
                 "segundo_nombre": "",
                 "apellido_1": "PEREZ",
                 "apellido_2": "",
-                "nombre_completo": "JUAN PEREZ",
-                "rol": "facturador",
             },
         ]
 
         with (
             _APP.test_request_context(),
-            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+            patch("app.services.control_errores_service.list_users") as mock_users,
         ):
-            mock_get.return_value = fake_facturadores
+            mock_users.return_value = fake_usuarios
             result = get_opciones()
 
         assert isinstance(result, dict)
@@ -366,23 +366,23 @@ class TestGetOpcionesFacturadores:
 
     def test_nombres_completos_incluye_todos_los_campos(self):
         """responsables_nombres_completos includes all 4 name parts joined."""
-        fake_facturadores = [
+        fake_usuarios = [
             {
                 "username": "jperez",
+                "rol": "facturador",
+                "permisos": [],
                 "primer_nombre": "JUAN",
                 "segundo_nombre": "FELIPE",
                 "apellido_1": "PEREZ",
                 "apellido_2": "GOMEZ",
-                "nombre_completo": "JUAN PEREZ",
-                "rol": "facturador",
             },
         ]
 
         with (
             _APP.test_request_context(),
-            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+            patch("app.services.control_errores_service.list_users") as mock_users,
         ):
-            mock_get.return_value = fake_facturadores
+            mock_users.return_value = fake_usuarios
             result = get_opciones()
 
         assert result["responsables_nombres_completos"] == {
@@ -390,7 +390,7 @@ class TestGetOpcionesFacturadores:
         }
 
     def test_fallback_when_empty(self):
-        """No facturadores → fallback to hardcoded constants."""
+        """No usuarios → fallback to hardcoded constants."""
         from app.constants import (
             ERROR_RESPONSABLE_URGENCIAS,
             RESPONSABLE_NOMBRES_COMPLETOS,
@@ -398,9 +398,9 @@ class TestGetOpcionesFacturadores:
 
         with (
             _APP.test_request_context(),
-            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+            patch("app.services.control_errores_service.list_users") as mock_users,
         ):
-            mock_get.return_value = []
+            mock_users.return_value = []
             result = get_opciones()
 
         assert isinstance(result, dict)
@@ -411,17 +411,17 @@ class TestGetOpcionesFacturadores:
         """Response keys remain identical regardless of source."""
         with (
             _APP.test_request_context(),
-            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+            patch("app.services.control_errores_service.list_users") as mock_users,
         ):
-            mock_get.return_value = [
+            mock_users.return_value = [
                 {
                     "username": "test",
+                    "rol": "facturador",
+                    "permisos": [],
                     "primer_nombre": "A",
                     "segundo_nombre": "",
                     "apellido_1": "B",
                     "apellido_2": "",
-                    "nombre_completo": "A B",
-                    "rol": "facturador",
                 },
             ]
             result = get_opciones()
@@ -430,25 +430,166 @@ class TestGetOpcionesFacturadores:
         assert "estados" in result
         assert "responsables" in result
         assert "responsables_nombres_completos" in result
+        assert "responsables_roles" in result
 
     def test_nombre_completo_uppercase(self):
         """Name format: primer_nombre + apellido_1 uppercase."""
         with (
             _APP.test_request_context(),
-            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+            patch("app.services.control_errores_service.list_users") as mock_users,
         ):
-            mock_get.return_value = [
+            mock_users.return_value = [
                 {
                     "username": "ana",
+                    "rol": "facturador",
+                    "permisos": [],
                     "primer_nombre": "Ana",
                     "segundo_nombre": "",
                     "apellido_1": "López",
                     "apellido_2": "",
-                    "nombre_completo": "ANA LÓPEZ",
-                    "rol": "facturador",
                 },
             ]
             result = get_opciones()
 
         assert "ANA LÓPEZ" in result["responsables"]
         assert "Ana López" not in result["responsables"]
+
+    def test_transition_from_fallback_to_dynamic(self):
+        """R4: create first facturador → next get_opciones() returns dynamic, not fallback."""
+        from app.constants import ERROR_RESPONSABLE_URGENCIAS
+
+        facturador_payload = [
+            {
+                "username": "nuevo_fact",
+                "rol": "facturador",
+                "permisos": [],
+                "primer_nombre": "NUEVO",
+                "segundo_nombre": "",
+                "apellido_1": "FACTURADOR",
+                "apellido_2": "",
+            },
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            # Phase 1: no usuarios → fallback
+            mock_users.return_value = []
+            result_empty = get_opciones()
+            assert result_empty["responsables"] == ERROR_RESPONSABLE_URGENCIAS
+            assert result_empty["responsables_nombres_completos"] != {}
+
+            # Phase 2: after creating first user → dynamic
+            mock_users.return_value = facturador_payload
+            result_dynamic = get_opciones()
+            assert result_dynamic["responsables"] == ["NUEVO FACTURADOR"]
+            assert result_dynamic["responsables_nombres_completos"] == {
+                "NUEVO FACTURADOR": "NUEVO FACTURADOR",
+            }
+
+
+# =============================================================================
+# Tests: get_errores() — rol enrichment from list_users()
+# =============================================================================
+
+
+class TestGetErroresRolEnrichment:
+    """Spec R12: get_errores() MUST inject responsable_rol from list_users()."""
+
+    # ── Happy path ────────────────────────────────────────────────────
+
+    def test_rol_mapped_from_facturadores(self):
+        """get_errores() MUST map responsable → rol using list_users()."""
+        fake_errores = [
+            {"id": "e1", "responsable": "JUAN PEREZ", "tipo_error": "X"},
+            {"id": "e2", "responsable": "MARIA GOMEZ", "tipo_error": "Y"},
+        ]
+        fake_usuarios = [
+            {"username": "jperez", "rol": "facturador", "permisos": [], "primer_nombre": "JUAN", "segundo_nombre": "", "apellido_1": "PEREZ", "apellido_2": ""},
+            {"username": "mgomez", "rol": "medico", "permisos": [], "primer_nombre": "MARIA", "segundo_nombre": "", "apellido_1": "GOMEZ", "apellido_2": ""},
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = fake_usuarios
+
+            result = get_errores()
+
+        assert result["status"] == "success"
+        errores = result["data"]["errores"]
+        assert errores[0]["responsable_rol"] == "FACTURADOR"
+        assert errores[1]["responsable_rol"] == "MEDICO"
+
+    def test_rol_unmatched_responsable_fallsback_to_dash(self):
+        """Unmatched responsable name MUST result in '-'."""
+        fake_errores = [
+            {"id": "e1", "responsable": "NOBODY", "tipo_error": "X"},
+        ]
+        fake_usuarios = [
+            {"username": "jperez", "rol": "facturador", "permisos": [], "primer_nombre": "JUAN", "segundo_nombre": "", "apellido_1": "PEREZ", "apellido_2": ""},
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = fake_usuarios
+
+            result = get_errores()
+
+        errores = result["data"]["errores"]
+        assert errores[0]["responsable_rol"] == "-"
+
+    # ── Edge cases (task 1.2) ─────────────────────────────────────────
+
+    def test_empty_facturadores_all_dash(self):
+        """Empty usuarios list MUST fallback to hardcoded roles."""
+        fake_errores = [
+            {"id": "e1", "responsable": "JUAN PEREZ", "tipo_error": "X"},
+            {"id": "e2", "responsable": "MARIA GOMEZ", "tipo_error": "Y"},
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = []
+
+            result = get_errores()
+
+        errores = result["data"]["errores"]
+        # When no users, the fallback hardcoded roles are used (not "-")
+        # So JUAN PEREZ is not in the hardcoded fallback → gets "-"
+        assert all(e["responsable_rol"] == "-" for e in errores) is True
+
+    def test_facturador_missing_rol_key_fallsback_to_dash(self):
+        """User dict without 'rol' key MUST use .get('rol', '-') → '-'."""
+        fake_errores = [
+            {"id": "e1", "responsable": "JUAN PEREZ", "tipo_error": "X"},
+        ]
+        fake_usuarios = [
+            {"username": "jperez", "permisos": [], "primer_nombre": "JUAN", "segundo_nombre": "", "apellido_1": "PEREZ", "apellido_2": ""},
+            # No "rol" key
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.listar_errores") as mock_list,
+            patch("app.services.control_errores_service.list_users") as mock_users,
+        ):
+            mock_list.return_value = fake_errores
+            mock_users.return_value = fake_usuarios
+
+            result = get_errores()
+
+        errores = result["data"]["errores"]
+        assert errores[0]["responsable_rol"] == "-"

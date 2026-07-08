@@ -446,6 +446,13 @@ RESPONSABLE_NOMBRES_COMPLETOS: dict[str, str] = {
     "MARINEY DIAZ": "CANGREJO DIAZ MARINEY DEL CARMEN",
 }
 
+ERROR_RESPONSABLE_ROLES: dict[str, str] = {
+    "ALEJANDRA ESPAÑA": "facturador",
+    "CARLOS OMAR": "facturador",
+    "DANIELA PAEZ": "facturador",
+    "MARINEY DIAZ": "facturador",
+}
+
 CRONOGRAMA_NOMBRE_MAP: dict[str, str] = {
     "CARLOS": "CARLOS OMAR",
     "ALEJANDRA": "ALEJANDRA ESPAÑA",

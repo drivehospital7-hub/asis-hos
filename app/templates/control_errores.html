@@ -97,11 +97,12 @@
         <th>Categoría</th>
         <th>Descripción</th>
         <th>Responsable</th>
+        <th>Rol</th>
         <th>Pendiente</th>
         <th>Acciones</th>
       </tr>
     </thead>
-    <tbody id="erroresBody"><tr><td colspan="8" class="empty-state">Cargando...</td></tr></tbody>
+    <tbody id="erroresBody"><tr><td colspan="9" class="empty-state">Cargando...</td></tr></tbody>
   </table>
 </div>
 
@@ -373,7 +374,7 @@
     // Nueva fila
     if (isAdding) {
       html += `<tr>
-        <td colspan="8" style="padding: 1.5rem; background: #f8fafc;">
+        <td colspan="9" style="padding: 1.5rem; background: #f8fafc;">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <input type="text" id="newFactura" class="inline-input" placeholder="ID" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newTipo" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
@@ -393,7 +394,7 @@
     }
 
     if (!cachedErrores || cachedErrores.length === 0) {
-      if (!isAdding) html += '<tr><td colspan="8" class="empty-state">No hay errores registrados</td></tr>';
+      if (!isAdding) html += '<tr><td colspan="9" class="empty-state">No hay errores registrados</td></tr>';
     } else {
       cachedErrores.forEach(e => {
         // Determinar clase de categoría
@@ -428,6 +429,7 @@
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
+          <td>${escapeHtml(e.responsable_rol || '-')}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
           </td>
@@ -908,6 +910,13 @@
           spans[0].textContent = newInitials;
           // IMPORTANTE: también actualizar data-value para que al reabrir muestre el valor correcto
           currentCell.dataset.value = newValue;
+
+          // Actualizar la celda Rol con el rol correspondiente al nuevo responsable
+          const rolCell = currentCell.nextElementSibling;
+          if (rolCell) {
+            const newRol = (opciones.responsables_roles || {})[newValue] || '-';
+            rolCell.textContent = newRol;
+          }
         } else {
           currentCell.textContent = newValue;
         }
@@ -1084,6 +1093,10 @@
     
     // Actualizar cache inmediatamente (optimista)
     error[field] = value;
+    // Si cambió responsable, actualizar responsable_rol en cache también
+    if (field === 'responsable') {
+      error.responsable_rol = (opciones.responsables_roles || {})[value] || '-';
+    }
     
     try {
       // Enviar SOLO el campo que cambió
@@ -1128,6 +1141,10 @@
     var err = cachedErrores.find(function(e){return e.id===id});
     if (err) {
       err[field] = originalValue;
+      // Si se revierte responsable, también revertir responsable_rol
+      if (field === 'responsable') {
+        err.responsable_rol = (opciones.responsables_roles || {})[originalValue] || '-';
+      }
     }
   }
 
@@ -1149,6 +1166,7 @@
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
+      <td>-</td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
       <td class="table-actions"></td>
     `;
@@ -1253,7 +1271,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const pageItems = errores.slice(startIndex, endIndex);
     
     if (!errores || errores.length === 0) {
-      html += '<tr><td colspan="8" class="empty-state">No se encontraron resultados</td></tr>';
+      html += '<tr><td colspan="9" class="empty-state">No se encontraron resultados</td></tr>';
     } else {
       pageItems.forEach(e => {
         let categoryClass = 'clinico';
@@ -1286,6 +1304,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
+          <td>${escapeHtml(e.responsable_rol || '-')}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
           </td>
@@ -1391,7 +1410,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const monthName = monthNames[parseInt(month) - 1];
     const filename = `control-errores-${monthName}-${year}.csv`;
     
-    const headers = ['Validador', 'Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Observación del Facturador', 'Estado'];
+    const headers = ['Validador', 'Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Rol', 'Observación del Facturador', 'Estado'];
     const rows = erroresDelMes.map(e => {
       // Formatear fecha
       let fecha = '-';
@@ -1406,6 +1425,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         e.tipo_error || '',
         e.observacion || '',
         e.responsable || '',
+        e.responsable_rol || '',
         e.observacion_facturador || '',
         e.estado === 'S' ? 'Pendiente' : 'Resuelto'
       ];

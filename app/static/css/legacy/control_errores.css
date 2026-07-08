@@ -185,7 +185,7 @@ html {
 
 /* Table wrapper mejorado */
 .table-wrapper { 
-  overflow-x: auto; 
+  overflow-x: visible; 
   width: 100%; 
   background: white;
   border: 1px solid #e2e8f0;
@@ -244,14 +244,15 @@ html {
   border-bottom: none;
 }
 
-.table thead th:nth-child(1) { width: 6%; }    /* Validador */
-.table thead th:nth-child(2) { width: 8%; }    /* Factura */
-.table thead th:nth-child(3) { width: 8%; }    /* Creado */
-.table thead th:nth-child(4) { width: 11%; }   /* Categoría */
-.table thead th:nth-child(5) { width: 36%; }   /* Descripción */
-.table thead th:nth-child(6) { width: 15%; }   /* Responsable */
-.table thead th:nth-child(7) { width: 6%; }    /* Estado */
-.table thead th:nth-child(8) { width: 10%; }   /* Acciones */
+.table thead th:nth-child(1) { width: 5%; }    /* Validador */
+.table thead th:nth-child(2) { width: 7%; }    /* Factura */
+.table thead th:nth-child(3) { width: 7%; }    /* Creado */
+.table thead th:nth-child(4) { width: 9%; }    /* Categoría */
+.table thead th:nth-child(5) { width: 35%; }   /* Descripción */
+.table thead th:nth-child(6) { width: 11%; }   /* Responsable */
+.table thead th:nth-child(7) { width: 8%; }    /* Rol */
+.table thead th:nth-child(8) { width: 5%; }    /* Estado */
+.table thead th:nth-child(9) { width: 8%; }    /* Acciones */
 
 .table-actions { 
   font-size: 0.75rem; 
