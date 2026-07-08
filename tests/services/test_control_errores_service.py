@@ -11,7 +11,7 @@ import pytest
 from flask import session
 
 from app import create_app
-from app.services.control_errores_service import update_error, add_error
+from app.services.control_errores_service import update_error, add_error, get_opciones
 from app.utils.errores_storage import crear_error, actualizar_error
 
 # Application fixture for test request context
@@ -323,3 +323,132 @@ class TestValidadorColumn:
             import inspect
             sig = inspect.signature(actualizar_error)
             assert "validador" not in sig.parameters
+
+
+# =============================================================================
+# Tests: get_opciones() — dynamic responsables from facturadores
+# =============================================================================
+
+
+class TestGetOpcionesFacturadores:
+    """Spec R3/R4: get_opciones() pulls from get_facturadores(), fallback to hardcode."""
+
+    def test_dynamic_from_facturadores(self):
+        """Facturadores exist → responsables come from get_facturadores()."""
+        from app.constants import ERROR_TIPO_URGENCIAS, ERROR_ESTADO_URGENCIAS
+
+        fake_facturadores = [
+            {
+                "username": "jperez",
+                "primer_nombre": "JUAN",
+                "segundo_nombre": "",
+                "apellido_1": "PEREZ",
+                "apellido_2": "",
+                "nombre_completo": "JUAN PEREZ",
+                "rol": "facturador",
+            },
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+        ):
+            mock_get.return_value = fake_facturadores
+            result = get_opciones()
+
+        assert isinstance(result, dict)
+        assert result["responsables"] == ["JUAN PEREZ"]
+        assert result["responsables_nombres_completos"] == {
+            "JUAN PEREZ": "JUAN PEREZ",
+        }
+        assert result["tipos_error"] == ERROR_TIPO_URGENCIAS
+        assert result["estados"] == ERROR_ESTADO_URGENCIAS
+
+    def test_nombres_completos_incluye_todos_los_campos(self):
+        """responsables_nombres_completos includes all 4 name parts joined."""
+        fake_facturadores = [
+            {
+                "username": "jperez",
+                "primer_nombre": "JUAN",
+                "segundo_nombre": "FELIPE",
+                "apellido_1": "PEREZ",
+                "apellido_2": "GOMEZ",
+                "nombre_completo": "JUAN PEREZ",
+                "rol": "facturador",
+            },
+        ]
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+        ):
+            mock_get.return_value = fake_facturadores
+            result = get_opciones()
+
+        assert result["responsables_nombres_completos"] == {
+            "JUAN PEREZ": "JUAN FELIPE PEREZ GOMEZ",
+        }
+
+    def test_fallback_when_empty(self):
+        """No facturadores → fallback to hardcoded constants."""
+        from app.constants import (
+            ERROR_RESPONSABLE_URGENCIAS,
+            RESPONSABLE_NOMBRES_COMPLETOS,
+        )
+
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+        ):
+            mock_get.return_value = []
+            result = get_opciones()
+
+        assert isinstance(result, dict)
+        assert result["responsables"] == ERROR_RESPONSABLE_URGENCIAS
+        assert result["responsables_nombres_completos"] == RESPONSABLE_NOMBRES_COMPLETOS
+
+    def test_same_response_shape_preserved(self):
+        """Response keys remain identical regardless of source."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+        ):
+            mock_get.return_value = [
+                {
+                    "username": "test",
+                    "primer_nombre": "A",
+                    "segundo_nombre": "",
+                    "apellido_1": "B",
+                    "apellido_2": "",
+                    "nombre_completo": "A B",
+                    "rol": "facturador",
+                },
+            ]
+            result = get_opciones()
+
+        assert "tipos_error" in result
+        assert "estados" in result
+        assert "responsables" in result
+        assert "responsables_nombres_completos" in result
+
+    def test_nombre_completo_uppercase(self):
+        """Name format: primer_nombre + apellido_1 uppercase."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.get_facturadores") as mock_get,
+        ):
+            mock_get.return_value = [
+                {
+                    "username": "ana",
+                    "primer_nombre": "Ana",
+                    "segundo_nombre": "",
+                    "apellido_1": "López",
+                    "apellido_2": "",
+                    "nombre_completo": "ANA LÓPEZ",
+                    "rol": "facturador",
+                },
+            ]
+            result = get_opciones()
+
+        assert "ANA LÓPEZ" in result["responsables"]
+        assert "Ana López" not in result["responsables"]

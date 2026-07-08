@@ -11,7 +11,7 @@ from flask import Blueprint, current_app, jsonify, render_template, redirect, ur
 
 from app.utils import auth_session, users_store
 from app.utils import templates_store
-from app.utils.auth import admin_requerido
+from app.utils.auth import admin_requerido, login_requerido
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,44 @@ def unauthorized_react():
         entry_css=entry_css,
         initial_data={},
     )
+
+
+# =============================================================================
+# API endpoints (JSON)
+# =============================================================================
+
+
+@auth_bp.route("/api/users/facturadores")
+@login_requerido
+def api_facturadores():
+    """Retorna usuarios con rol facturador.
+
+    Usado por control-errores, carga masiva y abiertas-urgencias
+    para obtener la lista dinámica de responsables.
+    """
+    facturadores = users_store.get_facturadores()
+
+    # Construir también el map de nombres completos (todos los campos)
+    responsables_nombres_completos = {
+        f["nombre_completo"]: " ".join(
+            p for p in [
+                f.get("primer_nombre", ""),
+                f.get("segundo_nombre", ""),
+                f.get("apellido_1", ""),
+                f.get("apellido_2", ""),
+            ] if p
+        ).upper()
+        for f in facturadores
+    }
+
+    return jsonify({
+        "status": "success",
+        "data": {
+            "facturadores": facturadores,
+            "responsables_nombres_completos": responsables_nombres_completos,
+        },
+        "errors": [],
+    })
 
 
 # =============================================================================

@@ -20,11 +20,17 @@ from app.utils.errores_storage import (
     check_cambios,
 )
 
+from app.utils.users_store import get_facturadores
+
 logger = logging.getLogger(__name__)
 
 
 def get_opciones() -> dict[str, list[str] | dict[str, str]]:
-    """Obtener opciones para los selects."""
+    """Obtener opciones para los selects.
+
+    Los responsables se obtienen dinámicamente desde users_store.
+    Si no hay facturadores registrados, se usa el fallback hardcodeado.
+    """
     from app.constants import (
         ERROR_TIPO_URGENCIAS,
         ERROR_ESTADO_URGENCIAS,
@@ -32,11 +38,30 @@ def get_opciones() -> dict[str, list[str] | dict[str, str]]:
         RESPONSABLE_NOMBRES_COMPLETOS,
     )
 
+    facturadores = get_facturadores()
+    if facturadores:
+        responsables = [f["nombre_completo"] for f in facturadores]
+        responsables_nombres_completos = {
+            f["nombre_completo"]: " ".join(
+                p for p in [
+                    f.get("primer_nombre", ""),
+                    f.get("segundo_nombre", ""),
+                    f.get("apellido_1", ""),
+                    f.get("apellido_2", ""),
+                ] if p
+            ).upper()
+            for f in facturadores
+        }
+    else:
+        logger.warning("No hay facturadores en users.json, usando fallback hardcodeado")
+        responsables = ERROR_RESPONSABLE_URGENCIAS
+        responsables_nombres_completos = RESPONSABLE_NOMBRES_COMPLETOS
+
     return {
         "tipos_error": ERROR_TIPO_URGENCIAS,
         "estados": ERROR_ESTADO_URGENCIAS,
-        "responsables": ERROR_RESPONSABLE_URGENCIAS,
-        "responsables_nombres_completos": RESPONSABLE_NOMBRES_COMPLETOS,
+        "responsables": responsables,
+        "responsables_nombres_completos": responsables_nombres_completos,
     }
 
 

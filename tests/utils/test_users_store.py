@@ -50,6 +50,46 @@ SAMPLE_USERS = [
         "apellido_1": "",
         "apellido_2": "",
     },
+    {
+        "username": "drhouse",
+        "password_hash": generate_password_hash("pass123"),
+        "rol": "medico",
+        "permisos": ["urgencias"],
+        "primer_nombre": "GREGORY",
+        "segundo_nombre": "",
+        "apellido_1": "HOUSE",
+        "apellido_2": "",
+    },
+    {
+        "username": "facturador1",
+        "password_hash": generate_password_hash("pass123"),
+        "rol": "facturador",
+        "permisos": ["control_urgencias", "cruce_facturas"],
+        "primer_nombre": "JUAN",
+        "segundo_nombre": "FELIPE",
+        "apellido_1": "PEREZ",
+        "apellido_2": "GOMEZ",
+    },
+    {
+        "username": "facturador2",
+        "password_hash": generate_password_hash("pass123"),
+        "rol": "facturador",
+        "permisos": ["control_urgencias"],
+        "primer_nombre": "MARIA",
+        "segundo_nombre": "",
+        "apellido_1": "LOPEZ",
+        "apellido_2": "",
+    },
+    {
+        "username": "facturador_sin_nombre",
+        "password_hash": generate_password_hash("pass123"),
+        "rol": "facturador",
+        "permisos": ["control_urgencias"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
+    },
 ]
 
 
@@ -260,6 +300,128 @@ class TestUpdateUser:
         # auditor user unchanged
         auditor_saved = next(u for u in saved if u["username"] == "auditor")
         assert auditor_saved == next(u for u in SAMPLE_USERS if u["username"] == "auditor")
+
+
+# =============================================================================
+# Tests: update_user() — new roles (medico, facturador)
+# =============================================================================
+
+
+class TestUpdateUserNewRoles:
+    """Spec R1 (delta): update_user() accepts 'medico' and 'facturador'."""
+
+    def test_update_to_medico(self):
+        """Update rol to 'medico' → succeeds."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "odontologia",
+                    {"rol": "medico"},
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        updated = next(u for u in saved if u["username"] == "odontologia")
+        assert updated["rol"] == "medico"
+
+    def test_update_to_facturador(self):
+        """Update rol to 'facturador' → succeeds."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            with patch.object(users_store, "_save_users") as mock_save:
+                ok, msg = users_store.update_user(
+                    "odontologia",
+                    {"rol": "facturador"},
+                )
+
+        assert ok is True
+        saved = mock_save.call_args[0][0]
+        updated = next(u for u in saved if u["username"] == "odontologia")
+        assert updated["rol"] == "facturador"
+
+    def test_invalid_rol_new_message(self):
+        """Invalid rol 'enfermero' → (False, updated msg listing 4 roles)."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            ok, msg = users_store.update_user(
+                "odontologia",
+                {"rol": "enfermero"},
+            )
+
+        assert ok is False
+        assert "medico" in msg and "facturador" in msg
+        assert "admin" in msg and "usuario" in msg
+
+
+# =============================================================================
+# Tests: get_facturadores()
+# =============================================================================
+
+
+class TestGetFacturadores:
+    """Spec R1 (facturadores-dynamic-responsables): users_store.get_facturadores()."""
+
+    def test_returns_only_facturadores(self):
+        """Only users with rol='facturador' returned."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            result = users_store.get_facturadores()
+
+        assert len(result) == 2  # facturador1, facturador2 (sin_nombre excluded)
+        for f in result:
+            assert f["rol"] == "facturador"
+
+    def test_excludes_users_without_primer_nombre(self):
+        """Facturador without primer_nombre excluded."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            result = users_store.get_facturadores()
+
+        usernames = [f["username"] for f in result]
+        assert "facturador_sin_nombre" not in usernames
+        assert "facturador1" in usernames
+        assert "facturador2" in usernames
+
+    def test_returns_empty_when_none_exist(self):
+        """No facturadores in store → returns []."""
+        users_no_facturadores = [u for u in SAMPLE_USERS.copy() if u["rol"] != "facturador"]
+        with patch.object(users_store, "_load_users", return_value=users_no_facturadores):
+            result = users_store.get_facturadores()
+
+        assert result == []
+
+    def test_nombre_completo_composition(self):
+        """nombre_completo = primer_nombre + ' ' + apellido_1 (uppercase)."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            result = users_store.get_facturadores()
+
+        fact1 = next(f for f in result if f["username"] == "facturador1")
+        assert fact1["nombre_completo"] == "JUAN PEREZ"
+
+        fact2 = next(f for f in result if f["username"] == "facturador2")
+        assert fact2["nombre_completo"] == "MARIA LOPEZ"
+
+    def test_fields_returned(self):
+        """Each facturador dict includes expected fields."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            result = users_store.get_facturadores()
+
+        fact = result[0]
+        assert "username" in fact
+        assert "primer_nombre" in fact
+        assert "segundo_nombre" in fact
+        assert "apellido_1" in fact
+        assert "apellido_2" in fact
+        assert "nombre_completo" in fact
+        assert "rol" in fact
+
+    def test_non_destructive(self):
+        """Other users unaffected by get_facturadores()."""
+        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
+            result = users_store.get_facturadores()
+            assert len(result) == 2  # Only facturadores
+            # Admin/medico/usuario still in store
+            all_users = users_store.list_users()
+            roles = [u["rol"] for u in all_users]
+            assert "admin" in roles
+            assert "usuario" in roles
+            assert "medico" in roles
 
 
 # =============================================================================
@@ -517,7 +679,7 @@ class TestListUsersPersonFields:
         with patch.object(users_store, "_load_users", return_value=users):
             result = users_store.list_users()
 
-        assert len(result) == 3
+        assert len(result) == 7  # SAMPLE_USERS has 7 entries now
         admin_out = next(u for u in result if u["username"] == "admin")
         assert admin_out["primer_nombre"] == "Admin"
         assert admin_out["apellido_1"] == "User"

@@ -208,6 +208,31 @@ def list_users() -> list:
     ]
 
 
+def get_facturadores() -> list[dict]:
+    """Retorna usuarios con rol 'facturador', con nombre_completo compuesto.
+
+    Excluye usuarios sin primer_nombre. Cada dict incluye:
+    username, primer_nombre, segundo_nombre, apellido_1, apellido_2,
+    nombre_completo (compuesto de primer_nombre + apellido_1 en mayúsculas).
+    """
+    users = _load_users()
+    result = []
+    for u in users:
+        if u.get("rol") == "facturador" and u.get("primer_nombre", "").strip():
+            nombres = [u.get("primer_nombre", ""), u.get("apellido_1", "")]
+            nombre_completo = " ".join(n for n in nombres if n).upper()
+            result.append({
+                "username": u["username"],
+                "primer_nombre": u.get("primer_nombre", ""),
+                "segundo_nombre": u.get("segundo_nombre", ""),
+                "apellido_1": u.get("apellido_1", ""),
+                "apellido_2": u.get("apellido_2", ""),
+                "nombre_completo": nombre_completo,
+                "rol": u["rol"],
+            })
+    return result
+
+
 def create_user(
     username: str,
     password: str,
@@ -280,8 +305,8 @@ def update_user(username: str, updates: dict) -> tuple:
     # Rol con validación
     if "rol" in updates:
         rol = updates["rol"]
-        if rol not in ("admin", "usuario"):
-            return False, "Rol inválido: debe ser admin o usuario"
+        if rol not in ("admin", "usuario", "medico", "facturador"):
+            return False, "Rol inválido: debe ser admin, usuario, medico o facturador"
         updated["rol"] = rol
 
     # Permisos con validación
