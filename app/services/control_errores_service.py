@@ -4,6 +4,7 @@ import logging
 import re
 from typing import Any
 
+import flask
 from flask import session
 # from flask_login import current_user  # Eliminado: auth es via session
 
@@ -24,6 +25,100 @@ from app.utils.errores_storage import (
 from app.utils.users_store import list_users
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Permission helpers (role resolution + ownership checks)
+# Used by add_error(), update_error(), delete_error(), get_errores()
+# =============================================================================
+
+
+def _resolve_effective_role(
+    permisos: list[str] | None = None,
+    rol: str | None = None,
+) -> str:
+    """Resolve effective role from session permisos and rol.
+
+    Priority:
+        1. ``"*"`` in permisos  → ``"admin"``
+        2. any ``:write`` suffix → ``"write"``
+        3. fallback to session rol → ``"read"`` if missing
+    """
+    if permisos and "*" in permisos:
+        return "admin"
+    if permisos and any(p.endswith(":write") for p in permisos):
+        return "write"
+    return rol if rol else "read"
+
+
+def _can_edit(record: dict, effective_role: str, username: str) -> bool:
+    """Determine whether a user can edit a specific record.
+
+    - admin/auditor/write → always True
+    - facturador → record's ``responsable_rol == "MEDICO"``
+      OR ``created_by == username``
+    - medico → only if ``created_by == username``
+    - read / unknown → False
+    - Legacy (``created_by`` is None) → only admin/auditor/write;
+      facturador also allowed if ``responsable_rol == "MEDICO"``
+    """
+    if effective_role in ("admin", "auditor", "write"):
+        return True
+    if effective_role == "facturador":
+        if record.get("responsable_rol") == "MEDICO":
+            return True
+        if record.get("created_by") == username:
+            return True
+        return False
+    if effective_role == "medico":
+        return record.get("created_by") == username
+    return False
+
+
+def _can_delete(record: dict, effective_role: str) -> bool:
+    """Determine whether a user can delete a specific record.
+
+    - admin/auditor/write → always True
+    - facturador → only if ``responsable_rol == "MEDICO"``
+    - medico / read / unknown → False
+    """
+    if effective_role in ("admin", "auditor", "write"):
+        return True
+    if effective_role == "facturador":
+        return record.get("responsable_rol") == "MEDICO"
+    return False
+
+
+def _can_create_for(target_rol: str, effective_role: str) -> bool:
+    """Determine whether a user can create records for a given target role.
+
+    - admin/auditor/write → any target
+    - facturador → only ``"medico"`` (case-insensitive)
+    - medico / read / unknown → False
+    """
+    if effective_role in ("admin", "auditor", "write"):
+        return True
+    if effective_role == "facturador":
+        return target_rol.lower() == "medico"
+    return False
+
+
+def _has_full_write_access(
+    effective_role: str,
+    record: dict,
+    username: str,
+) -> bool:
+    """Determine whether the user has FULL write access (all fields) on a record.
+
+    - admin/auditor/write → always True
+    - facturador → True if ``_can_edit`` passes (médico record or own)
+    - medico / read / others → False (partial only)
+    """
+    if effective_role in ("admin", "auditor", "write"):
+        return True
+    if effective_role == "facturador":
+        return _can_edit(record, effective_role, username)
+    return False
 
 
 def _build_user_data(roles_filter: set[str] | None = None
@@ -109,19 +204,31 @@ def get_errores(
     tipo_error: str | None = None,
     estado: str | None = None,
     responsable: str | None = None,
+    rol: str | None = None,
+    session: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Listar errores con filtros.
 
     Enriches each error with ``responsable_rol`` from todos los usuarios
     del sistema usando un mapa ``nombre_completo → rol``.
+    El filtro ``rol`` se aplica después del enriquecimiento.
+
+    Performs role-based filtering (PM1/R13) and attaches per-record
+    ``can_edit`` / ``can_delete`` flags (PM6).
+
+    Args:
+        session: optional session dict for testability; falls back to ``flask.session``.
     """
     try:
+        sess = session if session is not None else flask.session
+
         errores = listar_errores(tipo_error, estado, responsable)
         logger.info(
-            "Listando errores - tipo: %s, estado: %s, responsable: %s, total: %d",
+            "Listando errores - tipo: %s, estado: %s, responsable: %s, rol: %s, total: %d",
             tipo_error,
             estado,
             responsable,
+            rol,
             len(errores),
         )
 
@@ -129,8 +236,52 @@ def get_errores(
         _, _, responsables_roles = _build_user_data()
         for error in errores:
             # Normalizar: sacar espacios extra del stored value (viene de formato viejo)
-            responsable = re.sub(r'\s+', ' ', error.get("responsable", "").strip())
-            error["responsable_rol"] = responsables_roles.get(responsable, "-")
+            responsable_norm = re.sub(r'\s+', ' ', error.get("responsable", "").strip())
+            error["responsable_rol"] = responsables_roles.get(responsable_norm, "-")
+
+        # Filtrar por rol (post-enriquecimiento) — legacy filter param
+        if rol:
+            errores = [e for e in errores if e.get("responsable_rol", "") == rol]
+
+        # ── PM1 / R13: Role-based filtering ───────────────────────────
+        permisos = sess.get("permisos", [])
+        session_rol = sess.get("rol", "")
+        effective_role = _resolve_effective_role(permisos, session_rol)
+        username = sess.get("username", "")
+
+        if effective_role == "facturador":
+            # Facturador sees médico-assigned OR self-created records
+            errores = [
+                e for e in errores
+                if e.get("responsable_rol") == "MEDICO"
+                or e.get("created_by") == username
+            ]
+        elif effective_role == "medico":
+            # Médico sees only self-assigned records (by full name match)
+            medico_name = sess.get("nombre_completo", "").upper() or " ".join(
+                p for p in [sess.get("primer_nombre", ""), sess.get("apellido_1", "")]
+                if p
+            ).upper()
+            errores = [
+                e for e in errores
+                if e.get("responsable", "").upper() == medico_name
+            ]
+        # admin/auditor/write → no filtering (see all)
+
+        # ── PM6: Per-record can_edit / can_delete flags ───────────────
+        for error in errores:
+            # can_delete is straightforward (only admin/auditor/write can delete)
+            error["can_delete"] = _can_delete(error, effective_role)
+
+            # can_edit flag: True for admin/auditor/write, or facturador on allowed records.
+            # Médico always gets can_edit=False (permission matrix says "No" for Editar;
+            # médico partial edit is handled at field level in update_error).
+            if effective_role in ("admin", "auditor", "write"):
+                error["can_edit"] = True
+            elif effective_role == "facturador":
+                error["can_edit"] = _can_edit(error, effective_role, username)
+            else:
+                error["can_edit"] = False
 
         return {"status": "success", "data": {"errores": errores}, "errors": []}
     except Exception as e:
@@ -158,9 +309,16 @@ def check_for_changes(since: str | None = None) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def add_error(data: dict[str, Any]) -> dict[str, Any]:
-    """Crear un nuevo error."""
+def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Crear un nuevo error.
+
+    Args:
+        data: payload from client (``created_by`` key is stripped/ignored per PM2).
+        session: optional session dict for testability; falls back to ``flask.session``.
+    """
     try:
+        sess = session if session is not None else flask.session
+
         tipo_error = data.get("tipo_error", "").strip() or "Otros"
         factura = (data.get("factura", "").strip() or "").upper()
         observacion = (data.get("observacion", "").strip() or "").upper()
@@ -168,9 +326,31 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
         estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
 
-        validador = f"{session.get('primer_nombre', '')} {session.get('apellido_1', '')}".strip()
+        # PM2: validador from session (display name)
+        validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
 
-        nuevo = crear_error(tipo_error, factura, observacion, estado, responsable, observacion_facturador, validador=validador)
+        # PM2: created_by from session username (server-side only; stripped from payload)
+        created_by = sess.get("username", "")
+
+        # PM4 / R14: facturador create gate — resolve target role
+        permisos = sess.get("permisos", [])
+        rol = sess.get("rol", "")
+        effective_role = _resolve_effective_role(permisos, rol)
+
+        _, _, responsables_roles = _build_user_data()
+        target_rol = responsables_roles.get(responsable, "-")
+
+        if not _can_create_for(target_rol, effective_role):
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["No autorizado para crear registros para este rol"],
+            }
+
+        nuevo = crear_error(
+            tipo_error, factura, observacion, estado, responsable,
+            observacion_facturador, validador=validador, created_by=created_by,
+        )
         logger.info("Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}
     except Exception as e:
@@ -178,16 +358,41 @@ def add_error(data: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
-    """Actualizar un error existente."""
+def update_error(error_id: str, data: dict[str, Any], session: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Actualizar un error existente.
+
+    Ownership gate (PM3/R1):
+    1. Resolve effective role + check ``_can_edit()`` — reject if False.
+    2. Admin/auditor/write → full write (no field restrictions).
+    3. Facturador on médico record → full write (all fields allowed).
+    4. Médico on own → partial write (only ``estado`` / ``observacion_facturador``).
+    5. Otherwise → 403.
+
+    Args:
+        session: optional session dict for testability; falls back to ``flask.session``.
+    """
     try:
+        sess = session if session is not None else flask.session
+
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
-        # Permisos de escritura: "*" o "control_urgencias:write" = full access
-        user_permisos = session.get("permisos", [])
-        is_full_write = "*" in user_permisos or "control_urgencias:write" in user_permisos
+        # ── Ownership gate (PM3 / R16) ───────────────────────────────
+        permisos = sess.get("permisos", [])
+        session_rol = sess.get("rol", "")
+        effective_role = _resolve_effective_role(permisos, session_rol)
+        username = sess.get("username", "")
+
+        if not _can_edit(existente, effective_role, username):
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["No autorizado para editar este registro"],
+            }, 403
+
+        # Determine full-write access
+        is_full_write = _has_full_write_access(effective_role, existente, username)
 
         if not is_full_write:
             prohibited = set(data.keys()) - {"estado", "observacion_facturador"}
@@ -226,9 +431,34 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def delete_error(error_id: str) -> dict[str, Any]:
-    """Eliminar un error."""
+def delete_error(error_id: str, session: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Eliminar un error.
+
+    Ownership gate (R16/PM3): only admin/auditor/write can delete.
+    Facturador can delete médico records only. Médico/read always blocked.
+
+    Args:
+        session: optional session dict for testability; falls back to ``flask.session``.
+    """
     try:
+        sess = session if session is not None else flask.session
+
+        existente = obtener_error(error_id)
+        if not existente:
+            return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        # ── Ownership gate (R16 / PM3) ───────────────────────────────
+        permisos = sess.get("permisos", [])
+        session_rol = sess.get("rol", "")
+        effective_role = _resolve_effective_role(permisos, session_rol)
+
+        if not _can_delete(existente, effective_role):
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["No autorizado para eliminar este registro"],
+            }
+
         eliminado = eliminar_error(error_id)
         if eliminado:
             logger.info("Error eliminado: %s", error_id)

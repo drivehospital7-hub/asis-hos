@@ -63,8 +63,9 @@ def listar_errores():
     tipo_error = request.args.get("tipo_error")
     estado = request.args.get("estado")
     responsable = request.args.get("responsable")
+    rol = request.args.get("rol")
 
-    return jsonify(get_errores(tipo_error, estado, responsable))
+    return jsonify(get_errores(tipo_error, estado, responsable, rol, session=dict(session)))
 
 
 @control_errores_bp.get("/api/control-errores/changes")
@@ -84,11 +85,11 @@ def check_changes():
 
 
 @control_errores_bp.post("/api/control-errores")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def crear_error():
     """Crear un nuevo error."""
     data = request.get_json() or {}
-    return jsonify(add_error(data))
+    return jsonify(add_error(data, session=dict(session)))
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")
@@ -96,17 +97,17 @@ def crear_error():
 def actualizar_error(error_id: str):
     """Actualizar un error existente."""
     data = request.get_json() or {}
-    result = update_error(error_id, data)
+    result = update_error(error_id, data, session=dict(session))
     if isinstance(result, tuple):
         return jsonify(result[0]), result[1]
     return jsonify(result)
 
 
 @control_errores_bp.delete("/api/control-errores/<error_id>")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def eliminar_error(error_id: str):
     """Eliminar un error."""
-    return jsonify(delete_error(error_id))
+    return jsonify(delete_error(error_id, session=dict(session)))
 
 
 # =============================================================================

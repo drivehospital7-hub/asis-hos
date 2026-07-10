@@ -233,6 +233,29 @@ def get_facturadores() -> list[dict]:
     return result
 
 
+def get_responsables_nombres_completos(facturadores: list[dict]) -> dict[str, str]:
+    """Construye el map de nombre_completo → nombre completo con todos los campos.
+
+    Para cada facturador, mapea su nombre_completo (primer_nombre + apellido_1)
+    al nombre completo con todos los 4 campos (primer_nombre, segundo_nombre,
+    apellido_1, apellido_2) unidos y en mayúsculas.
+
+    Returns:
+        dict[str, str] — ej: {"JUAN PEREZ": "JUAN FELIPE PEREZ GOMEZ"}
+    """
+    return {
+        f["nombre_completo"]: " ".join(
+            p for p in [
+                f.get("primer_nombre", ""),
+                f.get("segundo_nombre", ""),
+                f.get("apellido_1", ""),
+                f.get("apellido_2", ""),
+            ] if p
+        ).upper()
+        for f in facturadores
+    }
+
+
 def create_user(
     username: str,
     password: str,
@@ -278,7 +301,7 @@ def update_user(username: str, updates: dict) -> tuple:
 
     Los campos en `updates` son opcionales:
       - password: str|None — Si es None o "", se omite (no cambia).
-      - rol: str — Debe ser "admin" o "usuario".
+      - rol: str — Debe ser "admin", "usuario", "medico" o "facturador".
       - permisos: list — Cada elemento debe estar en ALLOWED_PERMISOS.
 
     Returns:
@@ -305,8 +328,8 @@ def update_user(username: str, updates: dict) -> tuple:
     # Rol con validación
     if "rol" in updates:
         rol = updates["rol"]
-        if rol not in ("admin", "usuario", "medico", "facturador"):
-            return False, "Rol inválido: debe ser admin, usuario, medico o facturador"
+        if rol not in ("admin", "usuario", "medico", "facturador", "auditor"):
+            return False, "Rol inválido: debe ser admin, usuario, medico, facturador o auditor"
         updated["rol"] = rol
 
     # Permisos con validación

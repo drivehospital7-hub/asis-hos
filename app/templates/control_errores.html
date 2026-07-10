@@ -82,6 +82,10 @@
     <label class="filters__label">Responsable</label>
     <select id="filterResponsable" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
+  <div class="filters__group">
+    <label class="filters__label">Rol</label>
+    <select id="filterRol" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
+  </div>
   <button class="filter-icon" title="Limpiar filtros" onclick="clearFilters()">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
   </button>
@@ -245,6 +249,9 @@
       opciones.tipos_error.forEach(t => document.getElementById('filterTipo').add(new Option(t, t)));
       opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e, e)));
       opciones.responsables.forEach(r => document.getElementById('filterResponsable').add(new Option(r, r)));
+      // Poblar filtro de rol con valores únicos
+      const rolesUnicos = [...new Set(Object.values(opciones.responsables_roles || {}))].sort();
+      rolesUnicos.forEach(r => document.getElementById('filterRol').add(new Option(r, r)));
     }
   }
 
@@ -319,7 +326,8 @@
     const url = '/api/control-errores?' + 
       'tipo_error=' + encodeURIComponent(document.getElementById('filterTipo').value) +
       '&estado=' + encodeURIComponent(document.getElementById('filterEstado').value) +
-      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value);
+      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value) +
+      '&rol=' + encodeURIComponent(document.getElementById('filterRol').value);
     const res = await fetch(url);
     const result = await res.json();
     if (result.status === 'success') {
@@ -408,29 +416,29 @@
         // Obtener iniciales del responsable
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr>
+        html += `<tr data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
           <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
-          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="category-badge category-badge--${categoryClass}">${escapeHtml(e.tipo_error)}</span>
           </td>
-          <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
+          <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
           <td>${escapeHtml(e.responsable_rol || '-')}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
           </td>
           <td class="table-actions">
@@ -593,8 +601,9 @@
   function handleCellClick(td) {
     const field = td.dataset.field;
 
-    // Sin permiso de escritura: observacion/factura muestran tooltip readonly
-    if (!window._canWrite && (field === 'observacion' || field === 'factura')) {
+    // Per-record can_edit flag: if "false", show readonly tooltip for observacion/factura
+    const canEdit = td.dataset.canEdit;
+    if (canEdit === 'false' && (field === 'observacion' || field === 'factura')) {
       showObservacionReadOnly(td);
       return;
     }
@@ -707,8 +716,9 @@
     const field = td.dataset.field;
     const id = td.dataset.id;
 
-    // Sin permiso de escritura: solo estado y observacion_facturador son editables
-    if (!window._canWrite && field !== 'estado' && field !== 'observacion_facturador') return;
+    // Per-record can_edit gate: estado and observacion_facturador always editable
+    // Other fields require can_edit !== "false"
+    if (field !== 'estado' && field !== 'observacion_facturador' && td.dataset.canEdit === 'false') return;
 
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
@@ -741,6 +751,13 @@
         options = ['S', 'N'];
       } else if (field === 'responsable') {
         options = opciones.responsables;
+        // Facturador: filter to médico-only targets (R14 addNewRow guard)
+        if (window._userRole === 'facturador' && (isNew || isAdding)) {
+          const rolesMap = opciones.responsables_roles || {};
+          options = opciones.responsables.filter(function(r) {
+            return (rolesMap[r] || '').toUpperCase() === 'MEDICO';
+          });
+        }
       }
 
       // Custom dropdown simple
@@ -1150,7 +1167,10 @@
 
   // ====== NUEVA FILA ======
   function addNewRow() { 
-    if (!window._canWrite) return;
+    // Médico cannot create (R15)
+    if (window._userRole === 'medico') return;
+    // Facturador: allowed only for médico target (R14) — dropdown handled in rendering
+    // for now, allow the form to open
     if (isAdding || currentEditId) return;
     isAdding = true;
     currentEditId = 'new';
@@ -1230,7 +1250,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   // ====== ELIMINAR ======
   async function deleteError(id) { 
-    if (!window._canWrite) return;
+    // Médico can never delete (R16)
+    if (window._userRole === 'medico') return;
+    // Check per-record can_delete flag from cached data
+    const err = cachedErrores.find(function(e){return e.id===id});
+    if (err && err.can_delete === false) return;
     if (!await Modal.confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
@@ -1283,29 +1307,29 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr>
+        html += `<tr data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
           <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
-          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="category-badge category-badge--${categoryClass}">${escapeHtml(e.tipo_error)}</span>
           </td>
-          <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
+          <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
             </button>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
           <td>${escapeHtml(e.responsable_rol || '-')}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
           </td>
           <td class="table-actions">
@@ -1374,6 +1398,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('filterTipo').value = '';
     document.getElementById('filterEstado').value = '';
     document.getElementById('filterResponsable').value = '';
+    document.getElementById('filterRol').value = '';
     loadErrores();
   }
   
@@ -1385,7 +1410,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   function exportToCSV() {
-    if (!window._canWrite) return;
+    if (!_isFullWrite()) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       Modal.alert('No hay datos para exportar');
       return;
@@ -1478,8 +1503,12 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const dropzone = document.getElementById('modal-dropzone');
     const fileInput = document.getElementById('file-input');
 
-    // Sin permiso de escritura: ocultar dropzone (solo visualización)
-    if (!window._canWrite) {
+    // Get per-record can_edit flag for this error
+    const error = cachedErrores.find(e => e.id === errorId);
+    const canEdit = error ? error.can_edit !== false : _isFullWrite();
+
+    // Sin permiso de edición: ocultar dropzone (solo visualización)
+    if (!canEdit) {
       dropzone.style.display = 'none';
     }
 
@@ -1489,14 +1518,14 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (result.status === 'success') {
       listEl.innerHTML = result.data.imagenes.map(filename => {
         const isPdf = filename.toLowerCase().endsWith('.pdf');
-        if (isPdf) return _renderPdfThumb(errorId, filename, window._canWrite);
+        if (isPdf) return _renderPdfThumb(errorId, filename, canEdit);
         return `<div style="position:relative;width:120px;height:90px;">
           <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
-          ${window._canWrite ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
+          ${canEdit ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
         </div>`;
       }).join('');
-      // Solo mostrar dropzone si tiene permiso de escritura y hay espacio
-      if (window._canWrite) {
+      // Solo mostrar dropzone si tiene permiso de edición y hay espacio
+      if (canEdit) {
         dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
       }
     } else {
@@ -1505,8 +1534,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
     modal.classList.add('open');
 
-    // Event listeners (solo si tiene permiso de escritura)
-    if (window._canWrite) {
+    // Event listeners (solo si tiene permiso de edición)
+    if (canEdit) {
       dropzone.onclick = () => fileInput.click();
       fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
       dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
@@ -1528,7 +1557,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   });
 
   async function uploadImages(errorId, files) {
-    if (!window._canWrite) return;
+    const err = cachedErrores.find(function(e){return e.id===errorId});
+    if (err && err.can_edit === false) return;
     for (const file of files) {
       const isPdf = file.name.toLowerCase().endsWith('.pdf');
       if (!file.type.startsWith('image/') && !isPdf) continue;
@@ -1543,7 +1573,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   async function deleteImage(errorId, filename) {
-    if (!window._canWrite) return;
+    const err = cachedErrores.find(function(e){return e.id===errorId});
+    if (err && err.can_edit === false) return;
     if (!await Modal.confirm('¿Eliminar imagen?')) return;
     const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
     const result = await res.json();
@@ -1875,7 +1906,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== FLUJO PRINCIPAL CARGA MASIVA ======
 
   function openCargaMasiva() {
-    if (!window._canWrite) return;
+    if (!_isFullWrite()) return;
     document.getElementById('cargaModal').classList.add('open');
     document.getElementById('cargaStep1').classList.remove('hidden');
     document.getElementById('cargaStep2').classList.add('hidden');
@@ -2198,85 +2229,103 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }, 3000);
 
   // ====== AUTH DISABLED STATE ======
-  // Permiso de escritura desde el server (control_urgencias:write o admin *)
-  window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+  // Role + username from server session for granular permissions
+  window._userRole = "{{ session.get('rol', '') }}";
+  window._username = "{{ session.get('username', '') }}";
+  window._userPermisos = {{ session.get('permisos', []) | tojson }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
+  /** Check if user has full write access (admin, auditor, or write via permisos). */
+  function _isFullWrite() {
+    const p = window._userPermisos || [];
+    return p.includes('*') || p.includes('control_urgencias:write');
+  }
+
+  /** Check if user role is one of the given roles. Full-write users always match. */
+  function _isRoleOneOf(...roles) {
+    if (_isFullWrite()) return true;
+    return roles.includes(window._userRole);
+  }
+
   function updateDisabledState() {
-    const authed = window._canWrite;
+    const isFullWrite = _isFullWrite();
+    const role = window._userRole;
     const body = document.body;
 
-    if (authed) {
+    // ── Step 1: Reset ALL disabled states first ──
+    body.classList.remove('auth-enabled', 'auth-disabled');
+    document.querySelectorAll('.disabled-action').forEach(el => {
+      el.classList.remove('disabled-action');
+      el.style.pointerEvents = ''; el.style.opacity = ''; el.style.cursor = '';
+    });
+    document.querySelectorAll('.disabled-action--has-img').forEach(el => {
+      el.classList.remove('disabled-action--has-img');
+      el.style.pointerEvents = ''; el.style.cursor = ''; el.style.opacity = '';
+    });
+    document.querySelectorAll('.always-enabled').forEach(el => {
+      el.classList.remove('always-enabled');
+      el.style.pointerEvents = ''; el.style.cursor = '';
+    });
+    document.querySelectorAll('.obs-img-btn').forEach(btn => {
+      btn.style.pointerEvents = ''; btn.style.cursor = '';
+    });
+    document.querySelectorAll('.page-header-actions button').forEach(btn => {
+      btn.classList.remove('disabled-action');
+      btn.removeAttribute('disabled');
+    });
+
+    // ── Step 2: Apply role-based global guards ──
+    if (isFullWrite) {
       body.classList.add('auth-enabled');
-      body.classList.remove('auth-disabled');
-      // Limpiar estados deshabilitados
-      document.querySelectorAll('.disabled-action').forEach(el => {
-        el.classList.remove('disabled-action');
-        el.style.pointerEvents = '';
-        el.style.opacity = '';
-        el.style.cursor = '';
-      });
-      document.querySelectorAll('.disabled-action--has-img').forEach(el => {
-        el.classList.remove('disabled-action--has-img');
-        el.style.pointerEvents = '';
-        el.style.cursor = '';
-        el.style.opacity = '';
-      });
-      document.querySelectorAll('.always-enabled').forEach(el => {
-        el.classList.remove('always-enabled');
-        el.style.pointerEvents = '';
-        el.style.cursor = '';
-      });
-      // Resetear pointer-events del ojito también
-      document.querySelectorAll('.obs-img-btn').forEach(btn => {
-        btn.style.pointerEvents = '';
-        btn.style.cursor = '';
-      });
-      document.querySelectorAll('.page-header-actions button').forEach(btn => {
-        btn.classList.remove('disabled-action');
-        btn.removeAttribute('disabled');
-      });
     } else {
-      body.classList.remove('auth-enabled');
       body.classList.add('auth-disabled');
 
-      // Deshabilitar acciones: Agregar, Exportar, Carga Masiva
+      // Export + Carga Masiva: only full-write (block facturador/médico/read) per R5/R16
       document.querySelectorAll('.page-header-actions button').forEach(btn => {
-        btn.classList.add('disabled-action');
-        btn.setAttribute('disabled', '');
-      });
-
-      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion y factura)
-      document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
-        const field = cell.dataset.field;
-        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') {
-          const imgBtn = cell.querySelector('.obs-img-btn');
-          if (imgBtn) {
-            cell.classList.add('disabled-action--has-img');
-            cell.style.pointerEvents = 'none';
-            imgBtn.style.pointerEvents = 'auto';
-            imgBtn.style.cursor = 'pointer';
-          } else {
-            cell.classList.add('disabled-action');
-            cell.style.pointerEvents = 'none';
-            cell.style.opacity = '0.5';
-          }
+        const text = btn.textContent.trim().toLowerCase();
+        if (text.includes('exportar') || text.includes('carga masiva')) {
+          btn.classList.add('disabled-action');
+          btn.setAttribute('disabled', '');
         }
       });
 
-      // Deshabilitar nueva fila
-      document.querySelectorAll('.new-row-cell').forEach(cell => {
-        cell.classList.add('disabled-action');
-        cell.style.pointerEvents = 'none';
-        cell.style.opacity = '0.5';
+      // Médico: also block Add button (R15)
+      if (role === 'medico') {
+        const addBtn = document.querySelector('.page-header-actions .btn--primary');
+        if (addBtn) {
+          addBtn.classList.add('disabled-action');
+          addBtn.setAttribute('disabled', '');
+        }
+      }
+
+      // Per-record cell guards: use data-can-edit from rendered table
+      document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
+        const field = cell.dataset.field;
+        const canEdit = cell.dataset.canEdit;
+        // estado and observacion_facturador always allowed (médico partial edit)
+        if (field === 'estado' || field === 'observacion_facturador') return;
+        // factura and observacion visible but readonly for non-full-write
+        if (field === 'factura' || field === 'observacion') {
+          // visible, just not editable — handled in handleCellClick/openEditor
+          return;
+        }
+        // Block if can_edit flag is explicitly "false"
+        if (canEdit === 'false') {
+          cell.classList.add('disabled-action');
+          cell.style.pointerEvents = 'none';
+          cell.style.opacity = '0.5';
+        }
       });
 
-      // Deshabilitar solo delete (view y edit siguen habilitados sin auth)
+      // Per-record delete button guards: use data-can-delete from rendered row
       document.querySelectorAll('.action-icon--delete').forEach(btn => {
-        btn.classList.add('disabled-action');
+        const row = btn.closest('tr');
+        if (row && row.dataset.canDelete === 'false') {
+          btn.classList.add('disabled-action');
+        }
       });
 
-      // Habilitar siempre: observacion_facturador
+      // Observación facturador always enabled
       document.querySelectorAll('.action-icon--add-note').forEach(btn => {
         btn.classList.add('always-enabled');
       });

@@ -117,6 +117,7 @@ def crear_error(
     responsable: str,
     observacion_facturador: str = "",
     validador: str = "",
+    created_by: str = "",
 ) -> dict[str, Any]:
     """Crear un nuevo error."""
     data = _leer_datos()
@@ -130,6 +131,7 @@ def crear_error(
         "estado": estado,
         "responsable": responsable,
         "validador": validador,
+        "created_by": created_by,
         "creado_en": datetime.now().isoformat(),
         "actualizado_en": datetime.now().isoformat(),
     }
