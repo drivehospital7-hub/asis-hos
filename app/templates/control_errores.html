@@ -416,7 +416,7 @@
         // Obtener iniciales del responsable
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
+        html += `<tr class="${e.responsable_rol === 'MEDICO' ? 'row-medico' : ''}" data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
           <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
@@ -751,8 +751,8 @@
         options = ['S', 'N'];
       } else if (field === 'responsable') {
         options = opciones.responsables;
-        // Facturador: filter to médico-only targets (R14 addNewRow guard)
-        if (window._userRole === 'facturador' && (isNew || isAdding)) {
+        // Facturador: siempre filtrar solo médicos (solo pueden asignar a médicos)
+        if (window._userRole === 'facturador') {
           const rolesMap = opciones.responsables_roles || {};
           options = opciones.responsables.filter(function(r) {
             return (rolesMap[r] || '').toUpperCase() === 'MEDICO';
@@ -760,16 +760,37 @@
         }
       }
 
-      // Custom dropdown simple
+      // Custom dropdown con agrupación por rol
       const currentValue = td.dataset.value || td.textContent.trim();
-      let optionsHtml = options.map(opt => 
-        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
-      ).join('');
+      const rolesMap = opciones.responsables_roles || {};
+
+      // Agrupar opciones por rol
+      var grupos = {};
+      options.forEach(function(opt) {
+        const rol = rolesMap[opt] || 'OTROS';
+        if (!grupos[rol]) grupos[rol] = [];
+        grupos[rol].push(opt);
+      });
+
+      // Construir HTML con grupos
+      const rolesOrder = ['MEDICO', 'FACTURADOR', 'ADMIN', 'USUARIO', 'OTROS'];
+      let optionsHtml = '';
+      rolesOrder.forEach(function(rol) {
+        const items = grupos[rol];
+        if (!items || !items.length) return;
+        optionsHtml += `<div class="custom-select-group-label">${rol}</div>`;
+        optionsHtml += items.map(function(opt) {
+          return `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`;
+        }).join('');
+      });
 
       editor.innerHTML = `
         <div class="custom-select" id="customSelect" data-field="${field}">
           <div class="custom-select-trigger">${escapeHtml(currentValue)}</div>
-          <div class="custom-select-dropdown">${optionsHtml}</div>
+          <div class="custom-select-dropdown">
+            <input type="text" class="custom-select-search" placeholder="Buscar responsable..." oninput="filterSelectOptions(this)">
+            ${optionsHtml}
+          </div>
         </div>
       `;
 
@@ -796,6 +817,9 @@
 
         // Abrir automáticamente el dropdown
         dropdown.classList.add('show');
+        // Focus en el input de búsqueda
+        var searchInput = dropdown.querySelector('.custom-select-search');
+        if (searchInput) setTimeout(function() { searchInput.focus(); }, 50);
       }, 10);
     } else {
       editor.classList.remove('select-mode');
@@ -933,6 +957,12 @@
           if (rolCell) {
             const newRol = (opciones.responsables_roles || {})[newValue] || '-';
             rolCell.textContent = newRol;
+
+            // Actualizar clase del <tr> para el color de fila
+            const tr = currentCell.closest('tr');
+            if (tr) {
+              tr.className = newRol === 'MEDICO' ? 'row-medico' : '';
+            }
           }
         } else {
           currentCell.textContent = newValue;
@@ -1165,6 +1195,30 @@
     }
   }
 
+  // Filtro de opciones en el dropdown de responsable
+  function filterSelectOptions(input) {
+    var value = input.value.toLowerCase().trim();
+    var dropdown = input.closest('.custom-select-dropdown');
+    if (!dropdown) return;
+    var children = dropdown.children;
+
+    for (var i = 1; i < children.length; i++) {
+      var el = children[i];
+      if (el.classList.contains('custom-select-group-label')) {
+        // Ver si tiene opciones visibles después
+        var hasVisible = false;
+        for (var j = i + 1; j < children.length; j++) {
+          if (children[j].classList.contains('custom-select-group-label')) break;
+          if (children[j].style.display !== 'none') { hasVisible = true; break; }
+        }
+        el.style.display = hasVisible ? '' : 'none';
+      } else if (el.classList.contains('custom-select-option')) {
+        var text = el.textContent.toLowerCase();
+        el.style.display = (!value || text.indexOf(value) !== -1) ? '' : 'none';
+      }
+    }
+  }
+
   // ====== NUEVA FILA ======
   function addNewRow() { 
     // Médico cannot create (R15)
@@ -1307,7 +1361,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
+        html += `<tr class="${e.responsable_rol === 'MEDICO' ? 'row-medico' : ''}" data-can-edit="${e.can_edit !== false}" data-can-delete="${e.can_delete !== false}">
           <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" data-can-edit="${e.can_edit !== false}" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>

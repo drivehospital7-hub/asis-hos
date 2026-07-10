@@ -890,11 +890,11 @@ class TestCanEdit:
         assert _can_edit(record, "facturador", "fact_user") is True
 
     def test_facturador_blocked_on_non_medico_non_own(self):
-        """facturador MUST be blocked on non-médico records not created by them."""
+        """facturador CAN change estado on FACTURADOR records."""
         from app.services.control_errores_service import _can_edit
 
         record = {"id": "r5", "responsable_rol": "FACTURADOR", "created_by": "other_fact"}
-        assert _can_edit(record, "facturador", "fact_user") is False
+        assert _can_edit(record, "facturador", "fact_user") is True  # puede cambiar estado
 
     # ── Médico — only self-assigned records ───────────────────────────
 
@@ -906,11 +906,11 @@ class TestCanEdit:
         assert _can_edit(record, "medico", "dr_medico") is True
 
     def test_medico_blocked_on_other_medico_record(self):
-        """médico MUST be blocked on records created by another médico."""
+        """médico CAN edit (estado only) any médico-assigned record."""
         from app.services.control_errores_service import _can_edit
 
         record = {"id": "r7", "responsable_rol": "MEDICO", "created_by": "other_medico"}
-        assert _can_edit(record, "medico", "dr_medico") is False
+        assert _can_edit(record, "medico", "dr_medico") is True  # puede cambiar estado
 
     def test_medico_blocked_on_facturador_record(self):
         """médico MUST be blocked on records not assigned to them."""
@@ -940,19 +940,18 @@ class TestCanEdit:
         assert _can_edit(record, "write", "writer") is True
 
     def test_legacy_record_facturador_blocked(self):
-        """Legacy record (created_by=None) MUST be blocked for facturador
-        when responsable_rol is not MEDICO."""
+        """Legacy FACTURADOR record → facturador CAN change estado."""
         from app.services.control_errores_service import _can_edit
 
         record = {"id": "r11", "responsable_rol": "FACTURADOR"}
-        assert _can_edit(record, "facturador", "fact_user") is False
+        assert _can_edit(record, "facturador", "fact_user") is True  # puede cambiar estado
 
     def test_legacy_record_medico_blocked(self):
-        """Legacy record (created_by=None) MUST be blocked for médico."""
+        """Legacy médico record (created_by=None) → médico CAN edit (estado only)."""
         from app.services.control_errores_service import _can_edit
 
         record = {"id": "r12", "responsable_rol": "MEDICO"}
-        assert _can_edit(record, "medico", "dr_medico") is False
+        assert _can_edit(record, "medico", "dr_medico") is True  # puede cambiar estado
 
     def test_legacy_record_facturador_allowed_on_medico(self):
         """Legacy médico record (created_by=None, responsable_rol=MEDICO) MUST be
@@ -1511,11 +1510,11 @@ class TestGetErroresRoleFilter:
         assert result["status"] == "success"
         errores = result["data"]["errores"]
         ids = [e["id"] for e in errores]
-        # e2 (MED ICO, médico) + e3 (FACT ONE, created_by=fact_1) are visible
-        # e1 (JUAN PEREZ, facturador, not created by fact_1) should be hidden
+        # e1 (JUAN PEREZ, facturador) + e2 (MED ICO, médico) + e3 (FACT ONE, facturador)
+        # All three visible: e1/e3 because responsable_rol==FACTURADOR, e2 because MEDICO
+        assert "e1" in ids  # facturador record
         assert "e2" in ids  # médico record
-        assert "e3" in ids  # self-created
-        assert "e1" not in ids  # another facturador, not self-created
+        assert "e3" in ids  # otro facturador record
 
     def test_medico_sees_only_self_assigned(self):
         """PM1: médico sees only self-assigned records (by full name match)."""

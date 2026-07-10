@@ -397,9 +397,9 @@ class TestGetFilteredByRole:
         data = resp.get_json()
         errores = data["data"]["errores"]
         ids = [e["id"] for e in errores]
+        assert "e1" in ids  # facturador record
         assert "e2" in ids  # médico record
-        assert "e3" in ids  # self-created
-        assert "e1" not in ids
+        assert "e3" in ids  # otro facturador record
 
     def test_medico_filtered(self, app_client):
         """Médico MUST see only self-assigned records."""
@@ -498,8 +498,8 @@ class TestPostFacturadorGateIntegration:
 class TestPutOwnershipDeniedIntegration:
     """Integration: PUT /api/control-errores/<id> ownership denied."""
 
-    def test_put_facturador_blocked_on_non_medico_record(self, app_client):
-        """Facturador PUT on non-médico (non-own) record → 403."""
+    def test_put_facturador_estado_on_facturador_record(self, app_client):
+        """Facturador PUT estado on FACTURADOR record → 200 (partial write)."""
         with (
             patch("app.services.control_errores_service.obtener_error") as mock_get,
             patch("app.services.control_errores_service.actualizar_error") as mock_upd,
@@ -508,6 +508,7 @@ class TestPutOwnershipDeniedIntegration:
                 "id": "r1", "responsable_rol": "FACTURADOR",
                 "created_by": "other_fact", "estado": "S",
             }
+            mock_upd.return_value = {"id": "r1", "estado": "R"}
 
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
@@ -517,11 +518,10 @@ class TestPutOwnershipDeniedIntegration:
 
             resp = app_client.put("/api/control-errores/r1", json={"estado": "R"})
 
-        assert resp.status_code == 403
+        assert resp.status_code == 200
         data = resp.get_json()
-        assert data["status"] == "error"
-        assert "autorizado" in data["errors"][0]
-        mock_upd.assert_not_called()
+        assert data["status"] == "success"
+        mock_upd.assert_called_once()
 
 
 class TestDelete403Integration:

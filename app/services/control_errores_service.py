@@ -55,23 +55,21 @@ def _can_edit(record: dict, effective_role: str, username: str) -> bool:
     """Determine whether a user can edit a specific record.
 
     - admin/auditor/write → always True
-    - facturador → record's ``responsable_rol == "MEDICO"``
+    - facturador → ``responsable_rol in ("MEDICO", "FACTURADOR")``
       OR ``created_by == username``
-    - medico → only if ``created_by == username``
+    - medico → ``responsable_rol == "MEDICO"``
     - read / unknown → False
-    - Legacy (``created_by`` is None) → only admin/auditor/write;
-      facturador also allowed if ``responsable_rol == "MEDICO"``
     """
     if effective_role in ("admin", "auditor", "write"):
         return True
     if effective_role == "facturador":
-        if record.get("responsable_rol") == "MEDICO":
+        if record.get("responsable_rol") in ("MEDICO", "FACTURADOR"):
             return True
         if record.get("created_by") == username:
             return True
         return False
     if effective_role == "medico":
-        return record.get("created_by") == username
+        return record.get("responsable_rol") == "MEDICO"
     return False
 
 
@@ -111,13 +109,13 @@ def _has_full_write_access(
     """Determine whether the user has FULL write access (all fields) on a record.
 
     - admin/auditor/write → always True
-    - facturador → True if ``_can_edit`` passes (médico record or own)
+    - facturador → True only on MEDICO records (FACTURADOR = partial only)
     - medico / read / others → False (partial only)
     """
     if effective_role in ("admin", "auditor", "write"):
         return True
     if effective_role == "facturador":
-        return _can_edit(record, effective_role, username)
+        return record.get("responsable_rol") == "MEDICO"
     return False
 
 
@@ -250,11 +248,10 @@ def get_errores(
         username = sess.get("username", "")
 
         if effective_role == "facturador":
-            # Facturador sees médico-assigned OR self-created records
+            # Facturador sees: médico-assigned, facturador-assigned, or unassigned
             errores = [
                 e for e in errores
-                if e.get("responsable_rol") == "MEDICO"
-                or e.get("created_by") == username
+                if e.get("responsable_rol") in ("MEDICO", "FACTURADOR", "-")
             ]
         elif effective_role == "medico":
             # Médico sees only self-assigned records (by full name match)
@@ -340,7 +337,8 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
         _, _, responsables_roles = _build_user_data()
         target_rol = responsables_roles.get(responsable, "-")
 
-        if not _can_create_for(target_rol, effective_role):
+        # Solo aplicar gate si el responsable está seteado (creación celda por celda)
+        if responsable and not _can_create_for(target_rol, effective_role):
             return {
                 "status": "error",
                 "data": {},
@@ -377,6 +375,12 @@ def update_error(error_id: str, data: dict[str, Any], session: dict[str, Any] | 
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        # ── Enrich with responsable_rol (no está en storage, solo en listado)
+        if "responsable_rol" not in existente:
+            _, _, roles_map = _build_user_data()
+            responsable_norm = re.sub(r'\s+', ' ', existente.get("responsable", "").strip())
+            existente["responsable_rol"] = roles_map.get(responsable_norm, "-")
 
         # ── Ownership gate (PM3 / R16) ───────────────────────────────
         permisos = sess.get("permisos", [])
@@ -446,6 +450,12 @@ def delete_error(error_id: str, session: dict[str, Any] | None = None) -> dict[s
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        # ── Enrich with responsable_rol (no está en storage, solo en listado)
+        if "responsable_rol" not in existente:
+            _, _, roles_map = _build_user_data()
+            responsable_norm = re.sub(r'\s+', ' ', existente.get("responsable", "").strip())
+            existente["responsable_rol"] = roles_map.get(responsable_norm, "-")
 
         # ── Ownership gate (R16 / PM3) ───────────────────────────────
         permisos = sess.get("permisos", [])
