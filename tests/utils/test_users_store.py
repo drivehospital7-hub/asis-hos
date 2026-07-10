@@ -425,6 +425,71 @@ class TestGetFacturadores:
 
 
 # =============================================================================
+# Tests: get_responsables_nombres_completos()
+# =============================================================================
+
+
+class TestGetResponsablesNombresCompletos:
+    """Spec R2: get_responsables_nombres_completos() builds map of nombre_completo -> full name."""
+
+    def test_builds_map_with_all_4_parts(self):
+        """All 4 name parts joined: PRIMER + SEGUNDO + APELLIDO1 + APELLIDO2."""
+        facturadores = [
+            {
+                "nombre_completo": "JUAN PEREZ",
+                "primer_nombre": "JUAN",
+                "segundo_nombre": "FELIPE",
+                "apellido_1": "PEREZ",
+                "apellido_2": "GOMEZ",
+            },
+        ]
+        result = users_store.get_responsables_nombres_completos(facturadores)
+        assert result == {"JUAN PEREZ": "JUAN FELIPE PEREZ GOMEZ"}
+
+    def test_handles_missing_optional_fields(self):
+        """Missing segundo_nombre and apellido_2 → only present parts joined."""
+        facturadores = [
+            {
+                "nombre_completo": "MARIA LOPEZ",
+                "primer_nombre": "MARIA",
+                "segundo_nombre": "",
+                "apellido_1": "LOPEZ",
+                "apellido_2": "",
+            },
+        ]
+        result = users_store.get_responsables_nombres_completos(facturadores)
+        assert result == {"MARIA LOPEZ": "MARIA LOPEZ"}
+
+    def test_empty_input(self):
+        """Empty list → empty dict."""
+        result = users_store.get_responsables_nombres_completos([])
+        assert result == {}
+
+    def test_multiple_facturadores(self):
+        """Multiple facturadores → each mapped correctly."""
+        facturadores = [
+            {
+                "nombre_completo": "JUAN PEREZ",
+                "primer_nombre": "JUAN",
+                "segundo_nombre": "",
+                "apellido_1": "PEREZ",
+                "apellido_2": "",
+            },
+            {
+                "nombre_completo": "ANA LOPEZ",
+                "primer_nombre": "ANA",
+                "segundo_nombre": "MARIA",
+                "apellido_1": "LOPEZ",
+                "apellido_2": "GARCIA",
+            },
+        ]
+        result = users_store.get_responsables_nombres_completos(facturadores)
+        assert len(result) == 2
+        assert result["JUAN PEREZ"] == "JUAN PEREZ"
+        assert result["ANA LOPEZ"] == "ANA MARIA LOPEZ GARCIA"
+
+
+# =============================================================================
 # Tests: delete_user()
 # =============================================================================
 

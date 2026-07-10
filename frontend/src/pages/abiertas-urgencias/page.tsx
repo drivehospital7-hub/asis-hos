@@ -411,6 +411,13 @@ export function AbiertasUrgenciasPage({
     }
     if (!factura) return;
 
+    // Soft warning: check that the calculated responsable is a known facturador
+    if (facturadores.length > 0 && responsable && !facturadores.includes(responsable)) {
+      console.warn(
+        `[AbiertasUrgencias] El responsable "${responsable}" no está en la lista de facturadores del backend. Factura: "${factura}"`,
+      );
+    }
+
     const alreadyExists = envioExistentes.current.has(factura);
     if (alreadyExists) {
       if (

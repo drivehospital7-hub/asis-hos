@@ -131,19 +131,7 @@ def api_facturadores():
     para obtener la lista dinámica de responsables.
     """
     facturadores = users_store.get_facturadores()
-
-    # Construir también el map de nombres completos (todos los campos)
-    responsables_nombres_completos = {
-        f["nombre_completo"]: " ".join(
-            p for p in [
-                f.get("primer_nombre", ""),
-                f.get("segundo_nombre", ""),
-                f.get("apellido_1", ""),
-                f.get("apellido_2", ""),
-            ] if p
-        ).upper()
-        for f in facturadores
-    }
+    responsables_nombres_completos = users_store.get_responsables_nombres_completos(facturadores)
 
     return jsonify({
         "status": "success",

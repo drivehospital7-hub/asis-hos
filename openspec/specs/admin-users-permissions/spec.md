@@ -8,9 +8,11 @@ Completar el CRUD de usuarios del sistema de autenticación: agregar edición y 
 
 ## Requirements
 
-### R1: `users_store.update_user()` — Actualización Parcial (extended)
+### R1: `users_store.update_user()` — Actualización Parcial y Validación de Rol Expandida
 
 `update_user(username, updates)` MUST soportar actualización parcial: `password` (opcional), `rol`, `permisos`, `primer_nombre`, `segundo_nombre`, `apellido_1`, `apellido_2`.
+
+`rol` MUST ser validado contra `["admin", "usuario", "medico", "facturador"]`.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
@@ -27,6 +29,9 @@ Completar el CRUD de usuarios del sistema de autenticación: agregar edición y 
 | Invalid permiso | user with invalid permiso value | `update_user("u", {"permisos": ["invalid_perm"]})` | returns `(False, "Permiso inválido: invalid_perm")` |
 | Atomic save | any update | `_save_users()` called | writes to temp file → `os.replace()`; no truncation on crash |
 | User list unchanged post-update | existing users | any successful update | other users in store intact |
+| **Update to medico** | existing user | `update_user("u", {"rol": "medico"})` | rol changed to "medico" |
+| **Update to facturador** | existing user | `update_user("u", {"rol": "facturador"})` | rol changed to "facturador" |
+| **Invalid rol** | existing user | `update_user("u", {"rol": "enfermero"})` | returns `(False, "Rol inválido: debe ser admin, usuario, medico o facturador")` |
 
 ### R2: `POST /auth/usuarios/<username>/editar` — Editar Usuario (extended)
 
@@ -135,6 +140,15 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 | Default users | no `users.json` | first `_load_users()` | each default user has `""` for all 4 |
 | Legacy JSON | `users.json` missing fields | `_load_users()` | missing fields added as `""`; existing preserved |
 
+### R12: React Usuarios Page — Rol Select con 4 Opciones
+
+The React usuarios page (`frontend/src/pages/usuarios/page.tsx`) role `<select>` MUST list 4 options: Usuario, Admin, Médico, Facturador.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Render create form | admin navigates to `/auth/usuarios` (React view) | inspect create form `<select name="rol">` | options include "Médico" and "Facturador" |
+| Render edit modal | admin edits a user | inspect edit modal `<select name="rol">` | options include "Médico" and "Facturador" |
+
 ---
 
 ## Validation Rules
@@ -145,7 +159,7 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 |-------|------|---------------|
 | `username` | MUST exist in store | `"Usuario no encontrado"` |
 | `password` | If non-empty string → MUST be hashed. If `None` or `""` → SKIP (keep existing) | — |
-| `rol` | MUST be `"admin"` or `"usuario"` | `"Rol inválido: debe ser admin o usuario"` |
+| `rol` | MUST be `"admin"`, `"usuario"`, `"medico"`, or `"facturador"` | `"Rol inválido: debe ser admin, usuario, medico o facturador"` |
 | `permisos` | MUST be a list. Each element MUST be in `ALLOWED_PERMISOS` (defined in constants) | `"Permiso inválido: {value}"` |
 | Self-`*` removal | Store: si `"*"` está en permisos actuales Y no está en los nuevos → REJECT (protege cualquier usuario, no solo sesión actual) | `"No puedes remover el permiso de administrador de este usuario"` |
 | Self-`*` removal (route) | Ruta: si `session["username"] == username` Y `"*"` no está en nuevos permisos → flash error + redirect (antes de llamar al store) | `"No puedes remover tus propios permisos de administrador"` |
@@ -171,7 +185,11 @@ All store functions MUST handle `primer_nombre`, `segundo_nombre`, `apellido_1`,
 - [ ] `update_user()` rejects any removal of `*` from any user (store-level, session-agnostic)
 - [ ] Route `editar_usuario()` adds session-level check: self-removal of `*` is rejected before calling store
 - [ ] `update_user()` rejects invalid permisos against allowed list
-- [ ] `update_user()` validates rol as `"admin"` or `"usuario"`
+- [ ] `update_user()` validates rol as `"admin"`, `"usuario"`, `"medico"`, or `"facturador"`
+- [ ] `update_user()` accepts `"medico"` and `"facturador"` as valid roles
+- [ ] `update_user()` rejects unknown roles with descriptive message including all 4 valid options
+- [ ] `create_user()` accepts new roles without error
+- [ ] React usuarios page dropdown shows 4 role options (Usuario, Admin, Médico, Facturador)
 - [ ] `update_user()` uses atomic write (temp file + `os.replace()`)
 - [ ] `POST /auth/usuarios/<username>/editar` creates, validates, calls update, flashes, redirects
 - [ ] `POST /auth/usuarios/<username>/eliminar` blocks delete of `admin`, flashes error
@@ -267,6 +285,8 @@ return redirect(url_for("auth.listar_usuarios"))
       <select name="rol" id="edit-rol">
         <option value="usuario">Usuario</option>
         <option value="admin">Admin</option>
+        <option value="medico">Médico</option>
+        <option value="facturador">Facturador</option>
       </select>
 
       <!-- Permisos: checkboxes (same as create form, distinct cruce_facturas/equipos_basicos) -->
