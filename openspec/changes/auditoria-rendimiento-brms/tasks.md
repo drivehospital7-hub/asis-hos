@@ -28,8 +28,8 @@ Chain strategy: pending
 
 - [x] 1.1 RED: Write `test_row_store.py` — `build_row_store()` from 2D list + indices, edge cases
 - [x] 1.2 GREEN: Create `row_store.py` — `build_row_store()` + `row_from_dict()`
-- [ ] 1.3 RED: Write `test_session_manager.py` — enter/exit, savepoint, rollback on error
-- [ ] 1.4 GREEN: Create `session_manager.py` — `SessionManager` context manager + savepoint helper
+- [x] 1.3 RED: Write `test_session_manager.py` — enter/exit, savepoint, rollback on error
+- [x] 1.4 GREEN: Create `session_manager.py` — `SessionManager` context manager + savepoint helper
 
 ## Phase 2: Core Engine Refactor
 
