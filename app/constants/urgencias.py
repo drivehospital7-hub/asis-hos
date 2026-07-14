@@ -22,7 +22,7 @@ CODIGOS_PSICOLOGA = frozenset({"890408", "35102"})
 CODIGOS_NUTRICIONISTA = frozenset({"890406", "37602"})
 CODIGOS_FISIOTERAPEUTA = frozenset({"890412", "890411", "29117"})
 CODIGOS_JEFE_ENFERMERIA = frozenset({"861801", "890205", "890405", "990211", "29116", "39360"})
-CODIGOS_ODONTOLOGO = frozenset({"890403", "36102", "890703"})
+CODIGOS_ODONTOLOGO = frozenset({"890403", "36101", "890703"})
 CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "890409",  # TRABAJADORA SOCIAL
     "37701",   # TRABAJADORA SOCIAL
@@ -40,7 +40,7 @@ CODIGOS_EXCLUIDOS_MEDICO = frozenset({
     "29116",   # JEFE ENFERMERIA
     "39360",   # JEFE ENFERMERIA
     "890403",  # ODONTOLOGO — Interconsulta por Odontologia General
-    "36102",   # ODONTOLOGO
+    "36101",   # ODONTOLOGO
     "890703",  # ODONTOLOGO
 })
 
@@ -1086,5 +1086,13 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
     "02749": {
         "nombre": "VALLEJOS TORO JULIETH CAROLINA",
         "tipo": "JEFE ENFERMERIA",
+    },
+    "03577": {
+        "nombre": "MELENDEZ ARENAS BRYAN RICARDO",
+        "tipo": "MEDICO",
+    },
+    "02786": {
+        "nombre": "PORTILLA CLAROS KARLA DANIELA",
+        "tipo": "NUTRICIONISTA",
     },
 }
