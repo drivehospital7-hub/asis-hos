@@ -99,6 +99,7 @@ CODIGOS_LABORATORIO_URGENCIAS = frozenset({
     "906127",
     "907009",
     "906305",
+    "903427",
 })
 
 CODIGOS_LABORATORIO_URGENCIAS_REVERSE = frozenset({
@@ -1038,6 +1039,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
     },
     "03365": {
         "nombre": "HUERTAS OCAMPO DIANA PATRICIA",
+        "tipo": "FISIOTERAPEUTA",
+    },
+    "03929": {
+        "nombre": "ARTURO CALVACHE CARMEN ELENA",
         "tipo": "FISIOTERAPEUTA",
     },
     "03730": {

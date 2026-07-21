@@ -367,7 +367,11 @@ def detect_centro_costo_urgencias(
 
         # ----- Regla: Tipo=Intramural + Cód Entidad != ESS118 -> Centro LABORATORIO
         if tipo_factura_str == "Intramural" and codigo_entidad_str and codigo_entidad_str != "ESS118":
-            if centro_costo_str != CENTRO_COSTO_LABORATORIO_URGENCIAS:
+            centro_valido = centro_costo_str in (
+                CENTRO_COSTO_LABORATORIO_URGENCIAS,
+                f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}.",
+            )
+            if not centro_valido:
                 problemas_centros.append({
                     "factura": factura_str,
                     "tipo_factura": tipo_factura_str,
