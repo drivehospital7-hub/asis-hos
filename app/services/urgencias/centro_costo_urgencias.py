@@ -319,7 +319,7 @@ def detect_centro_costo_urgencias(
                     )
 
         # ----- Regla 5 REVERSE: Centro=LABORATORIO -> Código en lista + Tipo=Intramural
-        if centro_costo_str == CENTRO_COSTO_LABORATORIO_URGENCIAS:
+        if centro_costo_str in (CENTRO_COSTO_LABORATORIO_URGENCIAS, f"{CENTRO_COSTO_LABORATORIO_URGENCIAS}."):
             tipo_id_idx = indices.get("tipo_identificacion")
             tipo_identificacion_val = None
             if tipo_id_idx is not None:
