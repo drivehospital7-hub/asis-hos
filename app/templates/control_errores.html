@@ -856,6 +856,20 @@
     }
   });
 
+  // Field-aware text write-back. Preserves non-text children (e.g. .obs-img-btn).
+  // Selector contract: .obs-cell-wrapper is shared with the openEditor read path - do not rename.
+  function updateObservationCellText(td, newText) {
+    const text = newText || '-';
+    if (td.dataset.field === 'observacion') {
+      const wrapper = td.querySelector('.obs-cell-wrapper');
+      if (wrapper) { wrapper.textContent = text; return; }
+    } else if (td.dataset.field === 'factura') {
+      const span = td.querySelector('span');
+      if (span) { span.textContent = text; return; }
+    }
+    td.textContent = text; // legacy rows / other text fields
+  }
+
   async function saveFromEditor() {
     if (!currentEditId) return;
     // Editor de facturador abierto → no hacer nada (el save lo maneja saveFacturadorEditor)
@@ -913,7 +927,7 @@
         }
       }
     } else {
-      currentCell.textContent = newValue || '-';
+      updateObservationCellText(currentCell, newValue);
     }
 
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
@@ -1045,7 +1059,7 @@
     } else if (currentEditType === 'select') {
       currentCell.innerHTML = newValue;
     } else {
-      currentCell.textContent = newValue || '-';
+      updateObservationCellText(currentCell, newValue);
     }
 
     // Guardar y luego ejecutar callback
