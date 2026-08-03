@@ -493,13 +493,17 @@
     currentEditType = 'text';
     currentCell = null; // No hay celda específica, usaremos el editor de forma independiente
     
-    // Posicionar editor al lado derecho del botón
+    // Posicionar editor al lado izquierdo del botón (mismo tamaño)
     editor.style.display = 'block';
     document.body.classList.add('editor-open');
+    const editorWidth = Math.max(260, rect.width);
+    const editorHeight = Math.max(90, rect.height);
     editor.style.top = btnRect.top + 'px';
-    editor.style.left = btnRect.left + btnRect.width + 8 + 'px';
-    editor.style.width = Math.max(260, rect.width) + 'px';
-    editor.style.height = Math.max(90, rect.height) + 'px';
+    editor.style.width = editorWidth + 'px';
+    editor.style.height = editorHeight + 'px';
+    // Si no cabe a la izquierda, volver al lado derecho (fallback)
+    const editorLeft = btnRect.left - editorWidth - 8;
+    editor.style.left = (editorLeft < 8 ? btnRect.left + btnRect.width + 8 : editorLeft) + 'px';
     editor.style.minHeight = '';
     
     // Obtener el valor actual de observacion_facturador

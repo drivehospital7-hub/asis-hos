@@ -215,6 +215,34 @@ class TestControlErroresTemplate:
         content = ctrl_path.read_text(encoding="utf-8")
         assert "stat" in content.lower() or "Total" in content
 
+    def test_control_errores_facturador_editor_hoists_size_before_left(self):
+        """R12/R13: facturador editor hoists width/height locals BEFORE left is assigned.
+
+        The editor must keep its exact size (Math.max(260, rect.width) x
+        Math.max(90, rect.height)) while opening to the LEFT of the trigger
+        button. Width/height are hoisted into locals so `left` can reuse
+        `editorWidth` for the mirror position.
+        """
+        ctrl_path = Path("app/templates/control_errores.html")
+        content = ctrl_path.read_text(encoding="utf-8")
+        assert "const editorWidth = Math.max(260, rect.width);" in content
+        assert "const editorHeight = Math.max(90, rect.height);" in content
+        assert "editor.style.width = editorWidth + 'px';" in content
+        assert "editor.style.height = editorHeight + 'px';" in content
+        assert "const editorLeft = btnRect.left - editorWidth - 8;" in content
+
+    def test_control_errores_facturador_editor_left_formula_with_fallback(self):
+        """R12 + fallback: editor opens LEFT with 8px gap, falls back RIGHT near left edge.
+
+        The old unconditional right-side line (``btnRect.left + btnRect.width + 8 + 'px'``)
+        must be gone, replaced by the mirror-with-fallback ternary that keeps the
+        editor fully on screen when the button sits near the left viewport edge.
+        """
+        ctrl_path = Path("app/templates/control_errores.html")
+        content = ctrl_path.read_text(encoding="utf-8")
+        assert "editor.style.left = (editorLeft < 8 ? btnRect.left + btnRect.width + 8 : editorLeft) + 'px';" in content
+        assert "editor.style.left = btnRect.left + btnRect.width + 8 + 'px';" not in content
+
 
 # =============================================================================
 # Phase 5 — Remaining templates
