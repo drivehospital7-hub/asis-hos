@@ -1078,6 +1078,10 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "PINCHAO BETANCOURTH YEISON EVELIO",
         "tipo": "BACTERIOLOGA",
     },
+    "03959": {
+        "nombre": "VICUÑA SUAREZ LUZDEY NATALIA",
+        "tipo": "BACTERIOLOGA",
+    },
     "03893": {
         "nombre": "SAMBONI RAMIREZ MARLEN DANIELA",
         "tipo": "MEDICO",
