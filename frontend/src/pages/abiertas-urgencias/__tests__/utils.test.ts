@@ -355,6 +355,15 @@ describe("calcularResponsable", () => {
     expect(result).toBe("Sin Egreso");
   });
 
+  it("returns Sin Egreso when egreso equals crea", () => {
+    const result = calcularResponsable(
+      "05/05/2026  10:00:00",
+      "05/05/2026  10:00:00",
+      cronograma,
+    );
+    expect(result).toBe("Sin Egreso");
+  });
+
   it("respects 30-min reception boundary at 06:30 (mañana starts)", () => {
     // 06:30:00 → mañana (>= 6.5)
     const result = calcularResponsable(

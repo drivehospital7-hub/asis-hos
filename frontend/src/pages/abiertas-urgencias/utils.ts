@@ -296,7 +296,7 @@ function parseDate(str: string): Date | null {
  * Reglas de negocio:
  * - 30-min reception rule: mañana 06:30–12:29, tarde 12:30–18:29, noche 18:30–06:29
  * - Night crosses midnight: egreso < 06:30 → lookup `noche` of previous day
- * - Returns "Sin Egreso" if no egreso or egreso < creación
+ * - Returns "Sin Egreso" if no egreso or egreso <= creación
  * - Maps short name via NOMBRE_MAP
  */
 export function calcularResponsable(
@@ -316,8 +316,8 @@ export function calcularResponsable(
   const fechaEgreso = parseDate(fechaEgresoStr);
   if (!fechaEgreso) return "Sin Egreso";
 
-  // 3. If egreso < crea → patient still in room
-  if (fechaEgreso < fechaCrea) return "Sin Egreso";
+  // 3. If egreso <= crea → patient still in room
+  if (fechaEgreso <= fechaCrea) return "Sin Egreso";
 
   // 4. Determine shift by egreso time
   const dia = fechaEgreso.getDate();
