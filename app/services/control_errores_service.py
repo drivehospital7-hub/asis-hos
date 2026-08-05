@@ -68,7 +68,11 @@ def _resolve_owner_identity(sess: dict[str, Any]) -> str | None:
 def _resolve_responsable_identities(
     responsable: str | None,
 ) -> tuple[str, str] | None:
-    """Resolve a selected responsible to canonical and full DB identities."""
+    """Resolve a selected eligible responsible to canonical and full DB identities.
+
+    Eligibility is shared with the options endpoint through get_facturadores:
+    facturador role or ``responsable_facturacion`` permission.
+    """
     if not responsable:
         return None
 
@@ -89,8 +93,9 @@ def _resolve_responsable_identity(responsable: str | None) -> str | None:
 def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Obtener opciones para los selects.
 
-    Los responsables provienen EXCLUSIVAMENTE de usuarios DB con rol
-    'facturador' (get_facturadores). No hay fallback a constantes ni JSON.
+    Los responsables provienen EXCLUSIVAMENTE de usuarios DB elegibles
+    (rol 'facturador' o permiso 'responsable_facturacion'). No hay fallback
+    a constantes ni JSON.
     """
     try:
         from app.constants import (

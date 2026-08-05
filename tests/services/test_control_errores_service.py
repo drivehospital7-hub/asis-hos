@@ -270,6 +270,52 @@ class TestGetErroresRoleVisibility:
         assert "e7" not in ids
         assert "e3" not in ids
 
+    def test_selected_permission_eligible_responsable_resolves(self):
+        """Selected responsible resolution accepts explicit permission users."""
+        eligible = [{
+            "username": "VAL1",
+            "primer_nombre": "Maria",
+            "segundo_nombre": "Luisa",
+            "apellido_1": "Gomez",
+            "apellido_2": "Diaz",
+            "nombre_completo": "MARIA GOMEZ",
+            "rol": "validador",
+            "permisos": ["responsable_facturacion"],
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=eligible,
+            ),
+            patch(
+                "app.services.control_errores_service.listar_errores",
+                return_value=[],
+            ) as mock_listar,
+        ):
+            result = get_errores(responsable="MARIA GOMEZ", session={"rol": "validador"})
+
+        assert result["status"] == "success"
+        assert mock_listar.call_args.kwargs["responsable_identity"] == "maria gomez"
+
+    def test_selected_validator_without_permission_is_not_resolved(self):
+        """A validator absent from the eligible lookup cannot resolve."""
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
+            patch(
+                "app.services.control_errores_service.listar_errores",
+                return_value=[],
+            ) as mock_listar,
+        ):
+            result = get_errores(responsable="MARIA GOMEZ", session={"rol": "validador"})
+
+        assert result["status"] == "success"
+        assert mock_listar.call_args.kwargs["responsable_identity"] is None
+
     # ── Validador / admin: all ────────────────────────────────────────
 
     def test_validador_sees_all(self):
@@ -332,6 +378,27 @@ class TestGetOpcionesDbOnly:
 
         assert opciones["status"] == "success"
         assert opciones["data"]["responsables"] == []
+
+    def test_opciones_include_permission_eligible_users_only(self):
+        """Options use the shared store eligibility rule, not validator role."""
+        eligible = [{
+            "username": "VAL1",
+            "primer_nombre": "MARIA",
+            "apellido_1": "GOMEZ",
+            "nombre_completo": "MARIA GOMEZ",
+            "rol": "validador",
+            "permisos": ["responsable_facturacion"],
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=eligible,
+            ),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["responsables"] == ["MARIA GOMEZ"]
 
 
 class TestAddErrorAudit:

@@ -353,7 +353,7 @@ class TestDeleteUser:
 
 
 class TestGetFacturadores:
-    """get_facturadores returns only DB users with rol='facturador'."""
+    """get_facturadores returns all DB users eligible as responsables."""
 
     def test_filters_by_rol_and_composes_identity(self, db_session):
         """Only facturador rows; identity = primer_nombre + apellido_1 (uppercase)."""
@@ -378,6 +378,32 @@ class TestGetFacturadores:
     def test_excludes_facturador_without_primer_nombre(self, db_session):
         """Facturador without primer_nombre → excluded (no usable identity)."""
         _add_user(db_session, username="anon", rol="facturador")
+        assert users_store.get_facturadores() == []
+
+    def test_includes_non_facturador_with_responsable_permission(self, db_session):
+        """Explicit permission makes a validator eligible as responsable."""
+        _add_user(
+            db_session,
+            username="validador",
+            rol="validador",
+            permisos=["control_urgencias", "responsable_facturacion"],
+            primer_nombre="MARIA",
+            apellido_1="GOMEZ",
+        )
+        result = users_store.get_facturadores()
+        assert [user["username"] for user in result] == ["validador"]
+        assert result[0]["rol"] == "validador"
+
+    def test_excludes_validator_without_responsable_permission(self, db_session):
+        """Validator role alone does not make a user eligible."""
+        _add_user(
+            db_session,
+            username="validador",
+            rol="validador",
+            permisos=["control_urgencias"],
+            primer_nombre="MARIA",
+            apellido_1="GOMEZ",
+        )
         assert users_store.get_facturadores() == []
 
 

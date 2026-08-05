@@ -48,6 +48,7 @@ const ALL_PERMISOS = [
   { value: "derechos", label: "Derechos" },
   { value: "monitoreo_carpetas", label: "Monitoreo de Carpetas" },
   { value: "monitoreo_carpetas:write", label: "Monitoreo de Carpetas (configurar rutas)" },
+  { value: "responsable_facturacion", label: "Responsable de Facturación" },
 ];
 
 // Pares mutuamente excluyentes: si se marca uno, se desmarca el otro

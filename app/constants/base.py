@@ -77,6 +77,8 @@ AREA_EQUIPOS_BASICOS = "equipos_basicos"
 # PERMISOS - Valores de permiso válidos
 # =============================================================================
 
+PERMISO_RESPONSABLE_FACTURACION = "responsable_facturacion"
+
 ALLOWED_PERMISOS = frozenset({
     "*",
     "odontologia",
@@ -91,6 +93,7 @@ ALLOWED_PERMISOS = frozenset({
     "derechos",
     "monitoreo_carpetas",
     "monitoreo_carpetas:write",
+    PERMISO_RESPONSABLE_FACTURACION,
 })
 
 # Pares de permisos que NO pueden convivir en el mismo usuario.

@@ -18,7 +18,11 @@ from typing import Optional
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.constants.base import ALLOWED_PERMISOS, PERMISO_MUTUAL_EXCLUSION
+from app.constants.base import (
+    ALLOWED_PERMISOS,
+    PERMISO_MUTUAL_EXCLUSION,
+    PERMISO_RESPONSABLE_FACTURACION,
+)
 from app.database import Base, SessionLocal
 from app.models import User, VALID_ROLES
 
@@ -156,18 +160,22 @@ def list_users() -> list:
 
 
 def get_facturadores() -> list[dict]:
-    """Retorna usuarios con rol 'facturador' con identidad compuesta.
+    """Retorna usuarios elegibles como responsables con identidad compuesta.
 
-    Cada dict incluye username, campos de nombre y ``nombre_completo``
+    Son elegibles los usuarios con rol ``facturador`` o con el permiso
+    ``responsable_facturacion``. Cada dict incluye username, campos de nombre y ``nombre_completo``
     (primer_nombre + apellido_1 en mayúsculas, sin segundo_nombre/
-    apellido_2). Excluye usuarios sin primer_nombre.
+    apellido_2). Excluye usuarios sin primer_nombre. Se conserva el nombre
+    de la función por compatibilidad con sus consumidores actuales.
     """
     ensure_seeded()
     db = _new_session()
     try:
-        users = db.query(User).filter(User.rol == "facturador").order_by(User.username).all()
+        users = db.query(User).order_by(User.username).all()
         result = []
         for u in users:
+            if u.rol != "facturador" and PERMISO_RESPONSABLE_FACTURACION not in (u.permisos or []):
+                continue
             primer_nombre = (u.primer_nombre or "").strip()
             if not primer_nombre:
                 continue
