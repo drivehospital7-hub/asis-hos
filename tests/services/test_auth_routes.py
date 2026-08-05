@@ -1,57 +1,100 @@
 """Integration tests for auth routes (login, logout, CRUD, permissions).
 
-Strict TDD: Tests written BEFORE implementation. These serve as the RED phase
-for Task 3 (routes). All scenarios from spec.md R2 and R3 are covered.
+Adapted to the SQLAlchemy DB facade (sdd: control-errores-role-visibility):
+the store no longer reads ``instance/users.json``, so tests patch
+``users_store.SessionLocal`` with an in-memory SQLite engine instead of
+``USERS_FILE``. Behavior under test is unchanged.
 """
 
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from werkzeug.security import generate_password_hash
 
+from app.database import Base
+from app.models import User
 from app.utils import users_store
+import app.models  # noqa: F401  (registra los modelos en Base.metadata)
+
+DEFAULT_TEST_USERS = [
+    {
+        "username": "admin",
+        "password_hash": generate_password_hash("admin123"),
+        "rol": "admin",
+        "permisos": ["*"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
+    },
+    {
+        "username": "odontologia",
+        "password_hash": generate_password_hash("odonto123"),
+        "rol": "usuario",
+        "permisos": ["odontologia"],
+        "primer_nombre": "",
+        "segundo_nombre": "",
+        "apellido_1": "",
+        "apellido_2": "",
+    },
+    {
+        "username": "test_user",
+        "password_hash": generate_password_hash("test123"),
+        "rol": "usuario",
+        "permisos": ["odontologia"],
+        "primer_nombre": "Test",
+        "segundo_nombre": "",
+        "apellido_1": "User",
+        "apellido_2": "",
+    },
+]
 
 
-def _seed_users(tmp_path):
-    """Create a test users.json with known users in a temp path."""
-    users = [
-        {
-            "username": "admin",
-            "password_hash": generate_password_hash("admin123"),
-            "rol": "admin",
-            "permisos": ["*"],
-            "primer_nombre": "",
-            "segundo_nombre": "",
-            "apellido_1": "",
-            "apellido_2": "",
-        },
-        {
-            "username": "odontologia",
-            "password_hash": generate_password_hash("odonto123"),
-            "rol": "usuario",
-            "permisos": ["odontologia"],
-            "primer_nombre": "",
-            "segundo_nombre": "",
-            "apellido_1": "",
-            "apellido_2": "",
-        },
-        {
-            "username": "test_user",
-            "password_hash": generate_password_hash("test123"),
-            "rol": "usuario",
-            "permisos": ["odontologia"],
-            "primer_nombre": "Test",
-            "segundo_nombre": "",
-            "apellido_1": "User",
-            "apellido_2": "",
-        },
-    ]
-    users_file = tmp_path / "users.json"
-    users_file.write_text(json.dumps(users, indent=2), encoding="utf-8")
-    return users_file
+@contextmanager
+def _patched_store(users: list | None = None):
+    """Patches the users store to an in-memory SQLite DB seeded with users.
+
+    Reemplaza el antiguo ``patch.object(users_store, "USERS_FILE", ...)``:
+    la DB es la única fuente de verdad, así que el seed se hace en la tabla
+    ``users`` (SQLite en memoria) y se desactiva el bootstrap JSON lazy.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+
+    seed_db = Session()
+    try:
+        for u in users or DEFAULT_TEST_USERS:
+            seed_db.add(User(**u))
+        seed_db.commit()
+    finally:
+        seed_db.close()
+
+    with (
+        patch.object(users_store, "SessionLocal", Session),
+        patch.object(users_store, "_SEEDED", True),
+    ):
+        yield Session
+
+
+def _seed_users(tmp_path=None):
+    """Devuelve la lista de usuarios de test (la DB se siembra en _patched_store).
+
+    Se mantiene el parámetro ``tmp_path`` por compatibilidad con los tests
+    que lo pasaban; ya no se escribe ningún archivo JSON.
+    """
+    return DEFAULT_TEST_USERS
 
 
 # =============================================================================
@@ -64,30 +107,33 @@ class TestLogin:
 
     def test_login_success(self, app_client):
         """Valid credentials → redirect to React dashboard."""
-        resp = app_client.post(
-            "/auth/login",
-            data={"username": "admin", "password": "admin123"},
-            follow_redirects=True,
-        )
+        with _patched_store(_seed_users()):
+            resp = app_client.post(
+                "/auth/login",
+                data={"username": "admin", "password": "admin123"},
+                follow_redirects=True,
+            )
         assert resp.status_code == 200
         # Redirects to React dashboard (no flash in React)
         assert b"__INITIAL_DATA__" in resp.data
 
     def test_login_wrong_password(self, app_client):
         """Invalid password → redirect to login (React, no flash)."""
-        resp = app_client.post(
-            "/auth/login",
-            data={"username": "admin", "password": "wrong"},
-            follow_redirects=True,
-        )
+        with _patched_store(_seed_users()):
+            resp = app_client.post(
+                "/auth/login",
+                data={"username": "admin", "password": "wrong"},
+                follow_redirects=True,
+            )
         assert resp.status_code == 200
         # React login page — no flash messages anymore
         assert b"__INITIAL_DATA__" in resp.data or b"id=\\x22root\\x22" in resp.data
 
     def test_login_already_authenticated(self, app_client):
         """Redirects a logged-in user to the React dashboard."""
-        app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
-        resp = app_client.get("/auth/login", follow_redirects=True)
+        with _patched_store(_seed_users()):
+            app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
+            resp = app_client.get("/auth/login", follow_redirects=True)
         assert resp.status_code == 200
         assert b"__INITIAL_DATA__" in resp.data
 
@@ -102,8 +148,7 @@ class TestListarUsuarios:
 
     def test_list_as_admin(self, app_client, tmp_path):
         """Admin user can list users."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -141,13 +186,14 @@ class TestListarUsuarios:
         ]
         templates_file.write_text(json.dumps(templates, indent=2), encoding="utf-8")
         with patch.object(templates_store, "TEMPLATES_FILE", templates_file):
-            with app_client.session_transaction() as sess:
-                sess["ce_authenticated"] = True
-                sess["permisos"] = ["*"]
-                sess["username"] = "admin"
+            with _patched_store(_seed_users()):
+                with app_client.session_transaction() as sess:
+                    sess["ce_authenticated"] = True
+                    sess["permisos"] = ["*"]
+                    sess["username"] = "admin"
 
-            resp = app_client.get("/auth/usuarios")
-            assert resp.status_code == 200
+                resp = app_client.get("/auth/usuarios")
+                assert resp.status_code == 200
 
         # HTML response — verify templates section in initial_data
         html = resp.data.decode("utf-8")
@@ -166,8 +212,7 @@ class TestCrearUsuario:
 
     def test_create_user_success(self, app_client, tmp_path):
         """Valid new user → created, redirect with success."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -188,8 +233,7 @@ class TestCrearUsuario:
 
     def test_create_duplicate(self, app_client, tmp_path):
         """Duplicate username → error flash."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -210,8 +254,7 @@ class TestCrearUsuario:
 
     def test_create_user_with_person_fields(self, app_client, tmp_path):
         """POST with 4 person fields → stored in user record."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -252,8 +295,7 @@ class TestEditarUsuario:
 
     def test_edit_success(self, app_client, tmp_path):
         """Edit user password, rol, permisos → success flash."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -280,8 +322,7 @@ class TestEditarUsuario:
 
     def test_edit_password_empty(self, app_client, tmp_path):
         """Password empty → password unchanged, other fields updated."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -306,8 +347,7 @@ class TestEditarUsuario:
 
     def test_edit_self_remove_star(self, app_client, tmp_path):
         """Admin editing own user removing * → error flash, changes NOT saved."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -332,8 +372,7 @@ class TestEditarUsuario:
 
     def test_edit_non_existent_user(self, app_client, tmp_path):
         """Non-existent user → error flash."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -376,8 +415,7 @@ class TestEditarUsuario:
 
     def test_edit_person_fields(self, app_client, tmp_path):
         """POST with primer_nombre and apellido_1 → only those fields updated."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -407,8 +445,7 @@ class TestEditarUsuario:
 
     def test_edit_without_person_fields(self, app_client, tmp_path):
         """POST without person fields → existing values preserved."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -442,8 +479,7 @@ class TestEliminarUsuario:
 
     def test_delete_existing_user(self, app_client, tmp_path):
         """Delete normal user → success flash, user removed."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -462,8 +498,7 @@ class TestEliminarUsuario:
 
     def test_delete_admin_blocked(self, app_client, tmp_path):
         """Delete 'admin' user → error flash, admin NOT removed."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -482,8 +517,7 @@ class TestEliminarUsuario:
 
     def test_delete_non_existent_user(self, app_client, tmp_path):
         """Non-existent user → error flash."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -528,8 +562,7 @@ class TestCambiarContrasena:
 
     def test_happy_path(self, app_client, tmp_path):
         """Valid old + new password → 200, password updated."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -554,8 +587,7 @@ class TestCambiarContrasena:
 
     def test_wrong_old_password(self, app_client, tmp_path):
         """Wrong old password → 400, error message, password unchanged."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -580,8 +612,7 @@ class TestCambiarContrasena:
 
     def test_new_password_too_short(self, app_client, tmp_path):
         """New password < 6 chars → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -602,8 +633,7 @@ class TestCambiarContrasena:
 
     def test_confirm_mismatch(self, app_client, tmp_path):
         """New password != confirm → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -624,8 +654,7 @@ class TestCambiarContrasena:
 
     def test_missing_fields(self, app_client, tmp_path):
         """Missing old_password → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -645,8 +674,7 @@ class TestCambiarContrasena:
 
     def test_missing_all_fields(self, app_client, tmp_path):
         """Empty JSON object → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -678,8 +706,7 @@ class TestCambiarContrasena:
 
     def test_session_intact_after_change(self, app_client, tmp_path):
         """Session remains authenticated after password change."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -705,8 +732,7 @@ class TestCambiarContrasena:
 
     def test_empty_old_password_string(self, app_client, tmp_path):
         """Empty string for old_password → 400, campo requerido."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -727,8 +753,7 @@ class TestCambiarContrasena:
 
     def test_empty_new_password_string(self, app_client, tmp_path):
         """Empty string for new_password → 400, campo requerido."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -749,8 +774,7 @@ class TestCambiarContrasena:
 
     def test_empty_confirm_password_string(self, app_client, tmp_path):
         """Empty string for confirm_password → 400, campo requerido."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -771,8 +795,7 @@ class TestCambiarContrasena:
 
     def test_invalid_json_body(self, app_client, tmp_path):
         """Non-parsable JSON body → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -790,8 +813,7 @@ class TestCambiarContrasena:
 
     def test_new_password_same_as_old(self, app_client, tmp_path):
         """New password == old password → 200, re-hash succeeds."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]
@@ -811,8 +833,7 @@ class TestCambiarContrasena:
 
     def test_login_with_new_password(self, app_client, tmp_path):
         """After password change, login with new password works and old fails."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             # Login with old password first
             app_client.post("/auth/login", data={
                 "username": "admin",
@@ -856,8 +877,7 @@ class TestCambiarContrasena:
 
     def test_new_password_too_long(self, app_client, tmp_path):
         """New password > 128 chars → 400, error message."""
-        users_file = _seed_users(tmp_path)
-        with patch.object(users_store, "USERS_FILE", users_file):
+        with _patched_store(_seed_users()):
             with app_client.session_transaction() as sess:
                 sess["ce_authenticated"] = True
                 sess["permisos"] = ["*"]

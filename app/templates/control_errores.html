@@ -1708,37 +1708,30 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     return best;
   }
 
-  /** Normaliza responsable contra la lista existente.
+  /** Normaliza responsable contra la lista de identidades DB.
    *  1) Match exacto (rápido)
-   *  2) Match contra nombre completo (exacto)
-   *  3) Best-match contra nombres cortos + completos (con scoring, evita empates)
-   *  4) Si no hay match → devuelve vacío
+   *  2) Best-match con scoring (evita empates)
+   *  3) Si no hay match → devuelve vacío
+   *
+   *  La lista proviene de opciones.responsables (facturadores DB);
+   *  ya no existe responsables_nombres_completos.
    */
   function _matchResponsable(raw, lista) {
     if (!raw) return '';
     const rawNorm = _norm(raw);
 
-    // 1) Match exacto contra short
+    // 1) Match exacto contra la lista
     for (const r of lista) {
       if (_norm(r) === rawNorm) return r;
-    }
-
-    // 2) Match exacto contra nombre completo
-    var nombresCompletos = opciones.responsables_nombres_completos || {};
-    for (var shortName in nombresCompletos) {
-      if (_norm(nombresCompletos[shortName]) === rawNorm) return shortName;
     }
 
     const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
     if (!rawWords.length) return '';
 
-    // 3) Best-match: arma lista de candidatos (short + full) y elige el mejor
+    // 2) Best-match contra la lista de identidades
     var candidates = [];
     for (var i = 0; i < lista.length; i++) {
       candidates.push({ text: lista[i], value: lista[i] });
-    }
-    for (var shortName in nombresCompletos) {
-      candidates.push({ text: nombresCompletos[shortName], value: shortName });
     }
     return _bestMatch(rawWords, candidates);
   }

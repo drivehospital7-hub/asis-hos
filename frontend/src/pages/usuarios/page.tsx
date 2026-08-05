@@ -362,6 +362,9 @@ export function UsuariosPage() {
               >
                 <option value="usuario">Usuario</option>
                 <option value="admin">Admin</option>
+                <option value="facturador">Facturador</option>
+                <option value="validador">Validador</option>
+                <option value="medico">Médico</option>
               </select>
             </div>
             {formRol !== "admin" && (
@@ -591,6 +594,9 @@ export function UsuariosPage() {
               >
                 <option value="usuario">Usuario</option>
                 <option value="admin">Admin</option>
+                <option value="facturador">Facturador</option>
+                <option value="validador">Validador</option>
+                <option value="medico">Médico</option>
               </select>
 
               {formRol !== "admin" && (

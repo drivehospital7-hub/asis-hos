@@ -52,19 +52,18 @@ def control_errores_page():
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_opciones():
     """Obtener opciones para los selects."""
-    opciones = get_opciones()
-    return jsonify({"status": "success", "data": opciones, "errors": []})
+    return jsonify(get_opciones())
 
 
 @control_errores_bp.get("/api/control-errores")
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_errores():
-    """Listar errores con filtros."""
+    """Listar errores con filtros (visibilidad por rol de sesión)."""
     tipo_error = request.args.get("tipo_error")
     estado = request.args.get("estado")
     responsable = request.args.get("responsable")
 
-    return jsonify(get_errores(tipo_error, estado, responsable))
+    return jsonify(get_errores(tipo_error, estado, responsable, session=dict(session)))
 
 
 @control_errores_bp.get("/api/control-errores/changes")
@@ -86,9 +85,9 @@ def check_changes():
 @control_errores_bp.post("/api/control-errores")
 @permiso_requerido("control_urgencias:write")
 def crear_error():
-    """Crear un nuevo error."""
+    """Crear un nuevo error (created_by automático desde la sesión)."""
     data = request.get_json() or {}
-    return jsonify(add_error(data))
+    return jsonify(add_error(data, session=dict(session)))
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")

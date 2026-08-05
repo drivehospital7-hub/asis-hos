@@ -1,9 +1,14 @@
 """Modelos SQLAlchemy para notas técnicas."""
 
-from sqlalchemy import Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table
+from sqlalchemy import JSON, Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table
 from sqlalchemy.orm import relationship
 
 from app.database import Base
+
+
+# Roles asignables a un usuario. La DB es la única fuente de verdad
+# para usuarios y roles (sdd: control-errores-role-visibility).
+VALID_ROLES = frozenset({"admin", "usuario", "facturador", "validador", "medico"})
 
 
 class User(Base):
@@ -13,7 +18,14 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(50), unique=True, nullable=False)
     password_hash = Column(String(256), nullable=False)
-    rol = Column(String(20), nullable=False, default="usuario")  # admin o usuario
+    rol = Column(String(20), nullable=False, default="usuario")
+    # Campos de nombre de la persona (para identidad de facturadores)
+    primer_nombre = Column(String(100), nullable=False, default="")
+    segundo_nombre = Column(String(100), nullable=False, default="")
+    apellido_1 = Column(String(100), nullable=False, default="")
+    apellido_2 = Column(String(100), nullable=False, default="")
+    # Permisos como lista JSON (ej: ["control_urgencias", "facturas_abiertas"])
+    permisos = Column(JSON, nullable=False, default=list)
     
     # Relationships
     areas = relationship("UserArea", back_populates="user", cascade="all, delete-orphan")
@@ -39,6 +51,11 @@ class User(Base):
             "id": self.id,
             "username": self.username,
             "rol": self.rol,
+            "permisos": self.permisos or [],
+            "primer_nombre": self.primer_nombre or "",
+            "segundo_nombre": self.segundo_nombre or "",
+            "apellido_1": self.apellido_1 or "",
+            "apellido_2": self.apellido_2 or "",
             "areas": [ua.area for ua in self.areas]
         }
 

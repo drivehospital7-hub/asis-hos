@@ -8,8 +8,72 @@ from typing import Generator
 
 import pytest
 from openpyxl import Workbook
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
+from werkzeug.security import generate_password_hash
 
 from app import create_app
+from app.database import Base
+from app.models import User
+from app.utils import users_store
+import app.models  # noqa: F401  (registra los modelos en Base.metadata)
+
+
+@pytest.fixture(autouse=True)
+def _db_users_store():
+    """Store de usuarios hermético: SQLite en memoria para toda la suite.
+
+    Desde sdd control-errores-role-visibility la DB es la única fuente de
+    verdad para usuarios. Este fixture parchea ``users_store.SessionLocal``
+    con un engine SQLite en memoria sembrado con usuarios de prueba, para
+    que cualquier test que haga login/gestión funcione sin PostgreSQL real.
+    Los tests que necesitan comportamiento específico (DB-down, seeds
+    propios) parchean SessionLocal/_SEEDED por encima sin conflicto.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+
+    seed_db = Session()
+    try:
+        for u in [
+            {
+                "username": "admin",
+                "password_hash": generate_password_hash("admin123"),
+                "rol": "admin",
+                "permisos": ["*"],
+                "primer_nombre": "",
+                "segundo_nombre": "",
+                "apellido_1": "",
+                "apellido_2": "",
+            },
+            {
+                "username": "urgencias",
+                "password_hash": generate_password_hash("urgencias123"),
+                "rol": "usuario",
+                "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
+                "primer_nombre": "",
+                "segundo_nombre": "",
+                "apellido_1": "",
+                "apellido_2": "",
+            },
+        ]:
+            seed_db.add(User(**u))
+        seed_db.commit()
+    finally:
+        seed_db.close()
+
+    with (
+        pytest.MonkeyPatch.context() as mp,
+    ):
+        mp.setattr(users_store, "SessionLocal", Session)
+        mp.setattr(users_store, "_SEEDED", True)
+        yield
 
 
 @pytest.fixture

@@ -21,6 +21,14 @@ ERRORES_FILE = DATA_DIR / "control_errores.json"
 IMAGENES_PATH = DATA_DIR / "imagenes"
 
 
+def normalizar_identidad(s: str | None) -> str:
+    """Normaliza una identidad para comparaciones: casefold + colapso de espacios.
+
+    Ej: "LORENY  ESPAÑA " → "loreny españa". None/empty → "".
+    """
+    return " ".join((s or "").casefold().split())
+
+
 def _get_imagenes_dir(error_id: str) -> Path:
     """Obtener carpeta de imágenes para un error."""
     return IMAGENES_PATH / error_id
@@ -87,8 +95,22 @@ def listar_errores(
     tipo_error: str | None = None,
     estado: str | None = None,
     responsable: str | None = None,
+    owner_identity: str | None = None,
+    owner_full_identity: str | None = None,
+    responsable_identity: str | None = None,
+    responsable_full_identity: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Listar errores con filtros opcionales."""
+    """Listar errores con filtros opcionales.
+
+    Args:
+        owner_identity: si se provee, solo devuelve errores cuyos tokens de
+            ``responsable`` coincidan con la identidad canónica de los registros
+            nuevos, o cuyos tokens estén contenidos en la identidad completa
+            para registros legacy. None → sin filtro de propietario.
+        owner_full_identity: nombre completo DB usado solo por registros legacy.
+        responsable_identity: identidad canónica DB para resolver un filtro.
+        responsable_full_identity: nombre completo DB usado por el filtro legacy.
+    """
     data = _leer_datos()
     errores = data.get("errores", [])
 
@@ -97,7 +119,28 @@ def listar_errores(
     if estado:
         errores = [e for e in errores if e.get("estado") == estado]
     if responsable:
-        errores = [e for e in errores if e.get("responsable") == responsable]
+        if responsable_identity is not None:
+            errores = [
+                e for e in errores
+                if _responsable_coincide_con_owner(
+                    e.get("responsable", ""),
+                    responsable_identity,
+                    e.get("created_by", ""),
+                    responsable_full_identity,
+                )
+            ]
+        else:
+            errores = [e for e in errores if e.get("responsable") == responsable]
+    if owner_identity is not None:
+        errores = [
+            e for e in errores
+            if _responsable_coincide_con_owner(
+                e.get("responsable", ""),
+                owner_identity,
+                e.get("created_by", ""),
+                owner_full_identity,
+            )
+        ]
 
     # Ordenar por fecha de creación (más reciente primero)
     errores = sorted(errores, key=lambda e: e.get("creado_en", ""), reverse=True)
@@ -109,6 +152,23 @@ def listar_errores(
     return errores
 
 
+def _responsable_coincide_con_owner(
+    responsable: str | None,
+    owner_identity: str,
+    created_by: str | None = None,
+    owner_full_identity: str | None = None,
+) -> bool:
+    """Match new records exactly and legacy records by a safe token subset."""
+    if normalizar_identidad(created_by):
+        return normalizar_identidad(responsable) == normalizar_identidad(owner_identity)
+
+    responsable_tokens = normalizar_identidad(responsable).split()
+    owner_tokens = set(
+        normalizar_identidad(owner_full_identity or owner_identity).split()
+    )
+    return len(responsable_tokens) >= 2 and set(responsable_tokens) <= owner_tokens
+
+
 def crear_error(
     tipo_error: str,
     factura: str,
@@ -117,8 +177,14 @@ def crear_error(
     responsable: str,
     observacion_facturador: str = "",
     validador: str = "",
+    created_by: str = "",
 ) -> dict[str, Any]:
-    """Crear un nuevo error."""
+    """Crear un nuevo error.
+
+    Args:
+        created_by: username del creador (auditoría automática, nunca
+            proviene del payload del cliente).
+    """
     data = _leer_datos()
 
     nuevo_error = {
@@ -130,6 +196,7 @@ def crear_error(
         "estado": estado,
         "responsable": responsable,
         "validador": validador,
+        "created_by": created_by,
         "creado_en": datetime.now().isoformat(),
         "actualizado_en": datetime.now().isoformat(),
     }
@@ -137,7 +204,7 @@ def crear_error(
     data.setdefault("errores", []).append(nuevo_error)
     _escribir_datos(data)
 
-    logger.info("Error creado: %s", nuevo_error["id"])
+    logger.info("[BACK] Error creado: %s", nuevo_error["id"])
     return nuevo_error
 
 
@@ -180,7 +247,7 @@ def actualizar_error(
             error["actualizado_en"] = datetime.now().isoformat()
 
             _escribir_datos(data)
-            logger.info("Error actualizado: %s", error_id)
+            logger.info("[BACK] Error actualizado: %s", error_id)
             return error
 
     return None
@@ -196,7 +263,7 @@ def eliminar_error(error_id: str) -> bool:
     if len(errores_nuevos) < len(errores_original):
         data["errores"] = errores_nuevos
         _escribir_datos(data)
-        logger.info("Error eliminado: %s", error_id)
+        logger.info("[BACK] Error eliminado: %s", error_id)
         # Eliminar carpeta de imágenes
         _eliminar_carpeta_imagenes(error_id)
         return True
@@ -260,7 +327,7 @@ def guardar_imagen(error_id: str, file) -> tuple[bool, str]:
 
     file.seek(0)
     filepath.write_bytes(file.read())
-    logger.info("Archivo guardado: %s", filepath)
+    logger.info("[BACK] Archivo guardado: %s", filepath)
 
     return True, filename
 
@@ -272,5 +339,5 @@ def eliminar_imagen(error_id: str, filename: str) -> tuple[bool, str]:
     if not filepath.exists():
         return False, "Imagen no encontrada"
     filepath.unlink()
-    logger.info("Imagen eliminada: %s", filepath)
+    logger.info("[BACK] Imagen eliminada: %s", filepath)
     return True, ""

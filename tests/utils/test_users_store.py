@@ -1,732 +1,413 @@
-"""Unit tests for app/utils/users_store.py.
+"""Unit tests for app/utils/users_store.py — SQLAlchemy DB facade.
 
-Strict TDD: Tests written BEFORE implementation. These serve as the RED phase
-for Task 1 (store layer). All scenarios from spec.md R1 are covered.
+Strict TDD: these tests describe the DB-backed behavior (sdd change
+control-errores-role-visibility, Phase 1). They fail (RED) against the
+legacy JSON store: ``users_store.SessionLocal`` does not exist,
+``get_facturadores()`` / ``ensure_seeded()`` are missing, and role
+validation rejects ``facturador`` / ``validador`` / ``medico``.
+
+Tests run against an in-memory SQLite engine so no PostgreSQL server is
+required. ``users_store.SessionLocal`` is patched to a sessionmaker bound
+to that engine; ``Base.metadata.create_all`` provisions the schema.
 """
 
 from __future__ import annotations
 
-import json
-import os
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import patch
 
 import pytest
+from sqlalchemy import create_engine
+from sqlalchemy.exc import OperationalError
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 from werkzeug.security import check_password_hash, generate_password_hash
 
+from app.database import Base
 from app.utils import users_store
+import app.models  # noqa: F401  (registra los modelos en Base.metadata)
+
 
 # =============================================================================
-# Sample data — real hashes so check_credentials tests work without mocking
+# Fixtures — in-memory SQLite backend
 # =============================================================================
 
-SAMPLE_USERS = [
-    {
-        "username": "admin",
-        "password_hash": generate_password_hash("admin123"),
-        "rol": "admin",
-        "permisos": ["*"],
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "odontologia",
-        "password_hash": generate_password_hash("odonto123"),
+
+@pytest.fixture
+def db_session():
+    """Patches users_store.SessionLocal with an in-memory SQLite sessionmaker.
+
+    Creates the full schema (users, user_areas, ...) and disables the lazy
+    ``ensure_seeded()`` JSON bootstrap so tests control the data themselves.
+    """
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine)
+
+    with (
+        patch.object(users_store, "SessionLocal", Session),
+        patch.object(users_store, "_SEEDED", True),  # skip JSON bootstrap
+    ):
+        yield Session
+
+
+def _add_user(Session, **overrides):
+    """Insert a user row directly via SQLAlchemy."""
+    base = {
+        "username": "user_x",
+        "password_hash": generate_password_hash("pass123"),
         "rol": "usuario",
         "permisos": ["odontologia"],
         "primer_nombre": "",
         "segundo_nombre": "",
         "apellido_1": "",
         "apellido_2": "",
-    },
-    {
-        "username": "auditor",
-        "password_hash": generate_password_hash("auditor123"),
-        "rol": "usuario",
-        "permisos": ["odontologia", "urgencias"],
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-]
+    }
+    base.update(overrides)
+    db = Session()
+    try:
+        db.add(users_store.User(**base))
+        db.commit()
+    finally:
+        db.close()
 
 
 # =============================================================================
-# Tests: update_user()
+# VALID_ROLES — new roles accepted
 # =============================================================================
 
 
-class TestUpdateUser:
-    """Spec R1: users_store.update_user() — partial update support."""
+class TestValidRoles:
+    """Spec R7: validador and facturador SHALL be valid assignable roles."""
 
-    def test_update_password(self):
-        """Update password + rol + permisos: password hashed, all fields updated."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"password": "new123", "rol": "admin", "permisos": ["*"]},
-                )
+    @pytest.mark.parametrize("rol", ["admin", "usuario", "facturador", "validador", "medico"])
+    def test_valid_roles_includes_role(self, rol):
+        """VALID_ROLES MUST accept each supported role."""
+        assert rol in users_store.VALID_ROLES
 
-        assert ok is True
-        assert "actualizado" in msg
-
-        # Verify _save_users was called with modified data
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert check_password_hash(updated["password_hash"], "new123")
-        assert updated["rol"] == "admin"
-        assert updated["permisos"] == ["*"]
-
-        # Other users intact
-        assert next(u for u in saved if u["username"] == "admin")
-        assert next(u for u in saved if u["username"] == "auditor")
-
-    def test_skip_password_none(self):
-        """password=None: existing hash preserved, other fields updated."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"password": None, "rol": "admin", "permisos": ["*"]},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        # Hash should match original password (odonto123), not a new one
-        assert check_password_hash(updated["password_hash"], "odonto123")
-        assert updated["rol"] == "admin"
-
-    def test_skip_password_empty_string(self):
-        """password='': existing hash preserved, permisos updated."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"password": "", "permisos": ["cruce_facturas"]},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert check_password_hash(updated["password_hash"], "odonto123")
-        assert updated["permisos"] == ["cruce_facturas"]
-
-    def test_update_rol_only(self):
-        """Only rol changed; password + permisos unchanged."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"rol": "admin"},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert updated["rol"] == "admin"
-        assert check_password_hash(updated["password_hash"], "odonto123")
-        assert updated["permisos"] == ["odontologia"]
-
-    def test_update_permisos_only(self):
-        """Only permisos changed; password + rol unchanged."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"permisos": ["*"]},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert updated["permisos"] == ["*"]
-        assert updated["rol"] == "usuario"
-        assert check_password_hash(updated["password_hash"], "odonto123")
-
-    def test_non_existent_user(self):
-        """username not in store → (False, msg)."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "ghost",
-                {"rol": "admin"},
-            )
-
-        assert ok is False
-        assert "no encontrado" in msg.lower()
-
-    def test_admin_self_remove_star(self):
-        """Admin user removing * from own record → rejected at store level."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "admin",
-                {"permisos": ["odontologia"]},
-            )
-
-        assert ok is False
-        assert "admin" in msg.lower() or "permisos" in msg.lower()
-
-    def test_admin_other_user_add_star_allowed(self):
-        """Adding * to a different user's record → allowed."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"permisos": ["*"]},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert "*" in updated["permisos"]
-
-    def test_invalid_permiso(self):
-        """Invalid permiso value → (False, msg)."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "odontologia",
-                {"permisos": ["invalid_perm"]},
-            )
-
-        assert ok is False
-        assert "permiso inválido" in msg.lower() or "invalid" in msg.lower()
-
-    def test_invalid_rol(self):
-        """Invalid rol value → (False, msg)."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "odontologia",
-                {"rol": "superadmin"},
-            )
-
-        assert ok is False
-        assert "rol inválido" in msg.lower()
-
-    def test_update_rejects_mutually_exclusive_permisos(self):
-        """control_urgencias + control_urgencias:write → (False, msg)."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "odontologia",
-                {"permisos": ["control_urgencias", "control_urgencias:write"]},
-            )
-
-        assert ok is False
-        assert "mutuamente excluyentes" in msg.lower()
-
-    def test_update_rejects_mutually_exclusive_facturas(self):
-        """facturas_abiertas + facturas_abiertas:write → (False, msg)."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            ok, msg = users_store.update_user(
-                "odontologia",
-                {"permisos": ["facturas_abiertas", "facturas_abiertas:write"]},
-            )
-
-        assert ok is False
-        assert "mutuamente excluyentes" in msg.lower()
-
-    def test_update_allows_either_alone(self):
-        """Solo write sin read → se actualiza correctamente."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"permisos": ["control_urgencias:write"]},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert updated["permisos"] == ["control_urgencias:write"]
-
-    def test_user_list_unchanged_after_update(self):
-        """Other users in store remain intact after update."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                users_store.update_user(
-                    "odontologia",
-                    {"rol": "admin", "permisos": ["*"]},
-                )
-
-        saved = mock_save.call_args[0][0]
-        assert len(saved) == len(SAMPLE_USERS)
-        # admin user unchanged
-        admin_saved = next(u for u in saved if u["username"] == "admin")
-        assert admin_saved == next(u for u in SAMPLE_USERS if u["username"] == "admin")
-        # auditor user unchanged
-        auditor_saved = next(u for u in saved if u["username"] == "auditor")
-        assert auditor_saved == next(u for u in SAMPLE_USERS if u["username"] == "auditor")
+    def test_valid_roles_excludes_unknown(self):
+        """Unknown role MUST NOT be valid."""
+        assert "superadmin" not in users_store.VALID_ROLES
 
 
 # =============================================================================
-# Tests: delete_user()
-# =============================================================================
-
-
-class TestDeleteUser:
-    """Spec R3 and R1 edge: delete_user with admin protection."""
-
-    def test_delete_existing_user(self):
-        """Normal user deletion → returns (True, msg)."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.delete_user("odontologia")
-
-        assert ok is True
-        assert "eliminado" in msg.lower()
-        saved = mock_save.call_args[0][0]
-        assert all(u["username"] != "odontologia" for u in saved)
-
-    def test_delete_admin_blocked(self):
-        """delete_user('admin') → (False, msg) — admin NOT removed."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.delete_user("admin")
-
-        assert ok is False
-        assert "no se puede eliminar" in msg.lower() or "admin" in msg.lower()
-        # _save_users should NOT be called
-        mock_save.assert_not_called()
-
-    def test_delete_non_existent_user(self):
-        """Non-existent user → (False, msg)."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            ok, msg = users_store.delete_user("ghost")
-
-        assert ok is False
-        assert "no encontrado" in msg.lower()
-
-
-# =============================================================================
-# Tests: create_user()
-# =============================================================================
-
-
-class TestCreateUser:
-    """Existing create_user behavior — no regression."""
-
-    def test_create_user_success(self):
-        """Valid new user → created successfully."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"]
-                )
-
-        assert ok is True
-        assert "creado" in msg.lower()
-        saved = mock_save.call_args[0][0]
-        assert any(u["username"] == "nuevo" for u in saved)
-
-    def test_create_user_duplicate(self):
-        """Duplicate username → (False, msg)."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            ok, msg = users_store.create_user(
-                "admin", "pass123", "usuario", ["odontologia"]
-            )
-
-        assert ok is False
-        assert "ya existe" in msg.lower()
-
-    def test_create_rejects_mutually_exclusive_permisos(self):
-        """control_urgencias + control_urgencias:write → (False, msg)."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            ok, msg = users_store.create_user(
-                "nuevo", "pass123", "usuario",
-                ["control_urgencias", "control_urgencias:write"],
-            )
-
-        assert ok is False
-        assert "mutuamente excluyentes" in msg.lower()
-
-    def test_create_rejects_mutually_exclusive_facturas(self):
-        """facturas_abiertas + facturas_abiertas:write → (False, msg)."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            ok, msg = users_store.create_user(
-                "nuevo", "pass123", "usuario",
-                ["facturas_abiertas", "facturas_abiertas:write"],
-            )
-
-        assert ok is False
-        assert "mutuamente excluyentes" in msg.lower()
-
-    def test_create_allows_either_alone(self):
-        """Solo write sin read → se crea correctamente."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario",
-                    ["control_urgencias:write"],
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        nuevo = next(u for u in saved if u["username"] == "nuevo")
-        assert nuevo["permisos"] == ["control_urgencias:write"]
-
-
-# =============================================================================
-# Tests: create_user() — person fields
-# =============================================================================
-
-
-class TestCreateUserPersonFields:
-    """Spec R9: create_user stores person fields."""
-
-    def test_create_user_with_person_fields(self):
-        """All 4 person fields provided → stored correctly."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"],
-                    primer_nombre="Ana",
-                    segundo_nombre="María",
-                    apellido_1="López",
-                    apellido_2="García",
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        nuevo = next(u for u in saved if u["username"] == "nuevo")
-        assert nuevo["primer_nombre"] == "Ana"
-        assert nuevo["segundo_nombre"] == "María"
-        assert nuevo["apellido_1"] == "López"
-        assert nuevo["apellido_2"] == "García"
-
-    def test_create_user_default_empty(self):
-        """Person fields not provided → stored as empty strings."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.create_user(
-                    "nuevo", "pass123", "usuario", ["odontologia"],
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        nuevo = next(u for u in saved if u["username"] == "nuevo")
-        assert nuevo["primer_nombre"] == ""
-        assert nuevo["segundo_nombre"] == ""
-        assert nuevo["apellido_1"] == ""
-        assert nuevo["apellido_2"] == ""
-
-
-# =============================================================================
-# Tests: update_user() — person fields
-# =============================================================================
-
-
-class TestUpdateUserPersonFields:
-    """Spec R1 (extended): update_user partial person field support."""
-
-    def test_update_person_fields_partial(self):
-        """Update only primer_nombre and apellido_1; other fields preserved."""
-        users = SAMPLE_USERS.copy()
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"primer_nombre": "Ana", "apellido_1": "López"},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert updated["primer_nombre"] == "Ana"
-        assert updated["apellido_1"] == "López"
-        # Other person fields preserved as empty
-        assert updated["segundo_nombre"] == ""
-        assert updated["apellido_2"] == ""
-
-    def test_update_without_person_fields(self):
-        """Update rol only; person fields untouched."""
-        users = SAMPLE_USERS.copy()
-        # Give odontologia some person fields first
-        users[1]["primer_nombre"] = "Carlos"
-        users[1]["apellido_1"] = "Ruiz"
-        with patch.object(users_store, "_load_users", return_value=users):
-            with patch.object(users_store, "_save_users") as mock_save:
-                ok, msg = users_store.update_user(
-                    "odontologia",
-                    {"rol": "admin"},
-                )
-
-        assert ok is True
-        saved = mock_save.call_args[0][0]
-        updated = next(u for u in saved if u["username"] == "odontologia")
-        assert updated["rol"] == "admin"
-        assert updated["primer_nombre"] == "Carlos"
-        assert updated["apellido_1"] == "Ruiz"
-        assert updated["segundo_nombre"] == ""
-        assert updated["apellido_2"] == ""
-
-
-# =============================================================================
-# Tests: check_credentials() — person fields
-# =============================================================================
-
-
-class TestCheckCredentialsPersonFields:
-    """Spec R9: check_credentials returns person fields."""
-
-    def test_check_credentials_returns_person_fields(self):
-        """Valid credentials → return dict includes all 4 person fields."""
-        users = SAMPLE_USERS.copy()
-        users[0]["primer_nombre"] = "Ana"
-        users[0]["apellido_1"] = "Admin"
-        with patch.object(users_store, "_load_users", return_value=users):
-            result = users_store.check_credentials("admin", "admin123")
-
-        assert result is not None
-        assert "primer_nombre" in result
-        assert "segundo_nombre" in result
-        assert "apellido_1" in result
-        assert "apellido_2" in result
-        assert result["primer_nombre"] == "Ana"
-        assert result["apellido_1"] == "Admin"
-        assert result["segundo_nombre"] == ""
-        assert result["apellido_2"] == ""
-
-
-# =============================================================================
-# Tests: list_users() — person fields
-# =============================================================================
-
-
-class TestListUsersPersonFields:
-    """Spec R9: list_users returns person fields."""
-
-    def test_list_users_includes_person_fields(self):
-        """list_users() returns dicts with all 4 person fields."""
-        users = SAMPLE_USERS.copy()
-        users[0]["primer_nombre"] = "Admin"
-        users[0]["apellido_1"] = "User"
-        with patch.object(users_store, "_load_users", return_value=users):
-            result = users_store.list_users()
-
-        assert len(result) == 3
-        admin_out = next(u for u in result if u["username"] == "admin")
-        assert admin_out["primer_nombre"] == "Admin"
-        assert admin_out["apellido_1"] == "User"
-        assert admin_out["segundo_nombre"] == ""
-        assert admin_out["apellido_2"] == ""
-
-        odonto_out = next(u for u in result if u["username"] == "odontologia")
-        assert "primer_nombre" in odonto_out
-        assert "segundo_nombre" in odonto_out
-        assert "apellido_1" in odonto_out
-        assert "apellido_2" in odonto_out
-
-
-# =============================================================================
-# Tests: _load_users() backfill
-# =============================================================================
-
-
-class TestLoadUsersBackfill:
-    """Spec R11: _load_users backfills missing person fields."""
-
-    def test_backfill_legacy_users(self):
-        """Legacy JSON missing person fields → backfilled as empty string, saved."""
-        import json
-        import tempfile
-        from pathlib import Path
-
-        legacy_users = [
-            {
-                "username": "admin",
-                "password_hash": generate_password_hash("admin123"),
-                "rol": "admin",
-                "permisos": ["*"],
-                # No person fields
-            },
-        ]
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            real_path = Path(tmpdir) / "users.json"
-            real_path.write_text(json.dumps(legacy_users), encoding="utf-8")
-
-            with patch.object(users_store, "USERS_FILE", real_path):
-                result = users_store._load_users()
-
-            assert len(result) == 1
-            admin = result[0]
-            assert admin["primer_nombre"] == ""
-            assert admin["segundo_nombre"] == ""
-            assert admin["apellido_1"] == ""
-            assert admin["apellido_2"] == ""
-            # Original fields preserved
-            assert admin["username"] == "admin"
-            assert admin["rol"] == "admin"
-
-    def test_backfill_partial_missing(self):
-        """Only some person fields missing → only missing ones backfilled."""
-        import json
-        import tempfile
-        from pathlib import Path
-
-        partial_users = [
-            {
-                "username": "admin",
-                "password_hash": generate_password_hash("admin123"),
-                "rol": "admin",
-                "permisos": ["*"],
-                "primer_nombre": "Ana",
-                # Missing segundo_nombre, apellido_1, apellido_2
-            },
-        ]
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            real_path = Path(tmpdir) / "users.json"
-            real_path.write_text(json.dumps(partial_users), encoding="utf-8")
-
-            with patch.object(users_store, "USERS_FILE", real_path):
-                result = users_store._load_users()
-
-            assert len(result) == 1
-            admin = result[0]
-            assert admin["primer_nombre"] == "Ana"  # Preserved
-            assert admin["segundo_nombre"] == ""     # Backfilled
-            assert admin["apellido_1"] == ""          # Backfilled
-            assert admin["apellido_2"] == ""          # Backfilled
-
-
-# =============================================================================
-# Tests: DEFAULT_USERS have person fields
-# =============================================================================
-
-
-class TestDefaultUsersHavePersonFields:
-    """Spec R11: DEFAULT_USERS include empty person fields."""
-
-    def test_default_users_include_empty_person_fields(self):
-        """Each DEFAULT_USERS entry has all 4 person fields set to ''."""
-        for u in users_store.DEFAULT_USERS:
-            assert "primer_nombre" in u, f"Missing in {u['username']}"
-            assert "segundo_nombre" in u, f"Missing in {u['username']}"
-            assert "apellido_1" in u, f"Missing in {u['username']}"
-            assert "apellido_2" in u, f"Missing in {u['username']}"
-            assert u["primer_nombre"] == ""
-            assert u["segundo_nombre"] == ""
-            assert u["apellido_1"] == ""
-            assert u["apellido_2"] == ""
-
-
-# =============================================================================
-# Tests: check_credentials()
+# check_credentials()
 # =============================================================================
 
 
 class TestCheckCredentials:
-    """Existing check_credentials behavior — no regression."""
+    """check_credentials validates against the users table."""
 
-    def test_valid_credentials(self):
-        """Valid username+password → returns user dict."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            result = users_store.check_credentials("admin", "admin123")
+    def test_valid_credentials(self, db_session):
+        """Valid username+password → dict with username/rol/permisos/person fields."""
+        _add_user(
+            db_session,
+            username="lorenya",
+            rol="facturador",
+            primer_nombre="LORENY ",
+            apellido_1="ESPAÑA ",
+        )
+        result = users_store.check_credentials("lorenya", "pass123")
 
         assert result is not None
-        assert result["username"] == "admin"
-        assert result["rol"] == "admin"
-        assert result["permisos"] == ["*"]
+        assert result["username"] == "lorenya"
+        assert result["rol"] == "facturador"
+        assert result["primer_nombre"] == "LORENY "
+        assert result["apellido_1"] == "ESPAÑA "
 
-    def test_invalid_password(self):
+    def test_invalid_password(self, db_session):
         """Wrong password → None."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            result = users_store.check_credentials("admin", "wrongpass")
+        _add_user(db_session, username="lorenya", password_hash=generate_password_hash("pass123"))
+        assert users_store.check_credentials("lorenya", "wrong") is None
 
-        assert result is None
-
-    def test_non_existent_user(self):
-        """Non-existent username → None."""
-        with patch.object(users_store, "_load_users", return_value=SAMPLE_USERS.copy()):
-            result = users_store.check_credentials("ghost", "pass123")
-
-        assert result is None
+    def test_non_existent_user(self, db_session):
+        """Unknown username → None."""
+        assert users_store.check_credentials("ghost", "pass123") is None
 
 
 # =============================================================================
-# Tests: _save_users() atomic write
+# get_user() / list_users()
 # =============================================================================
 
 
-class TestAtomicWrite:
-    """Spec R1: _save_users uses temp file + os.replace()."""
+class TestGetUser:
+    """get_user returns the full record (with password_hash)."""
 
-    def test_save_users_uses_temp_file_and_replace(self):
-        """_save_users writes to .tmp then os.replace()."""
-        mock_file = MagicMock()
-        mock_tmp = MagicMock(spec=os.PathLike)
-        mock_file.with_suffix.return_value = mock_tmp
-        mock_file.parent = MagicMock()
+    def test_get_user_returns_row_with_hash(self, db_session):
+        """Existing user → dict incl. password_hash and person fields."""
+        h = generate_password_hash("pass123")
+        _add_user(db_session, username="admin", password_hash=h, rol="admin", permisos=["*"])
+        user = users_store.get_user("admin")
 
-        test_data = [{"username": "test"}]
+        assert user is not None
+        assert user["password_hash"] == h
+        assert user["rol"] == "admin"
+        assert user["permisos"] == ["*"]
 
-        with (
-            patch.object(users_store, "USERS_FILE", mock_file),
-            patch("builtins.open", MagicMock()) as mock_open,
-            patch("os.replace") as mock_replace,
-        ):
-            users_store._save_users(test_data)
+    def test_get_user_missing(self, db_session):
+        """Unknown user → None."""
+        assert users_store.get_user("ghost") is None
 
-            # Verify temp file was used for writing
-            mock_open.assert_called_once_with(mock_tmp, "w", encoding="utf-8")
 
-            # Verify os.replace was called to make temp → real atomic swap
-            mock_replace.assert_called_once_with(mock_tmp, mock_file)
+class TestListUsers:
+    """list_users returns all users WITHOUT password_hash."""
 
-    def test_atomic_write_preserves_original_on_crash(self):
-        """Simulate crash after temp write: original file intact."""
-        import tempfile
-        from pathlib import Path
+    def test_list_users_excludes_hash(self, db_session):
+        """Returned dicts must not expose password_hash."""
+        _add_user(db_session, username="admin")
+        result = users_store.list_users()
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            real_path = Path(tmpdir) / "users.json"
-            real_path.write_text('[]', encoding="utf-8")
+        assert len(result) == 1
+        assert result[0]["username"] == "admin"
+        assert "password_hash" not in result[0]
 
-            # Set USERS_FILE to our temp path
-            with patch.object(users_store, "USERS_FILE", real_path):
-                # Write valid data
-                users_store._save_users([{"username": "survivor"}])
-
-                # Verify data was written correctly
-                assert real_path.exists()
-                data = json.loads(real_path.read_text(encoding="utf-8"))
-                assert len(data) == 1
-                assert data[0]["username"] == "survivor"
+    def test_list_users_empty(self, db_session):
+        """Empty table → empty list."""
+        assert users_store.list_users() == []
 
 
 # =============================================================================
-# Tests: _load_users() corrupt file
+# create_user()
 # =============================================================================
 
 
-class TestLoadUsersCorruptFile:
-    """_load_users gracefully handles corrupt JSON."""
+class TestCreateUser:
+    """create_user inserts a new row with hashed password."""
 
-    def test_corrupt_json_returns_empty_list(self):
-        """Corrupt JSON → returns [], does not crash."""
-        import tempfile
-        from pathlib import Path
+    def test_create_user_success(self, db_session):
+        """Valid user → (True, msg), row persisted, hash checkable."""
+        ok, msg = users_store.create_user("nuevo", "pass123", "usuario", ["odontologia"])
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            real_path = Path(tmpdir) / "users.json"
-            real_path.write_text('{invalid json}', encoding="utf-8")
+        assert ok is True
+        assert "creado" in msg.lower()
+        user = users_store.get_user("nuevo")
+        assert user is not None
+        assert check_password_hash(user["password_hash"], "pass123")
 
-            with patch.object(users_store, "USERS_FILE", real_path):
-                # First call: file exists but is corrupt
-                result = users_store._load_users()
-                assert result == []
+    def test_create_user_duplicate(self, db_session):
+        """Duplicate username → (False, msg), no second row."""
+        _add_user(db_session, username="admin")
+        ok, msg = users_store.create_user("admin", "pass123", "usuario", ["odontologia"])
+
+        assert ok is False
+        assert "ya existe" in msg.lower()
+        assert len(users_store.list_users()) == 1
+
+    def test_create_facturador_accepted(self, db_session):
+        """rol='facturador' MUST be accepted and persisted."""
+        ok, msg = users_store.create_user(
+            "angie", "pass123", "facturador",
+            ["urgencias", "control_urgencias", "facturas_abiertas"],
+            primer_nombre="ANGIE ",
+            apellido_1="ARIAS ",
+        )
+        assert ok is True
+        user = users_store.get_user("angie")
+        assert user["rol"] == "facturador"
+        assert user["primer_nombre"] == "ANGIE "
+
+    def test_create_validador_accepted(self, db_session):
+        """rol='validador' MUST be accepted and persisted."""
+        ok, msg = users_store.create_user(
+            "val", "pass123", "validador",
+            ["control_urgencias:write", "facturas_abiertas"],
+        )
+        assert ok is True
+        assert users_store.get_user("val")["rol"] == "validador"
+
+    def test_create_invalid_rol_rejected(self, db_session):
+        """Unknown rol → (False, msg), nothing inserted."""
+        ok, msg = users_store.create_user("x", "pass123", "superadmin", ["odontologia"])
+
+        assert ok is False
+        assert "rol" in msg.lower()
+        assert users_store.get_user("x") is None
+
+    def test_create_rejects_mutually_exclusive_permisos(self, db_session):
+        """control_urgencias + control_urgencias:write → (False, msg)."""
+        ok, msg = users_store.create_user(
+            "x", "pass123", "usuario",
+            ["control_urgencias", "control_urgencias:write"],
+        )
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+
+
+# =============================================================================
+# update_user()
+# =============================================================================
+
+
+class TestUpdateUser:
+    """update_user supports partial updates and new roles."""
+
+    def test_update_password_and_fields(self, db_session):
+        """password/rol/permisos updated; hash re-generated."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, msg = users_store.update_user(
+            "odonto",
+            {"password": "new123", "rol": "facturador", "permisos": ["control_urgencias"]},
+        )
+
+        assert ok is True
+        user = users_store.get_user("odonto")
+        assert user["rol"] == "facturador"
+        assert user["permisos"] == ["control_urgencias"]
+        assert check_password_hash(user["password_hash"], "new123")
+
+    def test_update_rol_facturador_accepted(self, db_session):
+        """rol='facturador' accepted on update."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, _ = users_store.update_user("odonto", {"rol": "facturador"})
+        assert ok is True
+        assert users_store.get_user("odonto")["rol"] == "facturador"
+
+    def test_update_rol_validador_accepted(self, db_session):
+        """rol='validador' accepted on update."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, _ = users_store.update_user("odonto", {"rol": "validador"})
+        assert ok is True
+        assert users_store.get_user("odonto")["rol"] == "validador"
+
+    def test_update_rol_medico_accepted(self, db_session):
+        """rol='medico' accepted on update."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, _ = users_store.update_user("odonto", {"rol": "medico"})
+        assert ok is True
+        assert users_store.get_user("odonto")["rol"] == "medico"
+
+    def test_update_invalid_rol_rejected(self, db_session):
+        """Unknown rol → (False, msg), rol unchanged."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, msg = users_store.update_user("odonto", {"rol": "superadmin"})
+
+        assert ok is False
+        assert "rol" in msg.lower()
+        assert users_store.get_user("odonto")["rol"] == "usuario"
+
+    def test_update_skip_password_empty(self, db_session):
+        """password='' → hash preserved."""
+        h = generate_password_hash("oldpass")
+        _add_user(db_session, username="odonto", password_hash=h)
+        ok, _ = users_store.update_user("odonto", {"password": "", "rol": "usuario"})
+
+        assert ok is True
+        assert users_store.get_user("odonto")["password_hash"] == h
+
+    def test_update_non_existent_user(self, db_session):
+        """Unknown user → (False, msg)."""
+        ok, msg = users_store.update_user("ghost", {"rol": "usuario"})
+        assert ok is False
+        assert "no encontrado" in msg.lower()
+
+    def test_update_person_fields_partial(self, db_session):
+        """Only provided person fields updated; others preserved."""
+        _add_user(db_session, username="odonto", primer_nombre="Carlos", apellido_1="Ruiz")
+        ok, _ = users_store.update_user("odonto", {"apellido_1": "López"})
+
+        assert ok is True
+        user = users_store.get_user("odonto")
+        assert user["primer_nombre"] == "Carlos"
+        assert user["apellido_1"] == "López"
+        assert user["segundo_nombre"] == ""
+
+
+# =============================================================================
+# delete_user()
+# =============================================================================
+
+
+class TestDeleteUser:
+    """delete_user removes a row; admin is protected."""
+
+    def test_delete_existing_user(self, db_session):
+        """Normal user → (True, msg), row gone."""
+        _add_user(db_session, username="odonto")
+        ok, msg = users_store.delete_user("odonto")
+
+        assert ok is True
+        assert "eliminado" in msg.lower()
+        assert users_store.get_user("odonto") is None
+
+    def test_delete_admin_blocked(self, db_session):
+        """delete_user('admin') → (False, msg), row stays."""
+        _add_user(db_session, username="admin", rol="admin")
+        ok, msg = users_store.delete_user("admin")
+
+        assert ok is False
+        assert users_store.get_user("admin") is not None
+
+    def test_delete_non_existent(self, db_session):
+        """Unknown user → (False, msg)."""
+        ok, msg = users_store.delete_user("ghost")
+        assert ok is False
+        assert "no encontrado" in msg.lower()
+
+
+# =============================================================================
+# get_facturadores()
+# =============================================================================
+
+
+class TestGetFacturadores:
+    """get_facturadores returns only DB users with rol='facturador'."""
+
+    def test_filters_by_rol_and_composes_identity(self, db_session):
+        """Only facturador rows; identity = primer_nombre + apellido_1 (uppercase)."""
+        _add_user(db_session, username="angie", rol="facturador",
+                  primer_nombre="ANGIE ", apellido_1="ARIAS ")
+        _add_user(db_session, username="lorenya", rol="facturador",
+                  primer_nombre="LORENY ", apellido_1="ESPAÑA ")
+        _add_user(db_session, username="admin", rol="admin", permisos=["*"])
+
+        result = users_store.get_facturadores()
+
+        assert [f["username"] for f in result] == ["angie", "lorenya"]
+        assert result[0]["nombre_completo"] == "ANGIE ARIAS"
+        assert result[1]["nombre_completo"] == "LORENY ESPAÑA"
+        assert all(f["rol"] == "facturador" for f in result)
+
+    def test_empty_when_no_facturadores(self, db_session):
+        """Zero facturador users → empty list (no fallback)."""
+        _add_user(db_session, username="admin", rol="admin", permisos=["*"])
+        assert users_store.get_facturadores() == []
+
+    def test_excludes_facturador_without_primer_nombre(self, db_session):
+        """Facturador without primer_nombre → excluded (no usable identity)."""
+        _add_user(db_session, username="anon", rol="facturador")
+        assert users_store.get_facturadores() == []
+
+
+# =============================================================================
+# DB unavailable → error, never JSON fallback
+# =============================================================================
+
+
+class TestDbDown:
+    """DB unavailable MUST raise — no JSON/constants fallback (spec R4)."""
+
+    def _make_boom(self):
+        def boom():
+            raise OperationalError("SELECT", {}, Exception("connection refused"))
+        return boom
+
+    def test_check_credentials_raises_on_db_down(self, db_session):
+        """check_credentials propagates the DB error instead of returning JSON."""
+        with patch.object(users_store, "SessionLocal", self._make_boom()):
+            with pytest.raises(OperationalError):
+                users_store.check_credentials("admin", "admin123")
+
+    def test_get_facturadores_raises_on_db_down(self, db_session):
+        """get_facturadores propagates the DB error (no hardcoded responsables)."""
+        with patch.object(users_store, "SessionLocal", self._make_boom()):
+            with pytest.raises(OperationalError):
+                users_store.get_facturadores()
+
+    def test_list_users_raises_on_db_down(self, db_session):
+        """list_users propagates the DB error."""
+        with patch.object(users_store, "SessionLocal", self._make_boom()):
+            with pytest.raises(OperationalError):
+                users_store.list_users()

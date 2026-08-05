@@ -1,152 +1,104 @@
-"""Almacenamiento local de usuarios (JSON, sin DB).
+"""Almacenamiento de usuarios en la base de datos (SQLAlchemy facade).
 
-Provee persistencia entre sesiones via archivo instance/users.json.
-Si el archivo no existe, se crea con los usuarios por defecto al
-primer intento de lectura.
+La base de datos es la ÚNICA fuente de verdad para usuarios, roles,
+nombres y responsables. No hay fallback a JSON ni a constantes
+hardcodeadas: si la DB no está disponible, las operaciones fallan
+con error.
+
+Mantiene la API pública del antiguo store JSON
+(check_credentials/get_user/list_users/create_user/update_user/
+delete_user) y agrega get_facturadores() + ensure_seeded().
 """
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Optional
 
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.constants.base import ALLOWED_PERMISOS, PERMISO_MUTUAL_EXCLUSION
+from app.database import Base, SessionLocal
+from app.models import User, VALID_ROLES
 
 logger = logging.getLogger(__name__)
 
-USERS_FILE = Path("instance") / "users.json"
+# Fuente de migración defensiva (solo bootstrap, NUNCA fallback en runtime)
+USERS_JSON_SOURCE = Path("instance") / "users.json"
 
-# Usuarios por defecto (se crean si el archivo no existe)
-DEFAULT_USERS = [
-    {
-        "username": "admin",
-        "password": "admin123",
-        "rol": "admin",
-        "permisos": ["*"],
-        "descripcion": "Acceso a todas las áreas",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "odontologia",
-        "password": "odonto123",
-        "rol": "usuario",
-        "permisos": ["odontologia"],
-        "descripcion": "Solo /odontologia",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "urgencias",
-        "password": "urgencias123",
-        "rol": "usuario",
-        "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
-        "descripcion": "/urgencias + control urgencias (solo lectura) + facturas abiertas",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "auditor",
-        "password": "auditor123",
-        "rol": "usuario",
-        "permisos": [
-            "control_urgencias",
-            "control_urgencias:write",
-            "facturas_abiertas",
-            "facturas_abiertas:write",
-            "equipos_basicos",
-        ],
-        "descripcion": "Control urgencias + facturas abiertas + cruce reportes (con modificación)",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-]
+# Flag de bootstrap lazy: se corre una sola vez por proceso
+_SEEDED = False
 
 
-def _load_users() -> list:
-    """Carga usuarios desde el archivo JSON."""
-    if not USERS_FILE.exists():
-        _create_default_users()
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            users = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error("Error leyendo %s: %s", USERS_FILE, e)
-        return []
-
-    # Backfill: ensure all person fields exist for legacy users
-    person_fields = ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2")
-    changed = False
-    for u in users:
-        for field in person_fields:
-            if field not in u:
-                u[field] = ""
-                changed = True
-
-    if changed:
-        _save_users(users)
-
-    return users
+def _new_session():
+    """Abre una sesión nueva (cerrada por cada función)."""
+    return SessionLocal()
 
 
-def _save_users(users: list) -> None:
-    """Guarda usuarios al archivo JSON (escritura atómica).
+def _to_dict(user: User, include_hash: bool = False) -> dict:
+    """Convierte un User ORM a dict (sin password_hash por defecto)."""
+    data = {
+        "username": user.username,
+        "rol": user.rol,
+        "permisos": user.permisos or [],
+        "primer_nombre": user.primer_nombre or "",
+        "segundo_nombre": user.segundo_nombre or "",
+        "apellido_1": user.apellido_1 or "",
+        "apellido_2": user.apellido_2 or "",
+    }
+    if include_hash:
+        data["password_hash"] = user.password_hash
+    return data
 
-    Escribe a un archivo temporal y luego usa os.replace() para
-    reemplazar el archivo original. Esto previene corrupción
-    por crash durante la escritura.
+
+# =============================================================================
+# Bootstrap defensivo (migración JSON → DB, idempotente)
+# =============================================================================
+
+
+def ensure_seeded() -> None:
+    """Crea la tabla users si no existe y siembra desde instance/users.json.
+
+    Solo actúa cuando la DB está disponible y la tabla está vacía.
+    Si la DB no está disponible, la excepción se propaga — NUNCA se
+    usan usuarios hardcodeados como fallback.
     """
-    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = USERS_FILE.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, USERS_FILE)
+    global _SEEDED
+    if _SEEDED:
+        return
 
-
-def _create_default_users() -> None:
-    """Crea el archivo con usuarios por defecto (hashea passwords)."""
-    users = []
-    for u in DEFAULT_USERS:
-        users.append(
-            {
-                "username": u["username"],
-                "password_hash": generate_password_hash(u["password"]),
-                "rol": u["rol"],
-                "permisos": u["permisos"],
-                "primer_nombre": u.get("primer_nombre", ""),
-                "segundo_nombre": u.get("segundo_nombre", ""),
-                "apellido_1": u.get("apellido_1", ""),
-                "apellido_2": u.get("apellido_2", ""),
-            }
-        )
-    _save_users(users)
-    logger.info(
-        "Archivo %s creado con %d usuarios por defecto",
-        USERS_FILE,
-        len(users),
-    )
+    db = _new_session()
+    try:
+        Base.metadata.create_all(bind=db.get_bind())
+        if db.query(User).count() == 0 and USERS_JSON_SOURCE.exists():
+            with open(USERS_JSON_SOURCE, "r", encoding="utf-8") as f:
+                users = json.load(f)
+            for u in users:
+                db.add(
+                    User(
+                        username=u["username"],
+                        password_hash=u["password_hash"],
+                        rol=u["rol"],
+                        permisos=u.get("permisos", []),
+                        primer_nombre=u.get("primer_nombre", ""),
+                        segundo_nombre=u.get("segundo_nombre", ""),
+                        apellido_1=u.get("apellido_1", ""),
+                        apellido_2=u.get("apellido_2", ""),
+                    )
+                )
+            db.commit()
+            logger.info("[BACK] users sembrados desde %s: %d", USERS_JSON_SOURCE.name, len(users))
+        _SEEDED = True
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
-    """Verifica que no haya permisos mutuamente excluyentes.
-
-    Por ejemplo, 'control_urgencias' y 'control_urgencias:write'
-    no pueden estar ambos en la misma lista.
-
-    Returns:
-        (True, "") si está ok, (False, mensaje) si hay conflicto.
-    """
+    """Verifica que no haya permisos mutuamente excluyentes."""
     for p in permisos:
         conflicto = PERMISO_MUTUAL_EXCLUSION.get(p)
         if conflicto and conflicto in permisos:
@@ -158,54 +110,84 @@ def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
     return True, ""
 
 
+# =============================================================================
+# API pública
+# =============================================================================
+
+
 def check_credentials(username: str, password: str) -> Optional[dict]:
-    """Valida credenciales contra el store local.
+    """Valida credenciales contra la tabla users.
 
     Returns:
-        dict con username, rol, permisos si es válido.
+        dict con username, rol, permisos y campos de nombre si es válido.
         None si las credenciales son incorrectas.
     """
-    users = _load_users()
-    for u in users:
-        if u["username"] == username and check_password_hash(
-            u["password_hash"], password
-        ):
-            return {
-                "username": u["username"],
-                "rol": u["rol"],
-                "permisos": u["permisos"],
-                "primer_nombre": u.get("primer_nombre", ""),
-                "segundo_nombre": u.get("segundo_nombre", ""),
-                "apellido_1": u.get("apellido_1", ""),
-                "apellido_2": u.get("apellido_2", ""),
-            }
-    return None
+    ensure_seeded()
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user and check_password_hash(user.password_hash, password):
+            return _to_dict(user)
+        return None
+    finally:
+        db.close()
 
 
 def get_user(username: str) -> Optional[dict]:
     """Retorna un usuario completo (con password_hash) o None."""
-    users = _load_users()
-    for u in users:
-        if u["username"] == username:
-            return u
-    return None
+    ensure_seeded()
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        return _to_dict(user, include_hash=True) if user else None
+    finally:
+        db.close()
 
 
 def list_users() -> list:
     """Retorna todos los usuarios (sin password_hash)."""
-    users = _load_users()
-    return [
-        {
-            "username": u["username"],
-            "rol": u["rol"],
-            "permisos": u["permisos"],
-            "primer_nombre": u.get("primer_nombre", ""),
-            "segundo_nombre": u.get("segundo_nombre", ""),
-            "apellido_1": u.get("apellido_1", ""),
-            "apellido_2": u.get("apellido_2", ""),
-        }
-        for u in users
-    ]
+    ensure_seeded()
+    db = _new_session()
+    try:
+        users = db.query(User).order_by(User.username).all()
+        return [_to_dict(u) for u in users]
+    finally:
+        db.close()
+
+
+def get_facturadores() -> list[dict]:
+    """Retorna usuarios con rol 'facturador' con identidad compuesta.
+
+    Cada dict incluye username, campos de nombre y ``nombre_completo``
+    (primer_nombre + apellido_1 en mayúsculas, sin segundo_nombre/
+    apellido_2). Excluye usuarios sin primer_nombre.
+    """
+    ensure_seeded()
+    db = _new_session()
+    try:
+        users = db.query(User).filter(User.rol == "facturador").order_by(User.username).all()
+        result = []
+        for u in users:
+            primer_nombre = (u.primer_nombre or "").strip()
+            if not primer_nombre:
+                continue
+            apellido_1 = (u.apellido_1 or "").strip()
+            result.append(
+                {
+                    "username": u.username,
+                    "primer_nombre": primer_nombre,
+                    "segundo_nombre": (u.segundo_nombre or "").strip(),
+                    "apellido_1": apellido_1,
+                    "apellido_2": (u.apellido_2 or "").strip(),
+                    "nombre_completo": " ".join(
+                        n for n in [primer_nombre, apellido_1] if n
+                    ).upper(),
+                    "rol": u.rol,
+                }
+            )
+        return result
+    finally:
+        db.close()
 
 
 def create_user(
@@ -221,31 +203,41 @@ def create_user(
     """Crea un nuevo usuario.
 
     Returns:
-        (True, mensaje) si se creó, (False, mensaje) si ya existe.
+        (True, mensaje) si se creó, (False, mensaje) si ya existe o hay error.
     """
-    users = _load_users()
+    ensure_seeded()
+    db = _new_session()
+    try:
+        if db.query(User).filter(User.username == username).first():
+            return False, f"El usuario '{username}' ya existe"
 
-    if any(u["username"] == username for u in users):
-        return False, f"El usuario '{username}' ya existe"
+        if rol not in VALID_ROLES:
+            return False, f"Rol inválido: {rol}"
 
-    ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
-    if not ok_exclusion:
-        return False, msg_exclusion
+        ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
+        if not ok_exclusion:
+            return False, msg_exclusion
 
-    users.append(
-        {
-            "username": username,
-            "password_hash": generate_password_hash(password),
-            "rol": rol,
-            "permisos": permisos,
-            "primer_nombre": primer_nombre,
-            "segundo_nombre": segundo_nombre,
-            "apellido_1": apellido_1,
-            "apellido_2": apellido_2,
-        }
-    )
-    _save_users(users)
-    return True, f"Usuario '{username}' creado"
+        db.add(
+            User(
+                username=username,
+                password_hash=generate_password_hash(password),
+                rol=rol,
+                permisos=permisos,
+                primer_nombre=primer_nombre,
+                segundo_nombre=segundo_nombre,
+                apellido_1=apellido_1,
+                apellido_2=apellido_2,
+            )
+        )
+        db.commit()
+        logger.info("[BACK] Usuario '%s' creado (rol=%s)", username, rol)
+        return True, f"Usuario '{username}' creado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def update_user(username: str, updates: dict) -> tuple:
@@ -253,75 +245,67 @@ def update_user(username: str, updates: dict) -> tuple:
 
     Los campos en `updates` son opcionales:
       - password: str|None — Si es None o "", se omite (no cambia).
-      - rol: str — Debe ser "admin" o "usuario".
+      - rol: str — Debe estar en VALID_ROLES.
       - permisos: list — Cada elemento debe estar en ALLOWED_PERMISOS.
+      - primer_nombre/segundo_nombre/apellido_1/apellido_2 — parciales.
 
     Returns:
         (True, mensaje) si se actualizó, (False, mensaje) si hay error.
     """
-    users = _load_users()
-    target = None
-    for u in users:
-        if u["username"] == username:
-            target = u
-            break
+    ensure_seeded()
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            return False, f"Usuario '{username}' no encontrado"
 
-    if target is None:
-        return False, f"Usuario '{username}' no encontrado"
+        # Password opcional
+        password = updates.get("password")
+        if password and isinstance(password, str) and password.strip():
+            user.password_hash = generate_password_hash(password)
 
-    # Construir dict actualizado
-    updated = dict(target)
+        # Rol con validación
+        if "rol" in updates:
+            rol = updates["rol"]
+            if rol not in VALID_ROLES:
+                return False, f"Rol inválido: {rol}"
+            user.rol = rol
 
-    # Password opcional
-    password = updates.get("password")
-    if password and isinstance(password, str) and password.strip():
-        updated["password_hash"] = generate_password_hash(password)
+        # Permisos con validación
+        if "permisos" in updates:
+            nuevos_permisos = updates["permisos"]
+            if not isinstance(nuevos_permisos, list):
+                return False, "Permisos debe ser una lista"
 
-    # Rol con validación
-    if "rol" in updates:
-        rol = updates["rol"]
-        if rol not in ("admin", "usuario"):
-            return False, "Rol inválido: debe ser admin o usuario"
-        updated["rol"] = rol
+            for p in nuevos_permisos:
+                if p not in ALLOWED_PERMISOS:
+                    return False, f"Permiso inválido: {p}"
 
-    # Permisos con validación
-    if "permisos" in updates:
-        nuevos_permisos = updates["permisos"]
-        if not isinstance(nuevos_permisos, list):
-            return False, "Permisos debe ser una lista"
+            ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
+            if not ok_exclusion:
+                return False, msg_exclusion
 
-        # Validar contra lista permitida
-        for p in nuevos_permisos:
-            if p not in ALLOWED_PERMISOS:
-                return False, f"Permiso inválido: {p}"
+            # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
+            if "*" in (user.permisos or []) and "*" not in nuevos_permisos:
+                return (
+                    False,
+                    "No puedes remover el permiso de administrador de este usuario",
+                )
 
-        # Validar exclusión mutua (read vs write del mismo módulo)
-        ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
-        if not ok_exclusion:
-            return False, msg_exclusion
+            user.permisos = nuevos_permisos
 
-        # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
-        if "*" in target.get("permisos", []) and "*" not in nuevos_permisos:
-            return (
-                False,
-                "No puedes remover el permiso de administrador de este usuario",
-            )
+        # Person fields (partial update — solo si están presentes)
+        for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
+            if key in updates:
+                setattr(user, key, updates[key])
 
-        updated["permisos"] = nuevos_permisos
-
-    # Person fields (partial update — only if present in updates dict)
-    for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
-        if key in updates:
-            updated[key] = updates[key]
-
-    # Reemplazar en la lista
-    for i, u in enumerate(users):
-        if u["username"] == username:
-            users[i] = updated
-            break
-
-    _save_users(users)
-    return True, f"Usuario '{username}' actualizado"
+        db.commit()
+        return True, f"Usuario '{username}' actualizado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def delete_user(username: str) -> tuple:
@@ -333,12 +317,22 @@ def delete_user(username: str) -> tuple:
         (True, mensaje) si se eliminó, (False, mensaje) si no existe
         o si es admin.
     """
-    if username == "admin":
-        return False, "No se puede eliminar el usuario admin"
+    ensure_seeded()
+    db = _new_session()
+    try:
+        if username == "admin":
+            return False, "No se puede eliminar el usuario admin"
 
-    users = _load_users()
-    filtered = [u for u in users if u["username"] != username]
-    if len(filtered) == len(users):
-        return False, f"Usuario '{username}' no encontrado"
-    _save_users(filtered)
-    return True, f"Usuario '{username}' eliminado"
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            return False, f"Usuario '{username}' no encontrado"
+
+        db.delete(user)
+        db.commit()
+        logger.info("[BACK] Usuario '%s' eliminado", username)
+        return True, f"Usuario '{username}' eliminado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
