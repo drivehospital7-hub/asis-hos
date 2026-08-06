@@ -82,6 +82,10 @@
     <label class="filters__label">Responsable</label>
     <select id="filterResponsable" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
+  <div class="filters__group">
+    <label class="filters__label">Todas las áreas</label>
+    <select id="filterArea" class="filters__select" onchange="applyFilters()"><option value="">Todas las áreas</option></select>
+  </div>
   <button class="filter-icon" title="Limpiar filtros" onclick="clearFilters()">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
   </button>
@@ -205,7 +209,7 @@
 
 {% block scripts %}
 <script>
-  let opciones = { tipos_error: [], estados: [], responsables: [] };
+  let opciones = { tipos_error: [], estados: [], responsables: [], areas: [], responsables_detalle: [] };
   let cachedErrores = [];
   let isAdding = false;
   let _cargaEnProgreso = false;
@@ -236,6 +240,84 @@
   const editor = document.getElementById('global-editor');
   const editorInput = document.getElementById('editor-input');
 
+  // ====== AGRUPAMIENTO POR ÁREA (sdd Empieza) ======
+  // Mapa nombre → áreas construido una sola vez desde responsables_detalle.
+  let _responsableAreas = null;
+
+  function _buildResponsableAreaMap() {
+    _responsableAreas = null;
+    if (!opciones.responsables_detalle) return;
+    const map = {};
+    opciones.responsables_detalle.forEach(d => { map[d.nombre_completo] = d.areas || []; });
+    _responsableAreas = map;
+  }
+
+  function _activeArea() {
+    const el = document.getElementById('filterArea');
+    return el ? el.value : '';
+  }
+
+  // Lista plana de responsables acotada por el área activa ('' = todas).
+  function _currentResponsables() {
+    const area = _activeArea();
+    if (!area || !_responsableAreas) return opciones.responsables || [];
+    return (opciones.responsables || []).filter(r => (_responsableAreas[r] || []).includes(area));
+  }
+
+  function _areaLabel(slug) {
+    const a = (opciones.areas || []).find(x => x.slug === slug);
+    return a ? a.label : slug;
+  }
+
+  // Agrupa una lista de responsables por área. Un responsable multi-área
+  // aparece bajo cada grupo; sin área → grupo "Sin área". Respeta el orden
+  // de opciones.areas (canónicas primero) y salta grupos vacíos.
+  function _groupResponsablesByArea(list) {
+    const groups = {};
+    list.forEach(r => {
+      const areas = _responsableAreas ? (_responsableAreas[r] || []) : [];
+      if (!areas.length) {
+        (groups['Sin área'] = groups['Sin área'] || []).push(r);
+        return;
+      }
+      areas.forEach(a => {
+        const label = _areaLabel(a);
+        (groups[label] = groups[label] || []).push(r);
+      });
+    });
+    const ordered = (opciones.areas || []).map(a => a.label).filter(l => groups[l]);
+    Object.keys(groups).forEach(l => { if (ordered.indexOf(l) === -1) ordered.push(l); });
+    return ordered.map(label => ({ label: label, items: groups[label] }));
+  }
+
+  // HTML de <optgroup>s para selects nativos. Fallback plano sin detalle.
+  function _buildResponsableOptions(selectedValue) {
+    const list = _currentResponsables();
+    if (!_responsableAreas) {
+      return list.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+    }
+    return _groupResponsablesByArea(list).map(g =>
+      `<optgroup label="${escapeHtml(g.label)}">` +
+      g.items.map(r => `<option value="${escapeHtml(r)}"${r === selectedValue ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('') +
+      `</optgroup>`
+    ).join('');
+  }
+
+  // HTML del dropdown custom del cell-editor, con headers de grupo por área.
+  function _buildCustomResponsableOptions(list, currentValue) {
+    if (!_responsableAreas) {
+      return list.map(opt =>
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+      ).join('');
+    }
+    return _groupResponsablesByArea(list).map(g =>
+      `<div class="custom-select-group" style="padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;background:#f8fafc;">${escapeHtml(g.label)}</div>` +
+      g.items.map(opt =>
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+      ).join('')
+    ).join('');
+  }
+
   async function loadOpciones() {
     const res = await fetch('/api/control-errores/opciones');
     const result = await res.json();
@@ -243,7 +325,12 @@
       opciones = result.data;
       opciones.tipos_error.forEach(t => document.getElementById('filterTipo').add(new Option(t, t)));
       opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e, e)));
-      opciones.responsables.forEach(r => document.getElementById('filterResponsable').add(new Option(r, r)));
+      _buildResponsableAreaMap();
+      // Select de área (aditivo, sdd Empieza)
+      document.getElementById('filterArea').innerHTML = '<option value="">Todas las áreas</option>' +
+        (opciones.areas || []).map(a => `<option value="${escapeHtml(a.slug)}">${escapeHtml(a.label)}</option>`).join('');
+      // Select de responsable agrupado por área (optgroups)
+      document.getElementById('filterResponsable').innerHTML = '<option value="">Todos</option>' + _buildResponsableOptions();
     }
   }
 
@@ -318,7 +405,8 @@
     const url = '/api/control-errores?' + 
       'tipo_error=' + encodeURIComponent(document.getElementById('filterTipo').value) +
       '&estado=' + encodeURIComponent(document.getElementById('filterEstado').value) +
-      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value);
+      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value) +
+      '&area=' + encodeURIComponent(document.getElementById('filterArea').value);
     const res = await fetch(url);
     const result = await res.json();
     if (result.status === 'success') {
@@ -383,7 +471,7 @@
             <input type="text" id="newObservacion" class="inline-input" placeholder="Descripción" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newResponsable" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
               <option value="">Responsable...</option>
-              ${opciones.responsables.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
+              ${_buildResponsableOptions()}
             </select>
             <button class="btn btn--small btn--primary" onclick="saveNewRow()">Guardar</button>
             <button class="btn btn--small" onclick="cancelNewRow()">Cancelar</button>
@@ -742,14 +830,19 @@
       } else if (field === 'estado') {
         options = ['S', 'N'];
       } else if (field === 'responsable') {
-        options = opciones.responsables;
+        options = _currentResponsables();
       }
 
-      // Custom dropdown simple
+      // Custom dropdown simple (responsable: headers de grupo por área)
       const currentValue = td.dataset.value || td.textContent.trim();
-      let optionsHtml = options.map(opt => 
-        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
-      ).join('');
+      let optionsHtml;
+      if (field === 'responsable') {
+        optionsHtml = _buildCustomResponsableOptions(options, currentValue);
+      } else {
+        optionsHtml = options.map(opt => 
+          `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+        ).join('');
+      }
 
       editor.innerHTML = `
         <div class="custom-select" id="customSelect" data-field="${field}">
@@ -1373,6 +1466,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('filterTipo').value = '';
     document.getElementById('filterEstado').value = '';
     document.getElementById('filterResponsable').value = '';
+    document.getElementById('filterArea').value = '';
     loadErrores();
   }
   
@@ -1949,7 +2043,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         return;
       }
 
-      const responsable = _matchResponsable(responsableRaw, opciones.responsables);
+      const responsable = _matchResponsable(responsableRaw, _currentResponsables());
       // Marcar duplicado contra cachedErrores (misma factura + misma categoría)
       const duplicate = _esDuplicadoCarga(factura);
       rows.push({ factura: factura, responsable: responsable, duplicate: duplicate });
@@ -2019,11 +2113,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         '</div></td>';
       html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_desc_' + i + '" value="' + escapeHtml(descripcion) + '"' + disabledAttr + ' style="text-transform:uppercase;"></td>';
       // Siempre select: si hay match se pre-selecciona, si no → "-- Seleccionar --"
-      var optionsHtml = '<option value="">-- Seleccionar --</option>' +
-        opciones.responsables.map(function(r) {
-          var selected = r === row.responsable ? ' selected' : '';
-          return '<option value="' + escapeHtml(r) + '"' + selected + '>' + escapeHtml(r) + '</option>';
-        }).join('');
+      var optionsHtml = '<option value="">-- Seleccionar --</option>' + _buildResponsableOptions(row.responsable);
       html += '<td><select class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '"' + disabledAttr + '>' + optionsHtml + '</select></td>';
       html += '<td style="text-align:center;">' +
         (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#10b981;">Agregado</span>') +

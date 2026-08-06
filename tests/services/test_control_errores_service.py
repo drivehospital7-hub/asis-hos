@@ -401,6 +401,146 @@ class TestGetOpcionesDbOnly:
         assert opciones["data"]["responsables"] == ["MARIA GOMEZ"]
 
 
+class TestGetOpcionesAreas:
+    """sdd Empieza: opciones agrega areas + responsables_detalle; responsables plano."""
+
+    def test_opciones_adds_areas_and_responsables_detalle(self):
+        """Payload aditivo: areas (7) + responsables_detalle; responsables sigue plano."""
+        facturadores = [
+            {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "ANGIE ARIAS",
+             "rol": "facturador", "areas": ["urgencias", "odontologia"]},
+            {"username": "LORENYA", "primer_nombre": "LORENY ", "apellido_1": "ESPAÑA ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": []},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        data = opciones["data"]
+        # responsables sigue plano (contrato existente)
+        assert data["responsables"] == ["ANGIE ARIAS", "LORENY ESPAÑA"]
+        # areas: SOLO las 4 canónicas (sin legacy selectable)
+        assert [a["slug"] for a in data["areas"]] == [
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+        ]
+        assert all(
+            a["slug"] not in {"equipos_basicos", "cruce_facturas", "derechos"}
+            for a in data["areas"]
+        )
+        assert data["areas"][0] == {"slug": "urgencias", "label": "Urgencias"}
+        # responsables_detalle: nombre → areas
+        detalle = {d["nombre_completo"]: d["areas"] for d in data["responsables_detalle"]}
+        assert detalle == {
+            "ANGIE ARIAS": ["urgencias", "odontologia"],
+            "LORENY ESPAÑA": [],
+        }
+
+    def test_opciones_flat_fallback_when_areas_missing(self):
+        """Facturadores sin key 'areas' → detalle con listas vacías (rollout-safe)."""
+        facturadores = [
+            {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "ANGIE ARIAS",
+             "rol": "facturador"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["responsables"] == ["ANGIE ARIAS"]
+        assert opciones["data"]["responsables_detalle"] == [
+            {"nombre_completo": "ANGIE ARIAS", "areas": []}
+        ]
+
+
+class TestGetErroresAreaFilter:
+    """sdd Empieza: get_errores(area=) post-filtra por área (aditivo)."""
+
+    _SESS = {"rol": "validador", "username": "val1"}
+
+    def _call(self, area=None, responsable=None):
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _fixture_errores()}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            return get_errores(area=area, responsable=responsable, session=self._SESS)
+
+    def _facturadores(self):
+        return [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+            {"username": "DANIELA", "primer_nombre": "DANIELA", "apellido_1": "PAEZ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "DANIELA PAEZ",
+             "rol": "facturador", "areas": ["ambulatoria"]},
+        ]
+
+    def test_area_filter_matches_only_area_users(self):
+        """area=urgencias → solo novedades de responsables con esa área."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="urgencias")
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        # creado_en descendente: e2 (08-02) antes que e1 (08-01)
+        assert ids == ["e2", "e1"]  # LORENY ESPAÑA + alias legacy
+        assert "e3" not in ids      # DANIELA PAEZ no es de urgencias
+
+    def test_area_filter_and_composes_with_responsable(self):
+        """area AND responsable: responsables de otra área quedan excluidos."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="urgencias", responsable="DANIELA PAEZ")
+
+        assert result["data"]["errores"] == []  # DANIELA no pertenece a urgencias
+
+    def test_area_invalid_slug_is_noop(self):
+        """Slug inválido → sin filtro (se devuelven todas las novedades)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="no_existe")
+
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+    def test_area_valid_slug_zero_users_empty(self):
+        """Área válida sin usuarios → resultado vacío (no-op NO es vacío)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="extramural")
+
+        assert result["data"]["errores"] == []
+
+    def test_area_none_no_filter(self):
+        """Sin área → se devuelven todas las novedades."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call()
+
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+
 class TestAddErrorAudit:
     """Spec R5: created_by automático desde la sesión (auditoría)."""
 

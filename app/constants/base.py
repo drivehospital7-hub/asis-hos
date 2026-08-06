@@ -74,6 +74,35 @@ AREA_URGENCIAS = "urgencias"
 AREA_EQUIPOS_BASICOS = "equipos_basicos"
 
 # =============================================================================
+# ÁREAS ORGANIZACIONALES - Vocabulario canónico de áreas organizacionales
+# =============================================================================
+# Fuente única de verdad para el agrupamiento de responsables por área
+# (sdd Empieza). Los slugs se persisten en user_areas (string libre, sin
+# migración). AREAS_VALIDAS de app/models.py es el mismo vocabulario.
+# Las filas legacy ya persistidas (equipos_basicos / cruce_facturas /
+# derechos) se conservan en la DB pero ya NO son válidas ni selectables.
+
+# Slug canónico → label, en orden de presentación. SOLO estas 4 áreas son
+# válidas/selectables.
+ORGANIZATIONAL_AREAS = [
+    {"slug": "urgencias", "label": "Urgencias"},
+    {"slug": "ambulatoria", "label": "Ambulatoria"},
+    {"slug": "extramural", "label": "Extramural"},
+    {"slug": "odontologia", "label": "Odontología"},
+]
+
+# Todos los slugs válidos: exactamente los canónicos (sin legacy).
+VALID_AREA_SLUGS = frozenset({a["slug"] for a in ORGANIZATIONAL_AREAS})
+
+# Label por slug (solo los válidos).
+AREA_LABELS = {
+    "urgencias": "Urgencias",
+    "ambulatoria": "Ambulatoria",
+    "extramural": "Extramural",
+    "odontologia": "Odontología",
+}
+
+# =============================================================================
 # PERMISOS - Valores de permiso válidos
 # =============================================================================
 

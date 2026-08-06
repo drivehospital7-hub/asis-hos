@@ -22,9 +22,10 @@ from app.constants.base import (
     ALLOWED_PERMISOS,
     PERMISO_MUTUAL_EXCLUSION,
     PERMISO_RESPONSABLE_FACTURACION,
+    VALID_AREA_SLUGS,
 )
 from app.database import Base, SessionLocal
-from app.models import User, VALID_ROLES
+from app.models import User, UserArea, VALID_ROLES
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +51,7 @@ def _to_dict(user: User, include_hash: bool = False) -> dict:
         "segundo_nombre": user.segundo_nombre or "",
         "apellido_1": user.apellido_1 or "",
         "apellido_2": user.apellido_2 or "",
+        "areas": sorted(ua.area for ua in user.areas),
     }
     if include_hash:
         data["password_hash"] = user.password_hash
@@ -111,6 +113,21 @@ def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
                 f"No puede tener '{p}' y '{conflicto}' simultáneamente: "
                 f"son mutuamente excluyentes",
             )
+    return True, ""
+
+
+def _validate_areas(areas: list | None) -> tuple[bool, str]:
+    """Valida que cada slug de área esté en VALID_AREA_SLUGS.
+
+    None o lista vacía son válidos (usuario sin área → grupo "Sin área").
+    """
+    if not areas:
+        return True, ""
+    if not isinstance(areas, list):
+        return False, "Áreas debe ser una lista"
+    for a in areas:
+        if a not in VALID_AREA_SLUGS:
+            return False, f"Área inválida: {a}"
     return True, ""
 
 
@@ -191,6 +208,7 @@ def get_facturadores() -> list[dict]:
                         n for n in [primer_nombre, apellido_1] if n
                     ).upper(),
                     "rol": u.rol,
+                    "areas": sorted(ua.area for ua in u.areas),
                 }
             )
         return result
@@ -207,8 +225,12 @@ def create_user(
     segundo_nombre: str = "",
     apellido_1: str = "",
     apellido_2: str = "",
+    areas: list | None = None,
 ) -> tuple:
     """Crea un nuevo usuario.
+
+    ``areas`` (opcional): slugs de área organizacional validados contra
+    VALID_AREA_SLUGS. Se persisten como filas en user_areas (sin migración).
 
     Returns:
         (True, mensaje) si se creó, (False, mensaje) si ya existe o hay error.
@@ -226,6 +248,10 @@ def create_user(
         if not ok_exclusion:
             return False, msg_exclusion
 
+        ok_areas, msg_areas = _validate_areas(areas)
+        if not ok_areas:
+            return False, msg_areas
+
         db.add(
             User(
                 username=username,
@@ -236,6 +262,7 @@ def create_user(
                 segundo_nombre=segundo_nombre,
                 apellido_1=apellido_1,
                 apellido_2=apellido_2,
+                areas=[UserArea(area=a) for a in (areas or [])],
             )
         )
         db.commit()
@@ -255,6 +282,8 @@ def update_user(username: str, updates: dict) -> tuple:
       - password: str|None — Si es None o "", se omite (no cambia).
       - rol: str — Debe estar en VALID_ROLES.
       - permisos: list — Cada elemento debe estar en ALLOWED_PERMISOS.
+      - areas: list — Slugs de área validados contra VALID_AREA_SLUGS;
+        replace-all (si la key está ausente, las áreas no se tocan).
       - primer_nombre/segundo_nombre/apellido_1/apellido_2 — parciales.
 
     Returns:
@@ -301,6 +330,21 @@ def update_user(username: str, updates: dict) -> tuple:
                 )
 
             user.permisos = nuevos_permisos
+
+        # Áreas con validación. Replace-all para slugs VÁLIDOS; las filas
+        # legacy ya persistidas (fuera de VALID_AREA_SLUGS) se conservan:
+        # no se borran datos históricos sin migración explícita.
+        if "areas" in updates:
+            ok_areas, msg_areas = _validate_areas(updates["areas"])
+            if not ok_areas:
+                return False, msg_areas
+            conservadas = sorted(
+                {ua.area for ua in user.areas} - set(VALID_AREA_SLUGS)
+            )
+            user.areas = [
+                UserArea(area=a)
+                for a in (updates["areas"] or []) + conservadas
+            ]
 
         # Person fields (partial update — solo si están presentes)
         for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):

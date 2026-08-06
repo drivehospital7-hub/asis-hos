@@ -63,7 +63,6 @@ from app.constants import (  # noqa: E402
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
     PROFESIONALES_URGENCIAS,
     PYP_CODES_HIGIENISTA,
-    PYP_CODES_ONLY_ODONTOLOGO,
     PYP_CUPS_CODES,
     REVISION_HEADERS,
     REVISION_SHEET,
@@ -206,7 +205,9 @@ class TestConstantsAPI:
         assert "997002" in PYP_CUPS_CODES
 
     def test_pyp_only_odontologo(self):
-        assert "890203" in PYP_CODES_ONLY_ODONTOLOGO
+        """890203 is a PyP CUPS code reserved for odontologos (not higienistas)."""
+        assert "890203" in PYP_CUPS_CODES
+        assert "890203" not in PYP_CODES_HIGIENISTA
 
     def test_pyp_higienista(self):
         assert "997002" in PYP_CODES_HIGIENISTA
@@ -271,5 +272,65 @@ class TestConstantsAPI:
             assert len(t["permisos"]) >= 1
             for p in t["permisos"]:
                 assert p in ALLOWED_PERMISOS
+
+
+# =============================================================================
+# Test: Vocabulario canónico de áreas organizacionales (sdd Empieza)
+# =============================================================================
+
+
+class TestOrganizationalAreas:
+    """ORGANIZATIONAL_AREAS / VALID_AREA_SLUGS / AREA_LABELS (sdd Empieza)."""
+
+    def test_organizational_areas_ordered(self):
+        """ORGANIZATIONAL_AREAS define the canonical vocabulary in display order."""
+        from app.constants.base import ORGANIZATIONAL_AREAS
+
+        assert [a["slug"] for a in ORGANIZATIONAL_AREAS] == [
+            "urgencias",
+            "ambulatoria",
+            "extramural",
+            "odontologia",
+        ]
+        assert {a["label"] for a in ORGANIZATIONAL_AREAS} == {
+            "Urgencias",
+            "Ambulatoria",
+            "Extramural",
+            "Odontología",
+        }
+
+    def test_valid_area_slugs_exactly_canonical(self):
+        """VALID_AREA_SLUGS is exactly the 4 canonical slugs (no legacy)."""
+        from app.constants.base import ORGANIZATIONAL_AREAS, VALID_AREA_SLUGS
+
+        assert VALID_AREA_SLUGS == {a["slug"] for a in ORGANIZATIONAL_AREAS}
+        assert VALID_AREA_SLUGS == {
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+        }
+
+    def test_legacy_slugs_not_valid(self):
+        """equipos_basicos / cruce_facturas / derechos are NO longer valid slugs."""
+        from app.constants.base import VALID_AREA_SLUGS
+
+        assert {"equipos_basicos", "cruce_facturas", "derechos"}.isdisjoint(
+            VALID_AREA_SLUGS
+        )
+
+    def test_areas_validas_match_canonical(self):
+        """models.AREAS_VALIDAS matches the canonical vocabulary exactly."""
+        from app.constants.base import ORGANIZATIONAL_AREAS, VALID_AREA_SLUGS
+        from app.models import AREAS_VALIDAS
+
+        assert set(AREAS_VALIDAS) == {a["slug"] for a in ORGANIZATIONAL_AREAS}
+        assert set(AREAS_VALIDAS) == VALID_AREA_SLUGS
+
+    def test_area_labels_cover_all_valid_slugs_only(self):
+        """AREA_LABELS maps exactly the valid slugs (no legacy labels)."""
+        from app.constants.base import AREA_LABELS, VALID_AREA_SLUGS
+
+        assert set(AREA_LABELS.keys()) == VALID_AREA_SLUGS
+        assert "equipos_basicos" not in AREA_LABELS
+        assert "cruce_facturas" not in AREA_LABELS
+        assert "derechos" not in AREA_LABELS
 
 

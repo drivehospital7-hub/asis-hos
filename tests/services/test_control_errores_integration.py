@@ -12,6 +12,7 @@ from app.services.control_errores_service import (
     obtener_error,
     actualizar_error,
 )
+from app.utils import users_store
 
 
 def _fake_error() -> dict:
@@ -325,6 +326,210 @@ class TestGetRoleVisibilityIntegration:
         assert data["status"] == "error"
         assert data["data"] == {}
         assert len(data["errors"]) > 0
+
+
+class TestAreaFilterIntegration:
+    """sdd Empieza: GET /api/control-errores?area=<slug> filtra vía la ruta."""
+
+    def test_get_area_filter_via_route(self, app_client):
+        """area=urgencias → solo novedades de responsables de urgencias."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        facturadores = [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+        ]
+        with (
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _FIXTURE_ERRO}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            resp = app_client.get("/api/control-errores?area=urgencias")
+
+        assert resp.status_code == 200
+        ids = [e["id"] for e in resp.get_json()["data"]["errores"]]
+        assert ids == ["i-lorenya"]
+        assert "i-daniela" not in ids
+
+    def test_get_area_filter_empty_for_other_area(self, app_client):
+        """area sin responsables → resultado vacío (contrato aditivo)."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        facturadores = [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+        ]
+        with (
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _FIXTURE_ERRO}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            resp = app_client.get("/api/control-errores?area=ambulatoria")
+
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["errores"] == []
+
+
+class TestOpcionesAreasIntegration:
+    """sdd Empieza: /api/control-errores/opciones expone areas + responsables_detalle."""
+
+    def test_opciones_payload_includes_areas_and_detalle(self, app_client):
+        """Payload aditivo: responsables plano + areas (7) + detalle nombre→areas."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        with patch("app.services.control_errores_service.users_store.get_facturadores",
+                   return_value=[
+                       {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+                        "segundo_nombre": "", "apellido_2": "",
+                        "nombre_completo": "ANGIE ARIAS", "rol": "facturador",
+                        "areas": ["urgencias", "odontologia"]},
+                   ]):
+            resp = app_client.get("/api/control-errores/opciones")
+
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        # responsables sigue plano (contrato existente)
+        assert data["responsables"] == ["ANGIE ARIAS"]
+        # areas: SOLO las 4 canónicas (sin legacy selectable)
+        assert [a["slug"] for a in data["areas"]] == [
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+        ]
+        # responsables_detalle: nombre → áreas
+        assert data["responsables_detalle"] == [
+            {"nombre_completo": "ANGIE ARIAS", "areas": ["urgencias", "odontologia"]}
+        ]
+
+
+class TestAuthAreasIntegration:
+    """sdd Empieza: POST /auth/usuarios/* con areas end-to-end vía app_client."""
+
+    def test_post_create_with_areas_end_to_end(self, app_client):
+        """POST crear con areas → persistidas y devueltas ordenadas por el store."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        resp = app_client.post(
+            "/auth/usuarios/crear",
+            data={
+                "username": "nuevo_user",
+                "password": "pass123",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "primer_nombre": "Ana",
+                "apellido_1": "López",
+                "areas": ["urgencias", "odontologia"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user is not None
+        assert user["areas"] == ["odontologia", "urgencias"]
+
+    def test_post_edit_with_areas_end_to_end(self, app_client):
+        """POST editar con areas → reemplaza el set completo."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        users_store.create_user(
+            "nuevo_user", "pass123", "facturador", ["urgencias"],
+            areas=["urgencias"],
+        )
+        resp = app_client.post(
+            "/auth/usuarios/nuevo_user/editar",
+            data={
+                "username": "nuevo_user",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "areas": ["extramural", "odontologia"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user["areas"] == ["extramural", "odontologia"]
+
+    def test_post_create_legacy_area_rejected(self, app_client):
+        """POST crear con slug legacy → el usuario NO se crea."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        resp = app_client.post(
+            "/auth/usuarios/crear",
+            data={
+                "username": "nuevo_user",
+                "password": "pass123",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "primer_nombre": "Ana",
+                "apellido_1": "López",
+                "areas": ["urgencias", "equipos_basicos"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200  # redirect con flash error
+        assert users_store.get_user("nuevo_user") is None
+
+    def test_post_edit_preserves_legacy_persisted_rows(self, app_client):
+        """Editar un usuario con filas legacy persistidas NO las borra."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        users_store.create_user(
+            "nuevo_user", "pass123", "facturador", ["urgencias"],
+            areas=["urgencias"],
+        )
+        # Semilla histórica: fila legacy ya persistida en user_areas
+        db = users_store._new_session()
+        try:
+            user = db.query(users_store.User).filter_by(username="nuevo_user").one()
+            db.add(users_store.UserArea(user_id=user.id, area="derechos"))
+            db.commit()
+        finally:
+            db.close()
+
+        resp = app_client.post(
+            "/auth/usuarios/nuevo_user/editar",
+            data={
+                "username": "nuevo_user",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "areas": ["extramural"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user["areas"] == ["derechos", "extramural"]
 
 
 class TestPostCreatedByIntegration:

@@ -408,6 +408,156 @@ class TestGetFacturadores:
 
 
 # =============================================================================
+# User areas (sdd Empieza: user-areas-management)
+# =============================================================================
+
+
+class TestUserAreas:
+    """areas CRUD + validación en users_store (user_areas, sin migración)."""
+
+    def test_create_user_with_areas_persists_rows(self, db_session):
+        """create_user(areas=[...]) persiste filas en user_areas y las devuelve ordenadas."""
+        ok, msg = users_store.create_user(
+            "nuevo", "pass123", "facturador", ["urgencias"],
+            primer_nombre="ANGIE", apellido_1="ARIAS",
+            areas=["urgencias", "odontologia"],
+        )
+        assert ok is True
+        user = users_store.get_user("nuevo")
+        assert user["areas"] == ["odontologia", "urgencias"]  # orden alfabético
+
+        db = db_session()
+        try:
+            rows = db.query(users_store.UserArea).filter(
+                users_store.UserArea.user_id == db.query(users_store.User).filter_by(username="nuevo").one().id
+            ).all()
+            assert {r.area for r in rows} == {"odontologia", "urgencias"}
+        finally:
+            db.close()
+
+    def test_create_user_default_areas_empty(self, db_session):
+        """Sin areas → lista vacía (no hay filas en user_areas)."""
+        ok, _ = users_store.create_user("nuevo", "pass123", "usuario", ["odontologia"])
+        assert ok is True
+        assert users_store.get_user("nuevo")["areas"] == []
+
+    def test_create_user_invalid_area_rejected_nothing_persisted(self, db_session):
+        """Slug inválido → (False, msg); no se crea el usuario ni filas."""
+        ok, msg = users_store.create_user(
+            "nuevo", "pass123", "usuario", ["odontologia"],
+            areas=["no_existe"],
+        )
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("nuevo") is None
+
+    def test_update_user_areas_replace_all(self, db_session):
+        """update_user({'areas': [...]}) reemplaza TODAS las áreas (no acumula)."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, _ = users_store.update_user("odonto", {"areas": ["extramural", "odontologia"]})
+        assert ok is True
+        assert users_store.get_user("odonto")["areas"] == ["extramural", "odontologia"]
+
+    def test_update_user_areas_clear(self, db_session):
+        """update_user({'areas': []}) limpia las áreas (edición puede vaciar)."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, _ = users_store.update_user("odonto", {"areas": []})
+        assert ok is True
+        assert users_store.get_user("odonto")["areas"] == []
+
+    def test_update_user_without_areas_preserves(self, db_session):
+        """Sin key 'areas' en updates → las áreas no se tocan (partial update)."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, _ = users_store.update_user("odonto", {"rol": "facturador"})
+        assert ok is True
+        assert users_store.get_user("odonto")["areas"] == ["urgencias"]
+
+    def test_update_user_invalid_area_rejected_unchanged(self, db_session):
+        """Slug inválido en update → (False, msg); áreas previas intactas."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, msg = users_store.update_user("odonto", {"areas": ["basura"]})
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("odonto")["areas"] == ["urgencias"]
+
+    def test_create_user_legacy_area_rejected(self, db_session):
+        """Slug legacy (equipos_basicos/cruce_facturas/derechos) → rechazado."""
+        ok, msg = users_store.create_user(
+            "nuevo", "pass123", "usuario", ["odontologia"],
+            areas=["equipos_basicos"],
+        )
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("nuevo") is None
+
+    def test_update_user_legacy_area_rejected_unchanged(self, db_session):
+        """Slug legacy en update → (False, msg); áreas previas intactas."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, msg = users_store.update_user("odonto", {"areas": ["derechos"]})
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("odonto")["areas"] == ["urgencias"]
+
+    def test_update_preserves_legacy_persisted_rows(self, db_session):
+        """Filas legacy ya persistidas en user_areas NO se borran al editar."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        db = db_session()
+        try:
+            user = db.query(users_store.User).filter_by(username="odonto").one()
+            db.add(users_store.UserArea(user_id=user.id, area="equipos_basicos"))
+            db.add(users_store.UserArea(user_id=user.id, area="cruce_facturas"))
+            db.commit()
+        finally:
+            db.close()
+
+        ok, _ = users_store.update_user(
+            "odonto", {"areas": ["extramural", "odontologia"]}
+        )
+        assert ok is True
+        # canónicas reemplazadas + legacy conservada (lista ordenada alfabéticamente)
+        assert users_store.get_user("odonto")["areas"] == [
+            "cruce_facturas", "equipos_basicos", "extramural", "odontologia",
+        ]
+
+    def test_get_facturadores_includes_sorted_areas(self, db_session):
+        """get_facturadores expone areas por facturador (para agrupar opciones)."""
+        users_store.create_user(
+            "angie", "pass123", "facturador", ["urgencias"],
+            primer_nombre="ANGIE", apellido_1="ARIAS",
+            areas=["odontologia", "urgencias"],
+        )
+        result = users_store.get_facturadores()
+        assert result[0]["areas"] == ["odontologia", "urgencias"]
+
+    def test_list_users_includes_areas(self, db_session):
+        """list_users (vía _to_dict) incluye areas ordenadas."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        result = users_store.list_users()
+        assert result[0]["areas"] == ["urgencias"]
+
+
+# =============================================================================
 # DB unavailable → error, never JSON fallback
 # =============================================================================
 
