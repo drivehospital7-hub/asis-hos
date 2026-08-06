@@ -21,6 +21,11 @@ from app.utils.errores_storage import (
     check_cambios,
     normalizar_identidad,
 )
+from app.constants.base import (
+    AREA_LABELS,
+    ORGANIZATIONAL_AREAS,
+    VALID_AREA_SLUGS,
+)
 from app.utils import users_store
 
 logger = logging.getLogger(__name__)
@@ -90,12 +95,39 @@ def _resolve_responsable_identity(responsable: str | None) -> str | None:
     return identities[0] if identities else None
 
 
+def _build_areas_options() -> list[dict[str, str]]:
+    """Devuelve todas las áreas válidas: canónicas primero, luego legacy ordenadas."""
+    canonical = [{"slug": a["slug"], "label": a["label"]} for a in ORGANIZATIONAL_AREAS]
+    legacy_slugs = sorted(VALID_AREA_SLUGS - {a["slug"] for a in ORGANIZATIONAL_AREAS})
+    legacy = [{"slug": s, "label": AREA_LABELS[s]} for s in legacy_slugs]
+    return canonical + legacy
+
+
+def _resolve_area_responsables(area: str | None) -> set[str] | None:
+    """Resuelve un slug de área a las identidades canónicas de sus facturadores.
+
+    Returns:
+        None → sin filtro (área ausente o slug inválido = no-op).
+        set vacío → área válida sin usuarios → resultado vacío.
+    """
+    if not area or area not in VALID_AREA_SLUGS:
+        return None
+    return {
+        normalizar_identidad(f.get("nombre_completo"))
+        for f in users_store.get_facturadores()
+        if area in (f.get("areas") or [])
+    }
+
+
 def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Obtener opciones para los selects.
 
     Los responsables provienen EXCLUSIVAMENTE de usuarios DB elegibles
     (rol 'facturador' o permiso 'responsable_facturacion'). No hay fallback
     a constantes ni JSON.
+
+    Payload aditivo (sdd Empieza): ``responsables`` sigue plano; se agregan
+    ``areas`` (slug+label) y ``responsables_detalle`` (nombre → áreas).
     """
     try:
         from app.constants import (
@@ -112,6 +144,14 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
                 "tipos_error": ERROR_TIPO_URGENCIAS,
                 "estados": ERROR_ESTADO_URGENCIAS,
                 "responsables": responsables,
+                "areas": _build_areas_options(),
+                "responsables_detalle": [
+                    {
+                        "nombre_completo": f["nombre_completo"],
+                        "areas": f.get("areas", []),
+                    }
+                    for f in facturadores
+                ],
             },
             "errors": [],
         }
@@ -124,6 +164,7 @@ def get_errores(
     tipo_error: str | None = None,
     estado: str | None = None,
     responsable: str | None = None,
+    area: str | None = None,
     session: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Listar errores con filtros + visibilidad por rol.
@@ -131,6 +172,8 @@ def get_errores(
     - facturador → novedades nuevas con responsable canónico exacto y legacy
       con responsable de al menos dos tokens contenidos en su identidad DB.
     - validador/admin/otros → todas las novedades (owner_identity=None).
+    - area (aditivo) → post-filtra por área de los responsables elegibles;
+      slug inválido = no-op; área válida sin usuarios = resultado vacío.
     """
     try:
         sess = session if session is not None else flask.session
@@ -154,11 +197,20 @@ def get_errores(
             responsable_identity=responsable_identity,
             responsable_full_identity=responsable_full_identity,
         )
+
+        area_identities = _resolve_area_responsables(area)
+        if area_identities is not None:
+            errores = [
+                e for e in errores
+                if normalizar_identidad(e.get("responsable", "")) in area_identities
+            ]
+
         logger.info(
-            "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, owner: %s, total: %d",
+            "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, area: %s, owner: %s, total: %d",
             tipo_error,
             estado,
             responsable,
+            area,
             owner_identity,
             len(errores),
         )

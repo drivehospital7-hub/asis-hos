@@ -327,6 +327,62 @@ class TestGetRoleVisibilityIntegration:
         assert len(data["errors"]) > 0
 
 
+class TestAreaFilterIntegration:
+    """sdd Empieza: GET /api/control-errores?area=<slug> filtra vía la ruta."""
+
+    def test_get_area_filter_via_route(self, app_client):
+        """area=urgencias → solo novedades de responsables de urgencias."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        facturadores = [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+        ]
+        with (
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _FIXTURE_ERRO}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            resp = app_client.get("/api/control-errores?area=urgencias")
+
+        assert resp.status_code == 200
+        ids = [e["id"] for e in resp.get_json()["data"]["errores"]]
+        assert ids == ["i-lorenya"]
+        assert "i-daniela" not in ids
+
+    def test_get_area_filter_empty_for_other_area(self, app_client):
+        """area sin responsables → resultado vacío (contrato aditivo)."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        facturadores = [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+        ]
+        with (
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _FIXTURE_ERRO}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            resp = app_client.get("/api/control-errores?area=ambulatoria")
+
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["errores"] == []
+
+
 class TestPostCreatedByIntegration:
     """Spec R5: POST stores created_by from session, ignores client value."""
 
