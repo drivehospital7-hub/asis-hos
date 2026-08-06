@@ -12,6 +12,7 @@ from app.services.control_errores_service import (
     obtener_error,
     actualizar_error,
 )
+from app.utils import users_store
 
 
 def _fake_error() -> dict:
@@ -381,6 +382,97 @@ class TestAreaFilterIntegration:
 
         assert resp.status_code == 200
         assert resp.get_json()["data"]["errores"] == []
+
+
+class TestOpcionesAreasIntegration:
+    """sdd Empieza: /api/control-errores/opciones expone areas + responsables_detalle."""
+
+    def test_opciones_payload_includes_areas_and_detalle(self, app_client):
+        """Payload aditivo: responsables plano + areas (7) + detalle nombre→areas."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+
+        with patch("app.services.control_errores_service.users_store.get_facturadores",
+                   return_value=[
+                       {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+                        "segundo_nombre": "", "apellido_2": "",
+                        "nombre_completo": "ANGIE ARIAS", "rol": "facturador",
+                        "areas": ["urgencias", "odontologia"]},
+                   ]):
+            resp = app_client.get("/api/control-errores/opciones")
+
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        # responsables sigue plano (contrato existente)
+        assert data["responsables"] == ["ANGIE ARIAS"]
+        # areas: canónicas primero, luego legacy ordenadas
+        assert [a["slug"] for a in data["areas"]] == [
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+            "cruce_facturas", "derechos", "equipos_basicos",
+        ]
+        # responsables_detalle: nombre → áreas
+        assert data["responsables_detalle"] == [
+            {"nombre_completo": "ANGIE ARIAS", "areas": ["urgencias", "odontologia"]}
+        ]
+
+
+class TestAuthAreasIntegration:
+    """sdd Empieza: POST /auth/usuarios/* con areas end-to-end vía app_client."""
+
+    def test_post_create_with_areas_end_to_end(self, app_client):
+        """POST crear con areas → persistidas y devueltas ordenadas por el store."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        resp = app_client.post(
+            "/auth/usuarios/crear",
+            data={
+                "username": "nuevo_user",
+                "password": "pass123",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "primer_nombre": "Ana",
+                "apellido_1": "López",
+                "areas": ["urgencias", "odontologia"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user is not None
+        assert user["areas"] == ["odontologia", "urgencias"]
+
+    def test_post_edit_with_areas_end_to_end(self, app_client):
+        """POST editar con areas → reemplaza el set completo."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        users_store.create_user(
+            "nuevo_user", "pass123", "facturador", ["urgencias"],
+            areas=["urgencias"],
+        )
+        resp = app_client.post(
+            "/auth/usuarios/nuevo_user/editar",
+            data={
+                "username": "nuevo_user",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "areas": ["extramural", "derechos"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user["areas"] == ["derechos", "extramural"]
 
 
 class TestPostCreatedByIntegration:
