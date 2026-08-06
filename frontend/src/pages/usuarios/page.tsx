@@ -19,6 +19,7 @@ interface Usuario {
   segundo_nombre: string;
   apellido_1: string;
   apellido_2: string;
+  areas: string[];
 }
 
 interface Template {
@@ -61,6 +62,22 @@ const PERMISO_PAIRS: Record<string, string> = {
   "monitoreo_carpetas:write": "monitoreo_carpetas",
 };
 
+// Áreas organizacionales asignables (sdd Empieza — espejo de ORGANIZATIONAL_AREAS
+// + legacy en app/constants/base.py). El área es independiente del rol/permisos.
+const AREAS_DISPONIBLES = [
+  { slug: "urgencias", label: "Urgencias" },
+  { slug: "ambulatoria", label: "Ambulatoria" },
+  { slug: "extramural", label: "Extramural" },
+  { slug: "odontologia", label: "Odontología" },
+  { slug: "equipos_basicos", label: "Equipos Básicos" },
+  { slug: "cruce_facturas", label: "Cruce de Facturas" },
+  { slug: "derechos", label: "Derechos" },
+];
+
+const AREA_LABELS: Record<string, string> = Object.fromEntries(
+  AREAS_DISPONIBLES.map((a) => [a.slug, a.label]),
+);
+
 type ModalMode = "edit" | null;
 
 export function UsuariosPage() {
@@ -73,6 +90,7 @@ export function UsuariosPage() {
   const [formPassword, setFormPassword] = useState("");
   const [formRol, setFormRol] = useState("usuario");
   const [formPermisos, setFormPermisos] = useState<string[]>([]);
+  const [formAreas, setFormAreas] = useState<string[]>([]);
 
   // Person name fields
   const [formPrimerNombre, setFormPrimerNombre] = useState("");
@@ -128,12 +146,14 @@ export function UsuariosPage() {
       return !(conflict && user.permisos.includes(conflict) && conflict < p);
     });
     setFormPermisos(cleaned);
+    setFormAreas(user.areas ?? []);
     setFormErrors({});
   };
 
   const closeModal = () => {
     setModalMode(null);
     setEditUser(null);
+    setFormAreas([]);
     setFormErrors({});
   };
 
@@ -186,6 +206,12 @@ export function UsuariosPage() {
     });
   };
 
+  const toggleArea = (slug: string) => {
+    setFormAreas((prev) =>
+      prev.includes(slug) ? prev.filter((a) => a !== slug) : [...prev, slug],
+    );
+  };
+
   const handleDelete = async (username: string) => {
     if (!(await window.__showConfirm!(`¿Eliminar usuario ${username}? Esta acción no se puede deshacer.`))) return;
 
@@ -224,6 +250,7 @@ export function UsuariosPage() {
     if (formPassword) form.append("password", formPassword);
     form.append("rol", formRol);
     formPermisos.forEach((p) => form.append("permisos", p));
+    formAreas.forEach((a) => form.append("areas", a));
     form.append("primer_nombre", formPrimerNombre);
     form.append("segundo_nombre", formSegundoNombre);
     form.append("apellido_1", formApellido1);
@@ -407,6 +434,24 @@ export function UsuariosPage() {
                 )}
               </div>
             )}
+            <div className="mb-4">
+              <label className="block text-xs font-medium mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
+                Áreas organizacionales (opcional — una o más)
+              </label>
+              <div className="flex flex-wrap gap-3">
+                {AREAS_DISPONIBLES.map((a) => (
+                  <label key={a.slug} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formAreas.includes(a.slug)}
+                      onChange={() => toggleArea(a.slug)}
+                      className="accent-primary"
+                    />
+                    {a.label}
+                  </label>
+                ))}
+              </div>
+            </div>
             <Button type="submit">
               <UserPlus className="h-4 w-4" />
               Crear usuario
@@ -429,6 +474,7 @@ export function UsuariosPage() {
                   <th className="py-3 px-4 text-left">Nombre</th>
                   <th className="py-3 px-4 text-left">Rol</th>
                   <th className="py-3 px-4 text-left">Permisos</th>
+                  <th className="py-3 px-4 text-left">Áreas</th>
                   <th className="py-3 px-4 text-left">Acciones</th>
                 </tr>
               </thead>
@@ -463,6 +509,23 @@ export function UsuariosPage() {
                             </span>
                           ))}
                         </div>
+                      )}
+                    </td>
+                    <td className="py-3 px-4">
+                      {(user.areas ?? []).length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {user.areas.map((area) => (
+                            <span key={area}
+                                  className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium"
+                                  style={{ background: "oklch(0.7 0.08 200 / 0.15)", color: "oklch(0.45 0.1 200)" }}>
+                              {AREA_LABELS[area] ?? area}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs" style={{ color: "oklch(0.55 0.04 160 / 0.6)" }}>
+                          Sin área
+                        </span>
                       )}
                     </td>
                     <td className="py-3 px-4">
@@ -635,6 +698,26 @@ export function UsuariosPage() {
                           className="accent-primary"
                         />
                         {p.label}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+              {formRol !== "admin" && (
+                <fieldset className="mb-4">
+                  <legend className="text-sm font-medium mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
+                    Áreas organizacionales (opcional — una o más)
+                  </legend>
+                  <div className="flex flex-wrap gap-3">
+                    {AREAS_DISPONIBLES.map((a) => (
+                      <label key={a.slug} className="flex items-center gap-1.5 text-sm cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={formAreas.includes(a.slug)}
+                          onChange={() => toggleArea(a.slug)}
+                          className="accent-primary"
+                        />
+                        {a.label}
                       </label>
                     ))}
                   </div>
