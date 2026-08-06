@@ -63,7 +63,6 @@ from app.constants import (  # noqa: E402
     PROFESIONALES_ODONTOLOGIA_VALIDACION,
     PROFESIONALES_URGENCIAS,
     PYP_CODES_HIGIENISTA,
-    PYP_CODES_ONLY_ODONTOLOGO,
     PYP_CUPS_CODES,
     REVISION_HEADERS,
     REVISION_SHEET,
@@ -206,7 +205,9 @@ class TestConstantsAPI:
         assert "997002" in PYP_CUPS_CODES
 
     def test_pyp_only_odontologo(self):
-        assert "890203" in PYP_CODES_ONLY_ODONTOLOGO
+        """890203 is a PyP CUPS code reserved for odontologos (not higienistas)."""
+        assert "890203" in PYP_CUPS_CODES
+        assert "890203" not in PYP_CODES_HIGIENISTA
 
     def test_pyp_higienista(self):
         assert "997002" in PYP_CODES_HIGIENISTA
