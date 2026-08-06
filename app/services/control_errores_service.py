@@ -22,7 +22,6 @@ from app.utils.errores_storage import (
     normalizar_identidad,
 )
 from app.constants.base import (
-    AREA_LABELS,
     ORGANIZATIONAL_AREAS,
     VALID_AREA_SLUGS,
 )
@@ -96,11 +95,8 @@ def _resolve_responsable_identity(responsable: str | None) -> str | None:
 
 
 def _build_areas_options() -> list[dict[str, str]]:
-    """Devuelve todas las áreas válidas: canónicas primero, luego legacy ordenadas."""
-    canonical = [{"slug": a["slug"], "label": a["label"]} for a in ORGANIZATIONAL_AREAS]
-    legacy_slugs = sorted(VALID_AREA_SLUGS - {a["slug"] for a in ORGANIZATIONAL_AREAS})
-    legacy = [{"slug": s, "label": AREA_LABELS[s]} for s in legacy_slugs]
-    return canonical + legacy
+    """Devuelve las áreas selectables: SOLO las cuatro canónicas."""
+    return [{"slug": a["slug"], "label": a["label"]} for a in ORGANIZATIONAL_AREAS]
 
 
 def _resolve_area_responsables(area: str | None) -> set[str] | None:

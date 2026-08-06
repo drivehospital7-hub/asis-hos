@@ -63,15 +63,14 @@ const PERMISO_PAIRS: Record<string, string> = {
 };
 
 // Áreas organizacionales asignables (sdd Empieza — espejo de ORGANIZATIONAL_AREAS
-// + legacy en app/constants/base.py). El área es independiente del rol/permisos.
+// en app/constants/base.py). SOLO las 4 canónicas: las legacy (equipos_basicos,
+// cruce_facturas, derechos) ya no son seleccionables. El área es independiente
+// del rol/permisos.
 const AREAS_DISPONIBLES = [
   { slug: "urgencias", label: "Urgencias" },
   { slug: "ambulatoria", label: "Ambulatoria" },
   { slug: "extramural", label: "Extramural" },
   { slug: "odontologia", label: "Odontología" },
-  { slug: "equipos_basicos", label: "Equipos Básicos" },
-  { slug: "cruce_facturas", label: "Cruce de Facturas" },
-  { slug: "derechos", label: "Derechos" },
 ];
 
 const AREA_LABELS: Record<string, string> = Object.fromEntries(
@@ -146,7 +145,10 @@ export function UsuariosPage() {
       return !(conflict && user.permisos.includes(conflict) && conflict < p);
     });
     setFormPermisos(cleaned);
-    setFormAreas(user.areas ?? []);
+    // Solo áreas seleccionables; las legacy persistidas se conservan en la DB
+    // (el servidor no las borra) y no reaparecen como checkboxes.
+    const availableSlugs = new Set(AREAS_DISPONIBLES.map((a) => a.slug));
+    setFormAreas((user.areas ?? []).filter((a) => availableSlugs.has(a)));
     setFormErrors({});
   };
 

@@ -299,23 +299,38 @@ class TestOrganizationalAreas:
             "Odontología",
         }
 
-    def test_areas_validas_subset_of_valid_area_slugs(self):
-        """Every legacy area in models.AREAS_VALIDAS stays valid (no migration)."""
+    def test_valid_area_slugs_exactly_canonical(self):
+        """VALID_AREA_SLUGS is exactly the 4 canonical slugs (no legacy)."""
+        from app.constants.base import ORGANIZATIONAL_AREAS, VALID_AREA_SLUGS
+
+        assert VALID_AREA_SLUGS == {a["slug"] for a in ORGANIZATIONAL_AREAS}
+        assert VALID_AREA_SLUGS == {
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+        }
+
+    def test_legacy_slugs_not_valid(self):
+        """equipos_basicos / cruce_facturas / derechos are NO longer valid slugs."""
         from app.constants.base import VALID_AREA_SLUGS
+
+        assert {"equipos_basicos", "cruce_facturas", "derechos"}.isdisjoint(
+            VALID_AREA_SLUGS
+        )
+
+    def test_areas_validas_match_canonical(self):
+        """models.AREAS_VALIDAS matches the canonical vocabulary exactly."""
+        from app.constants.base import ORGANIZATIONAL_AREAS, VALID_AREA_SLUGS
         from app.models import AREAS_VALIDAS
 
-        assert set(AREAS_VALIDAS) <= VALID_AREA_SLUGS
+        assert set(AREAS_VALIDAS) == {a["slug"] for a in ORGANIZATIONAL_AREAS}
+        assert set(AREAS_VALIDAS) == VALID_AREA_SLUGS
 
-    def test_area_labels_cover_all_valid_slugs(self):
-        """AREA_LABELS maps every valid slug (canonical + legacy) to a label."""
+    def test_area_labels_cover_all_valid_slugs_only(self):
+        """AREA_LABELS maps exactly the valid slugs (no legacy labels)."""
         from app.constants.base import AREA_LABELS, VALID_AREA_SLUGS
 
         assert set(AREA_LABELS.keys()) == VALID_AREA_SLUGS
-
-    def test_legacy_slugs_stay_valid(self):
-        """equipos_basicos / cruce_facturas / derechos remain valid slugs."""
-        from app.constants.base import VALID_AREA_SLUGS
-
-        assert {"equipos_basicos", "cruce_facturas", "derechos"} <= VALID_AREA_SLUGS
+        assert "equipos_basicos" not in AREA_LABELS
+        assert "cruce_facturas" not in AREA_LABELS
+        assert "derechos" not in AREA_LABELS
 
 

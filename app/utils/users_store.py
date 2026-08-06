@@ -331,12 +331,20 @@ def update_user(username: str, updates: dict) -> tuple:
 
             user.permisos = nuevos_permisos
 
-        # Áreas con validación (replace-all: se reemplaza el set completo).
+        # Áreas con validación. Replace-all para slugs VÁLIDOS; las filas
+        # legacy ya persistidas (fuera de VALID_AREA_SLUGS) se conservan:
+        # no se borran datos históricos sin migración explícita.
         if "areas" in updates:
             ok_areas, msg_areas = _validate_areas(updates["areas"])
             if not ok_areas:
                 return False, msg_areas
-            user.areas = [UserArea(area=a) for a in (updates["areas"] or [])]
+            conservadas = sorted(
+                {ua.area for ua in user.areas} - set(VALID_AREA_SLUGS)
+            )
+            user.areas = [
+                UserArea(area=a)
+                for a in (updates["areas"] or []) + conservadas
+            ]
 
         # Person fields (partial update — solo si están presentes)
         for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):

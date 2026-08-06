@@ -408,10 +408,9 @@ class TestOpcionesAreasIntegration:
         data = resp.get_json()["data"]
         # responsables sigue plano (contrato existente)
         assert data["responsables"] == ["ANGIE ARIAS"]
-        # areas: canónicas primero, luego legacy ordenadas
+        # areas: SOLO las 4 canónicas (sin legacy selectable)
         assert [a["slug"] for a in data["areas"]] == [
             "urgencias", "ambulatoria", "extramural", "odontologia",
-            "cruce_facturas", "derechos", "equipos_basicos",
         ]
         # responsables_detalle: nombre → áreas
         assert data["responsables_detalle"] == [
@@ -465,7 +464,65 @@ class TestAuthAreasIntegration:
                 "username": "nuevo_user",
                 "rol": "facturador",
                 "permisos": ["urgencias"],
-                "areas": ["extramural", "derechos"],
+                "areas": ["extramural", "odontologia"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200
+
+        user = users_store.get_user("nuevo_user")
+        assert user["areas"] == ["extramural", "odontologia"]
+
+    def test_post_create_legacy_area_rejected(self, app_client):
+        """POST crear con slug legacy → el usuario NO se crea."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        resp = app_client.post(
+            "/auth/usuarios/crear",
+            data={
+                "username": "nuevo_user",
+                "password": "pass123",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "primer_nombre": "Ana",
+                "apellido_1": "López",
+                "areas": ["urgencias", "equipos_basicos"],
+            },
+            follow_redirects=True,
+        )
+        assert resp.status_code == 200  # redirect con flash error
+        assert users_store.get_user("nuevo_user") is None
+
+    def test_post_edit_preserves_legacy_persisted_rows(self, app_client):
+        """Editar un usuario con filas legacy persistidas NO las borra."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        users_store.create_user(
+            "nuevo_user", "pass123", "facturador", ["urgencias"],
+            areas=["urgencias"],
+        )
+        # Semilla histórica: fila legacy ya persistida en user_areas
+        db = users_store._new_session()
+        try:
+            user = db.query(users_store.User).filter_by(username="nuevo_user").one()
+            db.add(users_store.UserArea(user_id=user.id, area="derechos"))
+            db.commit()
+        finally:
+            db.close()
+
+        resp = app_client.post(
+            "/auth/usuarios/nuevo_user/editar",
+            data={
+                "username": "nuevo_user",
+                "rol": "facturador",
+                "permisos": ["urgencias"],
+                "areas": ["extramural"],
             },
             follow_redirects=True,
         )

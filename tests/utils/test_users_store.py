@@ -492,6 +492,51 @@ class TestUserAreas:
         assert "área" in msg.lower() or "area" in msg.lower()
         assert users_store.get_user("odonto")["areas"] == ["urgencias"]
 
+    def test_create_user_legacy_area_rejected(self, db_session):
+        """Slug legacy (equipos_basicos/cruce_facturas/derechos) → rechazado."""
+        ok, msg = users_store.create_user(
+            "nuevo", "pass123", "usuario", ["odontologia"],
+            areas=["equipos_basicos"],
+        )
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("nuevo") is None
+
+    def test_update_user_legacy_area_rejected_unchanged(self, db_session):
+        """Slug legacy en update → (False, msg); áreas previas intactas."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        ok, msg = users_store.update_user("odonto", {"areas": ["derechos"]})
+        assert ok is False
+        assert "área" in msg.lower() or "area" in msg.lower()
+        assert users_store.get_user("odonto")["areas"] == ["urgencias"]
+
+    def test_update_preserves_legacy_persisted_rows(self, db_session):
+        """Filas legacy ya persistidas en user_areas NO se borran al editar."""
+        users_store.create_user(
+            "odonto", "pass123", "usuario", ["odontologia"],
+            areas=["urgencias"],
+        )
+        db = db_session()
+        try:
+            user = db.query(users_store.User).filter_by(username="odonto").one()
+            db.add(users_store.UserArea(user_id=user.id, area="equipos_basicos"))
+            db.add(users_store.UserArea(user_id=user.id, area="cruce_facturas"))
+            db.commit()
+        finally:
+            db.close()
+
+        ok, _ = users_store.update_user(
+            "odonto", {"areas": ["extramural", "odontologia"]}
+        )
+        assert ok is True
+        # canónicas reemplazadas + legacy conservada (lista ordenada alfabéticamente)
+        assert users_store.get_user("odonto")["areas"] == [
+            "cruce_facturas", "equipos_basicos", "extramural", "odontologia",
+        ]
+
     def test_get_facturadores_includes_sorted_areas(self, db_session):
         """get_facturadores expone areas por facturador (para agrupar opciones)."""
         users_store.create_user(

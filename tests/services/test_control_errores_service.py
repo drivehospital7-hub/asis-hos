@@ -425,11 +425,14 @@ class TestGetOpcionesAreas:
         data = opciones["data"]
         # responsables sigue plano (contrato existente)
         assert data["responsables"] == ["ANGIE ARIAS", "LORENY ESPAÑA"]
-        # areas: canónicas primero, luego legacy ordenadas
+        # areas: SOLO las 4 canónicas (sin legacy selectable)
         assert [a["slug"] for a in data["areas"]] == [
             "urgencias", "ambulatoria", "extramural", "odontologia",
-            "cruce_facturas", "derechos", "equipos_basicos",
         ]
+        assert all(
+            a["slug"] not in {"equipos_basicos", "cruce_facturas", "derechos"}
+            for a in data["areas"]
+        )
         assert data["areas"][0] == {"slug": "urgencias", "label": "Urgencias"}
         # responsables_detalle: nombre → areas
         detalle = {d["nombre_completo"]: d["areas"] for d in data["responsables_detalle"]}

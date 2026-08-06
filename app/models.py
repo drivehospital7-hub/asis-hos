@@ -79,13 +79,14 @@ class UserArea(Base):
         }
 
 
-# Áreas válidas del sistema
+# Áreas válidas del sistema — exactamente las 4 canónicas (sdd Empieza).
+# Los slugs legacy (equipos_basicos / cruce_facturas / derechos) ya no son
+# válidos ni selectables; las filas históricas en user_areas se conservan.
 AREAS_VALIDAS = [
+    "urgencias",
+    "ambulatoria",
+    "extramural",
     "odontologia",
-    "urgencias", 
-    "equipos_basicos",
-    "cruce_facturas",
-    "derechos"
 ]
 
 
