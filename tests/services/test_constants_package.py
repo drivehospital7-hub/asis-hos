@@ -274,3 +274,48 @@ class TestConstantsAPI:
                 assert p in ALLOWED_PERMISOS
 
 
+# =============================================================================
+# Test: Vocabulario canónico de áreas organizacionales (sdd Empieza)
+# =============================================================================
+
+
+class TestOrganizationalAreas:
+    """ORGANIZATIONAL_AREAS / VALID_AREA_SLUGS / AREA_LABELS (sdd Empieza)."""
+
+    def test_organizational_areas_ordered(self):
+        """ORGANIZATIONAL_AREAS define the canonical vocabulary in display order."""
+        from app.constants.base import ORGANIZATIONAL_AREAS
+
+        assert [a["slug"] for a in ORGANIZATIONAL_AREAS] == [
+            "urgencias",
+            "ambulatoria",
+            "extramural",
+            "odontologia",
+        ]
+        assert {a["label"] for a in ORGANIZATIONAL_AREAS} == {
+            "Urgencias",
+            "Ambulatoria",
+            "Extramural",
+            "Odontología",
+        }
+
+    def test_areas_validas_subset_of_valid_area_slugs(self):
+        """Every legacy area in models.AREAS_VALIDAS stays valid (no migration)."""
+        from app.constants.base import VALID_AREA_SLUGS
+        from app.models import AREAS_VALIDAS
+
+        assert set(AREAS_VALIDAS) <= VALID_AREA_SLUGS
+
+    def test_area_labels_cover_all_valid_slugs(self):
+        """AREA_LABELS maps every valid slug (canonical + legacy) to a label."""
+        from app.constants.base import AREA_LABELS, VALID_AREA_SLUGS
+
+        assert set(AREA_LABELS.keys()) == VALID_AREA_SLUGS
+
+    def test_legacy_slugs_stay_valid(self):
+        """equipos_basicos / cruce_facturas / derechos remain valid slugs."""
+        from app.constants.base import VALID_AREA_SLUGS
+
+        assert {"equipos_basicos", "cruce_facturas", "derechos"} <= VALID_AREA_SLUGS
+
+
