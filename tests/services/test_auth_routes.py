@@ -553,6 +553,98 @@ class TestEliminarUsuario:
 
 
 # =============================================================================
+# Tests: Crear/editar con áreas organizacionales (sdd Empieza)
+# =============================================================================
+
+
+class TestUsuarioAreas:
+    """POST /auth/usuarios/crear y /editar pasan request.form.getlist('areas')."""
+
+    def test_create_user_with_areas(self, app_client, tmp_path):
+        """POST crear con areas → el usuario las persiste ordenadas."""
+        with _patched_store(_seed_users()):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            resp = app_client.post(
+                "/auth/usuarios/crear",
+                data={
+                    "username": "nuevo_user",
+                    "password": "pass123",
+                    "rol": "facturador",
+                    "permisos": ["urgencias"],
+                    "primer_nombre": "Ana",
+                    "apellido_1": "López",
+                    "areas": ["urgencias", "odontologia"],
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            user = users_store.get_user("nuevo_user")
+            assert user is not None
+            assert user["areas"] == ["odontologia", "urgencias"]
+
+    def test_edit_user_with_areas_replaces(self, app_client, tmp_path):
+        """POST editar con areas → reemplaza las áreas previas (replace-all)."""
+        with _patched_store(_seed_users()):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            # Precondición real: el usuario ya tiene un área persistida
+            users_store.create_user(
+                "nuevo_user", "pass123", "facturador", ["urgencias"],
+                areas=["urgencias"],
+            )
+            # Editar a otro set
+            resp = app_client.post(
+                "/auth/usuarios/nuevo_user/editar",
+                data={
+                    "username": "nuevo_user",
+                    "rol": "facturador",
+                    "permisos": ["urgencias"],
+                    "areas": ["extramural"],
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            user = users_store.get_user("nuevo_user")
+            assert user["areas"] == ["extramural"]
+
+    def test_edit_user_clears_areas(self, app_client, tmp_path):
+        """POST editar sin areas (getlist vacío) → limpia las áreas."""
+        with _patched_store(_seed_users()):
+            with app_client.session_transaction() as sess:
+                sess["ce_authenticated"] = True
+                sess["permisos"] = ["*"]
+                sess["username"] = "admin"
+
+            # Precondición real: el usuario ya tiene áreas persistidas
+            users_store.create_user(
+                "nuevo_user", "pass123", "facturador", ["urgencias"],
+                areas=["urgencias", "odontologia"],
+            )
+            resp = app_client.post(
+                "/auth/usuarios/nuevo_user/editar",
+                data={
+                    "username": "nuevo_user",
+                    "rol": "facturador",
+                    "permisos": ["urgencias"],
+                },
+                follow_redirects=True,
+            )
+            assert resp.status_code == 200
+
+            user = users_store.get_user("nuevo_user")
+            assert user["areas"] == []
+
+
+# =============================================================================
 # Tests: Cambiar contraseña propia (self-service)
 # =============================================================================
 
