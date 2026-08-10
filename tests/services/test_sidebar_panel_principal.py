@@ -13,7 +13,7 @@ class TestSidebarPanelPrincipal:
     The /dashboard route already works for all authenticated users — this is
     purely a navigation visibility change in the Jinja2 sidebar.
 
-    We use /control-errores (a Jinja2 route confirmed in test_react_frontend.py)
+    We use /control-novedades (a Jinja2 route confirmed in test_react_frontend.py)
     to verify sidebar HTML content via base.html.
     """
 
@@ -22,7 +22,7 @@ class TestSidebarPanelPrincipal:
     def test_non_admin_sees_panel_principal(self, app_client):
         """Non-admin user with control_urgencias → "Panel principal" link renders.
 
-        The user HAS the permiso for /control-errores, so Flask serves the Jinja2
+        The user HAS the permiso for /control-novedades, so Flask serves the Jinja2
         template directly (not a redirect). The sidebar from base.html is included.
         """
         with app_client.session_transaction() as sess:
@@ -30,7 +30,7 @@ class TestSidebarPanelPrincipal:
             sess["permisos"] = ["control_urgencias"]
             sess["username"] = "auditor_user"
 
-        resp = app_client.get("/control-errores")
+        resp = app_client.get("/control-novedades")
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
         assert self.PANEL_MARKER in html, (
@@ -45,7 +45,7 @@ class TestSidebarPanelPrincipal:
             sess["permisos"] = ["*"]
             sess["username"] = "admin"
 
-        resp = app_client.get("/control-errores")
+        resp = app_client.get("/control-novedades")
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
         assert self.PANEL_MARKER in html, (

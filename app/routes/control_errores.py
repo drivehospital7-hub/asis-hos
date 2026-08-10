@@ -35,17 +35,11 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
     return manifest.get(entry_key, {}).get(field, "")
 
 
-@control_errores_bp.get("/control-errores")
+@control_errores_bp.get("/control-novedades")
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def control_errores_page():
     """Página principal del control de errores (Jinja2)."""
-    from flask import url_for
-
-    breadcrumbs = [
-        ("Inicio", url_for("home.home_react")),
-        ("Control Novedades", None),
-    ]
-    return render_template("control_errores.html", breadcrumbs=breadcrumbs)
+    return render_template("control_errores.html")
 
 
 @control_errores_bp.get("/api/control-errores/opciones")
