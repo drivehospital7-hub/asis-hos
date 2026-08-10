@@ -84,17 +84,20 @@ class TestObservationCellWriteBack:
         open_editor_body = content[start:end]
         assert "td.querySelector('.obs-cell-wrapper')" in open_editor_body
 
-    def test_estado_badge_branches_unchanged(self):
-        """Non-regression: both save-path estado badge branches stay untouched.
+    def test_estado_badge_branches_have_legible_text(self):
+        """Non-regression: both save-path estado badge branches show legible text.
 
-        (openEditor's read-path `else if (field === 'estado')` at L742 is a
+        The badge shows "Pendiente"/"Resuelto" (no 'S'/'N' letter). The
+        write-back must keep the exact color-class expression and render the
+        legible label, consistent with the rendered table badge.
+        (openEditor's read-path `else if (field === 'estado')` is a
         different branch and must not be counted here.)
         """
         content = _template_content()
         badge_write = (
             'currentCell.innerHTML = `<span class="badge '
             "${newValue==='S'?'badge--pending':'badge--resolved'}\">"
-            '${escapeHtml(newValue)}</span>`;'
+            "${newValue==='S'?'Pendiente':'Resuelto'}</span>`;"
         )
         assert content.count(badge_write) == 2
 

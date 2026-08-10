@@ -9,7 +9,6 @@
 {% block content %}
 <div class="page-header">
   <div class="page-header-left">
-    <p class="page-subtitle">Servicio de Urgencias</p>
     <h1 class="page-title">Control de Novedades</h1>
     <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
   </div>
@@ -28,42 +27,6 @@
 
 <!-- Month Tabs -->
 <div class="month-tabs" id="monthTabs"></div>
-
-<!-- Stats Cards -->
-<div class="stats-grid">
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Total registrados</h3>
-      <div class="stat-card-icon stat-card-icon--trending">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2a1 1 0 0 0-1 1v2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2V3a1 1 0 1 0-2 0v2H9V3a1 1 0 0 0-1-1zm-3 7h12v10H6V9z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-total">6</p>
-    <p class="stat-card-meta">+3 esta semana</p>
-  </div>
-  
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Pendientes</h3>
-      <div class="stat-card-icon stat-card-icon--pending">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-pendientes">3</p>
-    <p class="stat-card-meta">Requieren acción</p>
-  </div>
-  
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Resueltos</h3>
-      <div class="stat-card-icon stat-card-icon--resolved">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-resueltos">3</p>
-    <p class="stat-card-meta">Cerrados este mes</p>
-  </div>
-</div>
 
 <div class="filters">
   <div class="search-wrapper">
@@ -101,7 +64,7 @@
         <th>Categoría</th>
         <th>Descripción</th>
         <th>Responsable</th>
-        <th>Pendiente</th>
+        <th>Estado</th>
         <th>Acciones</th>
       </tr>
     </thead>
@@ -324,7 +287,7 @@
     if (result.status === 'success') {
       opciones = result.data;
       opciones.tipos_error.forEach(t => document.getElementById('filterTipo').add(new Option(t, t)));
-      opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e, e)));
+      opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e === 'S' ? 'Pendiente' : 'Resuelto', e)));
       _buildResponsableAreaMap();
       // Select de área (aditivo, sdd Empieza)
       document.getElementById('filterArea').innerHTML = '<option value="">Todas las áreas</option>' +
@@ -516,8 +479,8 @@
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
-            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>
           <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
@@ -538,7 +501,7 @@
   }
   
   function updateStats() {
-    // Filtrar solo errores del mes seleccionado
+    // Estadísticas de novedades del mes seleccionado
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
@@ -550,9 +513,8 @@
     const pendientes = erroresDelMes.filter(e => e.estado === 'S').length;
     const resueltos = erroresDelMes.filter(e => e.estado === 'N').length;
     
-    document.getElementById('stat-total').textContent = total;
-    document.getElementById('stat-pendientes').textContent = pendientes;
-    document.getElementById('stat-resueltos').textContent = resueltos;
+    // Los contadores visuales se eliminaron; la función se mantiene por
+    // compatibilidad con los callers que la invocan tras renderizar.
   }
 
   // ====== EDITOR FACTURADOR (flotante al lado del botón +) ======
@@ -789,6 +751,10 @@
     _obsTooltipTd = td;
   }
 
+  // Mapeo de estado: valor interno 'S'/'N' ↔ etiqueta visible Pendiente/Resuelto
+  function _estadoLabel(v) { return v === 'S' ? 'Pendiente' : 'Resuelto'; }
+  function _estadoValue(v) { return v === 'Pendiente' ? 'S' : (v === 'Resuelto' ? 'N' : v); }
+
   function openEditor(td, isNew = false) {
     if (isAdding && !isNew) return;
 
@@ -828,16 +794,21 @@
       if (field === 'tipo_error') {
         options = opciones.tipos_error;
       } else if (field === 'estado') {
-        options = ['S', 'N'];
+        options = [{ value: 'S', label: 'Pendiente' }, { value: 'N', label: 'Resuelto' }];
       } else if (field === 'responsable') {
         options = _currentResponsables();
       }
 
       // Custom dropdown simple (responsable: headers de grupo por área)
       const currentValue = td.dataset.value || td.textContent.trim();
+      const displayValue = field === 'estado' ? _estadoLabel(currentValue) : currentValue;
       let optionsHtml;
       if (field === 'responsable') {
         optionsHtml = _buildCustomResponsableOptions(options, currentValue);
+      } else if (field === 'estado') {
+        optionsHtml = options.map(opt => 
+          `<div class="custom-select-option ${opt.value === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</div>`
+        ).join('');
       } else {
         optionsHtml = options.map(opt => 
           `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
@@ -846,7 +817,7 @@
 
       editor.innerHTML = `
         <div class="custom-select" id="customSelect" data-field="${field}">
-          <div class="custom-select-trigger">${escapeHtml(currentValue)}</div>
+          <div class="custom-select-trigger">${escapeHtml(displayValue)}</div>
           <div class="custom-select-dropdown">${optionsHtml}</div>
         </div>
       `;
@@ -865,7 +836,7 @@
           opt.onclick = (e) => {
             e.stopPropagation();
             const value = opt.dataset.value;
-            trigger.textContent = value;
+            trigger.textContent = field === 'estado' ? _estadoLabel(value) : value;
             dropdown.classList.remove('show');
             // Guardar y cerrar inmediatamente
             saveFromEditor();
@@ -992,9 +963,15 @@
       newValue = newValue.toUpperCase();
     }
 
+    // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
+    if (field === 'estado') {
+      newValue = _estadoValue(newValue);
+    }
+
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${newValue==='S'?'Pendiente':'Resuelto'}</span>`;
+      currentCell.dataset.value = newValue;
     } else if (currentEditType === 'select') {
       // Tipo error y responsable: actualizar el span existente sin reemplazar todo
       const badge = currentCell.querySelector('.category-badge');
@@ -1115,6 +1092,11 @@
       newValue = newValue.toUpperCase();
     }
 
+    // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
+    if (field === 'estado') {
+      newValue = _estadoValue(newValue);
+    }
+
     // Validar duplicados en factura
     if (field === 'factura' && newValue) {
       if (prevId === 'new') {
@@ -1152,7 +1134,8 @@
 
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${newValue==='S'?'Pendiente':'Resuelto'}</span>`;
+      currentCell.dataset.value = newValue;
     } else if (currentEditType === 'select') {
       currentCell.innerHTML = newValue;
     } else {
@@ -1260,7 +1243,7 @@
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" data-value="S" onclick="handleCellClick(this)"><span class="badge badge--pending">Pendiente</span></td>
       <td class="table-actions"></td>
     `;
     tbody.insertBefore(newRow, tbody.firstChild);
@@ -1397,8 +1380,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
               <span>${escapeHtml(e.responsable)}</span>
             </div>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
-            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>
           <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">

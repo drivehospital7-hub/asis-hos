@@ -225,7 +225,7 @@ DASHBOARD_AREAS = [
         "title": "Control de Novedades",
         "slug": "control_errores",
         "permiso": "control_urgencias",
-        "href": "/control-errores",
+        "href": "/control-novedades",
         "tone": "warning",
         "pending_label": "pendientes",
         "description": "Registro y seguimiento de novedades en facturación.",

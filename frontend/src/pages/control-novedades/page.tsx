@@ -72,7 +72,6 @@ export function ControlNovedadesPage() {
       <Breadcrumbs items={[{ label: "Control de Novedades" }]} />
 
       <PageTitle
-        eyebrow="Servicio de Urgencias"
         title="Control de Novedades"
         description="Registro, seguimiento y resolución de novedades en facturación."
         actions={
@@ -222,7 +221,7 @@ export function ControlNovedadesPage() {
                   </td>
                   <td className="px-4 py-3">
                     {n.estado === "pendiente" ? (
-                      <StatusBadge tone="warning" dot>Pendiente</StatusBadge>
+                      <StatusBadge tone="danger" dot>Pendiente</StatusBadge>
                     ) : (
                       <StatusBadge tone="success" dot>Resuelto</StatusBadge>
                     )}

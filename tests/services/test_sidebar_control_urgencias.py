@@ -21,7 +21,7 @@ class TestSidebarControlUrgencias:
             sess["permisos"] = ["control_urgencias"]
             sess["username"] = "urgencias_user"
 
-        resp = app_client.get("/control-errores")
+        resp = app_client.get("/control-novedades")
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
         assert self.SIDEBAR_MARKER in html, (
@@ -36,7 +36,7 @@ class TestSidebarControlUrgencias:
             sess["permisos"] = ["odontologia"]
             sess["username"] = "odonto_user"
 
-        resp = app_client.get("/control-errores", follow_redirects=True)
+        resp = app_client.get("/control-novedades", follow_redirects=True)
         # User is redirected to home (no control_urgencias permiso).
         # Home page (React shell) should NOT contain the sidebar marker.
         html = resp.data.decode("utf-8")
@@ -56,7 +56,7 @@ class TestSidebarControlUrgencias:
             sess["permisos"] = ["control_urgencias", "control_urgencias:write"]
             sess["username"] = "auditor_user"
 
-        resp = app_client.get("/control-errores")
+        resp = app_client.get("/control-novedades")
         assert resp.status_code == 200
         html = resp.data.decode("utf-8")
         count = html.count(self.SIDEBAR_MARKER)

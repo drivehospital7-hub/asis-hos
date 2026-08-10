@@ -5,7 +5,7 @@
      oklch token system — sinced with app/static/css/main.css
      ============================================================ */
 
-  /* Verde Salud — paleta institucional */
+  /* Verde Salud — paleta institucional profesional (referencia: sidebar) */
   --color-background: oklch(0.975 0.012 85);
   --color-foreground: oklch(0.22 0.03 165);
 
@@ -19,32 +19,32 @@
   --color-popover-foreground: oklch(0.22 0.03 165);
 
   --color-primary: oklch(0.32 0.055 165);
-  --color-primary-foreground: oklch(0.975 0.012 85);
+  --color-primary-foreground: oklch(0.98 0.006 160);
 
   --color-secondary: oklch(0.42 0.07 162);
   --color-secondary-foreground: oklch(0.98 0 0);
 
-  --color-muted: oklch(0.94 0.012 100);
-  --color-muted-foreground: oklch(0.45 0.025 160);
+  --color-muted: oklch(0.95 0.008 160);
+  --color-muted-foreground: oklch(0.46 0.02 160);
 
-  --color-accent: oklch(0.92 0.025 155);
+  --color-accent: oklch(0.93 0.02 155);
   --color-accent-foreground: oklch(0.32 0.055 165);
 
-  --color-destructive: oklch(0.5 0.18 25);
+  --color-destructive: oklch(0.5 0.15 25);
   --color-destructive-foreground: oklch(0.98 0 0);
 
-  --color-border: oklch(0.88 0.015 130);
-  --color-input: oklch(0.88 0.015 130);
+  --color-border: oklch(0.9 0.01 160);
+  --color-input: oklch(0.9 0.01 160);
   --color-ring: oklch(0.42 0.07 162);
 
   /* Estados semánticos */
-  --color-success: oklch(0.55 0.13 160);
+  --color-success: oklch(0.52 0.11 155);
   --color-success-foreground: oklch(0.98 0 0);
-  --color-warning: oklch(0.72 0.14 75);
+  --color-warning: oklch(0.68 0.12 70);
   --color-warning-foreground: oklch(0.25 0.05 60);
-  --color-danger: oklch(0.45 0.13 20);
+  --color-danger: oklch(0.5 0.11 22);
   --color-danger-foreground: oklch(0.98 0 0);
-  --color-info: oklch(0.55 0.1 230);
+  --color-info: oklch(0.55 0.08 230);
   --color-info-foreground: oklch(0.98 0 0);
 
   /* Sidebar */
@@ -59,10 +59,10 @@
 
   /* Charts */
   --color-chart-1: oklch(0.42 0.07 162);
-  --color-chart-2: oklch(0.55 0.13 160);
-  --color-chart-3: oklch(0.72 0.14 75);
-  --color-chart-4: oklch(0.55 0.1 230);
-  --color-chart-5: oklch(0.45 0.13 20);
+  --color-chart-2: oklch(0.52 0.11 155);
+  --color-chart-3: oklch(0.68 0.12 70);
+  --color-chart-4: oklch(0.55 0.08 230);
+  --color-chart-5: oklch(0.5 0.11 22);
 
   /* Radius */
   --radius: 0.5rem;
