@@ -27,7 +27,7 @@ export function LoginPage() {
       const data = await res.json();
 
       if (data.status === "success") {
-        window.location.href = "/dashboard";
+        window.location.href = data.data?.redirect_url || "/dashboard";
       } else {
         setError(data.errors?.[0] || "Usuario o contraseña incorrectos");
       }

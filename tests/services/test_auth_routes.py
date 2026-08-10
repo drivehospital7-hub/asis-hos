@@ -127,6 +127,17 @@ class TestLogin:
         # React login page — no flash messages anymore
         assert b"__INITIAL_DATA__" in resp.data or b"id=\\x22root\\x22" in resp.data
 
+    def test_api_login_non_control_user_redirects_to_dashboard(self, app_client):
+        """Users without Control de Novedades access get the safe dashboard."""
+        with _patched_store(_seed_users()):
+            resp = app_client.post(
+                "/auth/api/login",
+                json={"user": "odontologia", "pass": "odonto123"},
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["data"]["redirect_url"] == "/dashboard"
+
     def test_login_already_authenticated(self, app_client):
         """Redirects a logged-in user to Control de Novedades."""
         with _patched_store(_seed_users()):
@@ -952,6 +963,7 @@ class TestCambiarContrasena:
             assert resp.status_code == 200
             data = resp.get_json()
             assert data["status"] == "success"
+            assert data["data"]["redirect_url"] == "/control-novedades"
 
             # Logout
             app_client.post("/auth/api/logout")
