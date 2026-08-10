@@ -91,8 +91,14 @@ class TestMigrateUsersJsonToDb:
         try:
             admin = db.query(User).filter(User.username == "admin").first()
             assert admin is not None
+            assert admin.password_hash == users[0]["password_hash"]
             assert check_password_hash(admin.password_hash, "admin123")
             assert admin.rol == "admin"
+            assert admin.permisos == ["*"]
+            assert admin.primer_nombre == "Alexis"
+            assert admin.segundo_nombre == ""
+            assert admin.apellido_1 == "Aguirre"
+            assert admin.apellido_2 == ""
 
             lorenya = db.query(User).filter(User.username == "LORENYA").first()
             assert lorenya is not None
@@ -139,6 +145,43 @@ class TestMigrateUsersJsonToDb:
             lorenya = db.query(User).filter(User.username == "LORENYA").first()
             assert lorenya.rol == "validador"
             assert db.query(User).count() == 2
+        finally:
+            db.close()
+
+    def test_upsert_does_not_delete_users_missing_from_json(self, db_session, tmp_path):
+        """Provisioning is additive/upsert-only, never a destructive sync."""
+        users = _sample_users()
+        json_path = _write_users_json(tmp_path, users[:1])
+        db = db_session()
+        try:
+            db.add(User(
+                username=users[0]["username"],
+                password_hash=users[0]["password_hash"],
+                rol=users[0]["rol"],
+                permisos=users[0]["permisos"],
+                primer_nombre=users[0]["primer_nombre"],
+                segundo_nombre=users[0]["segundo_nombre"],
+                apellido_1=users[0]["apellido_1"],
+                apellido_2=users[0]["apellido_2"],
+            ))
+            db.add(User(
+                username="existing_only_in_db",
+                password_hash="existing-hash",
+                rol="usuario",
+                permisos=[],
+            ))
+            db.commit()
+        finally:
+            db.close()
+
+        result = migrator.migrate_users_json_to_db(json_path, session_factory=db_session)
+
+        assert result["inserted"] == 0
+        assert result["updated"] == 0
+        db = db_session()
+        try:
+            assert db.query(User).count() == 2
+            assert db.query(User).filter_by(username="existing_only_in_db").one()
         finally:
             db.close()
 

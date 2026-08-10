@@ -7,12 +7,11 @@ con error.
 
 Mantiene la API pública del antiguo store JSON
 (check_credentials/get_user/list_users/create_user/update_user/
-delete_user) y agrega get_facturadores() + ensure_seeded().
+delete_user) y agrega get_facturadores(). El esquema y los datos deben
+provisionarse explícitamente antes de usar esta fachada.
 """
 
-import json
 import logging
-from pathlib import Path
 from typing import Optional
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -28,13 +27,6 @@ from app.database import Base, SessionLocal
 from app.models import User, UserArea, VALID_ROLES
 
 logger = logging.getLogger(__name__)
-
-# Fuente de migración defensiva (solo bootstrap, NUNCA fallback en runtime)
-USERS_JSON_SOURCE = Path("instance") / "users.json"
-
-# Flag de bootstrap lazy: se corre una sola vez por proceso
-_SEEDED = False
-
 
 def _new_session():
     """Abre una sesión nueva (cerrada por cada función)."""
@@ -56,51 +48,6 @@ def _to_dict(user: User, include_hash: bool = False) -> dict:
     if include_hash:
         data["password_hash"] = user.password_hash
     return data
-
-
-# =============================================================================
-# Bootstrap defensivo (migración JSON → DB, idempotente)
-# =============================================================================
-
-
-def ensure_seeded() -> None:
-    """Crea la tabla users si no existe y siembra desde instance/users.json.
-
-    Solo actúa cuando la DB está disponible y la tabla está vacía.
-    Si la DB no está disponible, la excepción se propaga — NUNCA se
-    usan usuarios hardcodeados como fallback.
-    """
-    global _SEEDED
-    if _SEEDED:
-        return
-
-    db = _new_session()
-    try:
-        Base.metadata.create_all(bind=db.get_bind())
-        if db.query(User).count() == 0 and USERS_JSON_SOURCE.exists():
-            with open(USERS_JSON_SOURCE, "r", encoding="utf-8") as f:
-                users = json.load(f)
-            for u in users:
-                db.add(
-                    User(
-                        username=u["username"],
-                        password_hash=u["password_hash"],
-                        rol=u["rol"],
-                        permisos=u.get("permisos", []),
-                        primer_nombre=u.get("primer_nombre", ""),
-                        segundo_nombre=u.get("segundo_nombre", ""),
-                        apellido_1=u.get("apellido_1", ""),
-                        apellido_2=u.get("apellido_2", ""),
-                    )
-                )
-            db.commit()
-            logger.info("[BACK] users sembrados desde %s: %d", USERS_JSON_SOURCE.name, len(users))
-        _SEEDED = True
-    except SQLAlchemyError:
-        db.rollback()
-        raise
-    finally:
-        db.close()
 
 
 def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
@@ -143,7 +90,6 @@ def check_credentials(username: str, password: str) -> Optional[dict]:
         dict con username, rol, permisos y campos de nombre si es válido.
         None si las credenciales son incorrectas.
     """
-    ensure_seeded()
     db = _new_session()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -156,7 +102,6 @@ def check_credentials(username: str, password: str) -> Optional[dict]:
 
 def get_user(username: str) -> Optional[dict]:
     """Retorna un usuario completo (con password_hash) o None."""
-    ensure_seeded()
     db = _new_session()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -167,7 +112,6 @@ def get_user(username: str) -> Optional[dict]:
 
 def list_users() -> list:
     """Retorna todos los usuarios (sin password_hash)."""
-    ensure_seeded()
     db = _new_session()
     try:
         users = db.query(User).order_by(User.username).all()
@@ -185,7 +129,6 @@ def get_facturadores() -> list[dict]:
     apellido_2). Excluye usuarios sin primer_nombre. Se conserva el nombre
     de la función por compatibilidad con sus consumidores actuales.
     """
-    ensure_seeded()
     db = _new_session()
     try:
         users = db.query(User).order_by(User.username).all()
@@ -235,7 +178,6 @@ def create_user(
     Returns:
         (True, mensaje) si se creó, (False, mensaje) si ya existe o hay error.
     """
-    ensure_seeded()
     db = _new_session()
     try:
         if db.query(User).filter(User.username == username).first():
@@ -289,7 +231,6 @@ def update_user(username: str, updates: dict) -> tuple:
     Returns:
         (True, mensaje) si se actualizó, (False, mensaje) si hay error.
     """
-    ensure_seeded()
     db = _new_session()
     try:
         user = db.query(User).filter(User.username == username).first()
@@ -369,7 +310,6 @@ def delete_user(username: str) -> tuple:
         (True, mensaje) si se eliminó, (False, mensaje) si no existe
         o si es admin.
     """
-    ensure_seeded()
     db = _new_session()
     try:
         if username == "admin":

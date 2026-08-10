@@ -29,33 +29,33 @@ def run_migrations():
     migrations_dir = Path(__file__).parent / "migrations"
     
     if not migrations_dir.exists():
-        print(f"❌ No existe directorio migrations/")
+        print("ERROR: No existe directorio migrations/")
         return
     
     # Buscar todos los archivos .sql ordenados
     sql_files = sorted(migrations_dir.glob("*.sql"))
     
     if not sql_files:
-        print("❌ No hay archivos .sql en migrations/")
+        print("ERROR: No hay archivos .sql en migrations/")
         return
     
     for sql_file in sql_files:
-        print(f"\n📄 Ejecutando: {sql_file.name}")
+        print(f"\nEjecutando: {sql_file.name}")
         try:
             with open(sql_file, "r", encoding="utf-8") as f:
                 sql_content = f.read()
             
             cursor.execute(sql_content)
-            print(f"   ✅ {sql_file.name} ejecutado correctamente")
+            print(f"   OK: {sql_file.name} ejecutado correctamente")
             
         except psycopg2.Error as e:
-            print(f"   ❌ Error en {sql_file.name}: {e.pgerror}")
+            print(f"   ERROR en {sql_file.name}: {e.pgerror}")
             continue
     
     cursor.close()
     conn.close()
     
-    print("\n🎉 Migraciones completadas")
+    print("\nMigraciones completadas")
 
 
 if __name__ == "__main__":

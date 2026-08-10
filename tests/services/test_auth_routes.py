@@ -63,7 +63,8 @@ def _patched_store(users: list | None = None):
 
     Reemplaza el antiguo ``patch.object(users_store, "USERS_FILE", ...)``:
     la DB es la única fuente de verdad, así que el seed se hace en la tabla
-    ``users`` (SQLite en memoria) y se desactiva el bootstrap JSON lazy.
+    ``users`` (SQLite en memoria); the schema and test rows are provisioned
+    explicitly.
     """
     engine = create_engine(
         "sqlite://",
@@ -81,10 +82,7 @@ def _patched_store(users: list | None = None):
     finally:
         seed_db.close()
 
-    with (
-        patch.object(users_store, "SessionLocal", Session),
-        patch.object(users_store, "_SEEDED", True),
-    ):
+    with patch.object(users_store, "SessionLocal", Session):
         yield Session
 
 

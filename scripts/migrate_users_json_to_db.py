@@ -1,15 +1,19 @@
-"""Migración idempotente: instance/users.json → tabla users (PostgreSQL).
+"""Migración offline explícita: instance/users.json → tabla users.
 
 Uso:
     python scripts/migrate_users_json_to_db.py
 
-Qué hace:
-  1. Crea la tabla users si no existe (create_all).
-  2. Hace backup de instance/users.json a instance/users.json.bak.
-  3. Upsert por username preservando password_hash (idempotente).
+Este script NO se ejecuta automáticamente. Debe invocarse como un paso
+explícito de deployment/provisioning cuando se necesite importar el backup o
+la fuente offline de usuarios.
 
-La DB pasa a ser la única fuente de verdad para usuarios; el JSON se
-retira tras verificar el seed (el backup queda como respaldo).
+Qué hace cuando se invoca:
+  1. Crea la tabla users si no existe (solo para provisioning explícito).
+  2. Hace backup de instance/users.json a instance/users.json.bak.
+  3. Upsert por username, sin borrar usuarios que no estén en el JSON.
+
+Después de la migración, la DB es la única fuente runtime de usuarios. Este
+script no toca ninguna tabla de negocio ni modifica el JSON de novedades.
 """
 
 import json
@@ -22,6 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
+from dotenv import load_dotenv  # noqa: E402
 
 from app.database import Base  # noqa: E402
 from app.models import User  # noqa: E402
@@ -30,6 +35,8 @@ from app.utils.db_config import get_database_config  # noqa: E402
 logger = logging.getLogger(__name__)
 
 USERS_JSON = Path("instance") / "users.json"
+
+load_dotenv()
 
 
 def migrate_users_json_to_db(users_json: Path = USERS_JSON, session_factory=None) -> dict:
@@ -41,7 +48,7 @@ def migrate_users_json_to_db(users_json: Path = USERS_JSON, session_factory=None
             Default: sessionmaker sobre la DB configurada.
 
     Returns:
-        dict con {"inserted": int, "updated": int, "backup": str}.
+        dict con ``inserted``, ``updated`` y ``backup``.
     """
     users_json = Path(users_json)
     if not users_json.exists():
@@ -59,7 +66,8 @@ def migrate_users_json_to_db(users_json: Path = USERS_JSON, session_factory=None
         Base.metadata.create_all(bind=engine)
         session_factory = sessionmaker(bind=engine)
 
-    # 3. Upsert por username preservando password_hash
+    # 3. Upsert por username. El hash se copia como texto opaco, sin
+    # regenerarlo ni incluirlo en logs.
     with open(users_json, "r", encoding="utf-8") as f:
         users = json.load(f)
 

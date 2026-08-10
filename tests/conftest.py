@@ -29,7 +29,7 @@ def _db_users_store():
     con un engine SQLite en memoria sembrado con usuarios de prueba, para
     que cualquier test que haga login/gestión funcione sin PostgreSQL real.
     Los tests que necesitan comportamiento específico (DB-down, seeds
-    propios) parchean SessionLocal/_SEEDED por encima sin conflicto.
+    propios) parchean SessionLocal por encima sin conflicto.
     """
     engine = create_engine(
         "sqlite://",
@@ -72,7 +72,6 @@ def _db_users_store():
         pytest.MonkeyPatch.context() as mp,
     ):
         mp.setattr(users_store, "SessionLocal", Session)
-        mp.setattr(users_store, "_SEEDED", True)
         yield
 
 

@@ -1,10 +1,8 @@
 """Unit tests for app/utils/users_store.py — SQLAlchemy DB facade.
 
-Strict TDD: these tests describe the DB-backed behavior (sdd change
-control-errores-role-visibility, Phase 1). They fail (RED) against the
-legacy JSON store: ``users_store.SessionLocal`` does not exist,
-``get_facturadores()`` / ``ensure_seeded()`` are missing, and role
-validation rejects ``facturador`` / ``validador`` / ``medico``.
+These tests describe the DB-backed behavior (sdd change
+control-errores-role-visibility, Phase 1). Runtime operations use only the
+provisioned users table; ``instance/users.json`` is not a fallback.
 
 Tests run against an in-memory SQLite engine so no PostgreSQL server is
 required. ``users_store.SessionLocal`` is patched to a sessionmaker bound
@@ -36,8 +34,8 @@ import app.models  # noqa: F401  (registra los modelos en Base.metadata)
 def db_session():
     """Patches users_store.SessionLocal with an in-memory SQLite sessionmaker.
 
-    Creates the full schema (users, user_areas, ...) and disables the lazy
-    ``ensure_seeded()`` JSON bootstrap so tests control the data themselves.
+    Creates the full schema (users, user_areas, ...) explicitly so tests
+    control the data themselves.
     """
     engine = create_engine(
         "sqlite://",
@@ -47,10 +45,7 @@ def db_session():
     Base.metadata.create_all(engine)
     Session = sessionmaker(bind=engine)
 
-    with (
-        patch.object(users_store, "SessionLocal", Session),
-        patch.object(users_store, "_SEEDED", True),  # skip JSON bootstrap
-    ):
+    with patch.object(users_store, "SessionLocal", Session):
         yield Session
 
 
@@ -165,8 +160,9 @@ class TestListUsers:
         assert "password_hash" not in result[0]
 
     def test_list_users_empty(self, db_session):
-        """Empty table → empty list."""
-        assert users_store.list_users() == []
+        """Empty table → empty list without reading the legacy JSON file."""
+        with patch("builtins.open", side_effect=AssertionError("JSON must not be read")):
+            assert users_store.list_users() == []
 
 
 # =============================================================================
