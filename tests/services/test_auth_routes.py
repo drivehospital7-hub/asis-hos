@@ -104,7 +104,7 @@ class TestLogin:
     """Existing login behavior — no regression."""
 
     def test_login_success(self, app_client):
-        """Valid credentials → redirect to React dashboard."""
+        """Valid credentials → redirect to Control de Novedades."""
         with _patched_store(_seed_users()):
             resp = app_client.post(
                 "/auth/login",
@@ -112,8 +112,8 @@ class TestLogin:
                 follow_redirects=True,
             )
         assert resp.status_code == 200
-        # Redirects to React dashboard (no flash in React)
-        assert b"__INITIAL_DATA__" in resp.data
+        # Redirects to Control de Novedades (Jinja page)
+        assert b"Control de Novedades" in resp.data
 
     def test_login_wrong_password(self, app_client):
         """Invalid password → redirect to login (React, no flash)."""
@@ -128,12 +128,12 @@ class TestLogin:
         assert b"__INITIAL_DATA__" in resp.data or b"id=\\x22root\\x22" in resp.data
 
     def test_login_already_authenticated(self, app_client):
-        """Redirects a logged-in user to the React dashboard."""
+        """Redirects a logged-in user to Control de Novedades."""
         with _patched_store(_seed_users()):
             app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
             resp = app_client.get("/auth/login", follow_redirects=True)
         assert resp.status_code == 200
-        assert b"__INITIAL_DATA__" in resp.data
+        assert b"Control de Novedades" in resp.data
 
 
 # =============================================================================

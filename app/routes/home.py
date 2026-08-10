@@ -21,8 +21,8 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 
 @home_bp.get("/")
 def root_redirect():
-    """Redirige la raíz al dashboard."""
-    return redirect(url_for("home.home_react"))
+    """Redirige la raíz a Control de Novedades."""
+    return redirect(url_for("control_errores.control_errores_page"))
 
 
 @home_bp.get("/dashboard")

@@ -35,7 +35,7 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 def login():
     """Página de login — React para GET, form legacy para POST."""
     if auth_session.is_authenticated():
-        return redirect(url_for("home.home_react"))
+        return redirect(url_for("control_errores.control_errores_page"))
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -54,7 +54,7 @@ def login():
             if next_page:
                 return redirect(next_page)
 
-            return redirect(url_for("home.home_react"))
+            return redirect(url_for("control_errores.control_errores_page"))
 
         flash("Usuario o contraseña incorrectos", "error")
         logger.warning("Intento de login fallido: %s", username)

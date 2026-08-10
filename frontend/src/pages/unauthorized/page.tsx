@@ -3,10 +3,7 @@ import { ShieldAlert, ArrowLeft } from "lucide-react";
 
 export function UnauthorizedPage() {
   useEffect(() => {
-    const timer = setTimeout(() => {
-      window.location.href = "/login";
-    }, 2000);
-    return () => clearTimeout(timer);
+    window.location.href = "/login";
   }, []);
 
   return (
