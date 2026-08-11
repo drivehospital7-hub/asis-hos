@@ -24,6 +24,9 @@ export interface Regla {
   parametros_default: Record<string, unknown> | null;
   creado_en: string | null;
   actualizado_en: string | null;
+  cambio_que: string | null;
+  cambio_por_que: string | null;
+  cambio_responsable: string | null;
   condiciones?: CondicionTree[] | null;
   excepciones?: Excepcion[] | null;
 }
@@ -214,6 +217,16 @@ export async function versionarRegla(reglaId: number): Promise<Regla> {
   return apiPost<Regla>(`/api/reglas/${reglaId}/versionar`, {});
 }
 
+/** Result of publishing a draft: the promoted rule plus the deprecated incumbent id. */
+export interface PublicarResult extends Regla {
+  deprecated_id: number | null;
+}
+
+/** Promote a draft rule to active, deprecating the current active incumbent. */
+export async function publicarRegla(reglaId: number): Promise<PublicarResult> {
+  return apiPost<PublicarResult>(`/api/reglas/${reglaId}/publicar`, {});
+}
+
 // ─── Exceptions ──────────────────────────────────────────────────────
 
 /** List all exceptions for a rule. */
@@ -285,6 +298,86 @@ export async function clearEvidencias(): Promise<{ message: string }> {
     throw new Error(json.errors?.[0] ?? "Error al limpiar datos");
   }
   return json.data;
+}
+
+// ─── Catálogos CRUD ───────────────────────────────────────────────────
+
+export interface CatalogoListItem {
+  key: string;
+  descripcion: string | null;
+  dominio: string | null;
+  value: string[];
+  value_count: number;
+  regla_count: number;
+  updated_at: string | null;
+}
+
+export interface CatalogoRow {
+  key: string;
+  values: string[];
+  value_count: number;
+  descripcion: string | null;
+  dominio: string | null;
+  updated_at: string | null;
+}
+
+export interface ReglaRef {
+  id: number;
+  nombre: string;
+  dominio: string;
+  estado: string;
+  version: number;
+  activo: boolean;
+}
+
+export interface CreateCatalogoPayload {
+  key: string;
+  value?: string[];
+  descripcion?: string;
+  dominio?: string;
+}
+
+export interface DeleteCatalogoResult {
+  deleted: boolean;
+  warnings?: {
+    message: string;
+    reglas: Array<{ regla_id: number; nombre: string; estado: string }>;
+  };
+}
+
+/** Fetch catalog values by key (used by cat_in conditions). */
+export async function fetchCatalogo(key: string): Promise<CatalogoRow> {
+  return apiGet<CatalogoRow>(`/api/catalogos/${encodeURIComponent(key)}`);
+}
+
+/** List all catalogs. */
+export async function fetchCatalogos(): Promise<CatalogoListItem[]> {
+  return apiGet<CatalogoListItem[]>("/api/catalogos");
+}
+
+/** Create a new catalog. */
+export async function createCatalogo(data: CreateCatalogoPayload): Promise<CatalogoRow> {
+  return apiPost<CatalogoRow>("/api/catalogos", data);
+}
+
+/** Update a catalog (value, descripcion, dominio). */
+export async function updateCatalogo(key: string, data: Partial<CreateCatalogoPayload>): Promise<CatalogoRow> {
+  return apiPut<CatalogoRow>(`/api/catalogos/${encodeURIComponent(key)}`, data);
+}
+
+/** Delete a catalog. */
+export async function deleteCatalogo(key: string): Promise<DeleteCatalogoResult> {
+  const res = await fetch(`/api/catalogos/${encodeURIComponent(key)}`, { method: "DELETE" });
+  const json: ApiResponse<DeleteCatalogoResult> = await res.json();
+  if (json.status === "error") {
+    throw new Error(json.errors?.[0] ?? "Error al eliminar catálogo");
+  }
+  return json.data;
+}
+
+/** Get rules that reference a catalog key. */
+export async function fetchCatalogoReglas(key: string): Promise<ReglaRef[]> {
+  return apiGet<ReglaRef[]>(`/api/catalogos/${encodeURIComponent(key)}/reglas`);
 }
 
 // ─── Simulator ───────────────────────────────────────────────────────

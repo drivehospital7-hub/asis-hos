@@ -21,6 +21,34 @@ _MUTABLE_FIELDS = frozenset({
 })
 
 
+def _condition_nodes(data: Any) -> list[dict[str, Any]]:
+    """Return a condition payload as a list of root nodes."""
+    if data is None:
+        return []
+    return data if isinstance(data, list) else [data]
+
+
+def _condition_signature(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Ignore database/editor IDs when comparing nested condition trees."""
+    return [
+        {
+            key: node.get(key)
+            for key in ("tipo", "operador", "fuente_datos", "valor_esperado", "orden")
+        }
+        | {"condiciones": _condition_signature(_condition_nodes(node.get("condiciones")))}
+        for node in nodes
+    ]
+
+
+def _validate_condition_tree(nodes: list[dict[str, Any]]) -> None:
+    """Reject malformed composite trees before creating a new rule version."""
+    for node in nodes:
+        children = _condition_nodes(node.get("condiciones"))
+        if node.get("operador") == "NOT" and len(children) != 1:
+            raise ValueError("NOT conditions must have exactly one child")
+        _validate_condition_tree(children)
+
+
 def _build_condition_tree(regla: Regla) -> list[dict[str, Any]] | None:
     """Build a nested condition tree from flat condición list.
 
@@ -57,6 +85,10 @@ def _has_changes(rule: Regla, data: dict) -> bool:
             new_val = data[field]
             if current != new_val:
                 return True
+    if "condiciones" in data:
+        current_tree = _build_condition_tree(rule) or []
+        submitted_tree = _condition_nodes(data["condiciones"])
+        return _condition_signature(current_tree) != _condition_signature(submitted_tree)
     return False
 
 
@@ -65,6 +97,13 @@ def _apply_updates(rule: Regla, data: dict) -> None:
     for field in _MUTABLE_FIELDS:
         if field in data:
             setattr(rule, field, data[field])
+
+
+def _ensure_rule_base_id(rule: Regla) -> int:
+    """Ensure a persisted rule has a stable lineage identifier."""
+    if rule.rule_base_id is None:
+        rule.rule_base_id = rule.id
+    return rule.rule_base_id
 
 
 def _clone_conditions(db_session, old_rule_id: int, new_rule_id: int) -> None:
@@ -90,7 +129,11 @@ def _clone_conditions(db_session, old_rule_id: int, new_rule_id: int) -> None:
             tipo=c.tipo,
             operador=c.operador,
             fuente_datos=c.fuente_datos,
-            valor_esperado=copy.deepcopy(c.valor_esperado) if c.valor_esperado else None,
+            valor_esperado=(
+                copy.deepcopy(c.valor_esperado)
+                if c.valor_esperado is not None
+                else None
+            ),
             orden=c.orden,
         )
         db_session.add(new_c)
@@ -143,7 +186,10 @@ def create_rule(db_session, data: dict) -> dict:
 
     # Store condiciones tree
     if condiciones_data:
-        _store_condition_tree(db_session, rule.id, None, condiciones_data)
+        condition_nodes = _condition_nodes(condiciones_data)
+        _validate_condition_tree(condition_nodes)
+        for node in condition_nodes:
+            _store_condition_tree(db_session, rule.id, None, node)
 
     # Store excepciones
     if excepciones_data:
@@ -245,7 +291,12 @@ def list_rules(
     return [r.to_dict() for r in rules]
 
 
-def update_rule(db_session, rule_id: int, data: dict) -> dict:
+def update_rule(
+    db_session,
+    rule_id: int,
+    data: dict,
+    responsible: str | None = None,
+) -> dict:
     """Update a rule with auto-versioning.
 
     Deprecates the current active version and creates a new version
@@ -272,6 +323,9 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
     if rule.estado != "active":
         raise ValueError(f"Cannot modify non-active rule (current: {rule.estado})")
 
+    if "condiciones" in data:
+        _validate_condition_tree(_condition_nodes(data["condiciones"]))
+
     # No-op guard: if nothing changed, return same IDs
     if not _has_changes(rule, data):
         return {
@@ -281,10 +335,18 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
             "new_version": rule.version,
         }
 
+    change_what = str(data.get("cambio_que", "")).strip()
+    change_why = str(data.get("cambio_por_que", "")).strip()
+    if not change_what or not change_why:
+        raise ValueError("cambio_que y cambio_por_que son requeridos al crear una versión")
+    if responsible is not None and not responsible.strip():
+        raise ValueError("No se pudo determinar el usuario autenticado")
+
     try:
         # 1. Deprecate current
         old_version = rule.version
         old_rule_id = rule.id
+        rule_base_id = _ensure_rule_base_id(rule)
         rule.estado = "deprecated"
         db_session.flush()
 
@@ -300,7 +362,7 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
 
         # 2. Create new version
         new_rule = Regla(
-            rule_base_id=rule.rule_base_id,
+            rule_base_id=rule_base_id,
             nombre=rule.nombre,
             descripcion=rule.descripcion,
             dominio=rule.dominio,
@@ -311,6 +373,9 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
             activo=rule.activo,
             parametros=rule.parametros,
             parametros_default=rule.parametros_default,
+            cambio_que=change_what,
+            cambio_por_que=change_why,
+            cambio_responsable=responsible,
         )
         # Apply partial updates
         _apply_updates(new_rule, data)
@@ -318,8 +383,12 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
         db_session.flush()
         new_rule_id = new_rule.id
 
-        # 3. Clone conditions
-        _clone_conditions(db_session, old_rule_id, new_rule_id)
+        # 3. Persist submitted conditions; otherwise preserve the old tree.
+        if "condiciones" in data:
+            for node in _condition_nodes(data["condiciones"]):
+                _store_condition_tree(db_session, new_rule_id, None, node)
+        else:
+            _clone_conditions(db_session, old_rule_id, new_rule_id)
 
         db_session.commit()
         return {
@@ -327,6 +396,9 @@ def update_rule(db_session, rule_id: int, data: dict) -> dict:
             "new_rule_id": new_rule_id,
             "old_version": old_version,
             "new_version": new_rule.version,
+            "cambio_que": new_rule.cambio_que,
+            "cambio_por_que": new_rule.cambio_por_que,
+            "cambio_responsable": new_rule.cambio_responsable,
         }
     except Exception:
         db_session.rollback()
@@ -407,6 +479,8 @@ def create_version(db_session, rule_id: int) -> dict:
     if not rule:
         raise ValueError(f"Rule {rule_id} not found")
 
+    rule_base_id = _ensure_rule_base_id(rule)
+
     # Find next available version
     max_ver_row = (
         db_session.query(Regla.version)
@@ -418,7 +492,7 @@ def create_version(db_session, rule_id: int) -> dict:
     next_version = max(max_ver, rule.version) + 1
 
     new_rule = Regla(
-        rule_base_id=rule.rule_base_id,
+        rule_base_id=rule_base_id,
         nombre=rule.nombre,
         descripcion=rule.descripcion,
         dominio=rule.dominio,
@@ -438,3 +512,82 @@ def create_version(db_session, rule_id: int) -> dict:
 
     db_session.commit()
     return new_rule.to_dict()
+
+
+def publish_rule(
+    db_session,
+    rule_id: int,
+    responsible: str | None = None,
+    cambio_que: str | None = None,
+    cambio_por_que: str | None = None,
+) -> dict:
+    """Promote a draft rule to active in the SAME row (draft → active).
+
+    Deprecates (estado="deprecated") the current active version of the same
+    rule_base_id, preserving the invariant "at most one active per
+    rule_base_id". No new version is created; version/activo/condiciones
+    are left untouched. cambio_que/cambio_por_que are optional audit
+    metadata; only responsible is required.
+
+    Args:
+        db_session: SQLAlchemy Session
+        rule_id: ID of the draft rule to publish
+        responsible: authenticated username, persisted as cambio_responsable
+        cambio_que: optional audit field ("what changed")
+        cambio_por_que: optional audit field ("why changed")
+
+    Returns:
+        dict: published rule serialized with an extra deprecated_id key
+        (id of the deprecated incumbent, or None).
+
+    Raises:
+        ValueError: rule not found, not a draft, no responsible, or empty
+            condition tree.
+    """
+    rule: Regla | None = (
+        db_session.query(Regla)
+        .filter(Regla.id == rule_id)
+        .first()
+    )
+    if not rule:
+        raise ValueError(f"Rule {rule_id} not found")
+    if rule.estado != "draft":
+        raise ValueError(f"Solo se pueden publicar reglas en estado draft (current: {rule.estado})")
+    if responsible is None or not responsible.strip():
+        raise ValueError("No se pudo determinar el usuario autenticado")
+    tree = _build_condition_tree(rule)
+    if not tree:
+        raise ValueError("No se puede publicar una regla sin condiciones")
+
+    try:
+        rule_base_id = _ensure_rule_base_id(rule)
+
+        # Deprecate the current active incumbent of the same lineage (if any).
+        incumbent: Regla | None = (
+            db_session.query(Regla)
+            .filter(
+                Regla.rule_base_id == rule_base_id,
+                Regla.estado == "active",
+                Regla.id != rule.id,
+            )
+            .first()
+        )
+        deprecated_id = None
+        if incumbent:
+            incumbent.estado = "deprecated"
+            deprecated_id = incumbent.id
+
+        # Promote the draft in the same row.
+        rule.estado = "active"
+        rule.cambio_responsable = responsible
+        if cambio_que is not None:
+            rule.cambio_que = str(cambio_que).strip()
+        if cambio_por_que is not None:
+            rule.cambio_por_que = str(cambio_por_que).strip()
+
+        db_session.commit()
+        return {**rule.to_dict(), "deprecated_id": deprecated_id}
+    except Exception:
+        db_session.rollback()
+        logger.exception("Publish transaction failed for rule %s", rule_id)
+        raise

@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, session
 from sqlalchemy import text
 
 from app.database import get_db
@@ -21,11 +21,20 @@ from app.services.reglas.rule_service import (
     list_versions,
     create_version,
     update_rule,
+    publish_rule,
 )
 from app.services.reglas.exception_service import list_exceptions, create_exception
 from app.services.reglas.evidence_service import query_evidence
 from app.services.reglas.audit_service import query_audit
 from app.services.reglas.simulator_service import simulate
+from app.services.reglas.catalogos_service import (
+    list_catalogos,
+    get_catalogo,
+    create_catalogo,
+    update_catalogo,
+    delete_catalogo,
+    get_catalogo_reglas,
+)
 from app.utils.auth import admin_requerido
 
 logger = logging.getLogger(__name__)
@@ -122,7 +131,15 @@ def api_update_rule(regla_id: int):
                 "errors": ["Request body requerido"],
             }), 400
 
-        result = update_rule(db, regla_id, data)
+        responsible = session.get("username")
+        if responsible is None:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": ["No se pudo determinar el usuario autenticado"],
+            }), 400
+
+        result = update_rule(db, regla_id, data, responsible=responsible)
         return jsonify({"status": "success", "data": result, "errors": []})
     except ValueError as e:
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
@@ -180,6 +197,31 @@ def api_create_version(regla_id: int):
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
         logger.exception("Error versioning rule %s", regla_id)
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/<int:regla_id>/publicar", methods=["POST"])
+@admin_requerido
+def api_publish_rule(regla_id: int):
+    """Promote a draft rule to active, deprecating the current active incumbent."""
+    db = next(get_db())
+    try:
+        responsible = session.get("username")
+        if responsible is None:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": ["No se pudo determinar el usuario autenticado"],
+            }), 400
+
+        result = publish_rule(db, regla_id, responsible)
+        return jsonify({"status": "success", "data": result, "errors": []}), 200
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error publishing rule %s", regla_id)
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()
@@ -326,6 +368,166 @@ def api_simulate():
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
         logger.exception("Error running simulator")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+# ─── Catálogos CRUD ────────────────────────────────────────────────────
+
+
+@reglas_api_bp.route("/catalogos", methods=["GET"])
+@admin_requerido
+def api_list_catalogos():
+    """List all catalogs with rule reference count."""
+    db = next(get_db())
+    try:
+        items = list_catalogos(db)
+        return jsonify({"status": "success", "data": items, "errors": []})
+    except Exception as exc:
+        logger.exception("Error listing catalogos")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/catalogos/<key>", methods=["GET"])
+@admin_requerido
+def api_get_catalogo(key: str):
+    """Get catalog values for a given key."""
+    db = next(get_db())
+    try:
+        result = get_catalogo(db, key)
+        if result is None:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"Catálogo '{key}' no encontrado"],
+            }), 404
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except Exception as exc:
+        logger.exception("Error fetching catalog %s", key)
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/catalogos", methods=["POST"])
+@admin_requerido
+def api_create_catalogo():
+    """Create a new catalog entry."""
+    db = next(get_db())
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Request body requerido"],
+            }), 400
+
+        result = create_catalogo(db, data)
+        return jsonify({"status": "success", "data": result, "errors": []}), 201
+    except ValueError as e:
+        msg = str(e)
+        if "ya existe" in msg:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [msg],
+            }), 409
+        if "debe ser un array" in msg:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [msg],
+            }), 422
+        return jsonify({"status": "error", "data": {}, "errors": [msg]}), 400
+    except Exception as exc:
+        logger.exception("Error creating catalog")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/catalogos/<key>", methods=["PUT"])
+@admin_requerido
+def api_update_catalogo(key: str):
+    """Update catalog value, descripcion, dominio."""
+    db = next(get_db())
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Request body requerido"],
+            }), 400
+
+        result = update_catalogo(db, key, data)
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        msg = str(e)
+        if "no encontrado" in msg:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [msg],
+            }), 404
+        if "debe ser un array" in msg:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [msg],
+            }), 422
+        return jsonify({"status": "error", "data": {}, "errors": [msg]}), 400
+    except Exception as exc:
+        logger.exception("Error updating catalog %s", key)
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/catalogos/<key>", methods=["DELETE"])
+@admin_requerido
+def api_delete_catalogo(key: str):
+    """Delete a catalog, checking for active rule references first."""
+    db = next(get_db())
+    try:
+        result = delete_catalogo(db, key)
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        msg = str(e)
+        if "no encontrado" in msg:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [msg],
+            }), 404
+        if "No se puede eliminar" in msg:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [msg],
+            }), 409
+        return jsonify({"status": "error", "data": {}, "errors": [msg]}), 400
+    except Exception as exc:
+        logger.exception("Error deleting catalog %s", key)
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/catalogos/<key>/reglas", methods=["GET"])
+@admin_requerido
+def api_get_catalogo_reglas(key: str):
+    """Get rules that reference a catalog key via cat_in conditions."""
+    db = next(get_db())
+    try:
+        # Check catalog exists first
+        catalog = get_catalogo(db, key)
+        if catalog is None:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": [f"Catálogo '{key}' no encontrado"],
+            }), 404
+
+        reglas = get_catalogo_reglas(db, key)
+        return jsonify({"status": "success", "data": reglas, "errors": []})
+    except Exception as exc:
+        logger.exception("Error fetching reglas for catalog %s", key)
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()

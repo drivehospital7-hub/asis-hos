@@ -7,6 +7,7 @@ Uses Flask test client with authenticated admin session.
 from __future__ import annotations
 
 import json
+import time
 
 
 class TestReglasApiList:
@@ -191,3 +192,92 @@ class TestReglasAdminRoute:
         assert response.status_code == 200
         html = response.data.decode("utf-8")
         assert 'id="root"' in html
+
+
+def _create_draft_via_api(app_client, nombre: str) -> dict:
+    """Login as admin and create a draft rule with one condition via the API."""
+    app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
+    payload = {
+        "nombre": nombre,
+        "descripcion": "Publish integration test",
+        "dominio": "odontologia",
+        "severidad": "alta",
+        "condiciones": [{
+            "tipo": "atomic",
+            "operador": "eq",
+            "fuente_datos": "campo_prueba",
+            "valor_esperado": "X",
+        }],
+    }
+    response = app_client.post(
+        "/api/reglas",
+        content_type="application/json",
+        data=json.dumps(payload),
+    )
+    assert response.status_code == 201, response.get_json()
+    rule = response.get_json()["data"]
+    assert rule["estado"] == "draft"
+    return rule
+
+
+class TestReglasApiPublish:
+    """Tests for POST /api/reglas/<id>/publicar"""
+
+    def test_publish_requires_auth(self, app_client):
+        """POST /publicar without auth returns 401."""
+        response = app_client.post("/api/reglas/1/publicar")
+        assert response.status_code == 401
+
+    def test_publish_requires_admin(self, app_client):
+        """POST /publicar without admin returns 403."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["odontologia"]
+            sess["username"] = "odontologia"
+        response = app_client.post(
+            "/api/reglas/1/publicar",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert response.status_code == 403
+
+    def test_publish_draft_returns_200_with_deprecated_id(self, app_client):
+        """Publishing a draft returns 200, success envelope, active state and deprecated_id."""
+        rule = _create_draft_via_api(app_client, f"Publish OK {time.time()}")
+
+        response = app_client.post(f"/api/reglas/{rule['id']}/publicar")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "success"
+        assert data["errors"] == []
+        assert data["data"]["id"] == rule["id"]
+        assert data["data"]["estado"] == "active"
+        assert data["data"]["version"] == 1
+        assert data["data"]["deprecated_id"] is None
+
+    def test_publish_active_rule_returns_400(self, app_client):
+        """A second publish of the same rule (now active) is rejected with 400."""
+        rule = _create_draft_via_api(app_client, f"Publish Twice {time.time()}")
+
+        first = app_client.post(f"/api/reglas/{rule['id']}/publicar")
+        assert first.status_code == 200
+
+        second = app_client.post(f"/api/reglas/{rule['id']}/publicar")
+        assert second.status_code == 400
+        data = second.get_json()
+        assert data["status"] == "error"
+        assert any("Solo se pueden publicar reglas en estado draft" in e for e in data["errors"])
+
+    def test_publish_without_username_returns_400(self, app_client):
+        """POST /publicar with an authenticated session lacking username returns 400."""
+        rule = _create_draft_via_api(app_client, f"Publish NoUser {time.time()}")
+        # Keep admin permissions but drop username (mirrors session.get("username") None).
+        with app_client.session_transaction() as sess:
+            sess.pop("username", None)
+
+        response = app_client.post(f"/api/reglas/{rule['id']}/publicar")
+
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["status"] == "error"
+        assert any("No se pudo determinar el usuario autenticado" in e for e in data["errors"])

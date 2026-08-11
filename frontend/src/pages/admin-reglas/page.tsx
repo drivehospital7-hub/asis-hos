@@ -5,6 +5,7 @@ declare global {
     Modal?: {
       confirm: (msg: string) => Promise<boolean>;
     };
+    __showConfirm?: (msg: string) => Promise<boolean>;
   }
 }
 import {
@@ -23,6 +24,7 @@ import {
   Play,
   RefreshCw,
   Ban,
+  Pencil,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -37,6 +39,8 @@ import {
   type SimulateResult,
   type EvidenciaItem,
   type AuditItem,
+  type CatalogoListItem,
+  type ReglaRef,
   fetchReglas,
   fetchRegla,
   createRegla,
@@ -44,16 +48,23 @@ import {
   deleteRegla,
   fetchVersiones,
   versionarRegla,
+  publicarRegla,
   fetchExcepciones,
   createExcepcion,
   queryEvidencias,
   queryAuditoria,
   simulateReglas,
+  fetchCatalogos,
+  createCatalogo,
+  updateCatalogo,
+  deleteCatalogo,
+  fetchCatalogoReglas,
 } from "@/lib/api-reglas";
+import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
-type TabId = "lista" | "evidencias" | "simulador";
+type TabId = "lista" | "evidencias" | "simulador" | "catalogos";
 
 interface Tab {
   id: TabId;
@@ -64,46 +75,12 @@ const TABS: Tab[] = [
   { id: "lista", label: "Reglas" },
   { id: "evidencias", label: "Evidencias" },
   { id: "simulador", label: "Simulador" },
+  { id: "catalogos", label: "Catálogos" },
 ];
 
 const DOMINIOS = ["odontologia", "urgencias", "equipos_basicos", "transversal", "farmacia", "intramural", "hospitalizacion", "ambulatoria"];
 const ESTADOS = ["draft", "active", "deprecated", "retired"];
 const SEVERIDADES = ["error", "warning", "info"];
-const OPERADORES_COMPOSITE = ["AND", "OR", "NOT"];
-const OPERADORES_ATOMICOS = ["eq", "gt", "gte", "lt", "lte", "in", "contains", "regex"];
-const FUENTES_DATOS = [
-  "invoice.vlr_subsidiado",
-  "invoice.vlr_procedimiento",
-  "invoice.convenio_facturado",
-  "invoice.codigo",
-  "invoice.cantidad",
-  "invoice.numero_factura",
-  "invoice.tipo_procedimiento",
-  "invoice.centro_costo",
-  "invoice.identificacion",
-  "invoice.edad",
-  "invoice.tipo_identificacion",
-  "invoice.entidad_cobrar",
-  "invoice.factura_count",
-  "invoice.tipo_usuario",
-  "invoice.codigo_entidad_cobrar",
-  "invoice.vlr_copago",
-  "invoice.ide_contrato",
-  "invoice.tarifario",
-  "invoice.fec_nacimiento",
-  "invoice.fec_factura",
-  "invoice.laboratorio",
-  "invoice.tipo_factura_descripcion",
-  "invoice.codigo_equiv",
-  "invoice.codigo_tipo_procedimiento",
-  "invoice.entidad_afiliacion",
-  "invoice.responsable_cierra",
-  "invoice.profesional_atiende",
-  "date.edad",
-  "date.horas",
-  "invoice.distinct_count_tipo_procedimiento",
-  "invoice.sum_cantidad",
-];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
 
@@ -136,7 +113,11 @@ function SeveridadBadge({ severidad }: { severidad: string }) {
 
 // ─── Main component ─────────────────────────────────────────────────
 
-export function AdminReglasPage() {
+interface AdminReglasPageProps {
+  authenticatedUsername?: string;
+}
+
+export function AdminReglasPage({ authenticatedUsername }: AdminReglasPageProps) {
   const [activeTab, setActiveTab] = useState<TabId>("lista");
 
   return (
@@ -166,9 +147,10 @@ export function AdminReglasPage() {
       </div>
 
       {/* Tab panels */}
-      {activeTab === "lista" && <RulesListView />}
+      {activeTab === "lista" && <RulesListView authenticatedUsername={authenticatedUsername} />}
       {activeTab === "evidencias" && <EvidenceDashboard />}
       {activeTab === "simulador" && <SimulatorView />}
+      {activeTab === "catalogos" && <CatalogosListView />}
     </div>
   );
 }
@@ -177,7 +159,11 @@ export function AdminReglasPage() {
 // RULES LIST VIEW
 // ═════════════════════════════════════════════════════════════════════
 
-function RulesListView() {
+interface RulesListViewProps {
+  authenticatedUsername?: string;
+}
+
+function RulesListView({ authenticatedUsername }: RulesListViewProps) {
   const [items, setItems] = useState<Regla[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -261,10 +247,25 @@ function RulesListView() {
     }
   };
 
+  const handlePublicar = async (item: Regla) => {
+    if (!window.__showConfirm) return;
+    const ok = await window.__showConfirm(
+      `¿Publicar la regla "${item.nombre}" (v${item.version})? Si existe una versión activa del mismo lineage, será deprecada automáticamente.`
+    );
+    if (!ok) return;
+    try {
+      await publicarRegla(item.id);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al publicar");
+    }
+  };
+
   if (viewMode === "detail" && selectedRule) {
     return (
-      <RuleDetailForm
-        rule={selectedRule}
+        <RuleDetailForm
+          rule={selectedRule}
+          authenticatedUsername={authenticatedUsername}
         onBack={() => { setViewMode("list"); setSelectedRule(null); }}
         onSaved={() => { setViewMode("list"); setSelectedRule(null); load(); }}
       />
@@ -374,6 +375,11 @@ function RulesListView() {
                       <Button size="sm" variant="secondary" onClick={() => handleVersionar(item)}>
                         <GitBranch className="h-3.5 w-3.5" />
                       </Button>
+                      {item.estado === "draft" && (
+                        <Button size="sm" variant="default" onClick={() => handlePublicar(item)}>
+                          Publicar
+                        </Button>
+                      )}
                       <Button size="sm" variant="secondary" onClick={() => handleViewExceptions(item)}>
                         <Ban className="h-3.5 w-3.5" />
                       </Button>
@@ -490,11 +496,12 @@ function RulesListView() {
 
 interface RuleDetailFormProps {
   rule: Regla;
+  authenticatedUsername?: string;
   onBack: () => void;
   onSaved: () => void;
 }
 
-function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
+function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDetailFormProps) {
   const [nombre, setNombre] = useState(rule.nombre);
   const [descripcion, setDescripcion] = useState(rule.descripcion ?? "");
   const [dominio, setDominio] = useState(rule.dominio);
@@ -505,9 +512,19 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
     rule.parametros ? JSON.stringify(rule.parametros, null, 2) : ""
   );
   const [saving, setSaving] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [changeWhat, setChangeWhat] = useState("");
+  const [changeWhy, setChangeWhy] = useState("");
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [versions, setVersions] = useState<Regla[]>([]);
+  const [catalogOptions, setCatalogOptions] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetchCatalogos()
+      .then((catalogos) => setCatalogOptions(catalogos.map((catalogo) => catalogo.key)))
+      .catch(() => setCatalogOptions([]));
+  }, []);
 
   // Editable condition tree state
   const [tree, setTree] = useState<CondicionTree[]>(() => {
@@ -519,32 +536,13 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   });
 
   const isReadOnly = rule.estado !== "active" && rule.estado !== "draft";
-
-  // ── Tree mutation callbacks ──
-
-  const handleNodeUpdate = useCallback((nodeId: number, field: string, value: unknown) => {
-    setTree((prev) => {
-      const copy: CondicionTree[] = JSON.parse(JSON.stringify(prev));
-      updateNodeInTree(copy, nodeId, field, value);
-      return copy;
-    });
-  }, []);
-
-  const handleAddChild = useCallback((parentId: number) => {
-    setTree((prev) => {
-      const copy: CondicionTree[] = JSON.parse(JSON.stringify(prev));
-      addChildToNode(copy, parentId);
-      return copy;
-    });
-  }, []);
-
-  const handleRemoveNode = useCallback((nodeId: number) => {
-    setTree((prev) => {
-      const copy: CondicionTree[] = JSON.parse(JSON.stringify(prev));
-      removeNodeFromTree(copy, nodeId);
-      return copy;
-    });
-  }, []);
+  const hasRuleChanges =
+    nombre.trim() !== rule.nombre ||
+    (descripcion.trim() || null) !== rule.descripcion ||
+    dominio !== rule.dominio || severidad !== rule.severidad ||
+    Number(prioridad) !== rule.prioridad || activo !== rule.activo ||
+    parametros.trim() !== (rule.parametros ? JSON.stringify(rule.parametros, null, 2) : "") ||
+    JSON.stringify(tree) !== JSON.stringify(rule.condiciones ?? []);
 
   const handleLoadVersions = async () => {
     try {
@@ -556,10 +554,37 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
     }
   };
 
+  const handlePublishDetail = async () => {
+    if (!window.__showConfirm) return;
+    const ok = await window.__showConfirm(
+      `¿Publicar la regla "${rule.nombre}" (v${rule.version})? Si existe una versión activa del mismo lineage, será deprecada automáticamente.`
+    );
+    if (!ok) return;
+    setPublishing(true);
+    setFormError(null);
+    try {
+      await publicarRegla(rule.id);
+      onSaved();
+    } catch (e) {
+      setFormError(e instanceof Error ? e.message : "Error al publicar");
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) {
       setFormError("El nombre no puede estar vacío");
+      return;
+    }
+    if (hasRuleChanges && (!changeWhat.trim() || !changeWhy.trim())) {
+      setFormError("Qué cambió y Por qué son obligatorios para crear una nueva versión");
+      return;
+    }
+    const conditionError = validateConditionTree(tree);
+    if (conditionError) {
+      setFormError(conditionError);
       return;
     }
     // Validate parametros JSON if present
@@ -581,10 +606,11 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
         dominio,
         severidad,
         prioridad: Number(prioridad),
-        activo,
-        condiciones: tree,
-        parametros: parametros.trim() ? JSON.parse(parametros) : null,
-      });
+          activo,
+          condiciones: tree,
+          parametros: parametros.trim() ? JSON.parse(parametros) : null,
+          ...(hasRuleChanges ? { cambio_que: changeWhat.trim(), cambio_por_que: changeWhy.trim() } : {}),
+        });
       onSaved();
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Error al guardar");
@@ -595,7 +621,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
 
   return (
     <>
-      <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
+      <Card className="p-6 border shadow-none overflow-visible" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-3">
             <Button size="sm" variant="secondary" onClick={onBack}>
@@ -615,6 +641,11 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               <GitBranch className="h-3.5 w-3.5 mr-1" />
               Versionar
             </Button>
+            {rule.estado === "draft" && (
+              <Button size="sm" variant="default" disabled={publishing} onClick={handlePublishDetail}>
+                Publicar
+              </Button>
+            )}
           </div>
         </div>
 
@@ -696,6 +727,21 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
           </div>
 
           {!isReadOnly && (
+            <div className="mb-4 rounded-lg border p-4" style={{ borderColor: "oklch(0.55 0.04 160 / 0.15)", background: "oklch(0.98 0.01 160)" }}>
+              <h3 className="text-sm font-semibold mb-3" style={{ color: "oklch(0.25 0.06 160)" }}>Auditoría del cambio</h3>
+              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Qué cambió</label>
+              <textarea value={changeWhat} onChange={(e) => setChangeWhat(e.target.value)} rows={2}
+                className="w-full rounded-lg border px-3 py-2 text-sm mb-3 outline-none" placeholder="Describe los campos o condiciones modificados" />
+              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Por qué</label>
+              <textarea value={changeWhy} onChange={(e) => setChangeWhy(e.target.value)} rows={2}
+                className="w-full rounded-lg border px-3 py-2 text-sm mb-3 outline-none" placeholder="Explica el motivo del cambio" />
+              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Responsable</label>
+              <input value={authenticatedUsername ?? "No disponible"} readOnly disabled
+                className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-100 text-gray-600" />
+            </div>
+          )}
+
+          {!isReadOnly && (
             <div className="flex items-center gap-3 mb-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -736,23 +782,12 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               Árbol de Condiciones
               {!isReadOnly && <span className="text-xs font-normal text-muted-foreground ml-2">(clic para editar)</span>}
             </h3>
-            {tree.length > 0 ? (
-              <div className="rounded-lg border p-4" style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
-                {tree.map((node) => (
-                  <ConditionCondicionTree
-                    key={node.id}
-                    node={node}
-                    depth={0}
-                    readOnly={isReadOnly}
-                    onUpdate={handleNodeUpdate}
-                    onAddChild={handleAddChild}
-                    onRemove={handleRemoveNode}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">Sin condiciones</p>
-            )}
+            <ConditionTreeEditor
+              tree={tree}
+              onChange={setTree}
+              readOnly={isReadOnly}
+              catalogOptions={catalogOptions}
+            />
           </div>
 
           {!isReadOnly && (
@@ -782,183 +817,582 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
 }
 
 // ═════════════════════════════════════════════════════════════════════
-// CONDITION TREE NODE — editable when readOnly=false
+// CATALOGOS LIST VIEW
 // ═════════════════════════════════════════════════════════════════════
 
-interface ConditionCondicionTreeProps {
-  node: CondicionTree;
-  depth: number;
-  readOnly?: boolean;
-  onUpdate?: (nodeId: number, field: string, value: unknown) => void;
-  onAddChild?: (parentId: number) => void;
-  onRemove?: (nodeId: number) => void;
+function DominioBadge({ dominio }: { dominio: string | null }) {
+  if (!dominio) return <span className="text-xs text-muted-foreground">—</span>;
+  const colors: Record<string, string> = {
+    odontologia: "bg-emerald-100 text-emerald-700",
+    urgencias: "bg-red-100 text-red-700",
+    equipos_basicos: "bg-purple-100 text-purple-700",
+    transversal: "bg-amber-100 text-amber-700",
+    farmacia: "bg-cyan-100 text-cyan-700",
+    intramural: "bg-indigo-100 text-indigo-700",
+    hospitalizacion: "bg-pink-100 text-pink-700",
+    ambulatoria: "bg-orange-100 text-orange-700",
+  };
+  const color = colors[dominio] ?? "bg-gray-100 text-gray-600";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
+      {dominio}
+    </span>
+  );
 }
 
-function ConditionCondicionTree({ node, depth, readOnly, onUpdate, onAddChild, onRemove }: ConditionCondicionTreeProps) {
-  const isComposite = node.tipo === "composite" || node.tipo === "AND" || node.tipo === "OR" || node.tipo === "NOT";
-  const indent = depth * 20;
-  const children = node.condiciones ?? [];
+function CountBadge({ count, variant }: { count: number; variant: "rules" | "items" }) {
+  const colors = variant === "rules"
+    ? "bg-blue-100 text-blue-700"
+    : "bg-gray-100 text-gray-600";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors}`}>
+      {count}
+    </span>
+  );
+}
+
+function CatalogosListView() {
+  const [items, setItems] = useState<CatalogoListItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState("");
+
+  const [showCreate, setShowCreate] = useState(false);
+  const [editItem, setEditItem] = useState<CatalogoListItem | null>(null);
+  const [deleteItem, setDeleteItem] = useState<CatalogoListItem | null>(null);
+  const [reglasItem, setReglasItem] = useState<CatalogoListItem | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchCatalogos();
+      setItems(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al cargar catálogos");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const filteredItems = (searchTerm
+    ? items.filter((c) =>
+        c.key.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (c.descripcion ?? "").toLowerCase().includes(searchTerm.toLowerCase())
+      )
+    : items
+  ).sort((a, b) => a.key.localeCompare(b.key));
+
+  if (loading) {
+    return (
+      <Card className="p-8 flex items-center justify-center">
+        <Loader2 className="h-5 w-5 animate-spin mr-2" />
+        <span className="text-sm text-muted-foreground">Cargando catálogos...</span>
+      </Card>
+    );
+  }
+
+  if (error) {
+    return (
+      <Card className="p-6">
+        <p className="text-sm text-danger mb-2">{error}</p>
+        <Button size="sm" onClick={load}>Reintentar</Button>
+      </Card>
+    );
+  }
 
   return (
-    <div className="mb-2" style={{ marginLeft: `${indent}px` }}>
-      <div
-        className="flex items-center gap-2 p-2 rounded-md text-sm"
-        style={{
-          background: isComposite ? "oklch(0.55 0.04 160 / 0.06)" : "white",
-          borderLeft: isComposite ? "3px solid oklch(0.55 0.04 160)" : "3px solid oklch(0.6 0.2 25 / 0.3)",
-        }}
-      >
-        {readOnly ? (
-          // ── READ-ONLY DISPLAY ──
-          isComposite ? (
-            <span className="font-semibold text-xs uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
-              {node.operador ?? node.tipo}
-            </span>
-          ) : (
-            <>
-              <span className="font-medium text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>
-                {node.fuente_datos ?? "?"}
-              </span>
-              <span className="text-xs text-muted-foreground">{node.operador}</span>
-              <span className="text-xs font-mono" style={{ color: "oklch(0.15 0.02 160)" }}>
-                {String(node.valor_esperado ?? "")}
-              </span>
-            </>
-          )
-        ) : (
-          // ── EDIT MODE ──
-          isComposite ? (
-            <>
-              <select
-                value={node.operador ?? "AND"}
-                onChange={(e) => onUpdate?.(node.id, "operador", e.target.value)}
-                className="text-xs font-semibold uppercase border rounded px-2 py-1 outline-none"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.3)" }}
-              >
-                {OPERADORES_COMPOSITE.map((op) => <option key={op} value={op}>{op}</option>)}
-              </select>
-              <button
-                type="button"
-                onClick={() => onAddChild?.(node.id)}
-                className="ml-auto px-2 py-1 text-xs rounded hover:bg-gray-100"
-                style={{ color: "oklch(0.55 0.04 160)" }}
-                title="Agregar hijo"
-              >
-                + Agregar
-              </button>
-            </>
-          ) : (
-            <>
-              <select
-                value={node.fuente_datos ?? ""}
-                onChange={(e) => onUpdate?.(node.id, "fuente_datos", e.target.value)}
-                className="text-xs border rounded px-2 py-1 outline-none min-w-[180px]"
-                style={{ borderColor: "oklch(0.6 0.2 25 / 0.2)" }}
-              >
-                <option value="">-- fuente --</option>
-                {FUENTES_DATOS.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-              <select
-                value={node.operador ?? ""}
-                onChange={(e) => onUpdate?.(node.id, "operador", e.target.value)}
-                className="text-xs border rounded px-2 py-1 outline-none"
-                style={{ borderColor: "oklch(0.6 0.2 25 / 0.2)" }}
-              >
-                <option value="">-- op --</option>
-                {OPERADORES_ATOMICOS.map((op) => <option key={op} value={op}>{op}</option>)}
-              </select>
-              <input
-                type="text"
-                value={String(node.valor_esperado ?? "")}
-                onChange={(e) => onUpdate?.(node.id, "valor_esperado", e.target.value)}
-                className="text-xs font-mono border rounded px-2 py-1 outline-none flex-1 min-w-[100px]"
-                style={{ borderColor: "oklch(0.6 0.2 25 / 0.2)" }}
-                placeholder="valor"
-              />
-              <button
-                type="button"
-                onClick={() => onRemove?.(node.id)}
-                className="p-1 rounded hover:bg-red-50"
-                title="Eliminar"
-                style={{ color: "oklch(0.6 0.2 25)" }}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </>
-          )
-        )}
-      </div>
-
-      {/* Children (only for composite nodes) */}
-      {isComposite && children.length > 0 && (
-        <div className="ml-2 mt-1">
-          {children.map((child) => (
-            <ConditionCondicionTree
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              readOnly={readOnly}
-              onUpdate={onUpdate}
-              onAddChild={onAddChild}
-              onRemove={onRemove}
-            />
-          ))}
+    <>
+      <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
+            Catálogos ({filteredItems.length})
+          </h2>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Nuevo Catálogo
+          </Button>
         </div>
+
+        <div className="flex flex-wrap gap-3 mb-4">
+          <div className="relative flex-1 max-w-xs">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />
+            <input
+              type="text"
+              placeholder="Buscar por key o descripción..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border pl-9 pr-4 py-1.5 text-sm outline-none"
+              style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+            />
+          </div>
+        </div>
+
+        {filteredItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">No hay catálogos</p>
+        ) : (
+          <div className="rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                  <th className="py-3 px-4 text-left">Key</th>
+                  <th className="py-3 px-4 text-left">Descripción</th>
+                  <th className="py-3 px-4 text-left w-28">Dominio</th>
+                  <th className="py-3 px-4 text-left w-28">Valores</th>
+                  <th className="py-3 px-4 text-left w-20">#</th>
+                  <th className="py-3 px-4 text-left w-20">Reglas</th>
+                  <th className="py-3 px-4 text-left w-64">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredItems.map((item) => (
+                  <tr key={item.key} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                    <td className="py-3 px-4 font-medium font-mono text-xs" style={{ color: "oklch(0.15 0.02 160)" }}>
+                      {item.key}
+                    </td>
+                    <td className="py-3 px-4 truncate max-w-[200px]" style={{ color: "oklch(0.55 0.04 160)" }} title={item.descripcion ?? ""}>
+                      {item.descripcion ?? "—"}
+                    </td>
+                    <td className="py-3 px-4"><DominioBadge dominio={item.dominio} /></td>
+                    <td className="py-3 px-4 truncate max-w-[150px] text-xs font-mono" style={{ color: "oklch(0.55 0.04 160)" }} title={JSON.stringify(item.value)}>
+                      {item.value && item.value.length > 0
+                        ? item.value.slice(0, 3).join(", ") + (item.value.length > 3 ? "..." : "")
+                        : "—"}
+                    </td>
+                    <td className="py-3 px-4"><CountBadge count={item.value_count} variant="items" /></td>
+                    <td className="py-3 px-4"><CountBadge count={item.regla_count} variant="rules" /></td>
+                    <td className="py-3 px-4">
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="secondary" onClick={() => setEditItem(item)} title="Editar">
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="secondary" onClick={() => setReglasItem(item)} title="Ver reglas vinculadas">
+                          <Eye className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => setDeleteItem(item)} title="Eliminar">
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
+      {showCreate && (
+        <CatalogoDialog
+          mode="create"
+          onClose={() => setShowCreate(false)}
+          onSaved={() => { setShowCreate(false); load(); }}
+        />
       )}
+
+      {editItem && (
+        <CatalogoDialog
+          mode="edit"
+          catalogKey={editItem.key}
+          initialData={{
+            value: editItem.value ?? [],
+            descripcion: editItem.descripcion ?? "",
+            dominio: editItem.dominio ?? "",
+          }}
+          onClose={() => setEditItem(null)}
+          onSaved={() => { setEditItem(null); load(); }}
+        />
+      )}
+
+      {deleteItem && (
+        <DeleteConfirmDialog
+          catalogKey={deleteItem.key}
+          reglaCount={deleteItem.regla_count}
+          onClose={() => setDeleteItem(null)}
+          onDeleted={() => { setDeleteItem(null); load(); }}
+        />
+      )}
+
+      {reglasItem && (
+        <ReglasVinculadas
+          catalogKey={reglasItem.key}
+          onClose={() => setReglasItem(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// ═════════════════════════════════════════════════════════════════════
+// CATALOGO DIALOG (Create / Edit)
+// ═════════════════════════════════════════════════════════════════════
+
+interface CatalogoDialogProps {
+  mode: "create" | "edit";
+  catalogKey?: string;
+  initialData?: {
+    value: string[];
+    descripcion: string | null;
+    dominio: string | null;
+  };
+  onClose: () => void;
+  onSaved: () => void;
+}
+
+function CatalogoDialog({ mode, catalogKey, initialData, onClose, onSaved }: CatalogoDialogProps) {
+  const isEdit = mode === "edit";
+
+  const [key, setKey] = useState(catalogKey ?? "");
+  const [descripcion, setDescripcion] = useState(initialData?.descripcion ?? "");
+  const [dominio, setDominio] = useState(initialData?.dominio ?? "");
+  const [tags, setTags] = useState<string[]>(initialData?.value ?? []);
+  const [tagInput, setTagInput] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  const handleAddTag = () => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags([...tags, trimmed]);
+    }
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (index: number) => {
+    setTags(tags.filter((_, i) => i !== index));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleAddTag();
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setFormError(null);
+
+    if (!isEdit && !key.trim()) {
+      setFormError("El key es obligatorio");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (isEdit && catalogKey) {
+        await updateCatalogo(catalogKey, {
+          value: tags,
+          descripcion: descripcion.trim() || undefined,
+          dominio: dominio.trim() || undefined,
+        });
+      } else {
+        await createCatalogo({
+          key: key.trim(),
+          value: tags,
+          descripcion: descripcion.trim() || undefined,
+          dominio: dominio.trim() || undefined,
+        });
+      }
+      onSaved();
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-lg mx-4 max-h-[85vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
+            {isEdit ? "Editar Catálogo" : "Nuevo Catálogo"}
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          {formError && (
+            <p className="text-xs mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>{formError}</p>
+          )}
+
+          <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+            Key
+          </label>
+          <input
+            type="text"
+            value={key}
+            onChange={(e) => setKey(e.target.value)}
+            className="w-full rounded-lg border px-4 py-2.5 text-sm mb-3 outline-none"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+            disabled={isEdit}
+            required={!isEdit}
+            placeholder={isEdit ? "Key no modificable" : "ej: profesiones_medicas"}
+          />
+          {isEdit && (
+            <p className="text-xs text-muted-foreground -mt-2 mb-3">El key no se puede modificar después de crear el catálogo.</p>
+          )}
+
+          <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+            Descripción
+          </label>
+          <input
+            type="text"
+            value={descripcion}
+            onChange={(e) => setDescripcion(e.target.value)}
+            className="w-full rounded-lg border px-4 py-2.5 text-sm mb-3 outline-none"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+            placeholder="Descripción opcional"
+          />
+
+          <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+            Dominio
+          </label>
+          <select
+            value={dominio}
+            onChange={(e) => setDominio(e.target.value)}
+            className="w-full rounded-lg border px-4 py-2.5 text-sm mb-3 outline-none"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+          >
+            <option value="">Sin dominio</option>
+            <option value="odontologia">Odontología</option>
+            <option value="urgencias">Urgencias</option>
+            <option value="equipos_basicos">Equipos Básicos</option>
+            <option value="transversal">Transversal</option>
+            <option value="farmacia">Farmacia</option>
+            <option value="intramural">Intramural</option>
+            <option value="hospitalizacion">Hospitalización</option>
+            <option value="ambulatoria">Ambulatoria</option>
+          </select>
+
+          <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
+            Valores (tag array)
+          </label>
+          <div className="flex items-center gap-2 mb-2">
+            <input
+              type="text"
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="flex-1 rounded-lg border px-4 py-2 text-sm outline-none"
+              style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+              placeholder="Escribí un valor y presioná Enter"
+            />
+            <Button type="button" size="sm" variant="secondary" onClick={handleAddTag}>
+              +
+            </Button>
+          </div>
+          <div className="flex flex-wrap gap-2 mb-4 p-3 rounded-lg border min-h-[48px]" style={{ borderColor: "oklch(0.55 0.04 160 / 0.15)" }}>
+            {tags.length === 0 ? (
+              <span className="text-xs text-muted-foreground">Sin valores — agregá elementos con el campo de arriba</span>
+            ) : (
+              tags.map((tag, i) => (
+                <span key={i}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                  {tag}
+                  <button type="button" onClick={() => handleRemoveTag(i)} className="hover:text-red-500">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              ))
+            )}
+          </div>
+
+          <div className="flex gap-2 justify-end mt-4">
+            <Button type="submit" disabled={saving}>
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+              {isEdit ? "Guardar Cambios" : "Crear Catálogo"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
 
-// Counter for temp IDs when adding new nodes
-let _tempNodeId = 1000;
-function nextNodeId(): number {
-  _tempNodeId++;
-  return _tempNodeId;
+// ═════════════════════════════════════════════════════════════════════
+// DELETE CONFIRM DIALOG
+// ═════════════════════════════════════════════════════════════════════
+
+interface DeleteConfirmDialogProps {
+  catalogKey: string;
+  reglaCount: number;
+  onClose: () => void;
+  onDeleted: () => void;
 }
 
-// ── Tree manipulation helpers ──
+function DeleteConfirmDialog({ catalogKey, reglaCount, onClose, onDeleted }: DeleteConfirmDialogProps) {
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [blockingRules, setBlockingRules] = useState<Array<{ regla_id: number; nombre: string; estado: string }> | null>(null);
 
-function updateNodeInTree(nodes: CondicionTree[], nodeId: number, field: string, value: unknown): boolean {
-  for (const n of nodes) {
-    if (n.id === nodeId) {
-      (n as Record<string, unknown>)[field] = value;
-      return true;
+  const handleDelete = async () => {
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteCatalogo(catalogKey);
+      onDeleted();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error al eliminar";
+      if (msg.includes("No se puede eliminar")) {
+        try {
+          const reglas = await fetchCatalogoReglas(catalogKey);
+          setBlockingRules(
+            reglas
+              .filter((r) => r.estado === "active")
+              .map((r) => ({ regla_id: r.id, nombre: r.nombre, estado: r.estado }))
+          );
+        } catch {
+          // ignore secondary error
+        }
+      }
+      setError(msg);
+    } finally {
+      setDeleting(false);
     }
-    if (n.condiciones && updateNodeInTree(n.condiciones, nodeId, field, value)) return true;
-  }
-  return false;
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         onClick={(e) => { if (e.target === e.currentTarget && !deleting) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-md mx-4">
+        <div className="flex items-center gap-3 mb-4">
+          <AlertTriangle className="h-6 w-6 text-amber-500" />
+          <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
+            Eliminar Catálogo
+          </h2>
+        </div>
+
+        <p className="text-sm mb-2">
+          ¿Estás seguro de eliminar el catálogo <strong>{catalogKey}</strong>?
+        </p>
+
+        {reglaCount > 0 && (
+          <div className="p-3 rounded-lg mb-4 text-sm" style={{ backgroundColor: "oklch(0.6 0.2 45 / 0.08)", color: "oklch(0.5 0.2 45)" }}>
+            <AlertTriangle className="h-4 w-4 inline mr-1" />
+            {reglaCount} regla(s) referencian este catálogo. Se permitirá la eliminación solo si no hay reglas activas.
+          </div>
+        )}
+
+        {blockingRules && blockingRules.length > 0 && (
+          <div className="p-3 rounded-lg mb-4 border border-red-200" style={{ backgroundColor: "oklch(0.6 0.2 25 / 0.08)" }}>
+            <p className="text-xs font-semibold text-red-700 mb-2">Reglas activas que bloquean la eliminación:</p>
+            <ul className="text-xs space-y-1">
+              {blockingRules.map((r) => (
+                <li key={r.regla_id} className="text-red-600">
+                  #{r.regla_id} — {r.nombre}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {error && !blockingRules && (
+          <p className="text-xs mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>{error}</p>
+        )}
+
+        <div className="flex gap-2 justify-end">
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleDelete}
+            disabled={deleting || (blockingRules !== null && blockingRules.length > 0)}
+          >
+            {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+            Eliminar
+          </Button>
+          <Button size="sm" variant="secondary" onClick={onClose} disabled={deleting}>Cancelar</Button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
-function removeNodeFromTree(nodes: CondicionTree[], nodeId: number): boolean {
-  for (let i = 0; i < nodes.length; i++) {
-    if (nodes[i].id === nodeId) {
-      nodes.splice(i, 1);
-      return true;
-    }
-    if (nodes[i].condiciones && removeNodeFromTree(nodes[i].condiciones!, nodeId)) return true;
-  }
-  return false;
+// ═════════════════════════════════════════════════════════════════════
+// REGLAS VINCULADAS MODAL
+// ═════════════════════════════════════════════════════════════════════
+
+interface ReglasVinculadasProps {
+  catalogKey: string;
+  onClose: () => void;
 }
 
-function addChildToNode(nodes: CondicionTree[], parentId: number): boolean {
-  for (const n of nodes) {
-    if (n.id === parentId) {
-      if (!n.condiciones) n.condiciones = [];
-      n.condiciones.push({
-        id: nextNodeId(),
-        tipo: "atomic",
-        operador: "eq",
-        fuente_datos: "",
-        valor_esperado: "",
-        regla_id: 0,
-        padre_id: parentId,
-        orden: n.condiciones.length,
-      });
-      return true;
-    }
-    if (n.condiciones && addChildToNode(n.condiciones, parentId)) return true;
-  }
-  return false;
+function ReglasVinculadas({ catalogKey, onClose }: ReglasVinculadasProps) {
+  const [items, setItems] = useState<ReglaRef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      try {
+        const data = await fetchCatalogoReglas(catalogKey);
+        setItems(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Error al cargar reglas");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [catalogKey]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xl mx-4 max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
+            Reglas que referencian <span className="font-mono text-sm">{catalogKey}</span>
+          </h2>
+          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
+            <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="h-5 w-5 animate-spin" />
+          </div>
+        ) : error ? (
+          <p className="text-sm text-danger">{error}</p>
+        ) : items.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-8 text-center">Ninguna regla referencia este catálogo.</p>
+        ) : (
+          <div className="overflow-x-auto rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                  <th className="py-2 px-3 text-left">#</th>
+                  <th className="py-2 px-3 text-left">Nombre</th>
+                  <th className="py-2 px-3 text-left">Dominio</th>
+                  <th className="py-2 px-3 text-left">Estado</th>
+                  <th className="py-2 px-3 text-left">Versión</th>
+                </tr>
+              </thead>
+              <tbody>
+                {items.map((r) => (
+                  <tr key={r.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                    <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{r.id}</td>
+                    <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{r.nombre}</td>
+                    <td className="py-2 px-3"><DominioBadge dominio={r.dominio} /></td>
+                    <td className="py-2 px-3"><EstadoBadge estado={r.estado} /></td>
+                    <td className="py-2 px-3">v{r.version}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -1136,26 +1570,31 @@ function VersionTimeline({ versions, onClose, onVersionar }: VersionTimelineProp
         ) : (
           <div className="space-y-3">
             {versions.map((v) => (
-              <div key={v.id} className="flex items-center justify-between p-3 rounded-lg border"
+              <div key={v.id} className="p-3 rounded-lg border"
                 style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-                <div className="flex items-center gap-3">
-                  <span className="font-semibold text-sm" style={{ color: "oklch(0.15 0.02 160)" }}>
-                    v{v.version}
-                  </span>
-                  <EstadoBadge estado={v.estado} />
-                  {v.creado_en && (
-                    <span className="text-xs text-muted-foreground">
-                      {new Date(v.creado_en).toLocaleDateString("es-CO")}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-sm" style={{ color: "oklch(0.15 0.02 160)" }}>
+                      v{v.version}
                     </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
+                    <EstadoBadge estado={v.estado} />
+                    {v.creado_en && (
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(v.creado_en).toLocaleDateString("es-CO")}
+                      </span>
+                    )}
+                  </div>
                   {v.estado === "active" && (
                     <Button size="sm" variant="default" onClick={() => onVersionar(v.id)}>
                       <GitBranch className="h-3 w-3 mr-1" />
                       Versionar
                     </Button>
                   )}
+                </div>
+                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
+                  <p><strong>Qué cambió:</strong> {v.cambio_que ?? "Información no registrada en esta versión"}</p>
+                  <p><strong>Por qué:</strong> {v.cambio_por_que ?? "Información no registrada en esta versión"}</p>
+                  <p><strong>Responsable:</strong> {v.cambio_responsable ?? "No registrado"}</p>
                 </div>
               </div>
             ))}
