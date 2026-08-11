@@ -32,6 +32,9 @@ class ConditionEvaluator:
 
         Each dict must have: id, padre_id, tipo, operador, fuente_datos, valor_esperado.
         Returns the root node dict with _children key for composites.
+
+        After building, walks the tree and pre-resolves _provider and _evaluator
+        for each node to avoid per-row registry lookups during evaluation.
         """
         if not conditions:
             return None
@@ -60,25 +63,145 @@ class ConditionEvaluator:
         if len(roots) > 1:
             logger.warning("Multiple root conditions found (%d), using first", len(roots))
 
+        # Pre-resolve providers and evaluators for the whole tree
+        self._pre_resolve_tree(roots[0])
+
         return roots[0]
+
+    @staticmethod
+    def _pre_resolve_tree(node: dict) -> None:
+        """Walk the tree depth-first and attach _provider / _evaluator.
+
+        Composite nodes get ``_provider = None`` and ``_evaluator = None``
+        so that cached-node checks never need to fall back to dynamic lookup
+        for composites.
+        """
+        tipo = node.get("tipo", "")
+        if tipo == "atomic":
+            fuente = node.get("fuente_datos", "")
+            node["_provider"] = get_provider(fuente) if fuente else None
+            node["_evaluator"] = get_evaluator(node.get("operador", ""))
+        else:
+            node["_provider"] = None
+            node["_evaluator"] = None
+
+        for child in node.get("_children", []):
+            ConditionEvaluator._pre_resolve_tree(child)
+
+    @staticmethod
+    def tree_uses_field(tree: dict | None, field_name: str) -> bool:
+        """Check if any node in a condition tree references a data-source field.
+
+        Recursively walks atomic and composite nodes, checking ``fuente_datos``
+        against ``field_name``.  Used to determine whether a computed field
+        (e.g. ``date.edad``) needs to be resolved before evaluation.
+
+        Args:
+            tree: Root node dict (from ``build_tree()``) or ``None``.
+            field_name: Data-source field name to search for.
+
+        Returns:
+            ``True`` if any leaf node's ``fuente_datos`` equals ``field_name``.
+        """
+        if tree is None:
+            return False
+        if tree.get("fuente_datos") == field_name:
+            return True
+        for child in tree.get("_children", []):
+            if ConditionEvaluator.tree_uses_field(child, field_name):
+                return True
+        return False
 
     def evaluate(
         self,
         node: dict,
         context: "EvaluationContext",
+        collect_trace: bool = True,
     ) -> dict[str, Any]:
         """Recursively evaluate a condition node against the context.
 
+        Args:
+            node: Condition node dict (from ``build_tree()``).
+            context: Evaluation context with invoice data.
+            collect_trace: If ``True`` (default), build detailed trace dict with
+                per-node outcomes, values, and intermediate results. If ``False``,
+                return only ``{"outcome": bool}`` to reduce overhead when the
+                trace is not persisted (e.g., ``persist=False``).
+
         Returns:
-            dict with keys: outcome (bool), trace (dict), error (str|None).
+            dict with keys: outcome (bool), optionally trace (dict), error (str|None).
         """
         tipo = node.get("tipo", "")
         operador = node.get("operador", "")
+
+        if not collect_trace:
+            # Fast path: no trace dict, no intermediate allocations
+            return self._evaluate_fast(node, context)
 
         if tipo == "composite":
             return self._evaluate_composite(node, context)
         else:
             return self._evaluate_atomic(node, context)
+
+    def _evaluate_fast(
+        self,
+        node: dict,
+        context: "EvaluationContext",
+    ) -> dict[str, Any]:
+        """Fast evaluation path — no trace, no intermediate dict allocations.
+
+        Returns only ``{"outcome": bool}``. Short-circuits composites.
+        """
+        tipo = node.get("tipo", "")
+        if tipo == "composite":
+            operador = (node.get("operador") or "").upper()
+            children = node.get("_children", [])
+
+            if operador == "AND":
+                for child in children:
+                    result = self._evaluate_fast(child, context)
+                    if not result.get("outcome"):
+                        return {"outcome": False}
+                return {"outcome": True}
+
+            elif operador == "OR":
+                for child in children:
+                    result = self._evaluate_fast(child, context)
+                    if result.get("outcome"):
+                        return {"outcome": True}
+                return {"outcome": False}
+
+            elif operador == "NOT":
+                if not children:
+                    return {"outcome": False}
+                result = self._evaluate_fast(children[0], context)
+                return {"outcome": not result.get("outcome")}
+
+            else:
+                logger.warning("Unknown composite operator: %s", operador)
+                return {"outcome": False}
+
+        # Atomic node — prefer cached provider/evaluator (pre-resolved at build time)
+        fuente = node.get("fuente_datos", "")
+        operador = node.get("operador", "")
+        valor_esperado = node.get("valor_esperado")
+
+        provider = node.get("_provider") or (get_provider(fuente) if fuente else None)
+        if provider is None and fuente:
+            return {"outcome": False, "error": f"No provider for data path: {fuente}"}
+
+        row_value = provider.resolve(fuente, context) if provider else None
+
+        evaluator = node.get("_evaluator") or get_evaluator(operador)
+        if evaluator is None:
+            return {"outcome": False, "error": f"Unknown evaluator operator: {operador}"}
+
+        try:
+            outcome = evaluator.evaluate(node, row_value, valor_esperado, context=context)
+        except Exception as exc:
+            return {"outcome": False, "error": str(exc)}
+
+        return {"outcome": outcome}
 
     # ── Private ──────────────────────────────────────────────────────────
 
@@ -211,8 +334,8 @@ class ConditionEvaluator:
         fuente = node.get("fuente_datos", "")
         valor_esperado = node.get("valor_esperado")
 
-        # Resolve the actual value from context
-        provider = get_provider(fuente) if fuente else None
+        # Resolve the actual value from context — prefer cached provider
+        provider = node.get("_provider") or (get_provider(fuente) if fuente else None)
         if provider is None and fuente:
             logger.warning("No provider for data path: %s", fuente)
             return {
@@ -228,8 +351,8 @@ class ConditionEvaluator:
 
         row_value = provider.resolve(fuente, context) if provider else None
 
-        # Look up evaluator
-        evaluator = get_evaluator(operador)
+        # Look up evaluator — prefer cached
+        evaluator = node.get("_evaluator") or get_evaluator(operador)
         if evaluator is None:
             logger.error("Unknown evaluator operator: %s", operador)
             return {

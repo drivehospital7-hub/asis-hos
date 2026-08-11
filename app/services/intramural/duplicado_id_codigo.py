@@ -1,9 +1,8 @@
-"""Detector de duplicados por identificación + código en Intramural.
+"""@deprecated — use engine rules duplicado_id_codigo_05 + duplicado_id_codigo_02_lab instead.
 
-Retorna un error por cada grupo duplicado (identificacion, codigo, dx).
-Dos o más filas con mismo Nº Identificación + Código + Dx Principal se
-consideran duplicado, EXCEPTO cuando el Responsable Cierra Facturar
-es un facturador de urgencias (FACTURADORES_URGENCIAS).
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de duplicados por identificación + código en Intramural.
 """
 
 from __future__ import annotations

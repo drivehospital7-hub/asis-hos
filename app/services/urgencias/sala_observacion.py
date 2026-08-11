@@ -1,6 +1,7 @@
-"""Detector de sala de observación en facturas de Urgencias.
+"""Detector de sala de observación en facturas de Urgencias. — DEPRECATED
 
 Extraído de _detect_centro_costo_urgencias (revision_sheet.py).
+Reemplazado por el motor de reglas (condiciones en DB) y RuleBasedDetector.
 
 Reglas:
 - Estancia en sala de observación según entidad y horas
@@ -14,8 +15,16 @@ Reglas:
 from __future__ import annotations
 
 import logging
+import warnings
 from datetime import datetime
 from typing import Any
+
+warnings.warn(
+    "app.services.urgencias.sala_observacion is deprecated. "
+    "Use RuleBasedDetector and condition trees for sala-obs rules.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 from openpyxl.worksheet.worksheet import Worksheet
 

@@ -28,6 +28,7 @@ interface FacturaItem {
   procedimiento: string;
   detalle: string;
   fecha_cierre_vacia?: boolean;
+  regla?: string;
 }
 
 interface TipoGroup {
@@ -256,6 +257,7 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                               <tr>
                                 <th className="text-left font-medium px-4 py-3">Fec. Factura</th>
                                 <th className="text-left font-medium px-4 py-3">Factura</th>
+                                <th className="text-left font-medium px-4 py-3">Regla</th>
                                 <th className="text-left font-medium px-4 py-3">Responsable cierre</th>
                                 <th className="text-left font-medium px-4 py-3">Descripción</th>
                                 <th className="text-left font-medium px-4 py-3">Procedimiento</th>
@@ -264,22 +266,23 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                             </thead>
                             <tbody className="divide-y divide-border">
                               {tg.facturas.slice(0, 50).map((f: FacturaItem, i: number) => (
-                                <tr
-                                  key={`${f.factura}-${i}`}
-                                  className={cn(
-                                    "hover:bg-muted/30 transition-colors",
-                                    f.fecha_cierre_vacia && "bg-amber-50"
-                                  )}
-                                >
-                                  <td className="px-4 py-3 text-xs text-foreground/80">{f.fec_factura || "-"}</td>
-                                  <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
-                                  <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra || "-"}</td>
-                                  <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
-                                  <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
-                                  <td className="px-4 py-3">
-                                    <StatusBadge tone="warning">{f.detalle || "-"}</StatusBadge>
-                                  </td>
-                                </tr>
+                                  <tr
+                                    key={`${f.factura}-${i}`}
+                                    className={cn(
+                                      "hover:bg-muted/30 transition-colors",
+                                      f.fecha_cierre_vacia && "bg-amber-50"
+                                    )}
+                                  >
+                                    <td className="px-4 py-3 text-xs text-foreground/80">{f.fec_factura || "-"}</td>
+                                    <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
+                                    <td className="px-4 py-3 font-mono text-xs text-foreground/70">{f.regla || "-"}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra || "-"}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
+                                    <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
+                                    <td className="px-4 py-3">
+                                      <StatusBadge tone="warning">{f.detalle || "-"}</StatusBadge>
+                                    </td>
+                                  </tr>
                               ))}
                             </tbody>
                           </table>

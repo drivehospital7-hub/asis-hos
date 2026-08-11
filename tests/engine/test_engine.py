@@ -202,12 +202,12 @@ class TestEvaluateSheetDomain:
         # Mock evaluate_sheet to return per-rule results
         calls_log = []
 
-        def mock_evaluate_sheet(rule_name, ds, inds):
+        def mock_evaluate_sheet(rule_name, data_sheet=None, indices=None, persist=True, rows=None, evidence_collector=None):
             calls_log.append(rule_name)
             if rule_name == "rule_a":
-                return [{"factura": "F001", "problema": "A", "regla": "rule_a", "severidad": "error"}]
+                return [{"factura": "F001", "problema": "A", "regla": "#1", "severidad": "error"}]
             elif rule_name == "rule_b":
-                return [{"factura": "F001", "problema": "B", "regla": "rule_b", "severidad": "warning"}]
+                return [{"factura": "F001", "problema": "B", "regla": "#2", "severidad": "warning"}]
             else:
                 return []
 
@@ -215,8 +215,8 @@ class TestEvaluateSheetDomain:
 
         results = engine.evaluate_sheet_domain("odontologia", ws, indices)
         assert len(results) == 2
-        assert results[0]["regla"] == "rule_a"
-        assert results[1]["regla"] == "rule_b"
+        assert results[0]["regla"] == "#1"
+        assert results[1]["regla"] == "#2"
 
     def test_passes_correct_domain_to_resolver(self):
         """evaluate_sheet_domain passes domain argument to resolver.resolve()."""
@@ -305,7 +305,7 @@ class TestGroupByRouting:
         assert len(results) == 1
         assert results[0]["factura"] == "F001"
         assert "regla" in results[0]
-        assert results[0]["regla"] == "doble_tipo_procedimiento"
+        assert results[0]["regla"] == "#1"
 
     def test_no_group_by_uses_existing_row_by_row(self):
         """Rules without group_by still use the existing row-by-row path."""

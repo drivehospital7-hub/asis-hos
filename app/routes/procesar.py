@@ -167,6 +167,7 @@ def procesar_unificado_api():
             "procedimiento": row.get("procedimiento", ""),
             "detalle": row.get("detalle", ""),
             "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
+            "regla": row.get("regla", ""),
         })
 
     sorted_by_factura = sorted(
@@ -211,6 +212,7 @@ def procesar_unificado_api():
                 "Fec. Factura",
                 "Tipo de error",
                 "Número Factura",
+                "Regla",
                 "Responsable Cierra",
                 "Descripción",
                 "Procedimiento",

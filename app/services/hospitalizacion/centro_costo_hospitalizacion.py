@@ -1,7 +1,9 @@
-"""Detector de problemas de centro de costo para Hospitalización.
+"""@deprecated — use engine rule centro_costo_hospitalizacion_valido instead.
 
-Aplica reglas comunes (1-4, 8, 9) + regla específica de Hospitalización:
-- Hospitalización + Centro=URGENCIAS → Error
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de problemas de centro de costo para Hospitalización.
+Aplica reglas comunes (1-4, 8, 9) + regla específica de Hospitalización.
 """
 
 from __future__ import annotations

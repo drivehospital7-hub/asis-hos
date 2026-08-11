@@ -16,6 +16,7 @@ from app.services.engine.engine import RuleEvaluationEngine
 
 if TYPE_CHECKING:
     from openpyxl.worksheet.worksheet import Worksheet
+    from app.services.engine.evidence_collector import EvidenceCollector
     from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,10 @@ class RuleBasedDetector:
     Usage:
         detector = RuleBasedDetector("valores_decimales", session)
         problems = detector.detect(data_sheet, indices)
+
+    The detector supports two data-paths:
+    - **Worksheet path** (legacy): Pass ``data_sheet`` and ``indices``.
+    - **RowStore path** (fast): Pass ``rows`` (list[dict]) plus ``indices``.
     """
 
     def __init__(self, rule_name: str, session: "Session") -> None:
@@ -42,14 +47,24 @@ class RuleBasedDetector:
 
     def detect(
         self,
-        data_sheet: "Worksheet",
-        indices: dict[str, int | None],
+        data_sheet: "Worksheet | None" = None,
+        indices: dict[str, int | None] | None = None,
+        persist: bool = True,
+        rows: list[dict[str, Any]] | None = None,
+        evidence_collector: "EvidenceCollector | None" = None,
     ) -> list[dict[str, Any]]:
-        """Evaluate the rule against all rows in the Excel sheet.
+        """Evaluate the rule against all rows.
+
+        Supports both Worksheet and RowStore data paths. When ``rows`` is
+        provided, it takes precedence for data access.
 
         Args:
             data_sheet: openpyxl Worksheet with invoice data.
             indices: Column name → 0-based column index mapping.
+            persist: If True (default), record evidence and audit. If False,
+                     skip DB writes — only return detection results.
+            rows: Optional list of dicts (RowStore) for O(1) dict access.
+            evidence_collector: Optional external EvidenceCollector.
 
         Returns:
             List of detection dicts. Same format as legacy detectors.
@@ -59,4 +74,7 @@ class RuleBasedDetector:
             rule_name=self._rule_name,
             data_sheet=data_sheet,
             indices=indices,
+            persist=persist,
+            rows=rows,
+            evidence_collector=evidence_collector,
         )

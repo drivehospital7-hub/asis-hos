@@ -11,11 +11,14 @@ from typing import Any, Callable
 from openpyxl.worksheet.worksheet import Worksheet
 
 from app.constants import AREA_AMBULATORIA
+from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 from app.services.transversales import (
     normalize_invoice,
 )
 from app.services.normalized_rows import build_normalized_rows
 
+# Module-level flag: skip evidence/audit DB writes when testing
+_PERSIST = is_evidence_audit_enabled()
 logger = logging.getLogger(__name__)
 
 
@@ -52,16 +55,107 @@ def detect_all_problems_ambulatoria(
     )
     from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
-    # 1. Detectores transversales
-    decimales = detect_decimales(data_sheet, indices)
-    tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+    # 1. Detectores transversales (con toggle engine)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            decimales = RuleBasedDetector("valores_decimales", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices, persist=_PERSIST)
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices, persist=_PERSIST)
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(data_sheet, indices, persist=_PERSIST)
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(data_sheet, indices, persist=_PERSIST)
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(data_sheet, indices, persist=_PERSIST)
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
+            tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(data_sheet, indices, persist=_PERSIST)
+            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(data_sheet, indices, persist=_PERSIST)
+            tipo_identificacion_entidad = r1 + r2
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
         data_sheet, indices, limit_log=5
     )
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     tipo_usuario = detect_tipo_usuario(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            copago_entidad = RuleBasedDetector("copago_entidad_valido", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}

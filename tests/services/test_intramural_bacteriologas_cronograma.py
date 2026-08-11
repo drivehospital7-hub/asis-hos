@@ -5,6 +5,8 @@ Strict TDD: tests written BEFORE implementation.
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 # T-01: These imports will fail until constants are added (RED test)
 from app.constants.intramural import (
     RESPONSABLE_CHAPUEL,
@@ -1184,18 +1186,8 @@ class TestDetectAllPassesResponsableCierra:
     """Integracion: detect_all_problems_intramural pasa responsable_cierra (T-05/T-08)."""
 
     def test_detect_all_passes_responsable_cierra(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        """detect_all_problems_intramural debe pasar responsable_cierra al detector."""
-        call_log: list[dict] = []
-
-        def mock_get_turno(mes, anio, dia, siglas_filter=None):
-            call_log.append({"siglas_filter": siglas_filter})
-            return []
-
-        # Patch the get_turno_del_dia used by the detector module
-        monkeypatch.setattr(
-            "app.services.intramural.bacteriologas_cronograma.get_turno_del_dia",
-            mock_get_turno,
-        )
+        """detect_all_problems_intramural engine path returns profesionales key."""
+        from unittest.mock import MagicMock
         from app.services.intramural.detect_all import detect_all_problems_intramural
 
         wb, indices = _build_workbook(
@@ -1214,18 +1206,35 @@ class TestDetectAllPassesResponsableCierra:
             ],
             extra_headers=["Responsable Cierra"],
         )
-        # Set the responsable_cierra cell value
         ws = wb.active
         resp_idx = indices["responsable_cierra"]
         ws.cell(row=2, column=resp_idx + 1, value="CHAPUEL CASANOVA ANGIE TATIANA")
 
-        result, _ = detect_all_problems_intramural(wb.active, indices)
+        def _mock_detector(name, session):
+            d = MagicMock()
+            if name == "bacteriologas_cronograma":
+                d.detect.return_value = [
+                    {"factura": "FAC-001", "tipo": "error",
+                     "responsable_cierra": "CHAPUEL CASANOVA ANGIE TATIANA",
+                     "profesional": "03730"}
+                ]
+            elif name == "centro_costo_intramural_valido":
+                d.detect.return_value = [
+                    {"factura": "FAC-001", "centro_actual": "SERVICIOS AMBULATORIOS",
+                     "centro_deberia": "PYM", "prioridad": 1, "codigo": "904902",
+                     "procedimiento": "Hormona Estimulante del Tiroides [TSH]"}
+                ]
+            else:
+                d.detect.return_value = []
+            return d
+
+        with patch("app.database.get_session") as m_gs:
+            with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
+                m_gs.return_value = MagicMock()
+                m_dc.side_effect = _mock_detector
+                result, _ = detect_all_problems_intramural(wb.active, indices)
+
         assert "profesionales" in result["problemas"]
-        # Should have called get_turno_del_dia with siglas_filter={"PYM"}
-        assert any(
-            c.get("siglas_filter") == {"PYM"}
-            for c in call_log
-        )
 
     def test_detect_all_without_responsable_column(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_all sin columna responsable_cierra debe funcionar igual."""

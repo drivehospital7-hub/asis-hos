@@ -2,7 +2,7 @@
 
 from sqlalchemy import (
     Column, Integer, String, Numeric, Text, Boolean,
-    ForeignKey, UniqueConstraint, Table,
+    ForeignKey, Index, UniqueConstraint, Table,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import relationship
@@ -129,6 +129,7 @@ class Regla(Base):
 
     __table_args__ = (
         UniqueConstraint('nombre', 'version', name='uq_regla_nombre_version'),
+        Index('ix_reglas_dominio_estado_activo_prioridad', 'dominio', 'estado', 'activo', 'prioridad'),
     )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -145,6 +146,9 @@ class Regla(Base):
     activo = Column(Boolean, nullable=False, default=True)
     creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
     actualizado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+    cambio_que = Column(Text, nullable=True)
+    cambio_por_que = Column(Text, nullable=True)
+    cambio_responsable = Column(String(100), nullable=True)
 
     # Relationships
     condiciones = relationship("Condicion", back_populates="regla")
@@ -168,6 +172,9 @@ class Regla(Base):
             "activo": self.activo,
             "creado_en": str(self.creado_en) if self.creado_en else None,
             "actualizado_en": str(self.actualizado_en) if self.actualizado_en else None,
+            "cambio_que": self.cambio_que,
+            "cambio_por_que": self.cambio_por_que,
+            "cambio_responsable": self.cambio_responsable,
         }
 
 
@@ -178,6 +185,10 @@ class Condicion(Base):
     tipo: 'composite' (AND/OR/NOT) or 'atomic' (eq, gt, lt, etc.)
     """
     __tablename__ = "condiciones"
+
+    __table_args__ = (
+        Index('ix_condiciones_regla_id', 'regla_id'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
@@ -211,6 +222,10 @@ class Excepcion(Base):
     tipo_efecto: 'skip' (suspende), 'downgrade' (baja severidad), 'override' (modifica params).
     """
     __tablename__ = "excepciones"
+
+    __table_args__ = (
+        Index('ix_excepciones_regla_id_activo', 'regla_id', 'activo'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)

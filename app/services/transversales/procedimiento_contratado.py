@@ -44,7 +44,11 @@ def detect_cups_sin_contrato(
 ) -> list[dict[str, Any]]:
     """Detecta CUPS que no están contratados para la entidad facturadora.
 
-    Para cada fila del Excel, normaliza (strip, upper) el par
+    When USE_RULE_ENGINE=true, delegates to the DB-backed rule engine
+    (CupsContratadoEvaluator via RuleBasedDetector) which implements the
+    full multi-table contractual chain with all exception branches.
+
+    Legacy path (USE_RULE_ENGINE=false): normaliza (strip, upper) el par
     (codigo_entidad_cobrar, codigo) y lo compara contra los pares válidos
     obtenidos de la base de datos.
 
@@ -62,6 +66,28 @@ def detect_cups_sin_contrato(
             entidad, problema.
         Si faltan columnas o la DB no está disponible, retorna [].
     """
+    # ── 0. Delegar al RuleBasedDetector si el motor de reglas está activo ──
+    from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
+    if is_rule_engine_enabled():
+        from app.database import SessionLocal
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        _persist = is_evidence_audit_enabled()
+        try:
+            session = SessionLocal()
+            try:
+                detector = RuleBasedDetector("cups_sin_contrato", session)
+                results = detector.detect(data_sheet, indices, persist=_persist)
+                if _persist:
+                    session.commit()
+                else:
+                    session.rollback()
+                return results
+            finally:
+                session.close()
+        except Exception as exc:
+            logger.exception("Rule engine delegation failed for cups_sin_contrato: %s", exc)
+            return []
+
     # ── 1. Validar columnas requeridas ──────────────────────────────────
     num_fact_idx = indices.get("numero_factura")
     cod_ent_idx = indices.get("codigo_entidad_cobrar")

@@ -1,7 +1,8 @@
-"""Detector de bacteriólogas vs cronograma en facturación Intramural.
+"""@deprecated — use engine rule bacteriologas_cronograma instead.
 
-Valida que facturas Intramural con Tipo=02/05 + Laboratorio=Si tengan una
-bacterióloga programada en el cronograma del día según Fec. Factura.
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de bacteriólogas vs cronograma en facturación Intramural.
 """
 
 from __future__ import annotations

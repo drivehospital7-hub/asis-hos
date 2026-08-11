@@ -347,10 +347,9 @@ class TestCentroCostoEdgeCases:
             condiciones, ws, indices,
         )
 
-        # The in evaluator does exact match; whitespace not stripped
-        # This test documents current behavior — may change with trim evaluator
+        # InEvaluator now strips+uppercases, matching legacy detector behavior
         facturas = _get_facturas_from_results(results)
-        assert "F501" in facturas, "Whitespace causes mismatch with in operator"
+        assert "F501" not in facturas, "Whitespace is now stripped before comparison"
 
 
 # ── Output Format ───────────────────────────────────────────────────────────
@@ -382,5 +381,5 @@ class TestCentroCostoOutputFormat:
         assert "problema" in r
         assert "regla" in r
         assert "severidad" in r
-        assert r["regla"] == "centro_costo_urgencias_valido"
+        assert r["regla"] == "#1"
         assert r["factura"] == "F601"

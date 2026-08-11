@@ -36,6 +36,7 @@ from app.utils.input_data import (
     resolve_safe_excel_absolute,
     resolve_safe_excel_in_input,
 )
+from app.services.engine.row_store import build_row_store
 from app.utils.validators import validate_excel_path
 
 logger = logging.getLogger(__name__)
@@ -301,25 +302,28 @@ def _do_detect_problems(
     headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
 
     indices, missing_columns = get_column_indices(headers, required_headers)
+
+    # Build RowStore (list[dict]) for facts-first evaluation in the engine
+    row_store = build_row_store(rows, indices)
     
     try:
         if area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
-                sheet, indices,
+                sheet, indices, rows=row_store,
             )
         elif area == AREA_EQUIPOS_BASICOS:
             problemas_detectados, responsables_map = detect_all_problems_equipos_basicos(
-                sheet, indices,
+                sheet, indices, rows=row_store,
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros,
             )
         elif area == AREA_UNIFICADA:
             problemas_detectados, responsables_map = process_unified(
-                sheet, indices,
+                sheet, indices, rows=row_store,
             )
         else:
             problemas_detectados, responsables_map = detect_all_problems_odontologia_por_responsable(
-                sheet, indices,
+                sheet, indices, rows=row_store,
                 profesional_dias=profesional_dias,
                 permitir_todos_centros=permitir_todos_centros,
             )

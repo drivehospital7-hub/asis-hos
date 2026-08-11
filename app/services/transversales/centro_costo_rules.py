@@ -1,12 +1,16 @@
-"""Reglas comunes de centro de costo (transversales a todos los tipos de factura).
+"""@deprecated — use engine path via RuleBasedDetector instead.
 
-Aplica reglas 1, 1-REVERSE, 2, 2-REVERSE, 3, 3-REVERSE, 4, 4-REVERSE,
-8, 9, 9-REVERSE y validación de centro de costo inválido.
-Las reglas específicas de cada tipo de factura se aplican en los wrappers.
+This legacy detector is deprecated. The centro_costo rules are now
+implemented as condition trees in the condiciones table, evaluated by
+the rule engine. Use RuleBasedDetector for each domain's centro_costo
+rule instead of calling this function directly.
+
+Deprecated since: Migration Engine 14+15 (condition tree replacement).
 """
 
 from __future__ import annotations
 
+import warnings
 from typing import Any
 
 from app.constants import (
@@ -57,6 +61,13 @@ def apply_common_centro_costo_rules(
         Lista de dicts con keys: factura, tipo_factura, centro_actual,
         centro_deberia, codigo, procedimiento, prioridad, regla
     """
+    warnings.warn(
+        "apply_common_centro_costo_rules is deprecated. "
+        "Use RuleBasedDetector with the engine path instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+
     if not centro_costo_str:
         return []
 

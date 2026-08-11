@@ -5,6 +5,8 @@ Strict TDD: tests written BEFORE implementation.
 
 from __future__ import annotations
 
+from unittest.mock import MagicMock, patch
+
 import pytest
 from openpyxl import Workbook
 
@@ -25,7 +27,25 @@ class TestDetectAllProblemsIntramural:
     """Tests para detect_all_problems_intramural."""
 
     def _run(self, ws, indices):
-        result, _ = detect_all_problems_intramural(ws, indices)
+        with patch("app.services.intramural.detect_all.is_rule_engine_enabled", return_value=False):
+            result, _ = detect_all_problems_intramural(ws, indices)
+        return result
+
+    def _run_with_data(self, ws, indices, revision_data=None):
+        """Helper que corre con engine activo pero mockeado."""
+        def _mock_detector(name, session):
+            d = MagicMock()
+            if name == "revision_cantidad_intramural" and revision_data is not None:
+                d.detect.return_value = revision_data
+            else:
+                d.detect.return_value = []
+            return d
+
+        with patch("app.database.get_session") as m_gs:
+            with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
+                m_gs.return_value = MagicMock()
+                m_dc.side_effect = _mock_detector
+                result, _ = detect_all_problems_intramural(ws, indices)
         return result
 
     def test_retorna_dict_con_key_problemas(self, workbook_minimal: Workbook) -> None:
@@ -81,7 +101,8 @@ class TestDetectAllProblemsIntramural:
             "codigo_tipo_procedimiento": 4,
             "laboratorio": 5,
         }
-        result = self._run(ws, indices)
+        revision_data = [{"factura": "F001", "tipo_error": "⚠️ Revisión Necesaria", "cantidad": 3}]
+        result = self._run_with_data(ws, indices, revision_data=revision_data)
         assert "revision_cantidad" in result["problemas"]
         assert len(result["problemas"]["revision_cantidad"]) == 1
 
@@ -109,7 +130,8 @@ class TestDetectAllProblemsIntramural:
             "codigo_tipo_procedimiento": 4,
             "laboratorio": 5,
         }
-        result = self._run(ws, indices)
+        revision_data = [{"factura": "F001", "tipo_error": "⚠️ Revisión Necesaria", "cantidad": 3}]
+        result = self._run_with_data(ws, indices, revision_data=revision_data)
         assert "revision_cantidad" in result["totales"]
         assert result["totales"]["revision_cantidad"] == 1
 
@@ -137,7 +159,9 @@ class TestDetectAllProblemsIntramural:
             "codigo_tipo_procedimiento": 4,
             "laboratorio": 5,
         }
-        result = self._run(ws, indices)
+        revision_data = [{"factura": "F001", "tipo_error": "⚠️ Revisión Necesaria",
+                          "cantidad": 3, "detalle": "Cant: 3"}]
+        result = self._run_with_data(ws, indices, revision_data=revision_data)
         normalizados = result["problemas"]["normalizados"]
         revision_rows = [
             r for r in normalizados if r["tipo_error"] == "⚠️ Revisión Necesaria"

@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 from openpyxl import Workbook
 
+import app.services.urgencias.detect_all as urgencias_detect_all
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
 
 
@@ -104,3 +105,59 @@ class TestDetectAllProblemsUrgencias:
         norm = result["problemas"]["normalizados"]
         for row in norm:
             assert "fec_factura" in row
+
+    def test_engine_result_without_accion_uses_problema(self, workbook_minimal, monkeypatch):
+        """Engine-style results without accion must remain in Urgencias output."""
+        class FakeSessionManager:
+            def __init__(self, domain):
+                self.domain = domain
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        class FakeEvidenceCollector:
+            def __init__(self, domain):
+                self.domain = domain
+
+        class FakeRuleBasedDetector:
+            def __init__(self, rule_name, session):
+                self.rule_name = rule_name
+
+            def detect(self, *args, **kwargs):
+                if self.rule_name == "cups_equivalentes":
+                    return [{
+                        "factura": "FEV437512",
+                        "codigo": "890201",
+                        "codigo_equiv": "890201",
+                        "problema": "Usar codigo equivalente 890201",
+                    }]
+                return []
+
+        monkeypatch.setattr(urgencias_detect_all, "is_rule_engine_enabled", lambda: True)
+        monkeypatch.setattr(urgencias_detect_all, "_PERSIST", False)
+        monkeypatch.setattr(
+            "app.services.engine.session_manager.SessionManager", FakeSessionManager
+        )
+        monkeypatch.setattr(
+            "app.services.engine.evidence_collector.EvidenceCollector",
+            FakeEvidenceCollector,
+        )
+        monkeypatch.setattr(
+            "app.services.engine.rule_based_detector.RuleBasedDetector",
+            FakeRuleBasedDetector,
+        )
+
+        result, _ = detect_all_problems_urgencias(
+            workbook_minimal.active, {"numero_factura": 0}
+        )
+
+        assert result["problemas"]["cups_equivalentes"] == [{
+            "factura": "FEV437512",
+            "codigo": "890201",
+            "codigo_equiv": "890201",
+            "accion": "Usar codigo equivalente 890201",
+            "responsable": "",
+        }]

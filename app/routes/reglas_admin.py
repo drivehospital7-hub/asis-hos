@@ -47,6 +47,7 @@ def reglas_admin_react():
         entry_css=entry_css,
         initial_data={
             "username": session.get("username", ""),
+            "session_username": session.get("username", ""),
             "permisos": permisos,
         },
     )

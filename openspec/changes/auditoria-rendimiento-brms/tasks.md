@@ -33,19 +33,19 @@ Chain strategy: pending
 
 ## Phase 2: Core Engine Refactor
 
-- [ ] 2.1 RED: Write `test_engine_rows_path.py` — same data, old vs new path → identical output
-- [ ] 2.2 GREEN: Modify `engine.py` — `evaluate_sheet()` accepts `rows: list[dict] | None`, `evidence_collector: EvidenceCollector | None`
-- [ ] 2.3 GREEN: Modify `group_evaluator.py` — `build_groups()` accepts `rows: list[dict]` overload
-- [ ] 2.4 GREEN: Modify `rule_based_detector.py` — `detect()` passes `rows` to engine when available
+- [x] 2.1 RED: Write `test_engine_rows_path.py` — same data, old vs new path → identical output
+- [x] 2.2 GREEN: Modify `engine.py` — `evaluate_sheet()` accepts `rows: list[dict] | None`, `evidence_collector: EvidenceCollector | None`
+- [x] 2.3 GREEN: Modify `group_evaluator.py` — `build_groups()` accepts `rows: list[dict]` overload
+- [x] 2.4 GREEN: Modify `rule_based_detector.py` — `detect()` passes `rows` to engine when available
 
 ## Phase 3: Integration Wiring
 
-- [ ] 3.1 GREEN: Modify `evidence_collector.py` — add `domain` param to `__init__` for logging
-- [ ] 3.2 GREEN: Modify 3× `detect_all.py` — wrap in `SessionManager()`, domain-level `EvidenceCollector`, flush once
-- [ ] 3.3 GREEN: Modify `exporter.py` — build `RowStore` from Polars data, pass to downstream detectors
+- [x] 3.1 GREEN: Modify `evidence_collector.py` — add `domain` param to `__init__` for logging
+- [x] 3.2 GREEN: Modify 3× `detect_all.py` — wrap in `SessionManager()`, domain-level `EvidenceCollector`, flush once
+- [x] 3.3 GREEN: Modify `exporter.py` — build `RowStore` from Polars data, pass to downstream detectors
 
 ## Phase 4: Database Indexes
 
-- [ ] 4.1 GREEN: Modify `models.py` — add `__table_args__` for 3 composite indexes
-- [ ] 4.2 GREEN: Create `migrations/005_add_performance_indexes.sql` — `CREATE INDEX CONCURRENTLY`
+- [x] 4.1 GREEN: Modify `models.py` — add `__table_args__` for 3 composite indexes
+- [x] 4.2 GREEN: Create `migrations/005_add_performance_indexes.sql` — `CREATE INDEX CONCURRENTLY`
 - [ ] 4.3 Verify: Run integration + snapshot tests, check output identical before/after

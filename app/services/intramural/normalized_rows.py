@@ -71,10 +71,31 @@ def build_intramural_normalized_rows(
         for item in tipo_identificacion_edad:
             factura = item.get("factura", "")
             num_id = item.get("numero_identificacion", "")
-            anios = item.get("edad_anios", "")
-            meses = item.get("edad_meses", "")
             tipo_actual = item.get("tipo_actual", "")
             tipo_deberia = item.get("tipo_deberia", "")
+            # Compatibilidad: Python detector ↔ rule engine
+            # Python detector: edad_anios (años), edad_meses (residual %12)
+            # Rule engine:     date.edad (años), date.edad_meses (total, no residual)
+            edad_anios_raw = item.get("edad_anios") if "edad_anios" in item else item.get("date.edad")
+            edad_meses_raw = item.get("edad_meses") if "edad_meses" in item else item.get("date.edad_meses")
+            try:
+                anios = int(edad_anios_raw) if edad_anios_raw is not None else 0
+            except (ValueError, TypeError):
+                anios = 0
+            try:
+                meses_residuales = int(edad_meses_raw) if edad_meses_raw is not None else 0
+                # date.edad_meses es total (ej: 89), necesitamos residual %12
+                meses_residuales %= 12
+            except (ValueError, TypeError):
+                meses_residuales = 0
+            if anios > 0 and meses_residuales > 0:
+                detalle = f"{anios} años {meses_residuales} meses"
+            elif anios > 0:
+                detalle = f"{anios} años"
+            elif meses_residuales > 0:
+                detalle = f"{meses_residuales} meses"
+            else:
+                detalle = ""
             rows.append({
                 "tipo_error": "Tipo Identificación / Edad",
                 "factura": factura,
@@ -82,7 +103,7 @@ def build_intramural_normalized_rows(
                 "responsable_cierra": _get_responsable(factura),
                 "descripcion": f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
                 "procedimiento": num_id,
-                "detalle": f"{anios} años {meses} meses",
+                "detalle": detalle,
             })
 
     # --- Código Entidad vs Afiliación ---

@@ -1,18 +1,8 @@
-"""Detector de problemas de centro de costo para Intramural.
+"""@deprecated — use engine rule centro_costo_intramural_valido instead.
 
-Aplica reglas comunes (1-4, 8, 9) + reglas específicas de Intramural:
-- REGLA3-INTRAMURAL: Código PyP → SERVICIOS AMBULATORIOS- PROMOCION Y PREVENCION
-- REVERSE3-INTRAMURAL: Centro=PyP Intramural → Código en lista PyP
-- REGLA6: Código Tipo Procedimiento=05 + código != 906249PR → SALUD PUBLICA-VACUNACION
-- REVERSE6: Centro=SALUD PUBLICA-VACUNACION → Tipo=05 + código != 906249PR
-- REGLA7: Código Tipo Procedimiento=03 o 04 → SERVICIOS AMBULATORIOS
-- REVERSE7: Centro=SERVICIOS AMBULATORIOS → Tipo=03 o 04
-- REGLA10: Código Tipo Procedimiento=02 o 05 + Lab=Si → LABORATORIO CLINICO
-- REVERSE10: Centro=LABORATORIO CLINICO → Tipo=02 o 05 + Lab=Si
-- REGLA_RESPONSABLE_URGENCIAS: Responsable en FACTURADORES_URGENCIAS + Tipo 01/04 → URGENCIAS o HOSPITALIZACIÓN
+Legacy detector — kept for reference. All new development must use the engine.
 
-Se filtra la REGLA3 común que usa "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
-(centro de Urgencias) y se reemplaza con la regla local de Intramural.
+Detector de problemas de centro de costo para Intramural.
 """
 
 from __future__ import annotations

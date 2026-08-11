@@ -2,6 +2,10 @@
 
 Queries active exceptions for a rule, checks scope conditions against context,
 and returns the applicable effect.
+
+Supports cached-exception pattern: call ``query_exceptions()`` once per rule
+before the row loop, then pass the result to ``apply_exceptions()`` via
+``cached_exc=`` to avoid per-row DB queries.
 """
 
 from __future__ import annotations
@@ -19,39 +23,84 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Type alias: apply_exceptions accepts either a full EvaluationContext
+# or a plain dict (optimization: skip context creation for exception check).
+_ContextOrDict = "EvaluationContext | dict[str, Any]"
+
+
 class ExceptionHandler:
     """Checks for active exceptions that modify or suspend a rule for a scope.
 
     Usage:
         handler = ExceptionHandler()
-        effect, overrides = handler.apply_exceptions(rule, context, session)
-        # effect: 'normal', 'skip', 'override'
-        # overrides: dict of param overrides (only for 'override')
+
+        # Phase 1 (query once before loop):
+        excs = handler.query_exceptions(rule, session)
+
+        # Phase 2 (per row — uses cached list):
+        effect, overrides = handler.apply_exceptions(rule, ctx, session, cached_exc=excs)
+
+        # Legacy (per row — queries DB each time):
+        effect, overrides = handler.apply_exceptions(rule, ctx, session)
     """
 
-    def apply_exceptions(
-        self,
+    @staticmethod
+    def query_exceptions(
         rule: "Regla",
-        context: "EvaluationContext",
         session: "Session",
-    ) -> tuple[str, dict[str, Any] | None]:
-        """Check for active exceptions affecting this rule + context.
+    ) -> list[Excepcion]:
+        """Query all active exceptions for a rule.
+
+        Intended to be called ONCE per rule before the row loop.  The returned
+        list is shared across all rows via ``apply_exceptions(cached_exc=...)``.
 
         Returns:
-            (effect, overrides) where effect is 'normal', 'skip', or 'override'.
-            overrides is None unless effect is 'override'.
+            List of active Excepcion ORM objects (may be empty).
         """
-        exceptions = (
+        return (
             session.query(Excepcion)
             .filter(Excepcion.regla_id == rule.id)
             .filter(Excepcion.activo == True)  # noqa: E712
             .all()
         )
 
+    def apply_exceptions(
+        self,
+        rule: "Regla",
+        context: "EvaluationContext | dict[str, Any]",
+        session: "Session",
+        cached_exc: list[Excepcion] | None = None,
+    ) -> tuple[str, dict[str, Any] | None]:
+        """Check for active exceptions affecting this rule + context.
+
+        Args:
+            rule: The Regla being evaluated.
+            context: Per-row EvaluationContext (with invoice_data) OR a plain
+                row_data dict. When a plain dict is passed, ``_matches_scope``
+                uses it directly as invoice_data — this avoids an unnecessary
+                EvaluationContext creation for the exception check.
+            session: SQLAlchemy session (used only when cached_exc is None).
+            cached_exc: Pre-queried exception list from ``query_exceptions()``.
+                When provided, the DB query is skipped entirely.
+
+        Returns:
+            (effect, overrides) where effect is 'normal', 'skip', or 'override'.
+            overrides is None unless effect is 'override'.
+        """
+        if cached_exc is not None:
+            exceptions = cached_exc
+        else:
+            exceptions = self.query_exceptions(rule, session)
+
         if not exceptions:
             return "normal", None
 
-        invoice_data = context.invoice_data or {}
+        # Accept both EvaluationContext.invoice_data and plain dict
+        invoice_data: dict[str, Any]
+        if isinstance(context, dict):
+            invoice_data = context
+        else:
+            invoice_data = context.invoice_data or {}
 
         for exc in exceptions:
             if self._matches_scope(exc, invoice_data):

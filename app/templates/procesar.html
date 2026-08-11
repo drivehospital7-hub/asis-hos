@@ -154,6 +154,7 @@
           <tr>
             <th>Fec. Factura</th>
             <th>Factura</th>
+            <th>Regla</th>
             <th>Responsable</th>
             <th>Procedimiento</th>
             <th>Descripción</th>
@@ -165,6 +166,7 @@
           <tr class="{% if f.fecha_cierre_vacia %}fecha-cierre-vacia{% endif %}">
             <td>{{ f.fec_factura or '-' }}</td>
             <td>{{ f.factura }}</td>
+            <td><code>{{ f.regla or '-' }}</code></td>
             <td>{{ f.responsable_cierra or '-' }}</td>
             <td>{{ f.procedimiento or '-' }}</td>
             <td>{{ f.descripcion }}</td>

@@ -172,6 +172,23 @@ def _merge_results(
 
 
 # ──────────────────────────────────────────────────────────────────────
+# Helpers para filtrar RowStore en subsets
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _filter_row_store(
+    rows: list[dict[str, Any]], data_row_numbers: list[int]
+) -> list[dict[str, Any]]:
+    """Filtra un RowStore para que solo contenga las filas indicadas.
+
+    ``data_row_numbers`` son números de fila 1-based del sheet original
+    (ej: [2, 5, 7, ...]).  El RowStore tiene índice 0 = fila original 2,
+    índice 1 = fila original 3, etc.
+    """
+    return [rows[r - 2] for r in data_row_numbers if 2 <= r < len(rows) + 2]
+
+
+# ──────────────────────────────────────────────────────────────────────
 # Función pública (reemplazo directo de detect_all_problems_odontologia)
 # ──────────────────────────────────────────────────────────────────────
 
@@ -179,6 +196,7 @@ def _merge_results(
 def detect_all_problems_odontologia_por_responsable(
     data_sheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
     profesional_dias: dict[str, list[int]] | None = None,
     permitir_todos_centros: bool = True,
 ) -> tuple[dict[str, Any], dict[str, str]]:
@@ -208,6 +226,7 @@ def detect_all_problems_odontologia_por_responsable(
         return detect_all_problems_odontologia(
             data_sheet,
             indices,
+            rows=rows,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
@@ -224,6 +243,7 @@ def detect_all_problems_odontologia_por_responsable(
         return detect_all_problems_odontologia(
             data_sheet,
             indices,
+            rows=rows,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
@@ -237,6 +257,7 @@ def detect_all_problems_odontologia_por_responsable(
         return detect_all_problems_odontologia(
             data_sheet,
             indices,
+            rows=rows,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
             centros_validos=["URGENCIAS"],
@@ -251,6 +272,7 @@ def detect_all_problems_odontologia_por_responsable(
         return detect_all_problems_equipos_basicos(
             data_sheet,
             indices,
+            rows=rows,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
@@ -277,6 +299,7 @@ def detect_all_problems_odontologia_por_responsable(
         res_lopez, rmap_lopez = detect_all_problems_odontologia(
             sheet_lopez,
             indices,
+            rows=_filter_row_store(rows, lopez_rows) if rows else None,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )
@@ -291,6 +314,7 @@ def detect_all_problems_odontologia_por_responsable(
         res_urg, rmap_urg = detect_all_problems_odontologia(
             sheet_urg,
             indices,
+            rows=_filter_row_store(rows, urgencias_rows) if rows else None,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
             centros_validos=["URGENCIAS"],
@@ -306,6 +330,7 @@ def detect_all_problems_odontologia_por_responsable(
         res_eb, rmap_eb = detect_all_problems_equipos_basicos(
             sheet_eb,
             indices,
+            rows=_filter_row_store(rows, eb_rows) if rows else None,
             profesional_dias=profesional_dias,
             permitir_todos_centros=permitir_todos_centros,
         )

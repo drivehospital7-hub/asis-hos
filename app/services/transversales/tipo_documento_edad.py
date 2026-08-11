@@ -24,14 +24,14 @@ def detect_tipo_documento_edad(
     """
     Detecta facturas donde el tipo de identificación no coincide con la edad.
     
-    Reglas:
-    - < 7 años: RC (Registro Civil)
-    - 7-17 años: TI (Tarjeta de Identidad)
-    - >= 18 años: CC (Cédula de Ciudadanía)
-    - Extranjeros < 18 años: MS
-    - Extranjeros >= 18 años: AS
+    Solo marca error cuando el tipo es INCOMPATIBLE con la edad:
+    - < 7 años con TI, TE, CC, AS (requieren 7+ o 18+)
+    - 7-17 años con RC, CC, AS, CE (RC es <7, CC/AS/CE requieren 18+)
+    - >= 18 años con RC, TI, TE, MS (son para menores)
     - CN (Certificado de Nacimiento): solo válido si edad < 2 meses
-    - CE (Cédula Extranjería): solo válido si edad > 7 años
+    - CE (Cédula Extranjería): como CC, solo válido si edad >= 18
+    - TE (Tarjeta Extranjería): como TI, válido para 7-17
+    - PT, SC, PE, PAS, NIP, NIT: válidos sin restricción de edad
     
     Returns:
         Lista de dicts con keys: "factura", "tipo_actual", "tipo_deberia", "edad"
@@ -158,17 +158,21 @@ def _parse_date(date_value) -> datetime | None:
 
 
 # Tipos válidos adicionales (no requieren verificación por edad)
-TIPOS_ADICIONALES_VALIDOS = frozenset({"NIP", "NIT", "PAS", "PE", "SC"})
+TIPOS_ADICIONALES_VALIDOS = frozenset({"NIP", "NIT", "PAS", "PE", "SC", "PT"})
 
 def _determinar_tipo_correcto(
     tipo_id_str: str,
     edad: int,
     edad_meses: int,
 ) -> str | None:
-    """Determina el tipo de documento correcto según la edad."""
+    """Determina el tipo de documento correcto según la edad.
+    
+    Retorna el tipo que DEBERÍA tener según su edad, o None si el tipo
+    actual no tiene restricción de edad (PT, SC, etc.).
+    """
     tipo_correcto: str | None = None
     
-    # Tipos adicionales válidos (solo verificar que existan, sin validar edad)
+    # Tipos adicionales válidos (sin restricción de edad)
     if tipo_id_str in TIPOS_ADICIONALES_VALIDOS:
         return tipo_id_str  # Aceptar tal cual
     
@@ -188,9 +192,15 @@ def _determinar_tipo_correcto(
         # CN solo válido si edad < 2 meses
         if edad_meses >= 2:
             tipo_correcto = "ERROR"  # CN no válido para >= 2 meses
+    elif tipo_id_str == "TE":
+        # TE es como TI: válido para 7-17
+        if edad < 7:
+            tipo_correcto = "RC"  # Debería tener RC
+        elif edad >= 18:
+            tipo_correcto = "CC"  # Debería tener CC
     elif tipo_id_str == "CE":
-        # CE solo válido si edad > 7 años
-        if edad <= 7:
-            tipo_correcto = "ERROR"  # CE no válido para <= 7 años
+        # CE es como CC: válido solo para >= 18
+        if edad < 18:
+            tipo_correcto = "ERROR"  # CE no válido para < 18
     
     return tipo_correcto

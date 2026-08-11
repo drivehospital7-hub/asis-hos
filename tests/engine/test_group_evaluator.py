@@ -542,6 +542,123 @@ class TestGroupEvaluatorEvaluate:
         facturas_in_evidence = {e.factura for e in collector._buffer}
         assert "F001" in facturas_in_evidence
 
+    def test_evaluate_compute_horas_gt_24h(self):
+        """compute_horas with gt(24) — only groups >24h are detected."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+        from datetime import datetime
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="NUMERO_FACTURA")
+        ws.cell(row=1, column=2, value="FECHA_INICIO")
+        ws.cell(row=1, column=3, value="FECHA_FIN")
+        # F001: 6 hours → NO_MATCH
+        ws.cell(row=2, column=1, value="F001")
+        ws.cell(row=2, column=2, value=datetime(2024, 1, 15, 8, 0, 0))
+        ws.cell(row=2, column=3, value=datetime(2024, 1, 15, 14, 0, 0))
+        # F002: 51 hours → MATCH
+        ws.cell(row=3, column=1, value="F002")
+        ws.cell(row=3, column=2, value=datetime(2024, 1, 15, 8, 0, 0))
+        ws.cell(row=3, column=3, value=datetime(2024, 1, 17, 11, 0, 0))
+
+        indices = {"numero_factura": 0, "fecha_inicio": 1, "fecha_fin": 2}
+        groups = GroupEvaluator.build_groups(ws, indices)
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "estancia_horas",
+        }]
+
+        condition_tree = {
+            "id": 1, "padre_id": None, "tipo": "atomic", "operador": "gt",
+            "fuente_datos": "invoice.estancia_horas",
+            "valor_esperado": "24", "orden": 0,
+        }
+        evaluator = self._build_condition_evaluator()
+        tree = evaluator.build_tree([condition_tree])
+
+        collector = self._build_evidence_collector()
+        rule_info = {
+            "id": 3, "version": 1, "dominio": "hospitalizacion",
+            "nombre": "estancia_mayor_24h",
+            "descripcion": "Factura con estancia mayor a 24 horas",
+            "severidad": "error",
+        }
+
+        results = GroupEvaluator.evaluate(
+            groups, ws, indices, agg_configs,
+            tree, evaluator, rule_info, collector,
+        )
+
+        assert len(results) == 1
+        assert results[0]["factura"] == "F002"
+        assert "estancia" in results[0]["problema"].lower()
+
+    def test_evaluate_compute_horas_multiple_agg_configs(self):
+        """compute_horas alongside other aggs in the same evaluate call."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+        from datetime import datetime
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="NUMERO_FACTURA")
+        ws.cell(row=1, column=2, value="FECHA_INICIO")
+        ws.cell(row=1, column=3, value="FECHA_FIN")
+        ws.cell(row=1, column=4, value="TIPO_PROCEDIMIENTO")
+        # Single group with estancia=6h, 2 distinct tipos → MATCH for doble_tipo
+        ws.cell(row=2, column=1, value="F001")
+        ws.cell(row=2, column=2, value=datetime(2024, 1, 15, 8, 0, 0))
+        ws.cell(row=2, column=3, value=datetime(2024, 1, 15, 14, 0, 0))
+        ws.cell(row=2, column=4, value="A")
+        ws.cell(row=3, column=1, value="F001")
+        ws.cell(row=3, column=2, value=datetime(2024, 1, 15, 8, 0, 0))
+        ws.cell(row=3, column=3, value=datetime(2024, 1, 15, 14, 0, 0))
+        ws.cell(row=3, column=4, value="B")
+
+        indices = {
+            "numero_factura": 0, "fecha_inicio": 1,
+            "fecha_fin": 2, "tipo_procedimiento": 3,
+        }
+        groups = GroupEvaluator.build_groups(ws, indices)
+        agg_configs = [
+            {
+                "function": "compute_horas",
+                "field1": "fecha_inicio",
+                "field2": "fecha_fin",
+                "target": "estancia_horas",
+            },
+            {
+                "function": "distinct_count",
+                "field": "tipo_procedimiento",
+                "target": "dc_tipo",
+            },
+        ]
+
+        # Condition: gt(estancia_horas, 4) — 6h > 4h → MATCH
+        condition_tree = {
+            "id": 1, "padre_id": None, "tipo": "atomic", "operador": "gt",
+            "fuente_datos": "invoice.estancia_horas",
+            "valor_esperado": "4", "orden": 0,
+        }
+        evaluator = self._build_condition_evaluator()
+        tree = evaluator.build_tree([condition_tree])
+
+        collector = self._build_evidence_collector()
+        rule_info = {
+            "id": 4, "version": 1, "dominio": "hospitalizacion",
+            "nombre": "estancia_check", "descripcion": "Verificacion estancia",
+            "severidad": "warning",
+        }
+
+        results = GroupEvaluator.evaluate(
+            groups, ws, indices, agg_configs,
+            tree, evaluator, rule_info, collector,
+        )
+
+        assert len(results) == 1
+        assert results[0]["factura"] == "F001"
+
 
 class TestCollectSetAggregation:
     """Integration tests for collect_set aggregation.
@@ -717,3 +834,184 @@ class TestCollectValueCountsAggregation:
         assert len(result) == 1
         assert result[0]["codigo"] == "A"
         assert result[0]["count"] == 2
+
+
+class TestComputeHorasAggregation:
+    """Unit tests for compute_horas aggregation function.
+
+    compute_horas computes absolute hours between two datetime fields,
+    taking the first non-None pair in the group.
+    """
+
+    def test_compute_horas_same_day(self):
+        """Same day, 6 hour difference → returns 6.0."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        ws.cell(row=2, column=1, value="2024-01-15 08:00:00")
+        ws.cell(row=2, column=2, value="2024-01-15 14:00:00")
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "estancia_horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert group_data["estancia_horas"] == 6.0
+
+    def test_compute_horas_multi_day(self):
+        """Multi-day difference → returns correct hours."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        # 2 days and 3 hours = 51 hours
+        ws.cell(row=2, column=1, value="2024-01-15 08:00:00")
+        ws.cell(row=2, column=2, value="2024-01-17 11:00:00")
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert group_data["horas"] == 51.0
+
+    def test_compute_horas_inverted_order(self):
+        """Inverted dates where field1 > field2 → returns absolute value."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        # field1 is AFTER field2 → should still return 6 hours (abs)
+        ws.cell(row=2, column=1, value="2024-01-15 14:00:00")
+        ws.cell(row=2, column=2, value="2024-01-15 08:00:00")
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert group_data["horas"] == 6.0
+
+    def test_compute_horas_skips_none(self):
+        """None values in a row are skipped; takes first valid pair."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        # Row 2: None fecha_fin → skip
+        ws.cell(row=2, column=1, value="2024-01-15 08:00:00")
+        ws.cell(row=2, column=2, value=None)
+        # Row 3: valid pair
+        ws.cell(row=3, column=1, value="2024-01-15 10:00:00")
+        ws.cell(row=3, column=2, value="2024-01-15 16:00:00")
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2, 3], ws, indices, agg_configs
+        )
+
+        assert group_data["horas"] == 6.0
+
+    def test_compute_horas_returns_float(self):
+        """Return type is always float."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        ws.cell(row=2, column=1, value="2024-01-15 08:00:00")
+        ws.cell(row=2, column=2, value="2024-01-15 09:30:00")
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert isinstance(group_data["horas"], float)
+        assert group_data["horas"] == 1.5
+
+    def test_compute_horas_missing_column(self):
+        """Missing column index → returns 0.0, no crash."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=2, column=1, value="2024-01-15 08:00:00")
+
+        indices = {"fecha_inicio": 0}  # fecha_fin missing
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert group_data["horas"] == 0.0
+
+    def test_compute_horas_all_none(self):
+        """All rows have None values → returns 0.0."""
+        from app.services.engine.group_evaluator import GroupEvaluator
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="FECHA_INICIO")
+        ws.cell(row=1, column=2, value="FECHA_FIN")
+        ws.cell(row=2, column=1, value=None)
+        ws.cell(row=2, column=2, value=None)
+
+        indices = {"fecha_inicio": 0, "fecha_fin": 1}
+        agg_configs = [{
+            "function": "compute_horas",
+            "field1": "fecha_inicio",
+            "field2": "fecha_fin",
+            "target": "horas",
+        }]
+        group_data = GroupEvaluator._build_group_data(
+            "F001", [2], ws, indices, agg_configs
+        )
+
+        assert group_data["horas"] == 0.0

@@ -406,3 +406,149 @@ class TestCupsSinContrato:
         )
         facturas = _get_facturas_from_results(results)
         assert "FX01" in facturas, "Contains '{' should match '{CODE}' text"
+
+
+# ── Integration: cups_contratado evaluator via condition tree ─────────────
+
+class TestCupsContratadoIntegration:
+    """Engine integration: cups_contratado evaluator via full condition tree.
+
+    Tests the complete path: condition tree → ConditionEvaluator →
+    CupsContratadoEvaluator with pre-loaded cache data.
+    """
+
+    def _make_cups_contratado_conditions(self):
+        """Build the NOT(cups_contratado) condition tree as the seed SQL produces."""
+        return [
+            {
+                "id": 1, "padre_id": None,
+                "tipo": "composite", "operador": "NOT", "orden": 0,
+            },
+            {
+                "id": 2, "padre_id": 1,
+                "tipo": "atomic", "operador": "cups_contratado",
+                "fuente_datos": "invoice.codigo",
+                "valor_esperado": None,
+                "orden": 0,
+            },
+        ]
+
+    def test_registered_in_builtins(self):
+        """cups_contratado evaluator is registered in the global registry."""
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        assert "cups_contratado" in EVALUATOR_REGISTRY
+        assert EVALUATOR_REGISTRY["cups_contratado"].operator == "cups_contratado"
+
+    def test_condition_tree_routes_to_cups_contratado_evaluator(self):
+        """ConditionEvaluator correctly routes cups_contratado to the evaluator."""
+        from app.services.engine.condition_evaluator import ConditionEvaluator
+        from app.services.engine.context import EvaluationContext
+
+        condiciones = self._make_cups_contratado_conditions()
+        evaluator = ConditionEvaluator()
+        tree = evaluator.build_tree(condiciones)
+        assert tree is not None
+
+        # Set up evaluator cache manually so it can evaluate without DB
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        cc_eval = EVALUATOR_REGISTRY["cups_contratado"]
+        cc_eval._loaded = True
+        cc_eval._pares_validos = {("ESS118", "CUPS001")}
+        cc_eval._entidades_con_datos = {"ESS118"}
+
+        ctx = EvaluationContext(invoice_data={
+            "codigo": "CUPS001",
+            "codigo_entidad_cobrar": "ESS118",
+            "numero_factura": "F001",
+        })
+        result = evaluator.evaluate(tree, ctx)
+        # NOT(cups_contratado) → cups_contratado("CUPS001") for ESS118 → True → NOT(True) → False → no match
+        assert result["outcome"] is False, "Contracted CUPS with NOT → no match"
+
+    def test_not_contracted_via_condition_tree(self):
+        """NOT(cups_contratado) detects non-contracted CUPS."""
+        from app.services.engine.condition_evaluator import ConditionEvaluator
+        from app.services.engine.context import EvaluationContext
+
+        condiciones = self._make_cups_contratado_conditions()
+        evaluator = ConditionEvaluator()
+        tree = evaluator.build_tree(condiciones)
+
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        cc_eval = EVALUATOR_REGISTRY["cups_contratado"]
+        cc_eval._loaded = True
+        cc_eval._pares_validos = {("ESS118", "CUPS001")}
+        cc_eval._entidades_con_datos = {"ESS118"}
+
+        ctx = EvaluationContext(invoice_data={
+            "codigo": "CUPS999",
+            "codigo_entidad_cobrar": "ESS118",
+            "numero_factura": "F002",
+        })
+        result = evaluator.evaluate(tree, ctx)
+        # NOT(cups_contratado) → cups_contratado("CUPS999") → False → NOT(False) → True → MATCH
+        assert result["outcome"] is True, "Non-contracted CUPS with NOT → MATCH"
+
+    def test_full_detector_flow_not_contracted(self):
+        """Full RuleBasedDetector flow with cups_contratado condition tree."""
+        condiciones = self._make_cups_contratado_conditions()
+
+        wb = Workbook()
+        ws = wb.active
+        ws.cell(row=1, column=1, value="NUMERO_FACTURA")
+        ws.cell(row=1, column=2, value="CODIGO")
+        ws.cell(row=1, column=3, value="CODIGO_ENTIDAD_COBRAR")
+        ws.cell(row=2, column=1, value="F100")
+        ws.cell(row=2, column=2, value="CUPS999")
+        ws.cell(row=2, column=3, value="ESS118")
+
+        indices = _build_indices("numero_factura", "codigo", "codigo_entidad_cobrar")
+
+        session = self._make_session_with_rule(condiciones)
+
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        detector = RuleBasedDetector("cups_sin_contrato", session)
+
+        # Pre-load evaluator cache before calling detect()
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        cc_eval = EVALUATOR_REGISTRY["cups_contratado"]
+        cc_eval._loaded = True
+        cc_eval._pares_validos = {("ESS118", "CUPS001")}
+        cc_eval._entidades_con_datos = {"ESS118"}
+
+        results = detector.detect(ws, indices)
+        facturas = _get_facturas_from_results(results)
+        assert "F100" in facturas, "CUPS999 not contracted → should be detected"
+
+    def _make_session_with_rule(self, condiciones_dicts: list[dict], rule_id: int = 1):
+        """Create a mock session with rule + conditions for cups_sin_contrato."""
+        from app.models import Regla
+        session = MagicMock()
+        mock_query = MagicMock()
+        mock_query.filter.return_value = mock_query
+        mock_query.order_by.return_value = mock_query
+
+        regla = Regla(
+            id=rule_id, nombre="cups_sin_contrato", dominio="transversal",
+            estado="active", version=1, prioridad=35, severidad="error",
+            descripcion="CUPS no contratado para la entidad facturadora",
+        )
+        mock_query.first.return_value = regla
+
+        from unittest.mock import MagicMock as Mock
+        cond_mocks = []
+        for cd in condiciones_dicts:
+            m = MagicMock()
+            m.id = cd["id"]
+            m.regla_id = cd.get("regla_id", rule_id)
+            m.padre_id = cd["padre_id"]
+            m.tipo = cd["tipo"]
+            m.operador = cd.get("operador")
+            m.fuente_datos = cd.get("fuente_datos")
+            m.valor_esperado = cd.get("valor_esperado")
+            m.orden = cd.get("orden", 0)
+            cond_mocks.append(m)
+
+        mock_query.all.return_value = cond_mocks
+        session.query.return_value = mock_query
+        return session

@@ -67,25 +67,52 @@ Rules MUST have a version (integer, auto-incremented on modification). States SH
 | **No-op update** | PUT with same data as current | `PUT /api/reglas/1` | no new version created, old stays active |
 | **Rollback** | DB error after deprecating old | `PUT /api/reglas/1` | old rule remains active, no orphan version created |
 
-### R6: Legacy Pipeline Wrapper
+### R6: Legacy Pipeline Wrapper — Pure-Legacy Toggle
 
 A `RuleBasedDetector` wrapper MUST implement the same callable interface as existing Python detectors: `(row: dict) → list[dict]`. `detect_all.py` orchestrators SHALL delegate to this wrapper for migrated detectors. The output format MUST be identical to legacy detectors.
+
+For the 9 pure-legacy detectors below, the `detect_all.py` orchestrators MUST wrap each with `if is_rule_engine_enabled():` — same pattern as already-migrated detectors. When the flag is `true`, the engine variant runs via `RuleBasedDetector`; when `false`, the legacy function runs unconditionally.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | Same interface | legacy detector `detectar_decimales(row)` returns `[{problema, valor}]` | call `RuleBasedDetector("decimales").detect(row)` | identical list-of-dicts output |
 | Unmigrated detector unchanged | "duplicados" still uses Python code | `detect_all.py` runs | legacy function called directly, no wrapper |
 | Migration toggle | feature flag `USE_RULE_ENGINE=true` | `detect_all.py` runs | migrated detectors use `RuleBasedDetector` |
+| Toggle wraps detector | `USE_RULE_ENGINE=true` | `detect_all.py` runs for any of the 9 detectors | `RuleBasedDetector(rule, session)` called inside `if is_rule_engine_enabled()` |
 
-### R7: Feature Flag Rollback
+| Domain | File | Detector | Engine Rule | Required |
+|--------|------|----------|-------------|----------|
+| urgencias | `urgencias/detect_all.py` | `decimales` | `valores_decimales` | Add `if is_rule_engine_enabled()` |
+| equipos_basicos | `equipos_basicos/detect_all.py` | `decimales` | `valores_decimales` | Add `if is_rule_engine_enabled()` |
+| equipos_basicos | `equipos_basicos/detect_all.py` | `ruta_duplicada` | `ruta_duplicada` | Add `if is_rule_engine_enabled()` |
+| equipos_basicos | `equipos_basicos/detect_all.py` | `cantidades_anomalas` | `cantidades_anomalas` | Add `if is_rule_engine_enabled()` |
+| equipos_basicos | `equipos_basicos/detect_all.py` | `ide_contrato` | `ide_contrato_equipos_basicos_valido` | Add `if is_rule_engine_enabled()` |
+| hospitalizacion | `hospitalizacion/detect_all.py` | `ide_contrato` | `ide_contrato_hospitalizacion_valido` | Add `if is_rule_engine_enabled()` |
+| hospitalizacion | `hospitalizacion/detect_all.py` | `profesionales` | `profesional_hospitalizacion_valido` | Add `if is_rule_engine_enabled()` |
+| urgencias | `urgencias/detect_all.py` | `revision_cantidad` | `revision_cantidad_urgencias_valido` | Add `if is_rule_engine_enabled()` |
+| unified_processor | `unified_processor.py` | `cups_equivalentes_transversal` | `cups_equivalentes_transversal` | Add `if is_rule_engine_enabled()` |
+
+### R7: Feature Flag Rollback — Else Clauses
 
 A configuration flag `USE_RULE_ENGINE` (boolean) MUST control whether migrated detectors use the engine. When `false`, ALL detectors revert to legacy Python code. The flag SHALL be settable via environment variable or config file without redeployment.
+
+Six variables that receive engine results in `detect_all.py` MUST have an `else: var = []` clause. When `is_rule_engine_enabled()` is `False`, the variable SHALL be initialized to an empty list to avoid `NameError`.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | Engine on | `USE_RULE_ENGINE=true` | process file | 2-3 migrated detectors use DB-backed engine |
 | Engine off | `USE_RULE_ENGINE=false` | process file | ALL detectors use legacy Python code |
 | Flag change runtime | flag changed via env var | next `/procesar` request | new flag value respected without server restart |
+| Else clause fallback | `USE_RULE_ENGINE=false`, variable has no legacy assignment path | `detect_all.py` runs | variable initialized to `[]` via `else: var = []`, no `NameError` |
+
+| Domain | Variable | File | Required |
+|--------|----------|------|----------|
+| equipos_basicos | `doble_tipo` | `equipos_basicos/detect_all.py` | Add `else: doble_tipo = []` |
+| equipos_basicos | `centro_costo` | `equipos_basicos/detect_all.py` | Add `else: centro_costo = []` |
+| hospitalizacion | `decimales` | `hospitalizacion/detect_all.py` | Add `else: decimales = []` |
+| hospitalizacion | `tipo_identificacion_edad` | `hospitalizacion/detect_all.py` | Add `else: tipo_identificacion_edad = []` |
+| hospitalizacion | `cantidades_hospitalizacion` | `hospitalizacion/detect_all.py` | Add `else: cantidades_hospitalizacion = []` |
+| hospitalizacion | `cantidades_soat_hospitalizacion` | `hospitalizacion/detect_all.py` | Add `else: cantidades_soat_hospitalizacion = []` |
 
 ### R8: Catalog Provider (Phase 2)
 
@@ -127,25 +154,31 @@ The engine MUST provide `age_from_dates(fecha_nac, fecha_ref)` returning integer
 | Before birthday | fecha_nac="2000-12-01", fecha_ref="2024-06-15" | age_from_dates | returns 23 |
 | Invalid date | fecha_nac="not-a-date" | age_from_dates | returns ERROR, logged, does NOT crash |
 
-### R12: Hours Diff Evaluator (Phase 5)
+### R12: Hours Diff Evaluator (Group-Level)
 
-The engine MUST provide `hours_diff(fecha1, fecha2)` returning hours as float. The function SHALL support date and datetime inputs, always returning positive difference (absolute value).
+The engine MUST provide `hours_diff(fecha1, fecha2)` returning hours as float. The function SHALL support date and datetime inputs, always returning positive difference (absolute value). As group aggregation, operates on the first row of the group (estancia invariant per invoice). (Previous: standalone only)
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | Same day | fecha1="2024-01-15 08:00", fecha2="2024-01-15 14:30" | hours_diff | returns 6.5 |
 | Multi-day | fecha1="2024-01-15", fecha2="2024-01-17" | hours_diff | returns 48.0 |
 | Reversed order | fecha1 > fecha2 | hours_diff | returns absolute value, same as if ordered |
+| Group agg | agg_configs target="estancia_horas" | compute_horas(first row) | diff correcta |
 
-### R13: Group-By Evaluator (Phase 6)
+### R13: Group-By Evaluator (Extended)
 
 The engine SHALL provide a `GroupEvaluator` that pre-scans sheet data, groups rows by a key field, then evaluates rules on each group. It MUST support `group_by(field, function, threshold)` patterns. The motivating case: detect when a factura has more than one distinct `tipo_procedimiento`.
+
+The evaluator SHALL also support: `compute_horas(f1,f2)` → |f1-f2| in hours, `collect_set(field)` → set of distinct values, `set_contains_all(expr,vals)` and `set_intersects(expr,vals)`. (Previous: only distinct_count)
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | Distinct count | factura "F001" has rows with tipo_procedimiento=["02","03","02"] | group_by("factura", distinct_count("tipo_procedimiento"), gt(1)) | result: MATCH (2 distinct values) |
 | Single type | factura "F002" has all rows with tipo_procedimiento="02" | same rule | result: NO_MATCH |
 | Empty group | factura "F003" has 0 rows in filtered data | group evaluation | group skipped, no error |
+| compute_horas | fec_factura=A, fecha_cierre=A+24h | first row agg | 24.0 |
+| set_contains_all | codigos=["A","B"], required=["A","B"] | evaluate | MATCH |
+| set_intersects | codigos=["A","X"], prohibited=["X"] | evaluate | MATCH |
 
 ### R14: regex_extract Operator (Phase 7)
 
@@ -169,6 +202,76 @@ The engine MUST provide `exists_in_db(table, field, value)` that checks if a val
 
 ---
 
+### R16: Hospitalización Codes — Group Rule
+
+Reemplaza `detect_hospitalizacion_codes()`: (a) códigos obligatorios faltantes por estancia+tarifario, (b) códigos prohibidos. `group_by=numero_factura`, `filter=Hospitalización`, `collect_set` + set ops.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Obligatorio falta | factura >48h sin código quirúrgico | rule a | MATCH |
+| Prohibido presente | código prohibido en grupo | rule b | MATCH |
+| Sin problemas | todos los códigos OK | ambas reglas | NO_MATCH |
+
+### R17: IDE Contrato Intramural — Row-Level Evaluators
+
+Reemplaza `detect_ide_contrato_intramural()`: (a) ~800 mappings desde DB catalogos key `ide_simple_rules` via IdeContratoSimpleEvaluator, (b) pym_rutas_dx via PymRutasDxEvaluator, (c) solo_laboratorio_envio (pre-scan cacheado). Evaluadores row-level, no group.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| IDE match | entidad+regimen en catalogos | IdeContratoSimpleEvaluator | MATCH |
+| Solo lab | solo códigos LAB sin clínicos | PymRutasDxEvaluator pre-scan | MATCH |
+| Sin mapping | no existe en catalogos | check | NO_MATCH |
+
+### R18: Sala Observación — Group Rules
+
+Reemplaza `detect_sala_observacion()` con ~8 group rules: estancia, ESS prohibidos, 890601H, 05DSB01, obligatorios, SOAT. `group_by=numero_factura`, `filter=Hospitalización`. Row-level evaluator se mantiene para estancia (rule #1).
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Estancia >48h | factura >48h | group rule | MATCH |
+| ESS prohibido | código ESS presente | group rule | MATCH |
+| 890601H falta | código obligatorio ausente | group rule | MATCH |
+| Todo OK | todas las validaciones pasan | todas las reglas | NO_MATCH |
+
+### R19: Snapshot Testing Contract
+
+Each replacement MUST output idéntico al legacy en ≥100 facturas (variantes cubiertas). Comparación campo-a-campo. Diferencias → FAIL.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Hospitalización | 100+ facturas mixtas | engine vs legacy | output idéntico |
+| IDE contrato | 100+ facturas | engine vs legacy | output idéntico |
+| Sala observación | 100+ facturas | engine vs legacy | output idéntico |
+
+### R20: RevisionCantidadUrgenciasEvaluator
+
+The engine MUST provide `RevisionCantidadUrgenciasEvaluator` (operator: `revision_cantidad_urgencias_check`) matching `detect_revision_cantidad_urgencias` legacy logic. Row-level check: cantidad exceeds threshold based on code type cascade. Rule DB entry: `revision_cantidad_urgencias_valido`.
+
+| Scenario | GIVEN | WHEN | THEN |
+|----------|-------|------|------|
+| General excess | tipo_factura="Urgencias", cantidad=3, no exceptions | evaluate row | MATCH |
+| Exempt code | codigo in `CODIGOS_REVISION_CANTIDAD_EXENTOS` | evaluate | NO_MATCH |
+| Specific limit OK | codigo in `CODIGOS_LIMITE_ESPECIFICO` with cantidad <= limit | evaluate | NO_MATCH |
+| 02+Lab=No excess | codigo_tipo_proc="02", laboratorio="No", cantidad=3 | evaluate | MATCH |
+| 02+Lab=No OK | same, cantidad=2 | evaluate | NO_MATCH |
+| 09/12 excess | codigo_tipo_proc in `CODIGOS_TIPO_PROC_09_12`, cantidad=21 | evaluate | MATCH |
+| 09/12 OK | same, cantidad=20 | evaluate | NO_MATCH |
+| V03AN0101 exempt | codigo=V03AN0101, any cantidad | evaluate | NO_MATCH |
+| Non-Urgencias | tipo_factura="Consultas" | evaluate | SKIP |
+
+### R21: CupsEquivalentesTransversalEvaluator
+
+The engine MUST provide `CupsEquivalentesTransversalEvaluator` (operator: `cups_equiv_transversal_check`). Returns the equivalent CUPS code when row's `codigo` matches `CODIGOS_CUPS_EQUIVALENTES` mapping. Rule DB entry: `cups_equivalentes_transversal`.
+
+| Scenario | GIVEN | WHEN | THEN |
+|----------|-------|------|------|
+| Equivalent found | codigo="906317" | evaluate | MATCH, returns "1906317" |
+| Equivalent found (VIH) | codigo="906249" | evaluate | MATCH, returns "906249PR" |
+| No equivalent | codigo="890201" | evaluate | NO_MATCH |
+| Missing column | indices["codigo"] is None | evaluate | NO_MATCH (logged) |
+
+---
+
 ## Acceptance Criteria
 
 - [ ] Rule resolver returns only active+matching-domain rules
@@ -178,3 +281,8 @@ The engine MUST provide `exists_in_db(table, field, value)` that checks if a val
 - [ ] Version increment on modification; old version archived, not deleted
 - [ ] `RuleBasedDetector` output matches legacy detector output (snapshot tests)
 - [ ] `USE_RULE_ENGINE=false` disables all engine code paths
+- [ ] `RevisionCantidadUrgenciasEvaluator` output matches `detect_revision_cantidad_urgencias` for all 9 scenarios
+- [ ] `CupsEquivalentesTransversalEvaluator` output matches `detect_cups_equivalentes_transversal` for all 4 scenarios
+- [ ] 9 pure-legacy detectors wrapped with `if is_rule_engine_enabled():` — snapshot identical when flag=true
+- [ ] 6 `else: var = []` clauses added — no `NameError` when `is_rule_engine_enabled()` returns false
+- [ ] `USE_RULE_ENGINE=false` → all 9 detectors run legacy code; `true` → engine path

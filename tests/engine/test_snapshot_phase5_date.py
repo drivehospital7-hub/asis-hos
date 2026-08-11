@@ -542,4 +542,4 @@ class TestPhase5OutputFormat:
         assert len(results) >= 1
         r = results[0]
         assert r["factura"] == "F302"
-        assert r["regla"] == "tipo_documento_edad_mayor_18"
+        assert r["regla"] == "#1"

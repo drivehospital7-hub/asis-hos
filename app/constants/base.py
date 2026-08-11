@@ -52,6 +52,7 @@ AREA_AMBULATORIA = "ambulatoria"
 AREA_EXTRAMURAL = "extramural"
 AREA_FARMACIA = "farmacia"
 AREA_UNIFICADA = "unificada"
+AREA_AUDITORIA = "auditoria"
 
 # =============================================================================
 # PERMISOS - Valores de permiso válidos
@@ -68,6 +69,8 @@ ALLOWED_PERMISOS = frozenset({
     "equipos_basicos",
     "cruce_facturas",
     "derechos",
+    "auditoria",
+    "busqueda_pdf",
     "cronograma_bacteriologas",
     "cronograma_urgencias",
 })
@@ -150,14 +153,25 @@ import os as _os
 
 
 def is_rule_engine_enabled() -> bool:
-    """Check if the DB-backed rule engine is enabled via env var.
+    """Check if the DB-backed rule engine is enabled.
 
-    Set USE_RULE_ENGINE=true to delegate migrated detectors to the engine.
-    Default: false (legacy Python detectors are used).
+    The engine is always enabled — legacy detectors have been migrated.
+    Legacy detector code is retained for reference but no longer used.
+    """
+    return True  # Engine always on — legacy removed
+
+
+def is_evidence_audit_enabled() -> bool:
+    """Check if evidence and audit tables should be populated.
+
+    Set SKIP_EVIDENCE_AUDIT=true to skip DB writes during testing/mass processing.
+    Default: true (evidence is written) — backward compatible.
+
+    Only relevant when USE_RULE_ENGINE=true.
     """
     from dotenv import load_dotenv
     load_dotenv()
-    return _os.getenv("USE_RULE_ENGINE", "false").lower() == "true"
+    return _os.getenv("SKIP_EVIDENCE_AUDIT", "false").lower() != "true"
 
 # =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
@@ -259,6 +273,24 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "pendientes",
         "description": "Gestión de derechos de petición y trámites administrativos.",
+    },
+    {
+        "title": "Auditoría PDF",
+        "slug": "auditoria",
+        "permiso": "auditoria",
+        "href": "/derechos/auditoria",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Auditoría de expedientes PDF: FEV, PDE y soportes.",
+    },
+    {
+        "title": "Búsqueda PDF",
+        "slug": "busqueda_pdf",
+        "permiso": "busqueda_pdf",
+        "href": "/busqueda-pdf",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Búsqueda de términos Condición y Transporte en PDFs de accidentes.",
     },
     {
         "title": "Usuarios",
@@ -365,3 +397,12 @@ def _filter_areas(permisos: list[str] | None) -> list[dict]:
         if p.endswith(":write"):
             expanded.add(p.removesuffix(":write"))
     return [{**a, "pending": 0} for a in DASHBOARD_AREAS if a["permiso"] in expanded]
+
+# =============================================================================
+# DERECHOS - Directorio base permitido para lectura de PDFs de expedientes
+# =============================================================================
+# Los endpoints de debug (/derechos/texto, /auditoria/debug) solo pueden leer
+# PDFs dentro de este directorio. Evita lectura arbitraria de archivos del
+# servidor por usuarios con permiso 'derechos'. Configurar en producción con
+# la carpeta real de expedientes (EMSSANAR, etc.).
+DERECHOS_PDF_BASE_PATH = _os.getenv("DERECHOS_PDF_BASE_PATH", "")

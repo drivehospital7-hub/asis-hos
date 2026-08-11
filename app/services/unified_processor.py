@@ -7,16 +7,20 @@ respuesta con filas normalizadas y totales consolidados.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 from app.services.transversales import (
     normalize_invoice,
 )
 from app.services.normalized_rows import build_normalized_rows
 
+# Module-level flag: skip evidence/audit DB writes when testing
+_PERSIST = is_evidence_audit_enabled()
 logger = logging.getLogger(__name__)
 
 
@@ -183,6 +187,7 @@ def _merge_problem_lists(
 def process_unified(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Procesa el Excel aplicando reglas según Tipo Factura Descripción de cada fila.
 
@@ -192,6 +197,7 @@ def process_unified(
     Args:
         data_sheet: Hoja de Excel con los datos
         indices: Índices de columnas
+        rows: RowStore precargado para facts-first evaluation (opcional)
 
     Returns:
         (resultado_unificado, responsables_map_unificado)
@@ -228,7 +234,13 @@ def process_unified(
 
         logger.info("Ejecutando orquestador para: %s", tipo)
         try:
-            resultado, responsables = orquestador(data_sheet, indices)
+            # Solo pasar rows si el orquestador lo acepta
+            kwargs = {}
+            if rows is not None and "rows" in inspect.signature(  # type: ignore[operator]
+                orquestador
+            ).parameters:
+                kwargs["rows"] = rows
+            resultado, responsables = orquestador(data_sheet, indices, **kwargs)
         except Exception:
             logger.exception("Error en orquestador de %s", tipo)
             continue
@@ -267,6 +279,18 @@ def process_unified(
         detect_cups_equivalentes_transversal,
     )
     cups_equiv = detect_cups_equivalentes_transversal(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            cups_equiv = RuleBasedDetector("cups_equivalentes_transversal", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
     if cups_equiv:
         if "cups_equivalentes" in all_problemas:
             all_problemas["cups_equivalentes"].extend(cups_equiv)

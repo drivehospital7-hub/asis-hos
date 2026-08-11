@@ -1,8 +1,8 @@
-"""Detector de duplicados en facturas tipo Farmacia.
+"""@deprecated — use engine rule duplicados_farmacia_farmacia instead.
 
-Thin wrapper que delega en :func:`detect_duplicados_generico` con
-``tipo_factura="Farmacia"``. Sin filtros de tarifario ni
-``codigo_tipo_procedimiento``.
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de duplicados en facturas tipo Farmacia.
 """
 
 from __future__ import annotations

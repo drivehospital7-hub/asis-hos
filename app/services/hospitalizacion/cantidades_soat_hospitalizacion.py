@@ -1,9 +1,8 @@
-"""Detector de cantidades SOAT anómalas en facturas de Hospitalización.
+"""@deprecated — use engine rule cantidades_soat_hospitalizacion instead.
 
-Regla: Si Tarifario = "SOAT" y Tipo Factura Descripción = "Hospitalización":
-- Código 38114: cantidad = días_estancia + 1
-- Código 39131: cantidad = días_estancia
-- Código 39133: cantidad debe ser ≤ 1
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de cantidades SOAT anómalas en facturas de Hospitalización.
 """
 
 from __future__ import annotations

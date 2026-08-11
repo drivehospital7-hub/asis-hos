@@ -167,7 +167,9 @@ def build_normalized_rows(
             })
 
     # --- Decimales ---
-    for factura in error_groups.get("Decimales", []):
+    # Compatibilidad: legacy retorna list[str], engine retorna list[dict]
+    for item in error_groups.get("Decimales", []):
+        factura = item if isinstance(item, str) else item.get("factura", "")
         rows.append({
             "tipo_error": "Decimales",
             "factura": factura,
@@ -183,11 +185,35 @@ def build_normalized_rows(
     for item in error_groups.get("Tipo Identificación / Edad", []):
         factura = item.get("factura", "")
         num_id = item.get("numero_identificacion", "")
-        anios = item.get("edad_anios", "")
-        meses = item.get("edad_meses", "")
         tipo_actual = item.get("tipo_actual", "")
         tipo_deberia = item.get("tipo_deberia", "")
         problema = item.get("problema", "")
+
+        # Compatibilidad: Python detector ↔ rule engine
+        # Python detector: edad_anios (años), edad_meses (residual %12)
+        # Rule engine:     date.edad (años), date.edad_meses (total, no residual)
+        edad_anios_raw = item.get("edad_anios") if "edad_anios" in item else item.get("date.edad")
+        edad_meses_raw = item.get("edad_meses") if "edad_meses" in item else item.get("date.edad_meses")
+        try:
+            anios = int(edad_anios_raw) if edad_anios_raw is not None else 0
+        except (ValueError, TypeError):
+            anios = 0
+        try:
+            meses_residuales = int(edad_meses_raw) if edad_meses_raw is not None else 0
+            # date.edad_meses es total (ej: 89), necesitamos residual %12
+            meses_residuales %= 12
+        except (ValueError, TypeError):
+            meses_residuales = 0
+
+        if anios > 0 and meses_residuales > 0:
+            detalle = f"{anios} años {meses_residuales} meses"
+        elif anios > 0:
+            detalle = f"{anios} años"
+        elif meses_residuales > 0:
+            detalle = f"{meses_residuales} meses"
+        else:
+            detalle = ""
+
         descripcion = problema or f"Tipo actual {tipo_actual} debería ser {tipo_deberia}"
         rows.append({
             "tipo_error": "Tipo Identificación / Edad",
@@ -196,7 +222,7 @@ def build_normalized_rows(
             "responsable_cierra": _get_responsable(factura),
             "descripcion": descripcion,
             "procedimiento": num_id,
-            "detalle": f"{anios} años {meses} meses",
+            "detalle": detalle,
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
@@ -425,6 +451,34 @@ def build_normalized_rows(
             "detalle": " | ".join(detalle_parts),
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(primer_factura),
         })
+
+    # Enrich rows with rule identifier (regla) from original detection items.
+    # Some error_groups keys get remapped to a different tipo_error in the row
+    # (e.g. "Duplicados Farmacia" → "⚠️ Revisión Necesaria"). Map them explicitly.
+    _KEY_TO_TIPO_REMAP = {
+        "Duplicados Farmacia": "⚠️ Revisión Necesaria",
+    }
+    # Build (factura, tipo_error) → regla from original items
+    _item_reglas: dict[tuple[str, str], str] = {}
+    for grupo_key, group_list in error_groups.items():
+        tipo = _KEY_TO_TIPO_REMAP.get(grupo_key, grupo_key)
+        if isinstance(group_list, list):
+            for item in group_list:
+                if isinstance(item, dict):
+                    r = item.get("regla", "")
+                    f = item.get("factura", "")
+                    if r and f:
+                        key = (f, tipo)
+                        if key not in _item_reglas:
+                            _item_reglas[key] = r
+    for row in rows:
+        f = row.get("factura", "")
+        t = row.get("tipo_error", "")
+        r = _item_reglas.get((f, t))
+        if r:
+            row["regla"] = r
+        else:
+            row["regla"] = ""
 
     # Generic fallback: if procedimiento AND detalle are both empty,
     # find the original item by factura and use its first matching key.

@@ -1,6 +1,8 @@
-"""Detector de cantidades incorrectas en facturas de Hospitalización.
+"""@deprecated — use engine rule cantidades_hospitalizacion instead.
 
-Extraído de urgencias/hospitalizacion.py como parte de la reorganización por tipo_factura.
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detector de cantidades incorrectas en facturas de Hospitalización.
 """
 
 from __future__ import annotations

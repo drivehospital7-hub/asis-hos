@@ -1,7 +1,8 @@
-"""Detección de revisión necesaria por cantidad anómala en Intramural.
+"""@deprecated — use engine rule revision_cantidad_intramural instead.
 
-Sigue el patrón de Urgencias (app/services/urgencias/revision_cantidad.py)
-pero simplificado: sin filtro tipo_factura, sin tablas exento/límite-específico.
+Legacy detector — kept for reference. All new development must use the engine.
+
+Detección de revisión necesaria por cantidad anómala en Intramural.
 """
 
 from __future__ import annotations

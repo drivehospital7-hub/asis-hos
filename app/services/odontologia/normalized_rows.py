@@ -177,8 +177,33 @@ def build_odontologia_normalized_rows(
         factura = item.get("factura", "")
         tipo_actual = item.get("tipo_actual", "") or item.get("tipo_identificacion", "")
         tipo_deberia = item.get("tipo_deberia", "")
-        anios = item.get("edad_anios", "") or item.get("edad", "") or item.get("date.edad", "")
         num_id = item.get("numero_identificacion", "") or item.get("identificacion", "")
+
+        # Compatibilidad: Python detector ↔ rule engine
+        # Python detector: edad_anios (años), edad_meses (residual %12)
+        # Rule engine:     date.edad (años), date.edad_meses (total, no residual)
+        edad_anios_raw = item.get("edad_anios") if "edad_anios" in item else item.get("date.edad", item.get("edad"))
+        edad_meses_raw = item.get("edad_meses") if "edad_meses" in item else item.get("date.edad_meses")
+        try:
+            anios = int(edad_anios_raw) if edad_anios_raw is not None else 0
+        except (ValueError, TypeError):
+            anios = 0
+        try:
+            meses_residuales = int(edad_meses_raw) if edad_meses_raw is not None else 0
+            # date.edad_meses es total (ej: 89), necesitamos residual %12
+            meses_residuales %= 12
+        except (ValueError, TypeError):
+            meses_residuales = 0
+
+        if anios > 0 and meses_residuales > 0:
+            detalle = f"{anios} años {meses_residuales} meses"
+        elif anios > 0:
+            detalle = f"{anios} años"
+        elif meses_residuales > 0:
+            detalle = f"{meses_residuales} meses"
+        else:
+            detalle = ""
+
         # Map rule name to expected document type
         regla = item.get("regla", "")
         if not tipo_deberia:
@@ -194,7 +219,7 @@ def build_odontologia_normalized_rows(
             "responsable_cierra": _get_responsable(factura),
             "descripcion": desc,
             "procedimiento": num_id or "",
-            "detalle": f"{anios} años" if anios else "",
+            "detalle": detalle,
         })
 
     # --- Tipo Identificación vs Cód Entidad Cobrar ---
@@ -370,5 +395,56 @@ def build_odontologia_normalized_rows(
                         if val:
                             row["procedimiento"] = str(val)
                             break
+
+    # ── Enrich rows with regla from original items ────────────────────────
+    # Build a list of (factura, tipo_error, regla) tuples from source collections
+    _item_reglas: dict[tuple[str, str], str] = {}
+    _COLLECTION_TIPO = {
+        "Decimales": "Decimales",
+        "Doble tipo": "Doble tipo procedimiento",
+        "Ruta Duplicada": "Ruta Duplicada",
+        "Profesionales": "Convenio de procedimiento",
+        "Cantidades": "Cantidades",
+        "Tipo ID/Edad": "Tipo Identificación / Edad",
+        "Tipo ID/Entidad": "Tipo Identificación / Entidad",
+        "Centro Costo": "Centro Costo",
+        "IDE Contrato": "IDE Contrato",
+        "Entidad vs Afiliación": "Código Entidad vs Afiliación",
+        "Tipo Usuario": "Tipo Usuario",
+        "Cups Sin Contrato": "Cups Sin Contrato",
+    }
+    _iter_data = [
+        (decimales, "Decimales"),
+        (doble_tipo, "Doble tipo"),
+        (ruta_dup, "Ruta Duplicada"),
+        (profesionales, "Profesionales"),
+        (cantidades, "Cantidades"),
+        (tipo_id_edad, "Tipo ID/Edad"),
+        (centro_costo, "Centro Costo"),
+        (ide_contrato, "IDE Contrato"),
+        (tipo_id_entidad or [], "Tipo ID/Entidad"),
+        (entidad_afiliacion_comparison or [], "Entidad vs Afiliación"),
+        (tipo_usuario or [], "Tipo Usuario"),
+        (cups_sin_contrato or [], "Cups Sin Contrato"),
+    ]
+    for collection, cname in _iter_data:
+        tipo = _COLLECTION_TIPO.get(cname, cname)
+        if isinstance(collection, list):
+            for item in collection:
+                if isinstance(item, dict):
+                    r = item.get("regla", "")
+                    f = item.get("factura", "")
+                    if r and f:
+                        key = (f, tipo)
+                        if key not in _item_reglas:
+                            _item_reglas[key] = r
+    for row in rows:
+        f = row.get("factura", "")
+        t = row.get("tipo_error", "")
+        r = _item_reglas.get((f, t))
+        if r:
+            row["regla"] = r
+        else:
+            row["regla"] = ""
 
     return rows

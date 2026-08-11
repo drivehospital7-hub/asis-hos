@@ -9,6 +9,7 @@ import {
   Upload,
   BookType,
   LogOut,
+  Search,
 } from "lucide-react";
 
 interface NavItem {
@@ -24,6 +25,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Procesar", href: "/procesar", icon: FileText, permiso: "procesar" },
   { label: "Control de Novedades", href: "/control-errores", icon: ClipboardCheck, permiso: "control_urgencias" },
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
+  { label: "Búsqueda PDF", href: "/busqueda-pdf", icon: Search, permiso: "busqueda_pdf" },
   { label: "Cronograma Urgencias", href: "/cronograma-urgencias", icon: CalendarClock, permiso: "cronograma_urgencias" },
   { label: "Cronograma Bacteriólogas", href: "/cronograma-bacteriologas", icon: CalendarClock, permiso: "cronograma_bacteriologas" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },

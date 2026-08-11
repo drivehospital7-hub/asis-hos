@@ -64,7 +64,7 @@ class TestFullEngineIntegration:
         # F001 matches PyP → should be detected
         assert len(results) == 1
         assert results[0]["factura"] == "F001"
-        assert results[0]["regla"] == "test_decimales"
+        assert results[0]["regla"] == "#1"
 
     def test_evidence_immutable_after_flush(self):
         """Evidence is insert-only; flush clears buffer but doesn't delete from DB."""

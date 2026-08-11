@@ -28,8 +28,9 @@ class EvidenceCollector:
         collector.flush_batch(session)  # single batch insert
     """
 
-    def __init__(self) -> None:
+    def __init__(self, domain: str | None = None) -> None:
         self._buffer: list[Evidencia] = []
+        self._domain = domain
 
     def record(
         self,
@@ -85,7 +86,10 @@ class EvidenceCollector:
         if not self._buffer:
             return []
 
-        logger.info("Flushing %d evidence records", len(self._buffer))
+        if self._domain:
+            logger.info("Flushing %d evidence records for domain: %s", len(self._buffer), self._domain)
+        else:
+            logger.info("Flushing %d evidence records", len(self._buffer))
         session.add_all(self._buffer)
         session.flush()
         result = list(self._buffer)  # Capture with IDs populated after flush
