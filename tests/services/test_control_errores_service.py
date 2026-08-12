@@ -12,6 +12,7 @@ from flask import session
 
 from app import create_app
 from app.services.control_errores_service import update_error, add_error, get_errores, get_opciones
+from app.services.control_errores_service import _resolve_responsable_identities
 from app.utils.errores_storage import (
     listar_errores,
     crear_error,
@@ -544,10 +545,82 @@ class TestGetErroresAreaFilter:
 class TestAddErrorAudit:
     """Spec R5: created_by automático desde la sesión (auditoría)."""
 
+    def test_add_error_canonicalizes_cronograma_display_value(self):
+        """A unique display alias is persisted as the registered identity."""
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "CARLOS OMAR",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.args[4] == "CARLOS MEZA"
+
+    def test_canonicalized_responsable_matches_existing_filter(self):
+        """Canonical storage remains discoverable through the selector filter."""
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        stored = [{
+            "id": "canonical-error",
+            "tipo_error": "OTROS",
+            "estado": "S",
+            "responsable": "CARLOS MEZA",
+            "created_by": "val1",
+            "creado_en": "2026-08-12T10:00:00",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch(
+                "app.utils.errores_storage._leer_datos",
+                return_value={"errores": stored},
+            ),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(
+                responsable="CARLOS MEZA",
+                session={"rol": "validador", "username": "val1"},
+            )
+
+        assert [error["id"] for error in result["data"]["errores"]] == [
+            "canonical-error"
+        ]
+
     def test_add_error_sets_created_by_from_session(self):
         """add_error() pasa created_by = username de sesión a crear_error()."""
         with (
             _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
         ):
             sess = {"username": "val1", "rol": "validador",
@@ -568,6 +641,10 @@ class TestAddErrorAudit:
         """created_by del payload del cliente se ignora; manda la sesión."""
         with (
             _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
         ):
             sess = {"username": "val1", "rol": "validador",
@@ -608,6 +685,58 @@ class TestNormalizarIdentidad:
     def test_normalizar_identidad_exists(self):
         """normalizar_identidad está disponible en errores_storage."""
         assert callable(normalizar_identidad)
+
+
+class TestResponsibleIdentityResolution:
+    """Responsible aliases resolve safely against eligible users."""
+
+    def test_exact_canonical_precedes_ambiguous_full_name_alias(self):
+        """An exact selector identity wins over a competing full-name subset."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Meza",
+                "apellido_1": "Omar",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities("CARLOS MEZA")
+
+        assert result == ("carlos meza", "carlos omar meza fernandez")
+
+    def test_ambiguous_alias_returns_none(self):
+        """An alias shared by eligible users is not assigned arbitrarily."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Perez",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities("CARLOS OMAR")
+
+        assert result is None
 
 
 def _fake_error() -> dict:
@@ -662,6 +791,32 @@ class TestUpdateErrorPermissions:
         assert result["status"] == "success"
         assert result["data"]["error"]["id"] == "test-1"
         mock_upd.assert_called_once()
+
+    def test_update_error_canonicalizes_display_responsable(self):
+        """Update passes a unique display alias to storage as canonical identity."""
+        facturadores = [{
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "responsable": "CARLOS MEZA"}
+
+            result = update_error("test-1", {"responsable": "CARLOS OMAR"})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["responsable"] == "CARLOS MEZA"
 
     # ── Partial write (control_urgencias) — allowed fields ───────────
 

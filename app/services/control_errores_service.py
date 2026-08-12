@@ -72,7 +72,7 @@ def _resolve_owner_identity(sess: dict[str, Any]) -> str | None:
 def _resolve_responsable_identities(
     responsable: str | None,
 ) -> tuple[str, str] | None:
-    """Resolve a selected eligible responsible to canonical and full DB identities.
+    """Resolve an eligible responsible value to canonical and full DB identities.
 
     Eligibility is shared with the options endpoint through get_facturadores:
     facturador role or ``responsable_facturacion`` permission.
@@ -81,11 +81,26 @@ def _resolve_responsable_identities(
         return None
 
     selected = normalizar_identidad(responsable)
-    for user in users_store.get_facturadores():
-        if normalizar_identidad(user.get("nombre_completo")) != selected:
-            continue
-        return _user_identities(user)
-    return None
+    selected_tokens = set(selected.split())
+    if len(selected_tokens) < 2:
+        return None
+
+    eligible_identities = [
+        _user_identities(user) for user in users_store.get_facturadores()
+    ]
+    exact_matches = [
+        identities for identities in eligible_identities if identities[0] == selected
+    ]
+    if exact_matches:
+        return exact_matches[0] if len(exact_matches) == 1 else None
+
+    alias_matches = []
+    for canonical, full in eligible_identities:
+        full_tokens = set(full.split())
+        if selected_tokens <= full_tokens:
+            alias_matches.append((canonical, full))
+
+    return alias_matches[0] if len(alias_matches) == 1 else None
 
 
 def _resolve_responsable_identity(responsable: str | None) -> str | None:
@@ -251,6 +266,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
         responsable = data.get("responsable", "").strip() or ""
+        responsable = (_resolve_responsable_identity(responsable) or responsable).upper()
 
         validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
         created_by = sess.get("username", "")
@@ -303,7 +319,10 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         if "estado" in data:
             kwargs["estado"] = data["estado"].strip() if data["estado"] else ""
         if "responsable" in data:
-            kwargs["responsable"] = data["responsable"].strip() if data["responsable"] else ""
+            responsable = data["responsable"].strip() if data["responsable"] else ""
+            kwargs["responsable"] = (
+                _resolve_responsable_identity(responsable) or responsable
+            ).upper()
 
         actualizado = actualizar_error(error_id, **kwargs)
 
