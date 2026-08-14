@@ -32,14 +32,6 @@ IDE_SIMPLE_RULES: list[dict[str, Any]] = [
         "expected": "986",
         "note": "906340 + EPSI05 -> IDE 986",
     },
-    # Regla 7: Código=861801 + Entidad=EPSI05 -> IDE 977
-    {
-        "codigo": "861801",
-        "entidad": "EPSI05",
-        "type": "exact",
-        "expected": "977",
-        "note": "861801 + EPSI05 -> IDE 977",
-    },
     # Regla 9: Código=861801 + Entidad=EPSIC5 -> IDE 979
     {
         "codigo": "861801",
@@ -151,16 +143,6 @@ IDE_SIMPLE_RULES: list[dict[str, Any]] = [
 # (codigo, entidad) → (IDE_con_insercion, IDE_sin_insercion)
 # =============================================================================
 IDE_INSERTION_RULES: list[dict[str, Any]] = [
-    # Regla 8: Código=890405 + Entidad=EPSI05
-    # Si identificación tiene 861801 -> IDE 976, si no -> IDE 977
-    {
-        "codigo": "890405",
-        "entidad": "EPSI05",
-        "type": "insertion",
-        "expected_with": "976",
-        "expected_without": "977",
-        "note": "890405 + EPSI05 -> IDE 976 (con 861801) / 977 (sin 861801)",
-    },
     # Regla 10: Código=890405 + Entidad=EPSIC5
     {
         "codigo": "890405",
@@ -248,6 +230,21 @@ IDE_ESSC62_890405_RULES: list[dict[str, Any]] = [
 # Reglas MÚLTIPLES: (codigo, entidad) → conjunto de IDEs válidos
 # =============================================================================
 IDE_MULTIPLE_RULES: list[dict[str, Any]] = [
+    # EPSI05 accepts all three contract values regardless of identification.
+    {
+        "codigo": "861801",
+        "entidad": "EPSI05",
+        "type": "multiple",
+        "expected_set": frozenset({"976", "977", "978"}),
+        "note": "861801 + EPSI05 -> IDE 976, 977, or 978",
+    },
+    {
+        "codigo": "890405",
+        "entidad": "EPSI05",
+        "type": "multiple",
+        "expected_set": frozenset({"976", "977", "978"}),
+        "note": "890405 + EPSI05 -> IDE 976, 977, or 978",
+    },
     # Regla 12: ESS118 + Código=735301 -> IDE 970 o 974
     {
         "codigo": "735301",

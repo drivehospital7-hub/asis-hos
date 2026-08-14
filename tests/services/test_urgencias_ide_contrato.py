@@ -30,6 +30,47 @@ def workbook_urgencias_ide_contrato() -> Workbook:
 class TestDetectIdeContratoUrgencias:
     """Tests para detect_ide_contrato_urgencias — reglas básicas."""
 
+    @pytest.mark.parametrize("codigo", ["861801", "890405"])
+    @pytest.mark.parametrize("ide_contrato", ["976", "977", "978"])
+    def test_epsi05_codigos_aceptan_todos_los_contratos(
+        self,
+        workbook_urgencias_ide_contrato: Workbook,
+        codigo: str,
+        ide_contrato: str,
+    ) -> None:
+        """EPSI05 accepts all three values without identification-based logic."""
+        ws = workbook_urgencias_ide_contrato.active
+        ws.cell(row=2, column=1, value=f"FAC-{codigo}-{ide_contrato}")
+        ws.cell(row=2, column=2, value="EPSI05")
+        ws.cell(row=2, column=3, value=codigo)
+        ws.cell(row=2, column=4, value=ide_contrato)
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+
+        assert detect_ide_contrato_urgencias(ws, indices) == []
+
+    @pytest.mark.parametrize("codigo", ["861801", "890405"])
+    def test_epsi05_codigos_rechazan_contrato_invalido(
+        self,
+        workbook_urgencias_ide_contrato: Workbook,
+        codigo: str,
+    ) -> None:
+        """EPSI05 rejects an IDE Contrato outside the approved set."""
+        ws = workbook_urgencias_ide_contrato.active
+        ws.cell(row=2, column=1, value=f"FAC-{codigo}-INVALID")
+        ws.cell(row=2, column=2, value="EPSI05")
+        ws.cell(row=2, column=3, value=codigo)
+        ws.cell(row=2, column=4, value="999")
+
+        indices = {"numero_factura": 0, "codigo_entidad_cobrar": 1,
+                   "codigo": 2, "ide_contrato": 3}
+        result = detect_ide_contrato_urgencias(ws, indices)
+
+        assert len(result) == 1
+        assert result[0]["codigo"] == codigo
+        assert result[0]["ide_contrato_actual"] == "999"
+
     def test_ide_correcto_no_genera_error(
         self, workbook_urgencias_ide_contrato: Workbook
     ) -> None:
