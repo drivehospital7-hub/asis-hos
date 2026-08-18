@@ -414,7 +414,11 @@ class TestOpcionesAreasIntegration:
         ]
         # responsables_detalle: nombre → áreas
         assert data["responsables_detalle"] == [
-            {"nombre_completo": "ANGIE ARIAS", "areas": ["urgencias", "odontologia"]}
+            {
+                "nombre_completo": "ANGIE ARIAS",
+                "identidad_completa": "ANGIE ARIAS",
+                "areas": ["urgencias", "odontologia"],
+            }
         ]
 
 
@@ -564,7 +568,7 @@ class TestOpcionesDbOnlyIntegration:
     """Spec R4: opciones responsables solo desde DB facturadores."""
 
     def test_opciones_uses_db_facturadores(self, app_client):
-        """responsables provienen de get_facturadores; sin key nombres completos."""
+        """responsables expose canonical and full DB identities."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["rol"] = "validador"
@@ -583,6 +587,7 @@ class TestOpcionesDbOnlyIntegration:
         data = resp.get_json()["data"]
         assert data["responsables"] == ["ANGIE ARIAS"]
         assert "responsables_nombres_completos" not in data
+        assert data["responsables_detalle"][0]["identidad_completa"] == "ANGIE ARIAS"
 
     def test_opciones_empty_when_no_facturadores(self, app_client):
         """Sin facturadores DB → lista vacía, sin fallback hardcodeado."""

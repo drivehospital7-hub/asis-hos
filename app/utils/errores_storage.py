@@ -5,6 +5,7 @@ import logging
 import uuid
 import shutil
 import tempfile
+import unicodedata
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -22,11 +23,13 @@ IMAGENES_PATH = DATA_DIR / "imagenes"
 
 
 def normalizar_identidad(s: str | None) -> str:
-    """Normaliza una identidad para comparaciones: casefold + colapso de espacios.
+    """Normaliza una identidad: casefold, sin acentos y espacios colapsados.
 
-    Ej: "LORENY  ESPAÑA " → "loreny españa". None/empty → "".
+    Ej: "LORENY  ESPAÑA " → "loreny espana". None/empty → "".
     """
-    return " ".join((s or "").casefold().split())
+    value = unicodedata.normalize("NFKD", s or "")
+    value = "".join(char for char in value if not unicodedata.combining(char))
+    return " ".join(value.casefold().split())
 
 
 def _get_imagenes_dir(error_id: str) -> Path:

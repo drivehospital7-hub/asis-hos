@@ -94,13 +94,24 @@ def _resolve_responsable_identities(
     if exact_matches:
         return exact_matches[0] if len(exact_matches) == 1 else None
 
-    alias_matches = []
-    for canonical, full in eligible_identities:
-        full_tokens = set(full.split())
-        if selected_tokens <= full_tokens:
-            alias_matches.append((canonical, full))
+    ranked = []
+    for identities in eligible_identities:
+        full_tokens = set(identities[1].split())
+        exact_score = len(selected_tokens & full_tokens)
+        partial_score = sum(
+            1
+            for token in selected_tokens - full_tokens
+            if any(token in candidate or candidate in token for candidate in full_tokens)
+        )
+        score = (exact_score, partial_score)
+        if score > (0, 0):
+            ranked.append((score, identities))
 
-    return alias_matches[0] if len(alias_matches) == 1 else None
+    if not ranked:
+        return None
+    highest = max(score for score, _ in ranked)
+    matches = [identities for score, identities in ranked if score == highest]
+    return matches[0] if len(matches) == 1 else None
 
 
 def _resolve_responsable_identity(responsable: str | None) -> str | None:
@@ -159,6 +170,16 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
                 "responsables_detalle": [
                     {
                         "nombre_completo": f["nombre_completo"],
+                        "identidad_completa": " ".join(
+                            value.strip()
+                            for value in (
+                                f.get("primer_nombre", ""),
+                                f.get("segundo_nombre", ""),
+                                f.get("apellido_1", ""),
+                                f.get("apellido_2", ""),
+                            )
+                            if value and value.strip()
+                        ).upper(),
                         "areas": f.get("areas", []),
                     }
                     for f in facturadores

@@ -206,13 +206,20 @@
   // ====== AGRUPAMIENTO POR ÁREA (sdd Empieza) ======
   // Mapa nombre → áreas construido una sola vez desde responsables_detalle.
   let _responsableAreas = null;
+  let _responsableDetails = null;
 
   function _buildResponsableAreaMap() {
     _responsableAreas = null;
+    _responsableDetails = null;
     if (!opciones.responsables_detalle) return;
     const map = {};
-    opciones.responsables_detalle.forEach(d => { map[d.nombre_completo] = d.areas || []; });
+    const details = {};
+    opciones.responsables_detalle.forEach(d => {
+      map[d.nombre_completo] = d.areas || [];
+      details[d.nombre_completo] = d;
+    });
     _responsableAreas = map;
+    _responsableDetails = details;
   }
 
   function _activeArea() {
@@ -225,6 +232,13 @@
     const area = _activeArea();
     if (!area || !_responsableAreas) return opciones.responsables || [];
     return (opciones.responsables || []).filter(r => (_responsableAreas[r] || []).includes(area));
+  }
+
+  function _currentResponsableCandidates() {
+    return _currentResponsables().map(function(value) {
+      var detail = _responsableDetails && _responsableDetails[value];
+      return { text: detail ? detail.identidad_completa : value, value: value };
+    });
   }
 
   function _areaLabel(slug) {
@@ -1749,16 +1763,26 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    *  Cada palabra cuenta si está contenida en el otro lado.
    */
   function _matchScore(rawWords, candidateWords) {
-    var score = 0;
+    var exact = 0;
+    var partial = 0;
     for (var i = 0; i < rawWords.length; i++) {
       for (var j = 0; j < candidateWords.length; j++) {
-        if (candidateWords[j].includes(rawWords[i]) || rawWords[i].includes(candidateWords[j])) {
-          score++;
+        if (candidateWords[j] === rawWords[i]) {
+          exact++;
           break; // una coincidencia por palabra del input
+        }
+        if (candidateWords[j].includes(rawWords[i]) || rawWords[i].includes(candidateWords[j])) {
+          partial++;
+          break;
         }
       }
     }
-    return score;
+    return { exact: exact, partial: partial };
+  }
+
+  function _compareMatchScores(left, right) {
+    if (left.exact !== right.exact) return left.exact - right.exact;
+    return left.partial - right.partial;
   }
 
   /** Elige el mejor candidato entre una lista de nombres.
@@ -1767,16 +1791,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    */
   function _bestMatch(rawWords, candidates) {
     var best = '';
-    var bestScore = 0;
+    var bestScore = { exact: 0, partial: 0 };
     var tiedValue = null;
     for (var i = 0; i < candidates.length; i++) {
       var cWords = _norm(candidates[i].text).split(/\s+/).filter(function(w) { return w.length > 1; });
       var score = _matchScore(rawWords, cWords);
-      if (score > bestScore) {
+      var comparison = _compareMatchScores(score, bestScore);
+      if (comparison > 0) {
         bestScore = score;
         best = candidates[i].value;
         tiedValue = null;
-      } else if (score > 0 && score === bestScore && candidates[i].value !== best) {
+      } else if (comparison === 0 && (score.exact > 0 || score.partial > 0) && candidates[i].value !== best) {
         tiedValue = candidates[i].value;
       }
     }
@@ -1793,23 +1818,19 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    *  La lista proviene de opciones.responsables (facturadores DB);
    *  ya no existe responsables_nombres_completos.
    */
-  function _matchResponsable(raw, lista) {
+  function _matchResponsable(raw, candidates) {
     if (!raw) return '';
     const rawNorm = _norm(raw);
 
-    // 1) Match exacto contra la lista
-    for (const r of lista) {
-      if (_norm(r) === rawNorm) return r;
+    // 1) Match exacto contra la identidad canónica
+    for (const candidate of candidates) {
+      if (_norm(candidate.value) === rawNorm) return candidate.value;
     }
 
     const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
     if (!rawWords.length) return '';
 
     // 2) Best-match contra la lista de identidades
-    var candidates = [];
-    for (var i = 0; i < lista.length; i++) {
-      candidates.push({ text: lista[i], value: lista[i] });
-    }
     return _bestMatch(rawWords, candidates);
   }
 
@@ -2026,7 +2047,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         return;
       }
 
-      const responsable = _matchResponsable(responsableRaw, _currentResponsables());
+      const responsable = _matchResponsable(responsableRaw, _currentResponsableCandidates());
       // Marcar duplicado contra cachedErrores (misma factura + misma categoría)
       const duplicate = _esDuplicadoCarga(factura);
       rows.push({ factura: factura, responsable: responsable, duplicate: duplicate });

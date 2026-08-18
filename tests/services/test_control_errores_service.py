@@ -458,7 +458,11 @@ class TestGetOpcionesAreas:
 
         assert opciones["data"]["responsables"] == ["ANGIE ARIAS"]
         assert opciones["data"]["responsables_detalle"] == [
-            {"nombre_completo": "ANGIE ARIAS", "areas": []}
+            {
+                "nombre_completo": "ANGIE ARIAS",
+                "identidad_completa": "ANGIE ARIAS",
+                "areas": [],
+            }
         ]
 
 
@@ -662,18 +666,18 @@ class TestAddErrorAudit:
 
 
 class TestNormalizarIdentidad:
-    """Spec R3: identity normalization — casefold + whitespace collapse.
+    """Identity normalization is case-insensitive, accent-insensitive, and compact.
 
-    normalizar_identidad(s) = " ".join((s or "").casefold().split())
+    normalizar_identidad(s) = casefold + accent removal + whitespace collapse.
     """
 
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            ("LORENY ESPAÑA", "loreny españa"),
-            (" lorenY   españa ", "loreny españa"),
-            ("LORENY  ESPAÑA", "loreny españa"),  # doble espacio
-            ("LORENY DEL CARMEN ESPAÑA RIVERA", "loreny del carmen españa rivera"),
+            ("LORENY ESPAÑA", "loreny espana"),
+            (" lorenY   españa ", "loreny espana"),
+            ("LORENY  ESPAÑA", "loreny espana"),  # doble espacio
+            ("LORENY DEL CARMEN ESPAÑA RIVERA", "loreny del carmen espana rivera"),
             ("", ""),
             (None, ""),
         ],
@@ -737,6 +741,30 @@ class TestResponsibleIdentityResolution:
             result = _resolve_responsable_identities("CARLOS OMAR")
 
         assert result is None
+
+    def test_highest_full_identity_token_score_wins(self):
+        """The most coincident full DB identity resolves canonically."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "",
+                "apellido_1": "Meza",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities(" CÁRLOS   OMAR ")
+
+        assert result == ("carlos meza", "carlos omar meza fernandez")
 
 
 def _fake_error() -> dict:
