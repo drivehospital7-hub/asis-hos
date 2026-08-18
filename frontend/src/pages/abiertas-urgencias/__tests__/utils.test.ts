@@ -290,6 +290,99 @@ describe("autoDetectColumns", () => {
 
     expect(cols.pacienteIdx).toBe(3);
   });
+
+  it("takes the last date before factura as egreso when first row is Cerrada (3 dates)", () => {
+    const headers: string[] = [];
+    const primeraFila = [
+      "13",
+      "790643",
+      "88197",
+      "39306",
+      "N",
+      "N",
+      "True",
+      "10/08/2026 07:57:08",
+      "10/08/2026 10:45:29",
+      "10/08/2026 10:45:00",
+      "FEV",
+      "FEV438700",
+      "Cerrada",
+      "41107099",
+      "Burbano Zambrano Maria Lucy",
+      "Ninguno",
+      "N",
+      "No",
+      "Asistencia - Evento",
+      "",
+      "10:45",
+      "0",
+      "Urgencias",
+      "0",
+      "0",
+      "735",
+      "Cangrejo Diaz Mariney del Carmen",
+      "Cangrejo Diaz Mariney del Carmen",
+      "Aguirre Bastidas Camilo Wirley Alexis",
+      "3",
+      "",
+      "0",
+      "E",
+    ];
+
+    const { cols } = autoDetectColumns(headers, primeraFila);
+
+    expect(cols.fechaCreaIdx).toBe(7);
+    // Index 8 is the cierre date (Cerrada); the egreso is the LAST date
+    // before factura → index 9
+    expect(cols.fechaEgresoIdx).toBe(9);
+    expect(cols.facturaIdx).toBe(11);
+  });
+
+  it("ignores late audit dates after factura when choosing egreso (Abierta rows)", () => {
+    const headers: string[] = [];
+    const primeraFila = [
+      "13",
+      "793834",
+      "88408",
+      "69450",
+      "N",
+      "N",
+      "False",
+      "13/08/2026 18:46:11",
+      "",
+      "13/08/2026 18:46:11",
+      "FEV",
+      "FEV439740",
+      "Abierta",
+      "1124314871",
+      "Coral Villareal Lauren Valeria",
+      "Ninguno",
+      "N",
+      "No",
+      "Asistencia - Evento",
+      "",
+      "18:46:11",
+      "0",
+      "Urgencias",
+      "0",
+      "0",
+      "139",
+      "Paez  Yulieth Daniela",
+      "Mora Quiroz Luz Marina",
+      "Mora Quiroz Luz Marina",
+      "3",
+      "18/08/2026 07:51:30",
+      "1",
+      "E",
+    ];
+
+    const { cols } = autoDetectColumns(headers, primeraFila);
+
+    expect(cols.fechaCreaIdx).toBe(7);
+    // Egreso at 9 (before factura), NOT the audit date at 30
+    expect(cols.fechaEgresoIdx).toBe(9);
+    expect(cols.facturaIdx).toBe(11);
+  });
 });
 
 // ─── calcularResponsable ──────────────────────────────────────────────
@@ -528,6 +621,27 @@ describe("getSinEgresoButtonConfig", () => {
 
   it("returns enabled config when isSinEgreso is undefined", () => {
     const config = getSinEgresoButtonConfig(undefined as unknown as boolean);
+    expect(config.disabled).toBe(false);
+  });
+
+  it("returns disabled config when estado is Cerrada", () => {
+    const config = getSinEgresoButtonConfig(false, "Cerrada");
+    expect(config.disabled).toBe(true);
+    expect(config.title).toBe("Factura cerrada — no se puede enviar");
+  });
+
+  it("returns disabled config when estado is cerrada (case-insensitive)", () => {
+    const config = getSinEgresoButtonConfig(false, "cerrada");
+    expect(config.disabled).toBe(true);
+  });
+
+  it("returns enabled config when estado is Abierta", () => {
+    const config = getSinEgresoButtonConfig(false, "Abierta");
+    expect(config.disabled).toBe(false);
+  });
+
+  it("returns enabled config when estado is empty", () => {
+    const config = getSinEgresoButtonConfig(false, "");
     expect(config.disabled).toBe(false);
   });
 });

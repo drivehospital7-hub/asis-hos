@@ -4,6 +4,7 @@ export const NOMBRE_MAP: Record<string, string> = {
   ALEJANDRA: "ALEJANDRA ESPAÑA",
   YULIETH: "DANIELA PAEZ",
   MARINEY: "MARINEY DIAZ",
+  CAROLINA: "MARINEY DIAZ",
 };
 
 /** Toast auto-dismiss duration in milliseconds. */

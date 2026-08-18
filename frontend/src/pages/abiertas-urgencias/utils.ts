@@ -136,6 +136,7 @@ export function autoDetectColumns(
   };
 
   let dateCount = 0;
+  const dateIdxs: number[] = [];
   const foundLabels: Record<number, string> = {};
 
   const searchIn = headers.length > 0 ? headers : primeraFila;
@@ -213,9 +214,10 @@ export function autoDetectColumns(
       if (dateCount === 1) {
         cols.fechaCreaIdx = i;
         foundLabels[i] = "Fecha Crea";
-      } else if (dateCount === 2) {
-        cols.fechaEgresoIdx = i;
-        foundLabels[i] = "Fecha Egreso";
+      } else {
+        // Track every later date; the egreso is resolved after the loop
+        // (last date before the factura column).
+        dateIdxs.push(i);
       }
     }
 
@@ -245,6 +247,26 @@ export function autoDetectColumns(
     if (PATTERNS.hc.test(raw)) {
       cols.hcPendienteIdx = i;
       foundLabels[i] = "HC Pendiente";
+    }
+  }
+
+  // Egreso: the LAST date column before the factura column. In the real
+  // export the egreso sits right before the FEV number (index 9); Cerrada
+  // rows may carry an extra cierre date before it (index 8) and Abierta
+  // rows may have an empty slot there. Late audit dates after the factura
+  // column must not win.
+  if (cols.fechaEgresoIdx === -1 && dateIdxs.length > 0) {
+    const beforeFactura =
+      cols.facturaIdx !== -1
+        ? dateIdxs.filter((d) => d < cols.facturaIdx)
+        : dateIdxs;
+    const egresoIdx =
+      beforeFactura.length > 0
+        ? beforeFactura[beforeFactura.length - 1]
+        : dateIdxs[0];
+    if (egresoIdx !== cols.fechaCreaIdx) {
+      cols.fechaEgresoIdx = egresoIdx;
+      foundLabels[egresoIdx] = "Fecha Egreso";
     }
   }
 
@@ -456,18 +478,25 @@ export interface SinEgresoButtonConfig {
 }
 
 /**
- * Returns the button configuration for the "Enviar a Control" action
- * based on whether the factura has no responsable asignado ("Sin Egreso").
- * When `isSinEgreso` is true, the button must be disabled with an
- * explanatory tooltip.
+ * Returns the button configuration for the "Enviar a Control" action.
+ * The button must be disabled (with an explanatory tooltip) when the
+ * factura has no responsable asignado ("Sin Egreso") or when its estado
+ * is "Cerrada" — a closed invoice cannot be sent to Control.
  */
 export function getSinEgresoButtonConfig(
   isSinEgreso: boolean,
+  estado?: string,
 ): SinEgresoButtonConfig {
   if (isSinEgreso) {
     return {
       disabled: true,
       title: "Sin egreso — no hay responsable asignado",
+    };
+  }
+  if (estado && estado.trim().toLowerCase() === "cerrada") {
+    return {
+      disabled: true,
+      title: "Factura cerrada — no se puede enviar",
     };
   }
   return {

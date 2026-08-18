@@ -306,7 +306,8 @@ export function AbiertasUrgenciasPage({
             data.data.errores
           ) {
             data.data.errores.forEach(
-              (e: { factura?: string }) => e.factura && set.add(e.factura),
+              (e: { factura?: string; tipo_error?: string }) =>
+                e.factura && e.tipo_error === "Factura Abierta" && set.add(e.factura),
             );
           }
           envioExistentes.current = set;
@@ -696,7 +697,10 @@ export function AbiertasUrgenciasPage({
                       </button>
                     );
                   } else {
-                    const sinEgresoConfig = getSinEgresoButtonConfig(isSinEgreso);
+                    const sinEgresoConfig = getSinEgresoButtonConfig(
+                      isSinEgreso,
+                      r.estado,
+                    );
                     const isDisabled = sinEgresoConfig.disabled;
                     actionHtml = (
                       <button
