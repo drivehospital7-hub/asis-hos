@@ -1101,4 +1101,8 @@ PROFESIONALES_URGENCIAS: dict[str, dict[str, str]] = {
         "nombre": "PORTILLA CLAROS KARLA DANIELA",
         "tipo": "NUTRICIONISTA",
     },
+    "02161": {
+        "nombre": "MEJIA PATIÑO YEIMI YANIRE",
+        "tipo": "PSICOLOGA",
+    },
 }
