@@ -114,3 +114,18 @@ frontend/dist/
 # Agent / SDD artifacts
 # =========================
 .atl/
+
+# =========================
+# Índice CodeGraph (local)
+# =========================
+.codegraph/
+
+# =========================
+# Diseños locales (OpenPencil)
+# =========================
+*.op
+
+# =========================
+# Config local de OpenCode (no se comparte)
+# =========================
+opencode.json
