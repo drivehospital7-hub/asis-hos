@@ -243,6 +243,27 @@ class TestControlErroresTemplate:
         assert "editor.style.left = (editorLeft < 8 ? btnRect.left + btnRect.width + 8 : editorLeft) + 'px';" in content
         assert "editor.style.left = btnRect.left + btnRect.width + 8 + 'px';" not in content
 
+    def test_control_errores_search_placeholder_excludes_responsable(self):
+        """Search placeholder says descripcion or ID, not responsable."""
+        ctrl_path = Path("app/templates/control_errores.html")
+        content = ctrl_path.read_text(encoding="utf-8")
+        assert "Buscar por descripción o ID..." in content
+        assert "Buscar por descripción, responsable o ID..." not in content
+
+    def test_control_errores_search_query_persisted_and_applied(self):
+        """Search query is persisted and re-applied by renderFilteredByMonth.
+
+        The polling re-render (renderFilteredByMonth) must keep the search text
+        the user typed, so the filter is not lost between polls.
+        """
+        ctrl_path = Path("app/templates/control_errores.html")
+        content = ctrl_path.read_text(encoding="utf-8")
+        assert "let searchQuery = '';" in content
+        assert "searchQuery = query;" in content
+        assert "renderFilteredByMonth" in content
+        assert "searchQuery" in content
+        assert "includes(searchQuery)" in content
+
 
 # =============================================================================
 # Phase 5 — Remaining templates

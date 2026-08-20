@@ -31,7 +31,7 @@
 <div class="filters">
   <div class="search-wrapper">
     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción, responsable o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
+    <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
   </div>
   <div class="filters__group">
     <label class="filters__label">Todas las categorías</label>
@@ -180,6 +180,7 @@
   let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
   const ITEMS_PER_PAGE = 20;
   let currentPage = 1;
+  let searchQuery = '';
 
   function parsearFacturas(f) {
     if (!f) return [];
@@ -371,7 +372,13 @@
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
       const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
-      return monthKey === currentMonth;
+      if (monthKey !== currentMonth) return false;
+      if (searchQuery) {
+        const factura = (e.factura || '').toLowerCase();
+        const observacion = (e.observacion || '').toLowerCase();
+        return factura.includes(searchQuery) || observacion.includes(searchQuery);
+      }
+      return true;
     });
     renderFilteredTable(filtered);
     updateStats();
@@ -1330,6 +1337,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function handleSearch() {
     currentPage = 1; // Reset a primera página al buscar
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    searchQuery = query;
     // Primero filtrar por mes
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
