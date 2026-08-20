@@ -10,6 +10,13 @@ def normalize_header(value: Any) -> str:
     return str(value).strip().lower() if value is not None else ""
 
 
+def normalize_text(value: Any) -> Any:
+    """Replace line breaks with spaces and collapse repeated whitespace."""
+    if not isinstance(value, str):
+        return value
+    return " ".join(value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").split())
+
+
 def normalize_invoice(value: Any) -> str | None:
     """Normaliza un número de factura a string."""
     if value is None:

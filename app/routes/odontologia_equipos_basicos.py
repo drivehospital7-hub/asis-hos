@@ -22,6 +22,7 @@ from flask import (
 from app.constants import AREA_EQUIPOS_BASICOS
 from app.services.exporter import detect_problems_only
 from app.services.processor_gate import rate_limit
+from app.services.transversales.normalize import normalize_text
 from app.utils.auth import permiso_requerido
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 
@@ -123,13 +124,13 @@ def export_cruce_eb():
         all_items = []
         for row in normalized_rows:
             all_items.append({
-                "tipo_error": row.get("tipo_error", ""),
-                "factura": row.get("factura", ""),
-                "fec_factura": row.get("fec_factura", ""),
-                "responsable_cierra": row.get("responsable_cierra", ""),
-                "descripcion": row.get("descripcion", ""),
-                "procedimiento": row.get("procedimiento", ""),
-                "detalle": row.get("detalle", ""),
+                "tipo_error": normalize_text(row.get("tipo_error", "")),
+                "factura": normalize_text(row.get("factura", "")),
+                "fec_factura": normalize_text(row.get("fec_factura", "")),
+                "responsable_cierra": normalize_text(row.get("responsable_cierra", "")),
+                "descripcion": normalize_text(row.get("descripcion", "")),
+                "procedimiento": normalize_text(row.get("procedimiento", "")),
+                "detalle": normalize_text(row.get("detalle", "")),
             })
 
         normalized_rows_sorted = sorted(all_items, key=lambda r: r["tipo_error"])

@@ -1471,7 +1471,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    *  Antepone un apóstrofe si el valor arranca con =, -, + o @. */
   function _sanitizeCSV(val) {
     if (typeof val !== 'string') return val;
-    return val.replace(/^([=\-+@])/, "'$1");
+    // CSV rows are separated by LF. Flatten user-entered line breaks inside
+    // descriptions before quoting the field so Excel cannot split the record.
+    const singleLine = val.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' ').trim();
+    return singleLine.replace(/^([=\-+@])/, "'$1");
   }
 
   function exportToCSV() {
