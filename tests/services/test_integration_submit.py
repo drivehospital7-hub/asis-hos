@@ -52,7 +52,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-write-token"},
-                json={"factura": "FEV1", "responsable": "X", "idempotency_key": "k1"},
+                json={"factura": "FEV1", "responsable": "X"},
             )
 
         assert resp.status_code == 403
@@ -77,7 +77,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer write-token"},
-                json={"factura": "FEV2", "responsable": "X", "idempotency_key": "k2"},
+                json={"factura": "FEV2", "responsable": "X"},
             )
 
         assert resp.status_code == 201
@@ -100,7 +100,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer admin-token"},
-                json={"factura": "FEV3", "responsable": "X", "idempotency_key": "k3"},
+                json={"factura": "FEV3", "responsable": "X"},
             )
 
         assert resp.status_code == 201
@@ -127,7 +127,6 @@ class TestEndToEndSubmit:
                     "factura": "FEV123",
                     "observacion": "falta soporte",
                     "responsable": "LORENY ESPAÑA",
-                    "idempotency_key": "e2e-key-1",
                     "tipo_error": "Factura Abierta",  # MUST be forced
                 },
             )
@@ -154,7 +153,7 @@ class TestEndToEndSubmit:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer nope"},
-                json={"factura": "X", "responsable": "Y", "idempotency_key": "k"},
+                json={"factura": "X", "responsable": "Y"},
             )
 
         assert resp.status_code == 401
@@ -182,7 +181,7 @@ class TestNoSessionCookie:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-cookie-token"},
-                json={"factura": "FEV1", "responsable": "X", "idempotency_key": "k-cookie"},
+                json={"factura": "FEV1", "responsable": "X"},
             )
 
         assert resp.status_code == 201
@@ -209,7 +208,7 @@ class TestNoSessionCookie:
             app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-cookie-token-2"},
-                json={"factura": "FEV2", "responsable": "X", "idempotency_key": "k-cookie-2"},
+                json={"factura": "FEV2", "responsable": "X"},
             )
 
         # A follow-up protected API request without a session cookie must be 401:
@@ -276,7 +275,6 @@ class TestHttpsEnforcement:
                     "factura": "FEV-H",
                     "observacion": "falta soporte",
                     "responsable": "X",
-                    "idempotency_key": "k-http",
                 },
                 environ_overrides={"wsgi.url_scheme": "http"},
             )
@@ -304,7 +302,6 @@ class TestHttpsEnforcement:
                     "factura": "FEV-H",
                     "observacion": "falta soporte",
                     "responsable": "X",
-                    "idempotency_key": "k-http",
                 },
                 environ_overrides={"wsgi.url_scheme": "http"},
             )
@@ -334,7 +331,6 @@ class TestHttpsEnforcement:
                     "factura": "FEV-S",
                     "observacion": "falta soporte",
                     "responsable": "X",
-                    "idempotency_key": "k-https",
                 },
                 environ_overrides={"wsgi.url_scheme": "https"},
             )

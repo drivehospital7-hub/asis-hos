@@ -296,12 +296,10 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
 
         validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
         created_by = sess.get("username", "")
-        idempotency_key = data.get("idempotency_key", "") or ""
 
         nuevo = crear_error(
             tipo_error, factura, observacion, estado, responsable,
             observacion_facturador, validador=validador, created_by=created_by,
-            idempotency_key=idempotency_key,
         )
         logger.info("[BACK] Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}

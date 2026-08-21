@@ -2,8 +2,8 @@
 
 Recibe un payload JSON autenticado por bearer token, fuerza la categoría
 "Soportes de Carpeta", resuelve el responsable con la lógica de coincidencia
-existente, mantiene el validador (del token) separado del responsable y
-deduplica reintentos por clave de idempotencia bajo el lock del almacén JSON.
+existente y mantiene el validador (del token) separado del responsable.
+Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
 """
 
 import logging
@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 FORCED_CATEGORY = "Soportes de Carpeta"
 
 # Campos requeridos y sus tipos (strings no vacíos).
-REQUIRED_FIELDS = ("factura", "observacion", "responsable", "idempotency_key")
+REQUIRED_FIELDS = ("factura", "observacion", "responsable")
 
 
 def _resolve_responsable(raw: str) -> str | None:
@@ -29,23 +29,21 @@ def _resolve_responsable(raw: str) -> str | None:
     return _resolve_responsable_identity(raw)
 
 
-def _persist(data: dict[str, Any], session: dict[str, Any]) -> tuple[dict[str, Any], bool]:
-    """Persiste el registro de forma atómica e idempotente.
+def _persist(data: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
+    """Persiste el registro de forma atómica.
 
-    Usa ``errores_storage.crear_error_idempotente``: todo el check-then-write
-    corre bajo el lock del almacén, de modo que dos envíos concurrentes con la
-    misma ``idempotency_key`` jamás persisten dos registros.
+    Usa ``errores_storage.crear_error``: el write corre bajo el lock del
+    almacén, evitando pérdidas de actualizaciones entre envíos concurrentes.
+    Cada llamada crea SIEMPRE un registro nuevo (los duplicados se permiten).
 
     Returns:
-        (record, created): ``created`` True si se persistió un registro nuevo;
-        False si ya existía uno con esa clave (se devuelve el original).
+        El registro persistido.
     """
     sess = session or {}
     responsable = data["responsable"]
     validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
     created_by = sess.get("username", "")
-    return errores_storage.crear_error_idempotente(
-        idempotency_key=data.get("idempotency_key", "") or "",
+    return errores_storage.crear_error(
         tipo_error=data["tipo_error"],
         factura=(data["factura"] or "").upper(),
         observacion=(data["observacion"] or "").upper(),
@@ -82,8 +80,6 @@ def submit(payload: dict[str, Any], session: dict[str, Any] | None = None) -> tu
         if errors:
             return {"status": "error", "data": {}, "errors": errors}, 400
 
-        idempotency_key = payload["idempotency_key"].strip()
-
         # 2. Categoría forzada (el servidor descarta cualquier valor del cliente)
         categoria = FORCED_CATEGORY
         if categoria not in ERROR_TIPO_URGENCIAS:
@@ -107,16 +103,11 @@ def submit(payload: dict[str, Any], session: dict[str, Any] | None = None) -> tu
             "observacion": payload["observacion"],
             "observacion_facturador": payload.get("observacion_facturador", "") or "",
             "responsable": responsable,
-            "idempotency_key": idempotency_key,
         }
 
-        # 5. Persistencia atómica + idempotente (check-then-write bajo lock)
-        nuevo, created = _persist(record_data, session)
-        if not created:
-            # Clave duplicada: devolver el registro original sin duplicar.
-            logger.info("[BACK] Integración: novedad duplicada (key=%s)", idempotency_key)
-            return {"status": "success", "data": {"error": nuevo}, "errors": []}, 200
-        logger.info("[BACK] Integración: novedad %s persistida (key=%s)", nuevo["id"], idempotency_key)
+        # 5. Persistencia atómica (siempre crea un registro nuevo)
+        nuevo = _persist(record_data, session)
+        logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}, 201
     except Exception as e:
         logger.exception("[BACK][ERROR] Error en integración de novedad")

@@ -22,9 +22,10 @@ DATA_DIR = Path(__file__).parent.parent / "data"
 ERRORES_FILE = DATA_DIR / "control_errores.json"
 IMAGENES_PATH = DATA_DIR / "imagenes"
 
-# Lock de módulo para operaciones idempotentes (check-then-write) sobre el
-# archivo JSON. Un solo proceso + escritura atómica garantiza no duplicados.
-_idempotency_lock = threading.Lock()
+# Lock de módulo para operaciones de escritura (read-append-write) sobre el
+# archivo JSON. Un solo proceso + escritura atómica garantiza que envíos
+# concurrentes no pierdan actualizaciones entre sí.
+_write_lock = threading.Lock()
 
 
 def normalizar_identidad(s: str | None) -> str:
@@ -195,62 +196,22 @@ def crear_error(
     observacion_facturador: str = "",
     validador: str = "",
     created_by: str = "",
-    idempotency_key: str = "",
 ) -> dict[str, Any]:
-    """Crear un nuevo error.
+    """Crea un error de forma ATÓMICA bajo ``_write_lock``.
+
+    Todo el read-append-write (leer, agregar, escribir) corre dentro del lock,
+    evitando pérdidas de actualizaciones entre envíos concurrentes. Cada
+    llamada crea SIEMPRE un registro nuevo (los duplicados se permiten).
 
     Args:
         created_by: username del creador (auditoría automática, nunca
             proviene del payload del cliente).
-        idempotency_key: clave de idempotencia (integración LAN). Se persiste
-            en el registro para deduplicar reintentos.
-    """
-    record, _ = crear_error_idempotente(
-        idempotency_key=idempotency_key,
-        tipo_error=tipo_error,
-        factura=factura,
-        observacion=observacion,
-        observacion_facturador=observacion_facturador,
-        estado=estado,
-        responsable=responsable,
-        validador=validador,
-        created_by=created_by,
-    )
-    return record
-
-
-def crear_error_idempotente(
-    idempotency_key: str,
-    tipo_error: str,
-    factura: str,
-    observacion: str,
-    estado: str,
-    responsable: str,
-    observacion_facturador: str = "",
-    validador: str = "",
-    created_by: str = "",
-) -> tuple[dict[str, Any], bool]:
-    """Crea un error de forma ATÓMICA e idempotente bajo ``_idempotency_lock``.
-
-    Todo el check-then-write (leer, comprobar clave, agregar, escribir) corre
-    dentro del lock, eliminando el TOCTOU de ``_find_by_idempotency`` +
-    ``crear_error`` separados: dos envíos concurrentes con la misma
-    ``idempotency_key`` jamás persisten dos registros (también protege contra
-    la pérdida de actualizaciones entre claves distintas, R4-2).
 
     Returns:
-        (record, created): ``created`` es True si se persistió un registro
-        nuevo; False si ya existía uno con esa ``idempotency_key`` (se devuelve
-        el existente y NO se escribe nada).
+        El registro persistido.
     """
-    with _idempotency_lock:
+    with _write_lock:
         data = _leer_datos()
-
-        # Idempotencia: si la clave ya existe, devolver el original sin escribir.
-        if idempotency_key:
-            for error in data.get("errores", []):
-                if error.get("idempotency_key") == idempotency_key:
-                    return error, False
 
         nuevo_error = {
             "id": str(uuid.uuid4()),
@@ -262,7 +223,6 @@ def crear_error_idempotente(
             "responsable": responsable,
             "validador": validador,
             "created_by": created_by,
-            "idempotency_key": idempotency_key or "",
             "creado_en": datetime.now().isoformat(),
             "actualizado_en": datetime.now().isoformat(),
         }
@@ -271,19 +231,7 @@ def crear_error_idempotente(
         _escribir_datos(data)
 
         logger.info("[BACK] Error creado: %s", nuevo_error["id"])
-        return nuevo_error, True
-
-
-def find_by_idempotency(idempotency_key: str) -> dict[str, Any] | None:
-    """Busca un registro por su clave de idempotencia (bajo lock)."""
-    if not idempotency_key:
-        return None
-    with _idempotency_lock:
-        data = _leer_datos()
-        for error in data.get("errores", []):
-            if error.get("idempotency_key") == idempotency_key:
-                return error
-    return None
+        return nuevo_error
 
 
 def obtener_error(error_id: str) -> dict[str, Any] | None:

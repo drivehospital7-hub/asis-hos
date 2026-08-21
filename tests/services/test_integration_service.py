@@ -2,8 +2,8 @@
 
 The integration service validates a JSON schema, forces category
 "Soportes de Carpeta", resolves responsible via existing coincidence logic,
-keeps validator (from token) separate from responsible, and dedupes retries by
-idempotency key under the JSON storage lock.
+and keeps validator (from token) separate from responsible. Each submission
+creates a new record: duplicate submissions are allowed (no idempotency).
 """
 
 from unittest.mock import patch
@@ -30,7 +30,6 @@ VALID_PAYLOAD = {
     "factura": "FEV123",
     "observacion": "falta soporte",
     "responsable": "LORENY ESPAÑA",
-    "idempotency_key": "key-abc",
     "observacion_facturador": "",
 }
 
@@ -45,7 +44,7 @@ class TestSchemaValidation:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "new-id"}, True),
+                return_value={"id": "new-id"},
             ) as mock_persist,
         ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
@@ -95,7 +94,7 @@ class TestSchemaValidation:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "x"}, True),
+                return_value={"id": "x"},
             ) as mock_persist,
         ):
             envelope, status = submit(payload, _VALIDATOR_SESSION)
@@ -114,7 +113,7 @@ class TestForcedCategory:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "x"}, True),
+                return_value={"id": "x"},
             ) as mock_persist,
         ):
             submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
@@ -132,7 +131,7 @@ class TestForcedCategory:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "x"}, True),
+                return_value={"id": "x"},
             ) as mock_persist,
         ):
             submit(payload, _VALIDATOR_SESSION)
@@ -151,7 +150,7 @@ class TestResponsibleResolution:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "x"}, True),
+                return_value={"id": "x"},
             ) as mock_persist,
         ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
@@ -189,7 +188,7 @@ class TestValidatorFromToken:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=({"id": "x"}, True),
+                return_value={"id": "x"},
             ) as mock_persist,
         ):
             submit(payload, _VALIDATOR_SESSION)
@@ -206,10 +205,9 @@ class TestValidatorFromToken:
         assert call_data["responsable"] == "LORENY ESPAÑA"
 
 
-class TestIdempotency:
-    def test_duplicate_key_returns_original_no_second_record(self):
-        """A duplicate idempotency key → original record, created=False, 200."""
-        original = {"id": "orig-id", "factura": "FEV123"}
+class TestNoIdempotency:
+    def test_submit_always_persists_new_record(self):
+        """Each submit persists a new record (201) — duplicates are allowed."""
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
@@ -217,33 +215,50 @@ class TestIdempotency:
             ),
             patch(
                 "app.services.integration_service._persist",
-                return_value=(original, False),
-            ) as mock_persist,
-        ):
-            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
-
-        assert status == 200
-        assert envelope["status"] == "success"
-        assert envelope["data"]["error"]["id"] == "orig-id"
-        assert mock_persist.called
-
-    def test_distinct_key_persists_new(self):
-        """A new idempotency key persists a new record (created=True, 201)."""
-        with (
-            patch(
-                "app.services.integration_service._resolve_responsable",
-                return_value="LORENY ESPAÑA",
-            ),
-            patch(
-                "app.services.integration_service._persist",
-                return_value=({"id": "new-id"}, True),
+                return_value={"id": "new-id"},
             ) as mock_persist,
         ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
 
         assert status == 201
         assert envelope["status"] == "success"
+        assert envelope["data"]["error"]["id"] == "new-id"
         mock_persist.assert_called_once()
+
+    def test_idempotency_key_not_forwarded_to_persist(self):
+        """Even if the client sends idempotency_key, it is not persisted."""
+        payload = dict(VALID_PAYLOAD, idempotency_key="client-key")
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ) as mock_persist,
+        ):
+            submit(payload, _VALIDATOR_SESSION)
+
+        call_data = mock_persist.call_args.args[0]
+        assert "idempotency_key" not in call_data
+
+    def test_idempotency_key_not_required(self):
+        """A payload without idempotency_key is valid (201)."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ),
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
 
 
 class TestAtomicPersistence:
@@ -267,7 +282,7 @@ class TestAtomicPersistence:
 
 
 class TestRealJsonPersistence:
-    """End-to-end contract: real JSON storage, forced category, idempotency."""
+    """End-to-end contract: real JSON storage, forced category, new record per submit."""
 
     def _patch_storage(self, tmp_path, errores_storage):
         errores_file = tmp_path / "control_errores.json"
@@ -278,8 +293,8 @@ class TestRealJsonPersistence:
             errores_storage, "ERRORES_FILE", errores_file
         )
 
-    def test_persists_record_with_forced_category_and_idempotency(self, tmp_path):
-        """Real submit persists to control_errores.json with forced category + key."""
+    def test_persists_record_with_forced_category(self, tmp_path):
+        """Real submit persists to control_errores.json with forced category."""
         from app.utils import errores_storage
 
         data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
@@ -297,8 +312,8 @@ class TestRealJsonPersistence:
         record = data["errores"][0]
         # Forced category (client could not override — no tipo_error in payload)
         assert record["tipo_error"] == "Soportes de Carpeta"
-        # Idempotency key persisted
-        assert record["idempotency_key"] == VALID_PAYLOAD["idempotency_key"]
+        # Idempotency key must NOT be persisted
+        assert "idempotency_key" not in record
         # Validator from the synthetic session (token owner)
         assert record["validador"] == "Ana Valdez"
         assert record["created_by"] == "ana"
@@ -306,8 +321,8 @@ class TestRealJsonPersistence:
         assert record["responsable"] == "LORENY ESPAÑA"
         assert record["validador"] != record["responsable"]
 
-    def test_duplicate_idempotency_key_no_second_record(self, tmp_path):
-        """A second submit with the same key returns the original, no duplicate."""
+    def test_duplicate_submissions_are_allowed(self, tmp_path):
+        """A second submit creates a second record — duplicates are allowed."""
         from app.utils import errores_storage
 
         data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
@@ -319,11 +334,11 @@ class TestRealJsonPersistence:
             envelope2, status2 = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
 
         assert status1 == 201
-        assert status2 == 200  # deduped
-        assert envelope2["data"]["error"]["id"] == envelope1["data"]["error"]["id"]
+        assert status2 == 201  # duplicate allowed
+        assert envelope2["data"]["error"]["id"] != envelope1["data"]["error"]["id"]
 
         data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
-        assert len(data["errores"]) == 1
+        assert len(data["errores"]) == 2
 
     def test_client_category_override_rejected_in_real_storage(self, tmp_path):
         """A payload specifying a different category is ignored in real storage."""
@@ -342,10 +357,10 @@ class TestRealJsonPersistence:
         assert data["errores"][0]["tipo_error"] == "Soportes de Carpeta"
 
 
-class TestConcurrentIdempotency:
-    """R4-1/R3-2: the check-then-write MUST be atomic under the storage lock so
-    two simultaneous submissions with the same idempotency_key produce exactly
-    one persisted record (no TOCTOU duplicate, no lost update)."""
+class TestConcurrentWrites:
+    """The read-append-write MUST be atomic under the storage lock so two
+    simultaneous submissions never lose an update (each produces its own
+    persisted record, duplicates allowed)."""
 
     @staticmethod
     def _patch_storage(tmp_path, errores_storage):
@@ -355,8 +370,8 @@ class TestConcurrentIdempotency:
             errores_storage, "ERRORES_FILE", errores_file
         )
 
-    def test_two_simultaneous_same_key_submissions_persist_once(self, tmp_path):
-        """Two threads submitting the SAME key concurrently → one persisted record."""
+    def test_two_simultaneous_submissions_persist_both(self, tmp_path):
+        """Two threads submitting concurrently → both records persisted (no lost update)."""
         from app.utils import errores_storage
         import threading
 
@@ -366,7 +381,7 @@ class TestConcurrentIdempotency:
 
         # Patches are entered ONCE in the main thread (patch contexts are not
         # thread-safe to enter/exit inside workers); workers only run submit,
-        # which hits the module-level storage lock for the atomic check-then-write.
+        # which hits the module-level storage lock for the atomic read-append-write.
         with data_patch, file_patch, patch(
             "app.services.integration_service._resolve_responsable",
             return_value="LORENY ESPAÑA",
@@ -382,19 +397,18 @@ class TestConcurrentIdempotency:
             for t in threads:
                 t.join()
 
-        # At most one record may be persisted despite two concurrent submissions
+        # Both concurrent submissions persist their own record (duplicates allowed)
         data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
-        assert len(data["errores"]) == 1
+        assert len(data["errores"]) == 2
+        assert len({r[1] for r in results}) == 2
 
-    def test_atomic_operation_returns_existing_on_duplicate(self, tmp_path):
-        """crear_error_idempotente returns (record, created=False) for a key that
-        already exists, and (record, created=True) for a brand-new key."""
+    def test_crear_error_always_creates_new_record(self, tmp_path):
+        """crear_error appends a new record each call (duplicates allowed)."""
         from app.utils import errores_storage
 
         data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
         with data_patch, file_patch:
-            first, created1 = errores_storage.crear_error_idempotente(
-                idempotency_key="dup-key",
+            first = errores_storage.crear_error(
                 tipo_error="Soportes de Carpeta",
                 factura="FEV-C1",
                 observacion="OBS 1",
@@ -403,8 +417,7 @@ class TestConcurrentIdempotency:
                 validador="Ana Valdez",
                 created_by="ana",
             )
-            second, created2 = errores_storage.crear_error_idempotente(
-                idempotency_key="dup-key",
+            second = errores_storage.crear_error(
                 tipo_error="Soportes de Carpeta",
                 factura="FEV-C2",
                 observacion="OBS 2",
@@ -414,9 +427,10 @@ class TestConcurrentIdempotency:
                 created_by="ana",
             )
 
-        assert created1 is True
-        assert created2 is False
-        assert second["id"] == first["id"]
-        # The second call must NOT have created a second record
+        assert second["id"] != first["id"]
+        # Neither record carries an idempotency_key
+        assert "idempotency_key" not in first
+        assert "idempotency_key" not in second
+        # Both calls created a record
         data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
-        assert len(data["errores"]) == 1
+        assert len(data["errores"]) == 2
