@@ -7,6 +7,7 @@ Task 4.2: non-admin lifecycle operations are denied.
 
 import importlib
 import os
+from io import BytesIO
 from unittest.mock import patch
 
 import pytest
@@ -179,6 +180,66 @@ class TestEndToEndSubmit:
         assert mock_submit.called
         assert mock_submit.call_args.args[0] == batch
         assert mock_submit.call_args.args[1]["username"] == "ana"
+
+    def test_multipart_with_image_is_forwarded_as_one_record(self, app_client):
+        with (
+            patch("app.utils.token_store.get_user_for_token", return_value=_fake_validator_user()),
+            patch(
+                "app.routes.integration.submit",
+                return_value=(
+                    {"status": "success", "data": {"error": {"id": "r1"}}, "errors": []},
+                    201,
+                ),
+            ) as mock_submit,
+        ):
+            response = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer multipart-token"},
+                data={
+                    "factura": "FEV-M1",
+                    "observacion": "falta soporte",
+                    "responsable": "LORENY ESPAÑA",
+                    "imagen": (BytesIO(b"png-data"), "support.png"),
+                },
+                content_type="multipart/form-data",
+            )
+
+        assert response.status_code == 201
+        body = response.get_json()
+        assert set(body) == {"status", "data", "errors"}
+        assert body["status"] == "success"
+        assert mock_submit.call_args.args[0] == {
+            "factura": "FEV-M1",
+            "observacion": "falta soporte",
+            "responsable": "LORENY ESPAÑA",
+        }
+        assert mock_submit.call_args.args[2].filename == "support.png"
+
+    def test_multipart_without_image_is_forwarded(self, app_client):
+        with (
+            patch("app.utils.token_store.get_user_for_token", return_value=_fake_validator_user()),
+            patch(
+                "app.routes.integration.submit",
+                return_value=(
+                    {"status": "success", "data": {"error": {"id": "r2"}}, "errors": []},
+                    201,
+                ),
+            ) as mock_submit,
+        ):
+            response = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer multipart-token"},
+                data={
+                    "factura": "FEV-M2",
+                    "observacion": "sin imagen",
+                    "responsable": "LORENY ESPAÑA",
+                },
+                content_type="multipart/form-data",
+            )
+
+        assert response.status_code == 201
+        assert response.get_json()["status"] == "success"
+        assert mock_submit.call_args.args[2] is None
 
     def test_unauthorized_token_nothing_persisted(self, app_client):
         """Unknown token → 401 and submit never called."""

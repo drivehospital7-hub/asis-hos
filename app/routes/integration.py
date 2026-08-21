@@ -1,7 +1,8 @@
 """Routes de integración LAN para control-novedades.
 
-Endpoint de envío JSON autenticado por bearer token (sin sesión de browser)
-más administración del ciclo de vida de tokens (emitir/rotar/revocar/listar).
+Endpoint de envío autenticado por bearer token (sin sesión de browser). Acepta
+un registro individual como multipart/form-data con imagen opcional y conserva
+el contrato JSON existente, más administración del ciclo de vida de tokens.
 Las rutas solo delegan; la lógica vive en services/integration_service.py y
 utils/token_store.py.
 """
@@ -54,12 +55,12 @@ def _build_synth_session(bearer_user: dict) -> dict:
 
 @integration_bp.post("/control-novedades")
 def control_novedades_submit():
-    """Envía una o varias novedades autenticadas por bearer token.
+    """Envía novedades autenticadas por bearer token.
 
-    Contrato primario: un solo JSON ``{"novedades": [...]}`` con la lista de
-    items a procesar en una sola request (HTTP 200 con resultados por item).
-    Formato heredado: un solo item como objeto plano (HTTP 201). La identidad
-    del validador se resuelve desde el token en _handle_bearer_auth
+    Multipart procesa un solo registro plano y acepta el archivo ``imagen``.
+    JSON conserva el contrato de lote ``{"novedades": [...]}`` y el formato
+    heredado de un item como objeto plano. La identidad del validador se
+    resuelve desde el token en _handle_bearer_auth
     (before_request) y se expone en ``flask.g`` (per-request, sin cookie). El
     permiso ``control_urgencias:write`` se valida AQUÍ manualmente leyendo
     ``g.bearer_user`` porque permiso_requerido (app/utils/auth.py) solo lee la
@@ -79,7 +80,13 @@ def control_novedades_submit():
             "errors": ["HTTPS requerido para la integración"],
         }), 403
 
-    data = request.get_json(silent=True) or {}
+    image = request.files.get("imagen")
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+    elif request.files or request.form:
+        data = request.form.to_dict()
+    else:
+        data = {}
     bearer = g.get("bearer_user")
 
     # D6: validación manual del permiso de escritura. permiso_requerido lee
@@ -94,7 +101,7 @@ def control_novedades_submit():
         }), 403
 
     synth_session = _build_synth_session(bearer) if bearer else None
-    envelope, status = submit(data, synth_session)
+    envelope, status = submit(data, synth_session, image)
     return jsonify(envelope), status
 
 

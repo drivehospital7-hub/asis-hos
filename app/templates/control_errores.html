@@ -13,7 +13,7 @@
     <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
   </div>
   <div class="page-header-actions">
-    <button class="btn btn--secondary" onclick="exportToCSV()">
+    <button class="btn btn--secondary" onclick="exportarExcel()">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar
     </button>
@@ -1486,17 +1486,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     loadErrores();
   }
   
-  /** Sanitiza un valor CSV para evitar que Excel lo interprete como fórmula.
-   *  Antepone un apóstrofe si el valor arranca con =, -, + o @. */
-  function _sanitizeCSV(val) {
-    if (typeof val !== 'string') return val;
-    // CSV rows are separated by LF. Flatten user-entered line breaks inside
-    // descriptions before quoting the field so Excel cannot split the record.
-    const singleLine = val.replace(/\r\n|\r|\n/g, ' ').replace(/\s+/g, ' ').trim();
-    return singleLine.replace(/^([=\-+@])/, "'$1");
-  }
-
-  function exportToCSV() {
+function exportarExcel() {
     if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       Modal.alert('No hay datos para exportar');
@@ -1516,52 +1506,15 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       return;
     }
     
-    // Nombre del mes para el archivo
-    const [year, month] = currentMonth.split('-');
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-    const monthName = monthNames[parseInt(month) - 1];
-    const filename = `control-errores-${monthName}-${year}.csv`;
-    
-    const headers = ['Validador', 'Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Observación del Facturador', 'Estado'];
-    const rows = erroresDelMes.map(e => {
-      // Formatear fecha
-      let fecha = '-';
-      if (e.creado_en) {
-        const d = new Date(e.creado_en);
-        fecha = d.toLocaleDateString('es-CO');
-      }
-      return [
-        e.validador || '',
-        e.factura || 'ERR-' + e.id,
-        fecha,
-        e.tipo_error || '',
-        e.observacion || '',
-        e.responsable || '',
-        e.observacion_facturador || '',
-        e.estado === 'S' ? 'Pendiente' : 'Resuelto'
-      ];
+    const params = new URLSearchParams({
+      mes: currentMonth,
+      tipo_error: document.getElementById('filterTipo').value,
+      estado: document.getElementById('filterEstado').value,
+      responsable: document.getElementById('filterResponsable').value,
+      area: document.getElementById('filterArea').value,
+      validador: document.getElementById('filterValidador').value,
     });
-    
-    // Construir CSV con BOM para UTF-8
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.map(c => {
-        const sanitized = _sanitizeCSV(c);
-        return `"${sanitized.replace(/"/g, '""')}"`;
-      }).join(','))
-    ].join('\n');
-    
-    // Agregar BOM para que Excel detecte UTF-8 correctamente
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.location.href = `/api/control-errores/export?${params.toString()}`;
   }
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 

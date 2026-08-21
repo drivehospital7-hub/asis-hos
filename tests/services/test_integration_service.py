@@ -9,6 +9,7 @@ creates a new record: duplicate submissions are allowed (no idempotency).
 from unittest.mock import patch
 
 import json
+from io import BytesIO
 
 import pytest
 
@@ -279,6 +280,75 @@ class TestAtomicPersistence:
         assert status == 500
         assert envelope["status"] == "error"
         assert len(envelope["errors"]) > 0
+
+
+class TestOptionalImage:
+    def _image(self, filename="support.png"):
+        image = BytesIO(b"image-data")
+        image.name = filename
+        return image
+
+    def test_valid_image_is_saved_for_new_error(self):
+        image = self._image()
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")) as validate,
+            patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(True, "file_1.png")) as save,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        validate.assert_called_once_with(image)
+        save.assert_called_once_with("new-id", image)
+
+    def test_missing_image_keeps_json_behavior(self):
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch("app.services.integration_service.errores_storage.guardar_imagen") as save,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope == {
+            "status": "success",
+            "data": {"error": {"id": "new-id"}},
+            "errors": [],
+        }
+        save.assert_not_called()
+
+    def test_invalid_image_is_rejected_before_persistence(self):
+        image = self._image("support.exe")
+        with (
+            patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(False, "Tipo no permitido: .exe")),
+            patch("app.services.integration_service._persist") as persist,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert envelope["data"] == {}
+        assert envelope["errors"] == ["Imagen inválida: Tipo no permitido: .exe"]
+        persist.assert_not_called()
+
+    def test_image_storage_failure_rolls_back_record(self):
+        image = self._image()
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")),
+            patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(False, "disk full")),
+            patch("app.services.integration_service.errores_storage.eliminar_error", return_value=True) as delete,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+
+        assert status == 500
+        assert envelope["status"] == "error"
+        assert envelope["data"] == {}
+        assert "disk full" in envelope["errors"][0]
+        delete.assert_called_once_with("new-id")
 
 
 class TestBatchSubmit:

@@ -1,6 +1,6 @@
-"""Servicio de integración LAN JSON para control-novedades.
+"""Servicio de integración LAN para control-novedades.
 
-Recibe un payload JSON autenticado por bearer token, fuerza la categoría
+Recibe un payload autenticado por bearer token, fuerza la categoría
 "Soportes de Carpeta", resuelve el responsable con la lógica de coincidencia
 existente y mantiene el validador (del token) separado del responsable.
 Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
@@ -178,13 +178,24 @@ def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[
 
 
 def _submit_single(
-    payload: dict[str, Any], session: dict[str, Any] | None = None
+    payload: dict[str, Any],
+    session: dict[str, Any] | None = None,
+    image: Any = None,
 ) -> tuple[dict[str, Any], int]:
     """Formato heredado: un solo item → HTTP 201 con ``data.error``."""
     # 1. Validación de esquema
     errors = _validate(payload)
     if errors:
         return {"status": "error", "data": {}, "errors": errors}, 400
+
+    if image is not None:
+        valid, image_error = errores_storage.validar_imagen(image)
+        if not valid:
+            return {
+                "status": "error",
+                "data": {},
+                "errors": [f"Imagen inválida: {image_error}"],
+            }, 400
 
     # 2. Categoría forzada (el servidor descarta cualquier valor del cliente)
     categoria = _forced_category()
@@ -215,6 +226,23 @@ def _submit_single(
     # 6. Persistencia atómica (siempre crea un registro nuevo)
     nuevo = _persist(record_data, session)
     logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
+    if image is not None:
+        try:
+            saved, image_result = errores_storage.guardar_imagen(nuevo["id"], image)
+        except Exception as error:
+            saved, image_result = False, str(error)
+        if not saved:
+            errores_storage.eliminar_error(nuevo["id"])
+            logger.error(
+                "[BACK][ERROR] No se pudo guardar imagen de novedad %s: %s",
+                nuevo["id"],
+                image_result,
+            )
+            return {
+                "status": "error",
+                "data": {},
+                "errors": [f"No se pudo guardar la imagen: {image_result}"],
+            }, 500
     if existentes:
         logger.info(
             "[BACK] Integración: duplicado detectado (factura %s, %d existente(s))",
@@ -273,10 +301,14 @@ def _submit_batch(
 
 
 def submit(
-    payload: dict[str, Any], session: dict[str, Any] | None = None
+    payload: dict[str, Any],
+    session: dict[str, Any] | None = None,
+    image: Any = None,
 ) -> tuple[dict[str, Any], int]:
     """Procesa un envío de integración y devuelve (envelope, status_code).
 
+    ``image`` solo se admite para el registro individual; el contrato JSON de
+    lote se conserva cuando no hay archivo adjunto.
     - Si el payload trae ``novedades`` (lista) → contrato de lote (HTTP 200).
     - Si no → formato heredado de un solo item (HTTP 201).
 
@@ -288,9 +320,17 @@ def submit(
         payload = payload or {}
 
         if "novedades" in payload:
+            if image is not None:
+                return {
+                    "status": "error",
+                    "data": {},
+                    "errors": [
+                        "La imagen solo puede enviarse con un registro individual"
+                    ],
+                }, 400
             return _submit_batch(payload, session)
 
-        return _submit_single(payload, session)
+        return _submit_single(payload, session, image)
     except Exception as e:
         logger.exception("[BACK][ERROR] Error en integración de novedades")
         return {"status": "error", "data": {}, "errors": [str(e)]}, 500

@@ -1,7 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   FileText,
-  ClipboardCheck,
   CalendarClock,
   ArrowRight,
   TrendingUp,
@@ -32,15 +31,6 @@ const areas = [
     pending: 31,
     tone: "danger" as const,
     pendingLabel: "errores",
-  },
-  {
-    title: "Control de Novedades",
-    description: "Registro y seguimiento de novedades en facturación.",
-    href: "/control-novedades",
-    icon: ClipboardCheck,
-    pending: 9,
-    tone: "warning" as const,
-    pendingLabel: "pendientes",
   },
   {
     title: "Facturas Abiertas",

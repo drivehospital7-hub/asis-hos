@@ -4,7 +4,7 @@ import json
 import logging
 from pathlib import Path
 
-from flask import Blueprint, current_app, jsonify, render_template, request, send_from_directory, session
+from flask import Blueprint, current_app, jsonify, render_template, request, send_file, send_from_directory, session
 
 from app.services.control_errores_service import (
     get_opciones,
@@ -18,6 +18,7 @@ from app.services.control_errores_service import (
     get_ultima_actualizacion,
     check_cambios,
 )
+from app.services.control_errores_export import build_errores_export_workbook, filename_export
 
 from app.constants import IMAGENES_DIR
 from app.utils.auth import permiso_requerido
@@ -63,6 +64,48 @@ def listar_errores():
         tipo_error, estado, responsable, area=area, session=dict(session),
         validador=validador,
     ))
+
+
+@control_errores_bp.get("/api/control-errores/export")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
+def exportar_errores():
+    """Exportar errores filtrados a Excel (.xlsx) con adjuntos como links."""
+    tipo_error = request.args.get("tipo_error")
+    estado = request.args.get("estado")
+    responsable = request.args.get("responsable")
+    area = request.args.get("area")
+    validador = request.args.get("validador")
+    mes = request.args.get("mes")
+
+    result = get_errores(
+        tipo_error, estado, responsable, area=area, session=dict(session),
+        validador=validador,
+    )
+
+    if result["status"] != "success":
+        return jsonify(result), 400
+
+    errores = result["data"].get("errores", [])
+    if mes:
+        errores = [
+            e for e in errores if str(e.get("creado_en", ""))[:7] == mes
+        ]
+
+    if not errores:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["No hay datos para exportar"],
+        }), 400
+
+    buffer = build_errores_export_workbook(errores, request.host_url)
+
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=filename_export(mes),
+    )
 
 
 @control_errores_bp.get("/api/control-errores/changes")

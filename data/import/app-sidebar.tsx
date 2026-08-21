@@ -2,7 +2,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
   FileText,
-  ClipboardCheck,
   CalendarClock,
   LogOut,
 } from "lucide-react";
@@ -24,7 +23,6 @@ import {
 const items = [
   { title: "Panel principal", url: "/", icon: LayoutDashboard, exact: true },
   { title: "Urgencias", url: "/urgencias", icon: FileText },
-  { title: "Control de Novedades", url: "/control-novedades", icon: ClipboardCheck },
   { title: "Abiertas Urgencias", url: "/abiertas-urgencias", icon: CalendarClock },
 ];
 
