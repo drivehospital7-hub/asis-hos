@@ -281,6 +281,170 @@ class TestAtomicPersistence:
         assert len(envelope["errors"]) > 0
 
 
+class TestBatchSubmit:
+    """Primary contract: {"novedades": [...]} processes all items in one request
+    and returns per-item results (HTTP 200 / status success)."""
+
+    BATCH = {
+        "novedades": [
+            {"factura": "FEV1", "observacion": "falta soporte 1", "responsable": "LORENY ESPAÑA"},
+            {"factura": "FEV2", "observacion": "falta soporte 2", "responsable": "LORENY ESPAÑA"},
+        ]
+    }
+
+    def test_batch_all_success(self):
+        """Whole valid batch → 200, procesadas=2, rechazadas=0, per-item results."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                side_effect=[{"id": "r1"}, {"id": "r2"}],
+            ) as mock_persist,
+        ):
+            envelope, status = submit(dict(self.BATCH), _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        assert envelope["errors"] == []
+        data = envelope["data"]
+        assert data["procesadas"] == 2
+        assert data["rechazadas"] == 0
+        assert [r["factura"] for r in data["resultados"]] == ["FEV1", "FEV2"]
+        assert all(r["status"] == "success" for r in data["resultados"])
+        assert data["resultados"][0]["error"]["id"] == "r1"
+        assert data["resultados"][1]["error"]["id"] == "r2"
+        assert mock_persist.call_count == 2
+
+    def test_batch_partial_failure_rejects_only_bad_item(self):
+        """An unresolvable responsible rejects only ITS item (200, no rollback)."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                side_effect=["LORENY ESPAÑA", None],
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "r1"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(dict(self.BATCH), _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        data = envelope["data"]
+        assert data["procesadas"] == 1
+        assert data["rechazadas"] == 1
+        ok, rejected = data["resultados"]
+        assert ok["factura"] == "FEV1"
+        assert ok["status"] == "success"
+        assert rejected["factura"] == "FEV2"
+        assert rejected["status"] == "error"
+        assert "Responsable no resuelto" in rejected["motivo"]
+        # Only the valid item is persisted; the rejected one does not abort the batch
+        mock_persist.assert_called_once()
+
+    def test_batch_empty_list_rejected(self):
+        """Empty 'novedades' list → 400 with a clear error, nothing persisted."""
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit({"novedades": []}, _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("vacía" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_not_a_list_rejected(self):
+        """'novedades' that is not a list → 400."""
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit({"novedades": {"factura": "FEV1"}}, _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("lista" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_item_missing_required_field_rejected(self):
+        """An item missing a required field invalidates the whole batch → 400."""
+        payload = {"novedades": [{"factura": "FEV1", "observacion": "obs"}]}
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit(payload, _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("responsable" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_item_not_object_rejected(self):
+        """An item that is not an object → 400."""
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit({"novedades": ["FEV1"]}, _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        mock_persist.assert_not_called()
+
+    def test_batch_forces_category_per_item(self):
+        """Every item is persisted with the forced category."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "x"},
+            ) as mock_persist,
+        ):
+            submit(dict(self.BATCH), _VALIDATOR_SESSION)
+
+        assert mock_persist.call_count == 2
+        for call in mock_persist.call_args_list:
+            assert call.args[0]["tipo_error"] == "Soportes de Carpeta"
+
+    def test_batch_persist_failure_rejects_only_that_item(self):
+        """A persistence failure on one item rejects it without aborting the batch."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                side_effect=[{"id": "r1"}, OSError("disk full")],
+            ),
+        ):
+            envelope, status = submit(dict(self.BATCH), _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        data = envelope["data"]
+        assert data["procesadas"] == 1
+        assert data["rechazadas"] == 1
+        assert data["resultados"][1]["status"] == "error"
+        assert "disk full" in data["resultados"][1]["motivo"]
+
+    def test_legacy_single_item_still_supported(self):
+        """The legacy single-item shape still returns 201/data.error."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ),
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        assert envelope["data"]["error"]["id"] == "new-id"
+
+
 class TestRealJsonPersistence:
     """End-to-end contract: real JSON storage, forced category, new record per submit."""
 

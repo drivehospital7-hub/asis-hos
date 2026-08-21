@@ -4,6 +4,25 @@ Recibe un payload JSON autenticado por bearer token, fuerza la categoría
 "Soportes de Carpeta", resuelve el responsable con la lógica de coincidencia
 existente y mantiene el validador (del token) separado del responsable.
 Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
+
+Contrato primario (lista): el endpoint acepta ``{"novedades": [...]}`` y
+procesa todos los items en una sola request. Cada item se procesa de forma
+independiente:
+
+- Un responsable que no resuelve a un usuario DB único rechaza SOLO ese item.
+- Un fallo de persistencia en un item lo rechaza a él, sin abortar el lote.
+
+Semántica de respuesta del lote:
+
+- Lote estructuralmente inválido (``novedades`` no es lista, es una lista
+  vacía, o un item no es objeto / le falta un campo requerido) → HTTP 400 con
+  ``status: "error"``.
+- Lote válido, con todos o con algunos items rechazados → HTTP 200 con
+  ``status: "success"`` y el detalle por item en ``data.resultados``. Los items
+  exitosos NO se revierten ante rechazos de otros items del mismo lote.
+
+Formato heredado (un solo item) se conserva intacto: HTTP 201 con ``data.error``
+como registro persistido.
 """
 
 import logging
@@ -56,7 +75,7 @@ def _persist(data: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
 
 
 def _validate(payload: dict[str, Any]) -> list[str]:
-    """Valida el esquema del payload. Devuelve lista de errores (vacía si OK)."""
+    """Valida el esquema del payload (formato heredado de un solo item)."""
     errors: list[str] = []
     for field in REQUIRED_FIELDS:
         value = payload.get(field)
@@ -65,8 +84,162 @@ def _validate(payload: dict[str, Any]) -> list[str]:
     return errors
 
 
-def submit(payload: dict[str, Any], session: dict[str, Any] | None = None) -> tuple[dict[str, Any], int]:
+def _forced_category() -> str:
+    """Categoría forzada por el servidor (el cliente nunca la controla)."""
+    categoria = FORCED_CATEGORY
+    if categoria not in ERROR_TIPO_URGENCIAS:
+        categoria = "Otros"
+    return categoria
+
+
+def _validate_items(items: list[Any]) -> list[str]:
+    """Valida la estructura de cada item del lote.
+
+    Un item inválido (no objeto o con un campo requerido faltante/incorrecto)
+    invalida TODO el lote → 400. Devuelve la lista de errores (vacía si OK).
+    """
+    errors: list[str] = []
+    for index, item in enumerate(items, start=1):
+        if not isinstance(item, dict):
+            errors.append(f"Item {index}: debe ser un objeto")
+            continue
+        for field in REQUIRED_FIELDS:
+            value = item.get(field)
+            if not isinstance(value, str) or not value.strip():
+                errors.append(
+                    f"Item {index}: campo requerido faltante o inválido: '{field}'"
+                )
+    return errors
+
+
+def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[str, Any]:
+    """Procesa un item del lote de forma independiente.
+
+    El rechazo por responsable no resuelto (o un fallo de persistencia) solo
+    afecta a este item; los demás items del lote continúan procesándose.
+    """
+    factura = item["factura"]
+    try:
+        responsable = _resolve_responsable(item["responsable"])
+        if not responsable:
+            return {
+                "factura": factura,
+                "status": "error",
+                "motivo": (
+                    "Responsable no resuelto a un usuario DB único "
+                    "(ambiguo o sin coincidencia)"
+                ),
+            }
+
+        record_data = {
+            "tipo_error": _forced_category(),
+            "factura": factura,
+            "observacion": item["observacion"],
+            "observacion_facturador": item.get("observacion_facturador", "") or "",
+            "responsable": responsable,
+        }
+
+        nuevo = _persist(record_data, session)
+        logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
+        return {"factura": factura, "status": "success", "error": nuevo}
+    except Exception as e:
+        logger.exception(
+            "[BACK][ERROR] Error integrando novedad del lote (factura %s)", factura
+        )
+        return {"factura": factura, "status": "error", "motivo": str(e)}
+
+
+def _submit_single(
+    payload: dict[str, Any], session: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], int]:
+    """Formato heredado: un solo item → HTTP 201 con ``data.error``."""
+    # 1. Validación de esquema
+    errors = _validate(payload)
+    if errors:
+        return {"status": "error", "data": {}, "errors": errors}, 400
+
+    # 2. Categoría forzada (el servidor descarta cualquier valor del cliente)
+    categoria = _forced_category()
+
+    # 3. Resolución del responsable (rechazo si es ambiguo/sin coincidencia)
+    responsable = _resolve_responsable(payload["responsable"])
+    if not responsable:
+        return {
+            "status": "error",
+            "data": {},
+            "errors": [
+                "Responsable no resuelto a un usuario DB único (ambiguo o sin coincidencia)"
+            ],
+        }, 400
+
+    # 4. Construcción del registro (identidad de validador del token)
+    record_data = {
+        "tipo_error": categoria,
+        "factura": payload["factura"],
+        "observacion": payload["observacion"],
+        "observacion_facturador": payload.get("observacion_facturador", "") or "",
+        "responsable": responsable,
+    }
+
+    # 5. Persistencia atómica (siempre crea un registro nuevo)
+    nuevo = _persist(record_data, session)
+    logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
+    return {"status": "success", "data": {"error": nuevo}, "errors": []}, 201
+
+
+def _submit_batch(
+    payload: dict[str, Any], session: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], int]:
+    """Contrato primario: ``{"novedades": [...]}`` → HTTP 200 con resultados por item.
+
+    La validez estructural del lote es all-or-nothing (400); los rechazos por
+    responsable no resuelto (o fallo de persistencia) son por item y se reportan
+    en ``data.resultados`` sin revertir los items ya procesados.
+    """
+    novedades = payload.get("novedades")
+    if not isinstance(novedades, list):
+        return {
+            "status": "error",
+            "data": {},
+            "errors": ["Campo 'novedades' debe ser una lista"],
+        }, 400
+    if not novedades:
+        return {
+            "status": "error",
+            "data": {},
+            "errors": ["La lista 'novedades' no puede estar vacía"],
+        }, 400
+
+    structural_errors = _validate_items(novedades)
+    if structural_errors:
+        return {"status": "error", "data": {}, "errors": structural_errors}, 400
+
+    resultados: list[dict[str, Any]] = []
+    procesadas = 0
+    rechazadas = 0
+    for item in novedades:
+        resultado = _process_item(item, session)
+        if resultado["status"] == "success":
+            procesadas += 1
+        else:
+            rechazadas += 1
+        resultados.append(resultado)
+
+    data = {
+        "procesadas": procesadas,
+        "rechazadas": rechazadas,
+        "resultados": resultados,
+    }
+    return {"status": "success", "data": data, "errors": []}, 200
+
+
+def submit(
+    payload: dict[str, Any], session: dict[str, Any] | None = None
+) -> tuple[dict[str, Any], int]:
     """Procesa un envío de integración y devuelve (envelope, status_code).
+
+    - Si el payload trae ``novedades`` (lista) → contrato de lote (HTTP 200).
+    - Si no → formato heredado de un solo item (HTTP 201).
 
     El validador y created_by provienen de la sesión sintética del token; el
     responsable se normaliza contra la DB. Nunca se confía en la categoría ni
@@ -75,40 +248,10 @@ def submit(payload: dict[str, Any], session: dict[str, Any] | None = None) -> tu
     try:
         payload = payload or {}
 
-        # 1. Validación de esquema
-        errors = _validate(payload)
-        if errors:
-            return {"status": "error", "data": {}, "errors": errors}, 400
+        if "novedades" in payload:
+            return _submit_batch(payload, session)
 
-        # 2. Categoría forzada (el servidor descarta cualquier valor del cliente)
-        categoria = FORCED_CATEGORY
-        if categoria not in ERROR_TIPO_URGENCIAS:
-            categoria = "Otros"
-
-        # 3. Resolución del responsable (rechazo si es ambiguo/sin coincidencia)
-        responsable = _resolve_responsable(payload["responsable"])
-        if not responsable:
-            return {
-                "status": "error",
-                "data": {},
-                "errors": [
-                    "Responsable no resuelto a un usuario DB único (ambiguo o sin coincidencia)"
-                ],
-            }, 400
-
-        # 4. Construcción del registro (identidad de validador del token)
-        record_data = {
-            "tipo_error": categoria,
-            "factura": payload["factura"],
-            "observacion": payload["observacion"],
-            "observacion_facturador": payload.get("observacion_facturador", "") or "",
-            "responsable": responsable,
-        }
-
-        # 5. Persistencia atómica (siempre crea un registro nuevo)
-        nuevo = _persist(record_data, session)
-        logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
-        return {"status": "success", "data": {"error": nuevo}, "errors": []}, 201
+        return _submit_single(payload, session)
     except Exception as e:
-        logger.exception("[BACK][ERROR] Error en integración de novedad")
+        logger.exception("[BACK][ERROR] Error en integración de novedades")
         return {"status": "error", "data": {}, "errors": [str(e)]}, 500

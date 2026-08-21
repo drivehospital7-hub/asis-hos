@@ -144,6 +144,42 @@ class TestEndToEndSubmit:
         assert synth_session["primer_nombre"] == "Ana"
         assert synth_session["apellido_1"] == "Valdez"
 
+    def test_batch_payload_forwarded_to_submit(self, app_client):
+        """A list payload {'novedades': [...]} is forwarded to submit unchanged."""
+        batch = {
+            "novedades": [
+                {"factura": "FEV1", "observacion": "obs 1", "responsable": "X"},
+                {"factura": "FEV2", "observacion": "obs 2", "responsable": "Y"},
+            ]
+        }
+        batch_envelope = {
+            "status": "success",
+            "data": {"procesadas": 2, "rechazadas": 0, "resultados": []},
+            "errors": [],
+        }
+        with (
+            patch(
+                "app.utils.token_store.get_user_for_token",
+                return_value=_fake_validator_user(),
+            ),
+            patch(
+                "app.routes.integration.submit",
+                return_value=(batch_envelope, 200),
+            ) as mock_submit,
+        ):
+            resp = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer batch-token"},
+                json=batch,
+            )
+
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "success"
+        assert resp.get_json()["data"]["procesadas"] == 2
+        assert mock_submit.called
+        assert mock_submit.call_args.args[0] == batch
+        assert mock_submit.call_args.args[1]["username"] == "ana"
+
     def test_unauthorized_token_nothing_persisted(self, app_client):
         """Unknown token → 401 and submit never called."""
         with (

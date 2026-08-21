@@ -54,9 +54,12 @@ def _build_synth_session(bearer_user: dict) -> dict:
 
 @integration_bp.post("/control-novedades")
 def control_novedades_submit():
-    """Envía una novedad autenticada por bearer token.
+    """Envía una o varias novedades autenticadas por bearer token.
 
-    La identidad del validador se resuelve desde el token en _handle_bearer_auth
+    Contrato primario: un solo JSON ``{"novedades": [...]}`` con la lista de
+    items a procesar en una sola request (HTTP 200 con resultados por item).
+    Formato heredado: un solo item como objeto plano (HTTP 201). La identidad
+    del validador se resuelve desde el token en _handle_bearer_auth
     (before_request) y se expone en ``flask.g`` (per-request, sin cookie). El
     permiso ``control_urgencias:write`` se valida AQUÍ manualmente leyendo
     ``g.bearer_user`` porque permiso_requerido (app/utils/auth.py) solo lee la
