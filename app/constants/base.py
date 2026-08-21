@@ -198,7 +198,7 @@ CANTIDAD_PYP_MIN = 3            # PyP >= 3 es anómalo
 
 IMAGENES_DIR = "data/imagenes"
 IMAGENES_MAX_PER_OBSERVACION = 3
-IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"})
+IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"}) | ALLOWED_EXCEL_SUFFIXES
 IMAGENES_MAX_SIZE_MB = 20
 
 # =============================================================================

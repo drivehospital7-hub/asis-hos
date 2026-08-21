@@ -338,7 +338,7 @@ def obtener_imagenes_count(error_id: str) -> int:
 
 
 def validar_imagen(file) -> tuple[bool, str]:
-    """Validar archivo (imagen o PDF)."""
+    """Validar archivo (imagen, PDF o Excel)."""
     ext = Path(file.filename).suffix.lower()
     if ext not in IMAGENES_ALLOWED_TYPES:
         return False, f"Tipo no permitido: {ext}"
@@ -351,7 +351,7 @@ def validar_imagen(file) -> tuple[bool, str]:
 
 
 def guardar_imagen(error_id: str, file) -> tuple[bool, str]:
-    """Guardar archivo (imagen o PDF)."""
+    """Guardar archivo (imagen, PDF o Excel)."""
     if obtener_imagenes_count(error_id) >= IMAGENES_MAX_PER_OBSERVACION:
         return False, f"Máximo {IMAGENES_MAX_PER_OBSERVACION} archivos"
 

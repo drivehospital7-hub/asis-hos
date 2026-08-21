@@ -94,8 +94,8 @@
     <div id="modal-images-list" class="modal-images"></div>
     <div id="modal-dropzone" class="dropzone">
       <div class="dropzone-text">Arrastra archivo o click para subir</div>
-      <div class="dropzone-hint">Máx 3 archivos (imagen o PDF)</div>
-      <input type="file" id="file-input" accept="image/*,.pdf" multiple style="display:none">
+      <div class="dropzone-hint">Máx 3 archivos (imagen, PDF o Excel)</div>
+      <input type="file" id="file-input" accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" multiple style="display:none">
     </div>
   </div>
 </div>
@@ -309,7 +309,7 @@
       opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e === 'S' ? 'Pendiente' : 'Resuelto', e)));
       document.getElementById('filterValidador').innerHTML = '<option value="">Todos</option>' +
         (opciones.validadores || []).map(v => {
-          const display = [v.primer_nombre, v.apellido_1].filter(Boolean).join(' ');
+          const display = ([v.primer_nombre, v.apellido_1].filter(Boolean).join(' ')).toUpperCase();
           return `<option value="${escapeHtml(display)}">${escapeHtml(display)}</option>`;
         }).join('');
       _buildResponsableAreaMap();
@@ -1582,6 +1582,21 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     </div>`;
   }
 
+  /** Devuelve HTML para un archivo Excel dentro del modal (ícono + enlace) */
+  function _renderExcelThumb(errorId, filename, authed) {
+    return `<div style="position:relative;width:120px;height:90px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border:1px solid #e2e8f0;border-radius:4px;">
+      <a href="/api/control-errores/${errorId}/imagenes/${filename}" target="_blank" style="text-decoration:none;color:#16a34a;display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+          <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+          <path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>
+        </svg>
+        <span style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${filename}</span>
+      </a>
+      ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
+    </div>`;
+  }
+
   async function openImageModal(errorId) {
     currentImageErrorId = errorId;
     const modal = document.getElementById('image-modal');
@@ -1599,8 +1614,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const result = await res.json();
     if (result.status === 'success') {
       listEl.innerHTML = result.data.imagenes.map(filename => {
-        const isPdf = filename.toLowerCase().endsWith('.pdf');
-        if (isPdf) return _renderPdfThumb(errorId, filename, window._canWrite);
+        const lower = filename.toLowerCase();
+        if (lower.endsWith('.pdf')) return _renderPdfThumb(errorId, filename, window._canWrite);
+        if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) return _renderExcelThumb(errorId, filename, window._canWrite);
         return `<div style="position:relative;width:120px;height:90px;">
           <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
           ${window._canWrite ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
@@ -1641,8 +1657,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   async function uploadImages(errorId, files) {
     if (!window._canWrite) return;
     for (const file of files) {
-      const isPdf = file.name.toLowerCase().endsWith('.pdf');
-      if (!file.type.startsWith('image/') && !isPdf) continue;
+      const name = file.name.toLowerCase();
+      const isImage = file.type.startsWith('image/');
+      const isDoc = /\.(pdf|xlsx|xls|xlsm|xlsb)$/.test(name);
+      if (!isImage && !isDoc) continue;
       const formData = new FormData();
       formData.append('imagen', file);
       const res = await fetch(`/api/control-errores/${errorId}/imagenes`, { method: 'POST', body: formData });

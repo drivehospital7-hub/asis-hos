@@ -170,16 +170,18 @@ def get_facturadores() -> list[dict]:
 
 
 def get_validadores() -> list[dict]:
-    """Retorna exclusivamente usuarios con rol exacto ``validador``.
+    """Retorna usuarios con rol ``validador`` o ``admin``.
 
-    La identidad visible se compone de primer nombre y primer apellido para
-    coincidir con el valor persistido en cada novedad. Nunca expone hashes.
+    Los admins (p. ej. Alexis) también figuran en el select de validadores
+    para poder filtrar por ellos. La identidad visible se compone de primer
+    nombre y primer apellido para coincidir con el valor persistido en cada
+    novedad. Nunca expone hashes.
     """
     db = _new_session()
     try:
         users = (
             db.query(User)
-            .filter(User.rol == "validador")
+            .filter(User.rol.in_(["validador", "admin"]))
             .order_by(User.username)
             .all()
         )

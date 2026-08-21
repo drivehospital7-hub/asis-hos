@@ -379,12 +379,16 @@ class TestGetFacturadores:
 
 
 class TestGetValidadores:
-    """get_validadores uses only the exact DB role and safe display fields."""
+    """get_validadores includes exact roles validador and admin, safe display fields."""
 
-    def test_filters_exact_role_and_composes_display_name(self, db_session):
+    def test_filters_exact_roles_and_composes_display_name(self, db_session):
         _add_user(
             db_session, username="val", rol="validador",
             primer_nombre=" María ", apellido_1=" López ",
+        )
+        _add_user(
+            db_session, username="admin", rol="admin",
+            primer_nombre="Alexis", apellido_1="Aguirre",
         )
         _add_user(
             db_session, username="permission-only", rol="usuario",
@@ -398,9 +402,10 @@ class TestGetValidadores:
 
         result = users_store.get_validadores()
 
-        assert [user["username"] for user in result] == ["val"]
-        assert result[0]["nombre_completo"] == "MARÍA LÓPEZ"
-        assert result[0]["rol"] == "validador"
+        assert [user["username"] for user in result] == ["admin", "val"]
+        assert result[1]["nombre_completo"] == "MARÍA LÓPEZ"
+        assert result[1]["rol"] == "validador"
+        assert result[0]["rol"] == "admin"
         assert "password_hash" not in result[0]
 
     def test_includes_non_facturador_with_responsable_permission(self, db_session):
