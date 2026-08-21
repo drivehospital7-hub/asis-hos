@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 # =============================================================================
 # EXCEL - Formatos soportados
 # =============================================================================
@@ -164,6 +166,19 @@ DEFAULT_TEMPLATES = [
         ],
     },
 ]
+
+# =============================================================================
+# INTEGRACIÓN LAN - Tokens de API y HTTPS
+# =============================================================================
+
+# TTL por defecto de los tokens de integración (días).
+API_TOKEN_TTL_DAYS = 90
+
+# HTTPS is recommended for LAN integration. HTTP is a temporary exception for
+# the current LAN deployment; set INTEGRATION_HTTPS_REQUIRED=true to enforce TLS.
+INTEGRATION_HTTPS_REQUIRED = (
+    os.getenv("INTEGRATION_HTTPS_REQUIRED", "false").strip().lower() == "true"
+)
 
 # =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones

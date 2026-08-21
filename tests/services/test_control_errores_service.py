@@ -343,6 +343,41 @@ class TestGetErroresRoleVisibility:
         ids = [e["id"] for e in result["data"]["errores"]]
         assert set(ids) == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
 
+    def test_validador_filter_matches_normalized_identity_and_preserves_other_filters(self):
+        fixture = [
+            {
+                "id": "v1", "tipo_error": "Otros", "estado": "S",
+                "validador": "MARIA GOMEZ", "responsable": "A",
+                "creado_en": "2026-08-02T10:00:00",
+            },
+            {
+                "id": "v2", "tipo_error": "Otros", "estado": "N",
+                "validador": " maría   gómez ", "responsable": "B",
+                "creado_en": "2026-08-03T10:00:00",
+            },
+            {
+                "id": "v3", "tipo_error": "Otros", "estado": "S",
+                "validador": "JUAN PEREZ", "responsable": "C",
+                "creado_en": "2026-08-04T10:00:00",
+            },
+        ]
+        result = self._call(
+            {"rol": "validador", "username": "val1"}, fixture,
+        )
+        assert {e["id"] for e in result["data"]["errores"]} == {"v1", "v2", "v3"}
+
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(
+                tipo_error="Otros", estado="S", validador="María Gómez",
+                session={"rol": "validador"},
+            )
+
+        assert [e["id"] for e in result["data"]["errores"]] == ["v1"]
+
 
 class TestGetOpcionesDbOnly:
     """Spec R4: responsables solo desde DB facturadores, sin fallback."""
@@ -367,6 +402,20 @@ class TestGetOpcionesDbOnly:
         assert opciones["status"] == "success"
         assert opciones["data"]["responsables"] == ["ANGIE ARIAS", "LORENY ESPAÑA"]
         assert "responsables_nombres_completos" not in opciones["data"]
+
+    def test_opciones_includes_db_validadores(self):
+        validadores = [
+            {"username": "val", "primer_nombre": "MARIA", "apellido_1": "GOMEZ",
+             "nombre_completo": "MARIA GOMEZ", "rol": "validador"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores", return_value=[]),
+            patch("app.services.control_errores_service.users_store.get_validadores", return_value=validadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["validadores"] == validadores
 
     def test_opciones_empty_when_no_facturadores(self):
         """Sin facturadores DB → lista vacía (nunca hardcodeada)."""

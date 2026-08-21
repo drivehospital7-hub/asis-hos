@@ -158,6 +158,7 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
         )
 
         facturadores = users_store.get_facturadores()
+        validadores = users_store.get_validadores()
         responsables = [f["nombre_completo"] for f in facturadores]
 
         return {
@@ -166,6 +167,7 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
                 "tipos_error": ERROR_TIPO_URGENCIAS,
                 "estados": ERROR_ESTADO_URGENCIAS,
                 "responsables": responsables,
+                "validadores": validadores,
                 "areas": _build_areas_options(),
                 "responsables_detalle": [
                     {
@@ -198,6 +200,7 @@ def get_errores(
     responsable: str | None = None,
     area: str | None = None,
     session: dict[str, Any] | None = None,
+    validador: str | None = None,
 ) -> dict[str, Any]:
     """Listar errores con filtros + visibilidad por rol.
 
@@ -228,6 +231,7 @@ def get_errores(
             owner_full_identity=owner_full_identity,
             responsable_identity=responsable_identity,
             responsable_full_identity=responsable_full_identity,
+            validador=validador,
         )
 
         area_identities = _resolve_area_responsables(area)
@@ -238,10 +242,11 @@ def get_errores(
             ]
 
         logger.info(
-            "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, area: %s, owner: %s, total: %d",
+            "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, validador: %s, area: %s, owner: %s, total: %d",
             tipo_error,
             estado,
             responsable,
+            validador,
             area,
             owner_identity,
             len(errores),
@@ -291,10 +296,12 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
 
         validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
         created_by = sess.get("username", "")
+        idempotency_key = data.get("idempotency_key", "") or ""
 
         nuevo = crear_error(
             tipo_error, factura, observacion, estado, responsable,
             observacion_facturador, validador=validador, created_by=created_by,
+            idempotency_key=idempotency_key,
         )
         logger.info("[BACK] Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}

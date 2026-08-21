@@ -371,10 +371,37 @@ class TestGetFacturadores:
         _add_user(db_session, username="admin", rol="admin", permisos=["*"])
         assert users_store.get_facturadores() == []
 
+
     def test_excludes_facturador_without_primer_nombre(self, db_session):
         """Facturador without primer_nombre → excluded (no usable identity)."""
         _add_user(db_session, username="anon", rol="facturador")
         assert users_store.get_facturadores() == []
+
+
+class TestGetValidadores:
+    """get_validadores uses only the exact DB role and safe display fields."""
+
+    def test_filters_exact_role_and_composes_display_name(self, db_session):
+        _add_user(
+            db_session, username="val", rol="validador",
+            primer_nombre=" María ", apellido_1=" López ",
+        )
+        _add_user(
+            db_session, username="permission-only", rol="usuario",
+            permisos=["responsable_facturacion"],
+            primer_nombre="Ana", apellido_1="Ruiz",
+        )
+        _add_user(
+            db_session, username="facturador", rol="facturador",
+            primer_nombre="Luis", apellido_1="Diaz",
+        )
+
+        result = users_store.get_validadores()
+
+        assert [user["username"] for user in result] == ["val"]
+        assert result[0]["nombre_completo"] == "MARÍA LÓPEZ"
+        assert result[0]["rol"] == "validador"
+        assert "password_hash" not in result[0]
 
     def test_includes_non_facturador_with_responsable_permission(self, db_session):
         """Explicit permission makes a validator eligible as responsable."""

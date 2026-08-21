@@ -57,8 +57,12 @@ def listar_errores():
     estado = request.args.get("estado")
     responsable = request.args.get("responsable")
     area = request.args.get("area")
+    validador = request.args.get("validador")
 
-    return jsonify(get_errores(tipo_error, estado, responsable, area=area, session=dict(session)))
+    return jsonify(get_errores(
+        tipo_error, estado, responsable, area=area, session=dict(session),
+        validador=validador,
+    ))
 
 
 @control_errores_bp.get("/api/control-errores/changes")

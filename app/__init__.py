@@ -1,8 +1,12 @@
 import secrets
+import logging
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, g, jsonify, render_template, request, session
+
+
+logger = logging.getLogger(__name__)
 
 
 # Endpoints públicos que NO requieren sesión
@@ -16,6 +20,9 @@ PUBLIC_ENDPOINTS = frozenset({
     # Static — CSS, JS, imágenes
     "static",
 })
+
+# Endpoint de integración LAN que se autentica por bearer token (sin sesión).
+INTEGRATION_SUBMIT_ENDPOINT = "integration.control_novedades_submit"
 
 
 def _ensure_secret_key(app: Flask) -> None:
@@ -76,8 +83,46 @@ def create_app(config=None):
     # ──────────────────────────────────────────────
     # Middleware global: verifica auth en cada request
     # ──────────────────────────────────────────────
+    def _unauthorized_response():
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["No autenticado"],
+        }), 401
+
+    def _handle_bearer_auth():
+        """Autentica un request sin sesión vía bearer token de integración.
+
+        Resuelve el token a un usuario validador de la DB y expone su identidad
+        en ``flask.g`` (per-request, NUNCA persistida como cookie de sesión).
+        La ruta construye luego una sesión sintética (mismas claves que
+        do_login) para que add_error derive validador/created_by desde el
+        token, nunca del payload.
+        """
+        auth_header = request.headers.get("Authorization", "")
+        scheme, _, raw_token = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not raw_token.strip():
+            logger.info("[BACK] Token de integración ausente o malformado")
+            return _unauthorized_response()
+
+        from app.utils import token_store
+        user = token_store.get_user_for_token(raw_token.strip())
+        if user is None:
+            logger.warning("[BACK] Token de integración inválido, revocado o vencido")
+            return _unauthorized_response()
+
+        # Identidad del validador solo para esta request (flask.g). No se
+        # escribe en session: el endpoint es "sin sesión" y no debe acuñar
+        # una cookie de sesión reutilizable.
+        g.bearer_user = user
+        return
+
     @app.before_request
     def check_session_auth():
+        # Endpoint de integración: se autentica por bearer token (sin sesión).
+        if request.endpoint == INTEGRATION_SUBMIT_ENDPOINT:
+            return _handle_bearer_auth()
+
         # Rutas públicas (login, logout, status, estáticos)
         if request.endpoint in PUBLIC_ENDPOINTS:
             return
@@ -110,6 +155,7 @@ def create_app(config=None):
     from app.routes.abiertas_urgencias import abiertas_urgencias_bp
     from app.routes.odontologia_equipos_basicos import odontologia_equipos_basicos_bp
     from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
+    from app.routes.integration import integration_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
@@ -127,5 +173,11 @@ def create_app(config=None):
     app.register_blueprint(import_facturas_bp)
     app.register_blueprint(odontologia_equipos_basicos_bp, url_prefix="/odontologia-equipos-basicos")
     app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
+    app.register_blueprint(integration_bp)
+
+    # Prerrequisito de seguridad: HTTPS en la LAN para la integración.
+    if not app.config.get("TESTING"):
+        from app.routes.integration import _maybe_warn_https
+        _maybe_warn_https()
 
     return app

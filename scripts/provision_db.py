@@ -36,13 +36,13 @@ DEST_DB = "control_system_prod"
 TEST_DB = "asis_hos_test"
 POSTGRES_BIN_DEFAULT = Path(r"C:\Program Files\PostgreSQL\18\bin")
 
-# Tablas del esquema — 13 tablas en total, verificado contra la fuente.
+# Tablas del esquema — 14 tablas en total, verificado contra la fuente.
 # Alcance: SOLO esquema, sin datos (ni semilla ni facturación).
 ALL_TABLES = (
     "users", "reglas", "catalogos", "condiciones",
     "procedimiento", "notas_tecnicas", "nota_hoja", "eps_nota",
     "eps_contratado", "evidencias", "user_areas", "resultados_auditoria",
-    "excepciones",
+    "excepciones", "api_tokens",
 )
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent

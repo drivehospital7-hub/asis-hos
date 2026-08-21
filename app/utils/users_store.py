@@ -7,7 +7,7 @@ con error.
 
 Mantiene la API pública del antiguo store JSON
 (check_credentials/get_user/list_users/create_user/update_user/
-delete_user) y agrega get_facturadores(). El esquema y los datos deben
+delete_user) y agrega get_facturadores()/get_validadores(). El esquema y los datos deben
 provisionarse explícitamente antes de usar esta fachada.
 """
 
@@ -110,6 +110,16 @@ def get_user(username: str) -> Optional[dict]:
         db.close()
 
 
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    """Retorna un usuario por su id (sin password_hash) o None."""
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        return _to_dict(user) if user else None
+    finally:
+        db.close()
+
+
 def list_users() -> list:
     """Retorna todos los usuarios (sin password_hash)."""
     db = _new_session()
@@ -136,6 +146,45 @@ def get_facturadores() -> list[dict]:
         for u in users:
             if u.rol != "facturador" and PERMISO_RESPONSABLE_FACTURACION not in (u.permisos or []):
                 continue
+            primer_nombre = (u.primer_nombre or "").strip()
+            if not primer_nombre:
+                continue
+            apellido_1 = (u.apellido_1 or "").strip()
+            result.append(
+                {
+                    "username": u.username,
+                    "primer_nombre": primer_nombre,
+                    "segundo_nombre": (u.segundo_nombre or "").strip(),
+                    "apellido_1": apellido_1,
+                    "apellido_2": (u.apellido_2 or "").strip(),
+                    "nombre_completo": " ".join(
+                        n for n in [primer_nombre, apellido_1] if n
+                    ).upper(),
+                    "rol": u.rol,
+                    "areas": sorted(ua.area for ua in u.areas),
+                }
+            )
+        return result
+    finally:
+        db.close()
+
+
+def get_validadores() -> list[dict]:
+    """Retorna exclusivamente usuarios con rol exacto ``validador``.
+
+    La identidad visible se compone de primer nombre y primer apellido para
+    coincidir con el valor persistido en cada novedad. Nunca expone hashes.
+    """
+    db = _new_session()
+    try:
+        users = (
+            db.query(User)
+            .filter(User.rol == "validador")
+            .order_by(User.username)
+            .all()
+        )
+        result = []
+        for u in users:
             primer_nombre = (u.primer_nombre or "").strip()
             if not primer_nombre:
                 continue

@@ -34,11 +34,15 @@
     <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
   </div>
   <div class="filters__group">
-    <label class="filters__label">Todas las categorías</label>
+    <label class="filters__label">Validador</label>
+    <select id="filterValidador" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
+  </div>
+  <div class="filters__group">
+    <label class="filters__label">Categoría</label>
     <select id="filterTipo" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
-    <label class="filters__label">Todos los estados</label>
+    <label class="filters__label">Estado</label>
     <select id="filterEstado" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
@@ -46,7 +50,7 @@
     <select id="filterResponsable" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
-    <label class="filters__label">Todas las áreas</label>
+    <label class="filters__label">Área</label>
     <select id="filterArea" class="filters__select" onchange="applyFilters()"><option value="">Todas las áreas</option></select>
   </div>
   <button class="filter-icon" title="Limpiar filtros" onclick="clearFilters()">
@@ -172,7 +176,7 @@
 
 {% block scripts %}
 <script>
-  let opciones = { tipos_error: [], estados: [], responsables: [], areas: [], responsables_detalle: [] };
+  let opciones = { tipos_error: [], estados: [], responsables: [], validadores: [], areas: [], responsables_detalle: [] };
   let cachedErrores = [];
   let isAdding = false;
   let _cargaEnProgreso = false;
@@ -303,6 +307,11 @@
       opciones = result.data;
       opciones.tipos_error.forEach(t => document.getElementById('filterTipo').add(new Option(t, t)));
       opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e === 'S' ? 'Pendiente' : 'Resuelto', e)));
+      document.getElementById('filterValidador').innerHTML = '<option value="">Todos</option>' +
+        (opciones.validadores || []).map(v => {
+          const display = [v.primer_nombre, v.apellido_1].filter(Boolean).join(' ');
+          return `<option value="${escapeHtml(display)}">${escapeHtml(display)}</option>`;
+        }).join('');
       _buildResponsableAreaMap();
       // Select de área (aditivo, sdd Empieza)
       document.getElementById('filterArea').innerHTML = '<option value="">Todas las áreas</option>' +
@@ -390,7 +399,8 @@
       'tipo_error=' + encodeURIComponent(document.getElementById('filterTipo').value) +
       '&estado=' + encodeURIComponent(document.getElementById('filterEstado').value) +
       '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value) +
-      '&area=' + encodeURIComponent(document.getElementById('filterArea').value);
+      '&area=' + encodeURIComponent(document.getElementById('filterArea').value) +
+      '&validador=' + encodeURIComponent(document.getElementById('filterValidador').value);
     const res = await fetch(url);
     const result = await res.json();
     if (result.status === 'success') {
@@ -1472,6 +1482,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     document.getElementById('filterEstado').value = '';
     document.getElementById('filterResponsable').value = '';
     document.getElementById('filterArea').value = '';
+    document.getElementById('filterValidador').value = '';
     loadErrores();
   }
   

@@ -1,6 +1,6 @@
 """Modelos SQLAlchemy para notas técnicas."""
 
-from sqlalchemy import JSON, Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table
+from sqlalchemy import JSON, Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table, DateTime
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -76,6 +76,34 @@ class UserArea(Base):
             "id": self.id,
             "user_id": self.user_id,
             "area": self.area
+        }
+
+
+class ApiToken(Base):
+    """Bearer token de integración LAN, vinculado a un usuario validador.
+
+    Solo se persiste el hash SHA-256 del token; el valor en claro se muestra
+    una única vez al emitirse. La rotación revoca el token anterior e invalida
+    el valor en uso. ``revoked_at``/``expires_at`` controlan el ciclo de vida.
+    """
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
         }
 
 

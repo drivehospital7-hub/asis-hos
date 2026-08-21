@@ -5,6 +5,7 @@ import logging
 import uuid
 import shutil
 import tempfile
+import threading
 import unicodedata
 from pathlib import Path
 from datetime import datetime
@@ -20,6 +21,10 @@ _NOT_SET = object()
 DATA_DIR = Path(__file__).parent.parent / "data"
 ERRORES_FILE = DATA_DIR / "control_errores.json"
 IMAGENES_PATH = DATA_DIR / "imagenes"
+
+# Lock de módulo para operaciones idempotentes (check-then-write) sobre el
+# archivo JSON. Un solo proceso + escritura atómica garantiza no duplicados.
+_idempotency_lock = threading.Lock()
 
 
 def normalizar_identidad(s: str | None) -> str:
@@ -102,6 +107,7 @@ def listar_errores(
     owner_full_identity: str | None = None,
     responsable_identity: str | None = None,
     responsable_full_identity: str | None = None,
+    validador: str | None = None,
 ) -> list[dict[str, Any]]:
     """Listar errores con filtros opcionales.
 
@@ -113,6 +119,8 @@ def listar_errores(
         owner_full_identity: nombre completo DB usado solo por registros legacy.
         responsable_identity: identidad canónica DB para resolver un filtro.
         responsable_full_identity: nombre completo DB usado por el filtro legacy.
+        validador: identidad del validador; se compara normalizada con el campo
+            persistido ``validador``.
     """
     data = _leer_datos()
     errores = data.get("errores", [])
@@ -143,6 +151,12 @@ def listar_errores(
                 e.get("created_by", ""),
                 owner_full_identity,
             )
+        ]
+    if validador:
+        validador_identity = normalizar_identidad(validador)
+        errores = [
+            e for e in errores
+            if normalizar_identidad(e.get("validador", "")) == validador_identity
         ]
 
     # Ordenar por fecha de creación (más reciente primero)
@@ -181,34 +195,95 @@ def crear_error(
     observacion_facturador: str = "",
     validador: str = "",
     created_by: str = "",
+    idempotency_key: str = "",
 ) -> dict[str, Any]:
     """Crear un nuevo error.
 
     Args:
         created_by: username del creador (auditoría automática, nunca
             proviene del payload del cliente).
+        idempotency_key: clave de idempotencia (integración LAN). Se persiste
+            en el registro para deduplicar reintentos.
     """
-    data = _leer_datos()
+    record, _ = crear_error_idempotente(
+        idempotency_key=idempotency_key,
+        tipo_error=tipo_error,
+        factura=factura,
+        observacion=observacion,
+        observacion_facturador=observacion_facturador,
+        estado=estado,
+        responsable=responsable,
+        validador=validador,
+        created_by=created_by,
+    )
+    return record
 
-    nuevo_error = {
-        "id": str(uuid.uuid4()),
-        "tipo_error": tipo_error,
-        "factura": factura,
-        "observacion": observacion,
-        "observacion_facturador": observacion_facturador,
-        "estado": estado,
-        "responsable": responsable,
-        "validador": validador,
-        "created_by": created_by,
-        "creado_en": datetime.now().isoformat(),
-        "actualizado_en": datetime.now().isoformat(),
-    }
 
-    data.setdefault("errores", []).append(nuevo_error)
-    _escribir_datos(data)
+def crear_error_idempotente(
+    idempotency_key: str,
+    tipo_error: str,
+    factura: str,
+    observacion: str,
+    estado: str,
+    responsable: str,
+    observacion_facturador: str = "",
+    validador: str = "",
+    created_by: str = "",
+) -> tuple[dict[str, Any], bool]:
+    """Crea un error de forma ATÓMICA e idempotente bajo ``_idempotency_lock``.
 
-    logger.info("[BACK] Error creado: %s", nuevo_error["id"])
-    return nuevo_error
+    Todo el check-then-write (leer, comprobar clave, agregar, escribir) corre
+    dentro del lock, eliminando el TOCTOU de ``_find_by_idempotency`` +
+    ``crear_error`` separados: dos envíos concurrentes con la misma
+    ``idempotency_key`` jamás persisten dos registros (también protege contra
+    la pérdida de actualizaciones entre claves distintas, R4-2).
+
+    Returns:
+        (record, created): ``created`` es True si se persistió un registro
+        nuevo; False si ya existía uno con esa ``idempotency_key`` (se devuelve
+        el existente y NO se escribe nada).
+    """
+    with _idempotency_lock:
+        data = _leer_datos()
+
+        # Idempotencia: si la clave ya existe, devolver el original sin escribir.
+        if idempotency_key:
+            for error in data.get("errores", []):
+                if error.get("idempotency_key") == idempotency_key:
+                    return error, False
+
+        nuevo_error = {
+            "id": str(uuid.uuid4()),
+            "tipo_error": tipo_error,
+            "factura": factura,
+            "observacion": observacion,
+            "observacion_facturador": observacion_facturador,
+            "estado": estado,
+            "responsable": responsable,
+            "validador": validador,
+            "created_by": created_by,
+            "idempotency_key": idempotency_key or "",
+            "creado_en": datetime.now().isoformat(),
+            "actualizado_en": datetime.now().isoformat(),
+        }
+
+        data.setdefault("errores", []).append(nuevo_error)
+        _escribir_datos(data)
+
+        logger.info("[BACK] Error creado: %s", nuevo_error["id"])
+        return nuevo_error, True
+
+
+def find_by_idempotency(idempotency_key: str) -> dict[str, Any] | None:
+    """Busca un registro por su clave de idempotencia (bajo lock)."""
+    if not idempotency_key:
+        return None
+    with _idempotency_lock:
+        data = _leer_datos()
+        for error in data.get("errores", []):
+            if error.get("idempotency_key") == idempotency_key:
+                return error
+    return None
 
 
 def obtener_error(error_id: str) -> dict[str, Any] | None:
