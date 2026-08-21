@@ -396,6 +396,44 @@ class TestNonAdminLifecycleDenied:
         assert data["status"] == "success"
         assert data["data"]["token"] == "raw-secret"
 
+    def test_admin_can_issue_permanent_token(self, app_client):
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        with patch(
+            "app.utils.token_store.issue_token",
+            return_value=("raw-secret", {"id": 1, "username": "ana", "expires_at": None}),
+        ) as mock_issue:
+            resp = app_client.post(
+                "/api/integration/tokens",
+                json={"username": "ana", "permanent": True},
+            )
+
+        assert resp.status_code == 201
+        mock_issue.assert_called_once_with("ana", permanent=True)
+
+    def test_issue_token_rejects_non_boolean_permanent(self, app_client):
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["*"]
+            sess["username"] = "admin"
+
+        with patch("app.utils.token_store.issue_token") as mock_issue:
+            resp = app_client.post(
+                "/api/integration/tokens",
+                json={"username": "ana", "permanent": "true"},
+            )
+
+        assert resp.status_code == 400
+        assert resp.get_json() == {
+            "status": "error",
+            "data": {},
+            "errors": ["Campo inválido: permanent debe ser booleano"],
+        }
+        mock_issue.assert_not_called()
+
     def test_admin_can_rotate_token(self, app_client):
         """Admin session rotating a token → new plaintext returned once."""
         with app_client.session_transaction() as sess:

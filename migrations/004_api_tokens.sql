@@ -4,6 +4,10 @@ CREATE TABLE IF NOT EXISTS api_tokens (
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP NOT NULL,
-    expires_at TIMESTAMP NOT NULL,
+    expires_at TIMESTAMP NULL,
     revoked_at TIMESTAMP NULL
 );
+
+-- Existing installations may still have the original NOT NULL constraint.
+ALTER TABLE api_tokens
+    ALTER COLUMN expires_at DROP NOT NULL;

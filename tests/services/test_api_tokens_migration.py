@@ -17,7 +17,8 @@ def test_api_tokens_migration_matches_model_and_provisioning() -> None:
     assert "token_hash varchar(64) not null unique" in sql
     assert "user_id integer not null references users(id) on delete cascade" in sql
     assert "created_at timestamp not null" in sql
-    assert "expires_at timestamp not null" in sql
+    assert "expires_at timestamp null" in sql
+    assert "alter table api_tokens alter column expires_at drop not null" in sql
     assert "revoked_at timestamp null" in sql
 
     assert "api_tokens" in ALL_TABLES
@@ -30,5 +31,5 @@ def test_api_tokens_migration_matches_model_and_provisioning() -> None:
     assert ApiToken.__table__.c.token_hash.nullable is False
     assert ApiToken.__table__.c.user_id.nullable is False
     assert ApiToken.__table__.c.created_at.nullable is False
-    assert ApiToken.__table__.c.expires_at.nullable is False
+    assert ApiToken.__table__.c.expires_at.nullable is True
     assert ApiToken.__table__.c.revoked_at.nullable is True

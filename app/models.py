@@ -92,7 +92,7 @@ class ApiToken(Base):
     token_hash = Column(String(64), unique=True, nullable=False)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, nullable=False)
-    expires_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
     revoked_at = Column(DateTime, nullable=True)
 
     user = relationship("User")

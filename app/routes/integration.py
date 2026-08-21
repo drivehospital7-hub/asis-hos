@@ -107,15 +107,23 @@ def list_tokens():
 @admin_requerido
 def issue_token():
     """Emite un token para un usuario validador; devuelve el valor en claro una vez."""
-    username = (request.get_json(silent=True) or {}).get("username", "").strip()
+    data = request.get_json(silent=True) or {}
+    username = data.get("username", "").strip()
     if not username:
         return jsonify({
             "status": "error",
             "data": {},
             "errors": ["Campo requerido: username"],
         }), 400
+    permanent = data.get("permanent", False)
+    if not isinstance(permanent, bool):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Campo inválido: permanent debe ser booleano"],
+        }), 400
     try:
-        raw, record = token_store.issue_token(username)
+        raw, record = token_store.issue_token(username, permanent=permanent)
     except ValueError as e:
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     return jsonify({

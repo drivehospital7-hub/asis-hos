@@ -54,7 +54,11 @@ def _user_dict(user: User) -> dict:
     }
 
 
-def issue_token(username: str, ttl_days: int | None = None) -> tuple[str, dict]:
+def issue_token(
+    username: str,
+    ttl_days: int | None = None,
+    permanent: bool = False,
+) -> tuple[str, dict]:
     """Emite un token nuevo para el usuario, devolviendo el valor en claro una vez.
 
     Returns:
@@ -70,11 +74,13 @@ def issue_token(username: str, ttl_days: int | None = None) -> tuple[str, dict]:
 
         raw = _generate_raw_token()
         now = _utcnow()
+        # Permanent tokens are high-risk credentials and must be revoked manually.
+        expires_at = None if permanent else now + timedelta(days=ttl_days)
         record = ApiToken(
             token_hash=_hash_token(raw),
             user_id=user.id,
             created_at=now,
-            expires_at=now + timedelta(days=ttl_days),
+            expires_at=expires_at,
             revoked_at=None,
         )
         db.add(record)
@@ -121,11 +127,17 @@ def rotate_token(token_id: int) -> tuple[str, dict]:
         # Emitir uno nuevo
         raw = _generate_raw_token()
         now = _utcnow()
+        # Preserve the source token's permanent/high-risk lifecycle on rotation.
+        expires_at = (
+            None
+            if record.expires_at is None
+            else now + timedelta(days=API_TOKEN_TTL_DAYS)
+        )
         new_record = ApiToken(
             token_hash=_hash_token(raw),
             user_id=record.user_id,
             created_at=now,
-            expires_at=now + timedelta(days=API_TOKEN_TTL_DAYS),
+            expires_at=expires_at,
             revoked_at=None,
         )
         db.add(new_record)
@@ -193,7 +205,7 @@ def get_user_for_token(raw_token: str) -> dict | None:
         now = _utcnow()
         if record.revoked_at is not None:
             return None
-        if record.expires_at is None or record.expires_at < now:
+        if record.expires_at is not None and record.expires_at < now:
             return None
         user = db.query(User).filter(User.id == record.user_id).first()
         if user is None:

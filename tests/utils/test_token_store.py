@@ -92,6 +92,11 @@ class TestIssue:
         assert record["revoked_at"] is None
         assert record["expires_at"] is not None
 
+    def test_permanent_issue_has_no_expiry_and_authenticates(self):
+        raw, record = token_store.issue_token("ana", permanent=True)
+
+        assert record["expires_at"] is None
+        assert token_store.get_user_for_token(raw) is not None
 
 class TestRotate:
     def test_rotate_rejects_old_and_accepts_new(self):
@@ -107,6 +112,15 @@ class TestRotate:
         # Old token now rejected
         assert token_store.get_user_for_token(old_raw) is None
         # New token authenticates
+        assert token_store.get_user_for_token(new_raw) is not None
+
+    def test_rotate_permanent_token_stays_permanent(self):
+        old_raw, record = token_store.issue_token("ana", permanent=True)
+
+        new_raw, new_record = token_store.rotate_token(record["id"])
+
+        assert old_raw != new_raw
+        assert new_record["expires_at"] is None
         assert token_store.get_user_for_token(new_raw) is not None
 
 
