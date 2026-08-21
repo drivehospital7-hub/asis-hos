@@ -142,11 +142,11 @@ class TestForcedCategory:
 
 class TestResponsibleResolution:
     def test_matching_responsible_normalizes_to_db_user(self):
-        """Raw responsible matching a DB user is resolved and stored."""
+        """Raw responsible matching a DB user is resolved and persisted UPPERCASE."""
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
-                return_value="LORENY ESPAÑA",
+                return_value="loreny españa",
             ),
             patch(
                 "app.services.integration_service._persist",
@@ -184,7 +184,7 @@ class TestValidatorFromToken:
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
-                return_value="LORENY ESPAÑA",
+                return_value="loreny españa",
             ),
             patch(
                 "app.services.integration_service._persist",
@@ -201,7 +201,7 @@ class TestValidatorFromToken:
         sess = mock_persist.call_args.args[1]
         assert sess["primer_nombre"] == "Ana"
         assert sess["apellido_1"] == "Valdez"
-        # responsible stays a separate identity from validator
+        # responsible stays a separate identity from validator (persisted UPPERCASE)
         assert call_data["responsable"] == "LORENY ESPAÑA"
 
 
@@ -387,11 +387,11 @@ class TestBatchSubmit:
         mock_persist.assert_not_called()
 
     def test_batch_forces_category_per_item(self):
-        """Every item is persisted with the forced category."""
+        """Every item is persisted with the forced category and UPPERCASE responsible."""
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
-                return_value="LORENY ESPAÑA",
+                return_value="loreny españa",
             ),
             patch(
                 "app.services.integration_service._persist",
@@ -403,6 +403,7 @@ class TestBatchSubmit:
         assert mock_persist.call_count == 2
         for call in mock_persist.call_args_list:
             assert call.args[0]["tipo_error"] == "Soportes de Carpeta"
+            assert call.args[0]["responsable"] == "LORENY ESPAÑA"
 
     def test_batch_persist_failure_rejects_only_that_item(self):
         """A persistence failure on one item rejects it without aborting the batch."""
@@ -445,6 +446,180 @@ class TestBatchSubmit:
         assert envelope["data"]["error"]["id"] == "new-id"
 
 
+class TestDuplicateWarning:
+    """Duplicate detection is a NON-BLOCKING warning: the record is always
+    created; the response flags when the same category + factura already exists."""
+
+    def test_single_warns_when_matching_record_exists(self):
+        """Existing same category+factura → 201 + ya_existia True, still created."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ) as mock_persist,
+            patch(
+                "app.services.integration_service._contar_existentes",
+                return_value=3,
+            ),
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        assert envelope["data"]["error"]["ya_existia"] is True
+        assert envelope["data"]["error"]["cantidad_existentes"] == 3
+        mock_persist.assert_called_once()  # the record IS still created
+
+    def test_single_no_flag_when_no_duplicate(self):
+        """No matching record → success without the duplicate flag."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ),
+            patch(
+                "app.services.integration_service._contar_existentes",
+                return_value=0,
+            ),
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        assert "ya_existia" not in envelope["data"]["error"]
+        assert "cantidad_existentes" not in envelope["data"]["error"]
+
+    def test_batch_warns_when_matching_record_exists(self):
+        """Batch item with existing match → result ya_existia True, still success."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                side_effect=[{"id": "r1"}, {"id": "r2"}],
+            ),
+            patch(
+                "app.services.integration_service._contar_existentes",
+                side_effect=[2, 0],
+            ),
+        ):
+            envelope, status = submit(dict(TestBatchSubmit.BATCH), _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        assert envelope["data"]["procesadas"] == 2
+        assert envelope["data"]["rechazadas"] == 0
+        first, second = envelope["data"]["resultados"]
+        assert first["status"] == "success"
+        assert first["ya_existia"] is True
+        assert first["cantidad_existentes"] == 2
+        assert first["error"]["id"] == "r1"
+        assert second["status"] == "success"
+        assert "ya_existia" not in second
+
+    def test_duplicate_check_runs_before_persist(self):
+        """The existence check is consulted before the record is persisted."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "new-id"},
+            ) as mock_persist,
+            patch(
+                "app.services.integration_service._contar_existentes",
+                return_value=1,
+            ) as mock_count,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert mock_count.call_count == 1
+        # persist still ran (warning never blocks creation)
+        mock_persist.assert_called_once()
+        assert envelope["data"]["error"]["ya_existia"] is True
+
+
+class TestDuplicateWarningStorage:
+    """Real-JSON storage: the warning is computed against persisted records and
+    never written back into the store (response-only decoration)."""
+
+    @staticmethod
+    def _patch_storage(tmp_path, errores_storage):
+        errores_file = tmp_path / "control_errores.json"
+        errores_file.write_text(json.dumps({"errores": []}), encoding="utf-8")
+        return patch.object(errores_storage, "DATA_DIR", tmp_path), patch.object(
+            errores_storage, "ERRORES_FILE", errores_file
+        )
+
+    def test_contar_duplicados_matches_category_and_factura(self, tmp_path):
+        """contar_duplicados counts only records matching BOTH fields."""
+        from app.utils import errores_storage
+
+        data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
+        with data_patch, file_patch:
+            for factura in ["FEV-D1", "FEV-D1", "FEV-D2"]:
+                errores_storage.crear_error(
+                    tipo_error="Soportes de Carpeta",
+                    factura=factura,
+                    observacion="OBS",
+                    estado="S",
+                    responsable="LORENY ESPAÑA",
+                )
+            errores_storage.crear_error(
+                tipo_error="Otros",
+                factura="FEV-D1",
+                observacion="OBS",
+                estado="S",
+                responsable="LORENY ESPAÑA",
+            )
+
+            assert errores_storage.contar_duplicados("Soportes de Carpeta", "FEV-D1") == 2
+            assert errores_storage.contar_duplicados("Soportes de Carpeta", "FEV-D2") == 1
+            assert errores_storage.contar_duplicados("Soportes de Carpeta", "FEV-D3") == 0
+            # Same factura under a different category does not count as duplicate
+            assert errores_storage.contar_duplicados("Otros", "FEV-D1") == 1
+
+    def test_real_submit_warns_on_second_duplicate(self, tmp_path):
+        """Second submit with the same category+factura → warning, no blocking."""
+        from app.utils import errores_storage
+
+        data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
+        payload = dict(VALID_PAYLOAD, factura="fev-dedup-1")
+        with data_patch, file_patch, patch(
+            "app.services.integration_service._resolve_responsable",
+            return_value="LORENY ESPAÑA",
+        ):
+            first, status1 = submit(dict(payload), _VALIDATOR_SESSION)
+            second, status2 = submit(dict(payload), _VALIDATOR_SESSION)
+
+        assert status1 == 201
+        assert status2 == 201  # duplicate does NOT block creation
+        assert "ya_existia" not in first["data"]["error"]
+        assert second["data"]["error"]["ya_existia"] is True
+        assert second["data"]["error"]["cantidad_existentes"] == 1
+        assert second["data"]["error"]["id"] != first["data"]["error"]["id"]
+
+        data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
+        assert len(data["errores"]) == 2
+        # The warning flag is response-only: never persisted to storage.
+        assert all("ya_existia" not in record for record in data["errores"])
+        # Existence check matched the uppercased (normalized) factura.
+        assert all(record["factura"] == "FEV-DEDUP-1" for record in data["errores"])
+
+
 class TestRealJsonPersistence:
     """End-to-end contract: real JSON storage, forced category, new record per submit."""
 
@@ -464,7 +639,7 @@ class TestRealJsonPersistence:
         data_patch, file_patch = self._patch_storage(tmp_path, errores_storage)
         with data_patch, file_patch, patch(
             "app.services.integration_service._resolve_responsable",
-            return_value="LORENY ESPAÑA",
+            return_value="loreny españa",
         ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
 
@@ -481,7 +656,7 @@ class TestRealJsonPersistence:
         # Validator from the synthetic session (token owner)
         assert record["validador"] == "Ana Valdez"
         assert record["created_by"] == "ana"
-        # Responsible normalized and separate from validator
+        # Responsible normalized, UPPERCASE, and separate from validator
         assert record["responsable"] == "LORENY ESPAÑA"
         assert record["validador"] != record["responsable"]
 

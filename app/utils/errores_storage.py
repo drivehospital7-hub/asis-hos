@@ -170,6 +170,22 @@ def listar_errores(
     return errores
 
 
+def contar_duplicados(tipo_error: str, factura: str) -> int:
+    """Cuenta registros existentes con el mismo ``tipo_error`` y ``factura``.
+
+    Solo lectura (sigue el patrón de ``_leer_datos``); nunca modifica el
+    almacén. Se usa para detectar envíos duplicados como advertencia, sin
+    bloquear la creación de un registro nuevo.
+    """
+    data = _leer_datos()
+    errores = data.get("errores", [])
+    return sum(
+        1
+        for error in errores
+        if error.get("tipo_error") == tipo_error and error.get("factura") == factura
+    )
+
+
 def _responsable_coincide_con_owner(
     responsable: str | None,
     owner_identity: str,

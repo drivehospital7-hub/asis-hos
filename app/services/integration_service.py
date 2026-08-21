@@ -4,6 +4,8 @@ Recibe un payload JSON autenticado por bearer token, fuerza la categoría
 "Soportes de Carpeta", resuelve el responsable con la lógica de coincidencia
 existente y mantiene el validador (del token) separado del responsable.
 Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
+Si ya existe un registro con la misma categoría y factura, la respuesta incluye
+una advertencia (``ya_existia`` / ``cantidad_existentes``) sin bloquear nada.
 
 Contrato primario (lista): el endpoint acepta ``{"novedades": [...]}`` y
 procesa todos los items en una sola request. Cada item se procesa de forma
@@ -59,7 +61,7 @@ def _persist(data: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
         El registro persistido.
     """
     sess = session or {}
-    responsable = data["responsable"]
+    responsable = data["responsable"].upper()
     validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
     created_by = sess.get("username", "")
     return errores_storage.crear_error(
@@ -90,6 +92,18 @@ def _forced_category() -> str:
     if categoria not in ERROR_TIPO_URGENCIAS:
         categoria = "Otros"
     return categoria
+
+
+def _contar_existentes(factura: str) -> int:
+    """Cuenta registros ya persistidos con la misma categoría y factura.
+
+    Solo advertencia (duplicate detection): el registro nuevo SIEMPRE se crea,
+    sin importar el resultado. Compara la factura normalizada tal como se
+    persiste (uppercase) para no perder coincidencias.
+    """
+    return errores_storage.contar_duplicados(
+        _forced_category(), (factura or "").upper()
+    )
 
 
 def _validate_items(items: list[Any]) -> list[str]:
@@ -136,12 +150,26 @@ def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[
             "factura": factura,
             "observacion": item["observacion"],
             "observacion_facturador": item.get("observacion_facturador", "") or "",
-            "responsable": responsable,
+            "responsable": responsable.upper(),
         }
 
+        existentes = _contar_existentes(factura)
         nuevo = _persist(record_data, session)
         logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
-        return {"factura": factura, "status": "success", "error": nuevo}
+        resultado: dict[str, Any] = {
+            "factura": factura,
+            "status": "success",
+            "error": nuevo,
+        }
+        if existentes:
+            logger.info(
+                "[BACK] Integración: duplicado detectado (factura %s, %d existente(s))",
+                factura,
+                existentes,
+            )
+            resultado["ya_existia"] = True
+            resultado["cantidad_existentes"] = existentes
+        return resultado
     except Exception as e:
         logger.exception(
             "[BACK][ERROR] Error integrando novedad del lote (factura %s)", factura
@@ -178,12 +206,23 @@ def _submit_single(
         "factura": payload["factura"],
         "observacion": payload["observacion"],
         "observacion_facturador": payload.get("observacion_facturador", "") or "",
-        "responsable": responsable,
+        "responsable": responsable.upper(),
     }
 
-    # 5. Persistencia atómica (siempre crea un registro nuevo)
+    # 5. Advertencia de duplicado (no bloquea; el registro se crea igual)
+    existentes = _contar_existentes(payload["factura"])
+
+    # 6. Persistencia atómica (siempre crea un registro nuevo)
     nuevo = _persist(record_data, session)
     logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
+    if existentes:
+        logger.info(
+            "[BACK] Integración: duplicado detectado (factura %s, %d existente(s))",
+            payload["factura"],
+            existentes,
+        )
+        nuevo["ya_existia"] = True
+        nuevo["cantidad_existentes"] = existentes
     return {"status": "success", "data": {"error": nuevo}, "errors": []}, 201
 
 
