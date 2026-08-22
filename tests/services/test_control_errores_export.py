@@ -1,5 +1,7 @@
 """Tests para el export a Excel de Control de Errores (servicio + ruta)."""
 
+import contextlib
+import shutil
 from contextlib import ExitStack
 from io import BytesIO
 from unittest.mock import patch
@@ -13,7 +15,10 @@ from app.services.control_errores_export import (
     filename_export,
 )
 
-_APP = create_app({"TESTING": True, "SECRET_KEY": "test-secret-key"})
+_APP = create_app()
+_APP.config.update({"TESTING": True, "SECRET_KEY": "test-secret-key"})
+
+_SERVIDOR_PRUEBA = "http://servidor-test:5001"
 
 
 def _error_fixture(error_id="err-1", factura="FAC-001", creado_en="2026-05-15T10:30:00",
@@ -48,7 +53,8 @@ class TestBuildWorkbook:
             "app.services.control_errores_export.listar_imagenes",
             return_value=["file_1.pdf", "image_2.jpg"],
         ):
-            buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
+            with _APP.app_context():
+                buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
@@ -68,11 +74,17 @@ class TestBuildWorkbook:
         assert row[10] is None               # Adjunto 3 vacío
 
         cell9 = ws.cell(row=2, column=9)
-        assert cell9.hyperlink.target == "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
+        assert cell9.hyperlink.target == (
+            "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
+        )
+        assert "?token=" not in cell9.hyperlink.target
         assert cell9.style == "Hyperlink"
 
         cell10 = ws.cell(row=2, column=10)
-        assert cell10.hyperlink.target == "http://testserver/api/control-errores/err-1/imagenes/image_2.jpg"
+        assert cell10.hyperlink.target == (
+            "http://testserver/api/control-errores/err-1/imagenes/image_2.jpg"
+        )
+        assert "?token=" not in cell10.hyperlink.target
 
         assert ws.cell(row=2, column=11).hyperlink is None
 
@@ -81,10 +93,11 @@ class TestBuildWorkbook:
             "app.services.control_errores_export.listar_imagenes",
             return_value=[],
         ):
-            buffer = build_errores_export_workbook(
-                [_error_fixture(estado="N", creado_en="fecha-rara")],
-                "http://testserver/",
-            )
+            with _APP.app_context():
+                buffer = build_errores_export_workbook(
+                    [_error_fixture(estado="N", creado_en="fecha-rara")],
+                    "http://testserver/",
+                )
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
@@ -97,7 +110,8 @@ class TestBuildWorkbook:
             "app.services.control_errores_export.listar_imagenes",
             return_value=["mi archivo.pdf"],
         ):
-            buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
+            with _APP.app_context():
+                buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
@@ -105,6 +119,21 @@ class TestBuildWorkbook:
         assert cell.hyperlink.target == (
             "http://testserver/api/control-errores/err-1/imagenes/mi%20archivo.pdf"
         )
+        assert "?token=" not in cell.hyperlink.target
+
+    def test_hipervinculo_sin_token(self):
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            return_value=["file_1.pdf"],
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
+
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+        target = ws.cell(row=2, column=9).hyperlink.target
+        assert "?token=" not in target
+        assert target == "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
 
 
 def _login(app_client):
@@ -123,6 +152,20 @@ def _patch_export_pipeline(fixture, stack: ExitStack, adjuntos=None):
                               return_value=0))
     stack.enter_context(patch("app.services.control_errores_export.listar_imagenes",
                               return_value=adjuntos if adjuntos is not None else []))
+
+
+def _client(**config_overrides):
+    """Test client con config controlable (por defecto la misma clave de prueba)."""
+    app = create_app()
+    app.config.update({"TESTING": True, "SECRET_KEY": "test-secret-key"})
+    app.config.update(config_overrides)
+    return app.test_client()
+
+
+def _hipervinculo_de_respuesta(resp, cell="I2"):
+    wb = load_workbook(BytesIO(resp.data))
+    ws = wb.active
+    return ws[cell].hyperlink.target
 
 
 class TestExportRoute:
@@ -153,9 +196,10 @@ class TestExportRoute:
         assert [c.value for c in ws[1]] == HEADERS
         assert ws["A2"].value == "MARIA GOMEZ"
         assert ws["B2"].value == "FAC-001"
-        assert ws["I2"].hyperlink.target == (
-            "http://localhost/api/control-errores/err-1/imagenes/file_1.pdf"
-        )
+        target = ws["I2"].hyperlink.target
+        # Sin EXPORT_BASE_URL → usa el host del request (comportamiento previo)
+        assert target == "http://localhost/api/control-errores/err-1/imagenes/file_1.pdf"
+        assert "?token=" not in target
 
     def test_filtro_por_mes(self, app_client):
         _login(app_client)
@@ -184,3 +228,99 @@ class TestExportRoute:
         data = resp.get_json()
         assert data["status"] == "error"
         assert len(data["errors"]) > 0
+
+    def test_export_usa_base_url_configurada(self):
+        client = _client(EXPORT_BASE_URL="http://servidor-test:5001/")
+        _login(client)
+        fixture = [_error_fixture()]
+        with ExitStack() as stack:
+            _patch_export_pipeline(fixture, stack, adjuntos=["file_1.pdf"])
+            resp = client.get("/api/control-errores/export")
+
+        assert resp.status_code == 200
+        target = _hipervinculo_de_respuesta(resp)
+        assert target == (
+            f"{_SERVIDOR_PRUEBA}/api/control-errores/err-1/imagenes/file_1.pdf"
+        )
+        assert "?token=" not in target
+        assert "localhost" not in target
+
+    def test_export_base_url_sin_barra_final(self):
+        client = _client(EXPORT_BASE_URL="http://servidor-test:5001")
+        _login(client)
+        fixture = [_error_fixture()]
+        with ExitStack() as stack:
+            _patch_export_pipeline(fixture, stack, adjuntos=["file_1.pdf"])
+            resp = client.get("/api/control-errores/export")
+
+        assert resp.status_code == 200
+        target = _hipervinculo_de_respuesta(resp)
+        assert target == (
+            f"{_SERVIDOR_PRUEBA}/api/control-errores/err-1/imagenes/file_1.pdf"
+        )
+        assert "?token=" not in target
+
+
+@contextlib.contextmanager
+def _archivo_adjunto_real(error_id: str, files: dict[str, bytes]):
+    """Crea archivos reales bajo app/data/imagenes/{error_id} y limpia al salir."""
+    from app.utils.errores_storage import IMAGENES_PATH
+
+    d = IMAGENES_PATH / error_id
+    d.mkdir(parents=True, exist_ok=True)
+    try:
+        for name, content in files.items():
+            (d / name).write_bytes(content)
+        yield
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+class TestServirImagen:
+    ERROR_ID = "err-servir"
+    FILENAME = "file_1.pdf"
+    PDF_BYTES = b"%PDF-1.4 test-fake-pdf-content"
+
+    def _url(self, filename=None):
+        filename = filename or self.FILENAME
+        return f"/api/control-errores/{self.ERROR_ID}/imagenes/{filename}"
+
+    def test_sin_sesion_200(self):
+        client = _client()
+        with _archivo_adjunto_real(self.ERROR_ID, {self.FILENAME: self.PDF_BYTES}):
+            resp = client.get(self._url())
+            assert resp.status_code == 200
+            assert resp.data == self.PDF_BYTES
+            resp.close()
+
+    def test_con_sesion_200(self):
+        client = _client()
+        _login(client)
+        with _archivo_adjunto_real(self.ERROR_ID, {self.FILENAME: self.PDF_BYTES}):
+            resp = client.get(self._url())
+            assert resp.status_code == 200
+            assert resp.data == self.PDF_BYTES
+            resp.close()
+
+    def test_archivo_no_listado_404(self):
+        client = _client()
+        with _archivo_adjunto_real(self.ERROR_ID, {"otro.pdf": self.PDF_BYTES}):
+            resp = client.get(self._url())
+            assert resp.status_code == 404
+            data = resp.get_json()
+            assert data["status"] == "error"
+
+    def test_path_trick_fuera_de_la_carpeta_404(self):
+        from app.utils.errores_storage import IMAGENES_PATH
+
+        client = _client()
+        with _archivo_adjunto_real(self.ERROR_ID, {self.FILENAME: self.PDF_BYTES}):
+            secret = IMAGENES_PATH / "secret.txt"
+            secret.write_bytes(b"top-secret")
+            try:
+                resp = client.get(self._url("../secret.txt"))
+                assert resp.status_code == 404
+                data = resp.get_json()
+                assert data["status"] == "error"
+            finally:
+                secret.unlink(missing_ok=True)

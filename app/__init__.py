@@ -19,6 +19,10 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.unauthorized_react",
     # Static — CSS, JS, imágenes
     "static",
+    # Adjuntos de control de errores: público por diseño (links del Excel
+    # exportado deben abrir indefinidamente); la URL lleva el UUID del registro
+    # y la ruta valida que el archivo pertenezca a él.
+    "control_errores.servir_imagen",
 })
 
 # Endpoint de integración LAN que se autentica por bearer token (sin sesión).

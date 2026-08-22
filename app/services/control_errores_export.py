@@ -72,7 +72,12 @@ def _label_adjunto(filename: str) -> str:
 
 
 def _adjunto_url(base_url: str, error_id: str, filename: str) -> str:
-    """URL absoluta para descargar un adjunto."""
+    """URL absoluta para descargar un adjunto sin token ni sesión.
+
+    La ruta de servicio es pública a propósito: los links del Excel deben
+    seguir abriendo indefinidamente. El error_id (UUID) hace la URL difícil
+    de adivinar y la ruta valida que el archivo pertenezca al registro.
+    """
     return f"{base_url}api/control-errores/{error_id}/imagenes/{quote(filename)}"
 
 

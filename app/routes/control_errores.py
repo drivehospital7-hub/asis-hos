@@ -98,7 +98,12 @@ def exportar_errores():
             "errors": ["No hay datos para exportar"],
         }), 400
 
-    buffer = build_errores_export_workbook(errores, request.host_url)
+    configured = (current_app.config.get("EXPORT_BASE_URL") or "").strip()
+    base_url = configured if configured else request.host_url
+    if not base_url.endswith("/"):
+        base_url += "/"
+
+    buffer = build_errores_export_workbook(errores, base_url)
 
     return send_file(
         buffer,
@@ -186,11 +191,24 @@ def eliminar_imagen(error_id: str):
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/<path:filename>")
-@permiso_requerido("control_urgencias", "control_urgencias:write")
 def servir_imagen(error_id: str, filename: str):
-    """Servir imagen."""
-    from pathlib import Path
-    from flask import current_app, send_from_directory, abort
+    """Servir adjunto: público por diseño, sin sesión ni token.
+
+    Los links del Excel exportado deben abrir indefinidamente. La URL lleva el
+    error_id (UUID), por lo que no es adivinable; además se valida que el
+    archivo sea un adjunto real del registro (contra path tricks).
+    """
+    from flask import send_from_directory, abort
+    from app.utils.errores_storage import listar_imagenes
+
+    # Defensa contra path tricks: el archivo debe ser un adjunto real del registro
+    if filename not in listar_imagenes(error_id):
+        logger.warning(f"Adjunto no listado para {error_id}: {filename}")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Archivo no encontrado"],
+        }), 404
 
     app_root = Path(current_app.root_path)
     imagenes_dir = app_root / "data" / "imagenes" / error_id
