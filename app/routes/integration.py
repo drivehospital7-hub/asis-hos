@@ -57,9 +57,10 @@ def _build_synth_session(bearer_user: dict) -> dict:
 def control_novedades_submit():
     """Envía novedades autenticadas por bearer token.
 
-    Multipart procesa un solo registro plano y acepta el archivo ``imagen``.
-    JSON conserva el contrato de lote ``{"novedades": [...]}`` y el formato
-    heredado de un item como objeto plano. La identidad del validador se
+Multipart procesa un solo registro plano y acepta el campo ``imagen``
+    (repetible, hasta 3 archivos por registro). JSON conserva el contrato de
+    lote ``{"novedades": [...]}`` y el formato heredado de un item como objeto
+    plano. La identidad del validador se
     resuelve desde el token en _handle_bearer_auth
     (before_request) y se expone en ``flask.g`` (per-request, sin cookie). El
     permiso ``control_urgencias:write`` se valida AQUÍ manualmente leyendo
@@ -78,9 +79,9 @@ def control_novedades_submit():
             "status": "error",
             "data": {},
             "errors": ["HTTPS requerido para la integración"],
-        }), 403
+}), 403
 
-    image = request.files.get("imagen")
+    imagenes = request.files.getlist("imagen") or None
     if request.is_json:
         data = request.get_json(silent=True) or {}
     elif request.files or request.form:
@@ -101,7 +102,7 @@ def control_novedades_submit():
         }), 403
 
     synth_session = _build_synth_session(bearer) if bearer else None
-    envelope, status = submit(data, synth_session, image)
+    envelope, status = submit(data, synth_session, imagenes)
     return jsonify(envelope), status
 
 

@@ -295,8 +295,8 @@ class TestOptionalImage:
             patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
             patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")) as validate,
             patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(True, "file_1.png")) as save,
-        ):
-            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
 
         assert status == 201
         assert envelope["status"] == "success"
@@ -324,8 +324,8 @@ class TestOptionalImage:
         with (
             patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(False, "Tipo no permitido: .exe")),
             patch("app.services.integration_service._persist") as persist,
-        ):
-            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
 
         assert status == 400
         assert envelope["status"] == "error"
@@ -341,14 +341,130 @@ class TestOptionalImage:
             patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")),
             patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(False, "disk full")),
             patch("app.services.integration_service.errores_storage.eliminar_error", return_value=True) as delete,
-        ):
-            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, image)
+):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
 
         assert status == 500
         assert envelope["status"] == "error"
         assert envelope["data"] == {}
         assert "disk full" in envelope["errors"][0]
         delete.assert_called_once_with("new-id")
+
+    def test_multiple_valid_images_saved_in_order(self):
+        image1 = self._image("a.png")
+        image2 = self._image("b.png")
+        image3 = self._image("c.png")
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch(
+                "app.services.integration_service.errores_storage.validar_imagen",
+                return_value=(True, ""),
+            ) as validate,
+            patch(
+                "app.services.integration_service.errores_storage.guardar_imagen",
+                side_effect=[(True, "file_1.png"), (True, "file_2.png"), (True, "file_3.png")],
+            ) as save,
+        ):
+            envelope, status = submit(
+                dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image1, image2, image3]
+            )
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        assert validate.call_count == 3
+        assert save.call_count == 3
+        assert save.call_args_list[0].args == ("new-id", image1)
+        assert save.call_args_list[1].args == ("new-id", image2)
+        assert save.call_args_list[2].args == ("new-id", image3)
+
+    def test_more_than_max_images_rejected_before_persistence(self):
+        images = [self._image(f"img_{i}.png") for i in range(4)]
+        with (
+            patch("app.services.integration_service._resolve_responsable") as resolve,
+            patch("app.services.integration_service._persist") as persist,
+            patch("app.services.integration_service.errores_storage.guardar_imagen") as save,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, images)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert envelope["data"] == {}
+        assert any("3" in e for e in envelope["errors"])
+        resolve.assert_not_called()
+        persist.assert_not_called()
+        save.assert_not_called()
+
+    def test_one_invalid_image_among_several_rejected_before_persistence(self):
+        valid = self._image("valid.png")
+        invalid = self._image("support.exe")
+        with (
+            patch(
+                "app.services.integration_service.errores_storage.validar_imagen",
+                side_effect=[(True, ""), (False, "Tipo no permitido: .exe")],
+            ) as validate,
+            patch("app.services.integration_service._persist") as persist,
+            patch("app.services.integration_service.errores_storage.guardar_imagen") as save,
+        ):
+            envelope, status = submit(
+                dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [valid, invalid]
+            )
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert envelope["data"] == {}
+        assert envelope["errors"] == ["Imagen inválida: Tipo no permitido: .exe"]
+        assert validate.call_count == 2
+        persist.assert_not_called()
+        save.assert_not_called()
+
+    def test_save_failure_midway_rolls_back_record(self):
+        image1 = self._image("a.png")
+        image2 = self._image("b.png")
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch(
+                "app.services.integration_service.errores_storage.validar_imagen",
+                return_value=(True, ""),
+            ),
+            patch(
+                "app.services.integration_service.errores_storage.guardar_imagen",
+                side_effect=[(True, "file_1.png"), (False, "disk full")],
+            ) as save,
+            patch("app.services.integration_service.errores_storage.eliminar_error", return_value=True) as delete,
+        ):
+            envelope, status = submit(
+                dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image1, image2]
+            )
+
+        assert status == 500
+        assert envelope["status"] == "error"
+        assert envelope["data"] == {}
+        assert "disk full" in envelope["errors"][0]
+        assert "1 de 2" in envelope["errors"][0]
+        assert save.call_count == 2
+        delete.assert_called_once_with("new-id")
+
+    def test_single_image_in_list_still_works(self):
+        image = self._image()
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch(
+                "app.services.integration_service.errores_storage.validar_imagen",
+                return_value=(True, ""),
+            ),
+            patch(
+                "app.services.integration_service.errores_storage.guardar_imagen",
+                return_value=(True, "file_1.png"),
+            ) as save,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        save.assert_called_once_with("new-id", image)
 
 
 class TestBatchSubmit:
@@ -434,6 +550,20 @@ class TestBatchSubmit:
         assert status == 400
         assert envelope["status"] == "error"
         assert any("lista" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_with_images_rejected(self):
+        """Images attached to a batch payload → 400, batch never processed."""
+        image = BytesIO(b"image-data")
+        image.name = "support.png"
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit(
+                dict(self.BATCH), _VALIDATOR_SESSION, [image]
+            )
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("registro individual" in e for e in envelope["errors"])
         mock_persist.assert_not_called()
 
     def test_batch_item_missing_required_field_rejected(self):

@@ -199,7 +199,7 @@ class TestEndToEndSubmit:
                     "factura": "FEV-M1",
                     "observacion": "falta soporte",
                     "responsable": "LORENY ESPAÑA",
-                    "imagen": (BytesIO(b"png-data"), "support.png"),
+"imagen": (BytesIO(b"png-data"), "support.png"),
                 },
                 content_type="multipart/form-data",
             )
@@ -213,7 +213,41 @@ class TestEndToEndSubmit:
             "observacion": "falta soporte",
             "responsable": "LORENY ESPAÑA",
         }
-        assert mock_submit.call_args.args[2].filename == "support.png"
+        assert isinstance(mock_submit.call_args.args[2], list)
+        assert mock_submit.call_args.args[2][0].filename == "support.png"
+
+    def test_multipart_with_multiple_images_forwarded_as_list(self, app_client):
+        with (
+            patch("app.utils.token_store.get_user_for_token", return_value=_fake_validator_user()),
+            patch(
+                "app.routes.integration.submit",
+                return_value=(
+                    {"status": "success", "data": {"error": {"id": "r3"}}, "errors": []},
+                    201,
+                ),
+            ) as mock_submit,
+        ):
+            response = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer multipart-token"},
+                data={
+                    "factura": "FEV-M3",
+                    "observacion": "dos imagenes",
+                    "responsable": "LORENY ESPAÑA",
+                    "imagen": [
+                        (BytesIO(b"png-a"), "a.png"),
+                        (BytesIO(b"png-b"), "b.png"),
+                    ],
+                },
+                content_type="multipart/form-data",
+            )
+
+        assert response.status_code == 201
+        assert response.get_json()["status"] == "success"
+        imagenes = mock_submit.call_args.args[2]
+        assert isinstance(imagenes, list)
+        assert len(imagenes) == 2
+        assert [img.filename for img in imagenes] == ["a.png", "b.png"]
 
     def test_multipart_without_image_is_forwarded(self, app_client):
         with (
