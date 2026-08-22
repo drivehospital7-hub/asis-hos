@@ -7,7 +7,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from openpyxl import Workbook
-from openpyxl.styles import Alignment, Font
+from openpyxl.styles import Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from app.utils.errores_storage import listar_imagenes
@@ -16,21 +16,36 @@ logger = logging.getLogger(__name__)
 
 HEADERS = [
     "Validador",
-    "Factura",
     "Creado",
+    "Factura",
     "Categoría",
     "Descripción",
-    "Responsable",
-    "Observación del Facturador",
+    "Responsables",
     "Estado",
     "Adjunto 1",
     "Adjunto 2",
     "Adjunto 3",
+    "Observación del Facturador",
 ]
 
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
 
-COLUMN_WIDTHS = [20, 16, 12, 16, 50, 25, 30, 12, 40, 40, 40]
+COLUMN_WIDTH = 20
+
+HEADER_FILL = PatternFill("solid", fgColor="1B5E20")
+HEADER_FONT = Font(bold=True, color="FFFFFF")
+
+ROW_FILL_LIGHT = PatternFill("solid", fgColor="E8F5E9")
+ROW_FILL_WHITE = PatternFill("solid", fgColor="FFFFFF")
+DATA_FONT = Font(color="000000")
+LINK_FONT = Font(color="0563C1", underline="single")
+
+THIN_BORDER = Border(
+    left=Side(style="thin", color="A5D6A7"),
+    right=Side(style="thin", color="A5D6A7"),
+    top=Side(style="thin", color="A5D6A7"),
+    bottom=Side(style="thin", color="A5D6A7"),
+)
 
 EXCEL_EXTENSIONS = {".xlsx", ".xls", ".xlsm", ".xlsb"}
 
@@ -89,39 +104,48 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
 
     ws.append(HEADERS)
     for cell in ws[1]:
-        cell.font = Font(bold=True)
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.border = THIN_BORDER
 
-    for idx, width in enumerate(COLUMN_WIDTHS, start=1):
-        ws.column_dimensions[get_column_letter(idx)].width = width
+    for idx in range(1, len(HEADERS) + 1):
+        ws.column_dimensions[get_column_letter(idx)].width = COLUMN_WIDTH
 
-    for error in errores:
+    for row_index, error in enumerate(errores):
         error_id = error.get("id", "")
         ws.append([
             error.get("validador", ""),
-            error.get("factura", ""),
             _formatear_fecha(error.get("creado_en", "")),
+            error.get("factura", ""),
             error.get("tipo_error", ""),
             error.get("observacion", ""),
             error.get("responsable", ""),
-            error.get("observacion_facturador", ""),
             _label_estado(error.get("estado", "")),
         ])
 
         row_idx = ws.max_row
         adjuntos = listar_imagenes(error_id)
+        link_cols: set[int] = set()
         for i in range(3):
-            cell = ws.cell(row=row_idx, column=9 + i)
+            cell = ws.cell(row=row_idx, column=8 + i)
             if i < len(adjuntos):
                 filename = adjuntos[i]
                 cell.value = _label_adjunto(filename)
                 cell.hyperlink = _adjunto_url(base_url, error_id, filename)
-                cell.style = "Hyperlink"
-                cell.alignment = Alignment(wrap_text=True)
+                cell.font = LINK_FONT
+                link_cols.add(8 + i)
             else:
                 cell.value = ""
 
-        for col in (5, 9, 10, 11):
-            ws.cell(row=row_idx, column=col).alignment = Alignment(wrap_text=True)
+        ws.cell(row=row_idx, column=11).value = error.get("observacion_facturador", "")
+
+        row_fill = ROW_FILL_LIGHT if row_index % 2 == 0 else ROW_FILL_WHITE
+        for col in range(1, len(HEADERS) + 1):
+            cell = ws.cell(row=row_idx, column=col)
+            cell.fill = row_fill
+            cell.border = THIN_BORDER
+            if col not in link_cols:
+                cell.font = DATA_FONT
 
     ws.freeze_panes = "A2"
 

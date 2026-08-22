@@ -65,28 +65,32 @@ class TestBuildWorkbook:
 
         row = [c.value for c in ws[2]]
         assert row[0] == "MARIA GOMEZ"       # Validador
-        assert row[1] == "FAC-001"           # Factura
-        assert row[2] == "15/05/2026"        # Creado dd/mm/yyyy
+        assert row[1] == "15/05/2026"        # Creado dd/mm/yyyy
+        assert row[2] == "FAC-001"           # Factura
         assert row[3] == "Otros"             # Categoría
-        assert row[7] == "Pendiente"         # Estado
-        assert row[8] == "Abrir PDF"         # Adjunto 1
-        assert row[9] == "Abrir imagen"      # Adjunto 2
-        assert row[10] is None               # Adjunto 3 vacío
+        assert row[5] == "JUAN PEREZ"        # Responsables
+        assert row[6] == "Pendiente"         # Estado
+        assert row[7] == "Abrir PDF"         # Adjunto 1
+        assert row[8] == "Abrir imagen"      # Adjunto 2
+        assert row[9] is None                # Adjunto 3 vacío
+        assert row[10] == "Revisar"          # Observación del Facturador
+
+        cell8 = ws.cell(row=2, column=8)
+        assert cell8.hyperlink.target == (
+            "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
+        )
+        assert "?token=" not in cell8.hyperlink.target
+        assert cell8.style != "Hyperlink"
+        assert cell8.font.color.rgb == "000563C1"
+        assert cell8.font.underline == "single"
 
         cell9 = ws.cell(row=2, column=9)
         assert cell9.hyperlink.target == (
-            "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
-        )
-        assert "?token=" not in cell9.hyperlink.target
-        assert cell9.style == "Hyperlink"
-
-        cell10 = ws.cell(row=2, column=10)
-        assert cell10.hyperlink.target == (
             "http://testserver/api/control-errores/err-1/imagenes/image_2.jpg"
         )
-        assert "?token=" not in cell10.hyperlink.target
+        assert "?token=" not in cell9.hyperlink.target
 
-        assert ws.cell(row=2, column=11).hyperlink is None
+        assert ws.cell(row=2, column=10).hyperlink is None
 
     def test_estado_resuelto_y_fecha_bruta(self):
         with patch(
@@ -102,8 +106,8 @@ class TestBuildWorkbook:
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
         row = [c.value for c in ws[2]]
-        assert row[7] == "Resuelto"
-        assert row[2] == "fecha-rara"
+        assert row[6] == "Resuelto"
+        assert row[1] == "fecha-rara"
 
     def test_hipervinculo_escapada_nombre_con_espacios(self):
         with patch(
@@ -115,7 +119,7 @@ class TestBuildWorkbook:
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
-        cell = ws.cell(row=2, column=9)
+        cell = ws.cell(row=2, column=8)
         assert cell.hyperlink.target == (
             "http://testserver/api/control-errores/err-1/imagenes/mi%20archivo.pdf"
         )
@@ -131,9 +135,56 @@ class TestBuildWorkbook:
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
-        target = ws.cell(row=2, column=9).hyperlink.target
+        target = ws.cell(row=2, column=8).hyperlink.target
         assert "?token=" not in target
         assert target == "http://testserver/api/control-errores/err-1/imagenes/file_1.pdf"
+
+    def test_estilos_tabla(self):
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            return_value=[],
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook(
+                    [_error_fixture(error_id="e1"), _error_fixture(error_id="e2")],
+                    "http://testserver/",
+                )
+
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+
+        assert ws["A1"].fill.fgColor.rgb == "001B5E20"
+        assert ws["A1"].font.color.rgb == "00FFFFFF"
+        assert ws["A1"].font.bold is True
+
+        assert ws["A2"].fill.fgColor.rgb == "00E8F5E9"
+        assert ws["A3"].fill.fgColor.rgb == "00FFFFFF"
+        assert ws["A2"].fill.fgColor.rgb != ws["A3"].fill.fgColor.rgb
+
+        for cell in (ws["A2"], ws["K2"], ws["A3"], ws["A1"]):
+            assert cell.font.color.rgb == "00000000" or cell.font.bold is True
+            for side in ("left", "right", "top", "bottom"):
+                assert getattr(cell.border, side).style == "thin"
+
+        assert ws.column_dimensions["A"].width == 20
+        assert ws.column_dimensions["A"].width == ws.column_dimensions["K"].width
+
+    def test_hipervinculo_estilo_fuente_azul_subrayado(self):
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            return_value=["file_1.pdf"],
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
+
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+        cell = ws.cell(row=2, column=8)
+        assert cell.hyperlink is not None
+        assert cell.hyperlink.target.endswith("file_1.pdf")
+        assert cell.font.color.rgb == "000563C1"
+        assert cell.font.underline == "single"
+        assert cell.style != "Hyperlink"
 
 
 def _login(app_client):
@@ -162,7 +213,7 @@ def _client(**config_overrides):
     return app.test_client()
 
 
-def _hipervinculo_de_respuesta(resp, cell="I2"):
+def _hipervinculo_de_respuesta(resp, cell="H2"):
     wb = load_workbook(BytesIO(resp.data))
     ws = wb.active
     return ws[cell].hyperlink.target
@@ -195,8 +246,9 @@ class TestExportRoute:
         ws = wb.active
         assert [c.value for c in ws[1]] == HEADERS
         assert ws["A2"].value == "MARIA GOMEZ"
-        assert ws["B2"].value == "FAC-001"
-        target = ws["I2"].hyperlink.target
+        assert ws["B2"].value == "15/05/2026"
+        assert ws["C2"].value == "FAC-001"
+        target = ws["H2"].hyperlink.target
         # Sin EXPORT_BASE_URL → usa el host del request (comportamiento previo)
         assert target == "http://localhost/api/control-errores/err-1/imagenes/file_1.pdf"
         assert "?token=" not in target
@@ -214,7 +266,7 @@ class TestExportRoute:
         assert resp.status_code == 200
         wb = load_workbook(BytesIO(resp.data))
         ws = wb.active
-        facturas = [ws.cell(row=r, column=2).value for r in range(2, ws.max_row + 1)]
+        facturas = [ws.cell(row=r, column=3).value for r in range(2, ws.max_row + 1)]
         assert facturas == ["FAC-MAY"]
 
     def test_sin_datos_devuelve_error_400(self, app_client):
