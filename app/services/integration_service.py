@@ -232,7 +232,11 @@ def _submit_single(
     if imagenes:
         for image in imagenes:
             try:
-                saved, image_result = errores_storage.guardar_imagen(nuevo["id"], image)
+                saved, image_result = errores_storage.guardar_imagen(
+                    nuevo["id"],
+                    image,
+                    username=(session or {}).get("username"),
+                )
             except Exception as error:
                 saved, image_result = False, str(error)
             if not saved:

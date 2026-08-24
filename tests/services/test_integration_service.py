@@ -295,13 +295,41 @@ class TestOptionalImage:
             patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
             patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")) as validate,
             patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(True, "file_1.png")) as save,
-):
+        ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
 
         assert status == 201
         assert envelope["status"] == "success"
         validate.assert_called_once_with(image)
-        save.assert_called_once_with("new-id", image)
+        save.assert_called_once()
+        assert save.call_args.args == ("new-id", image)
+        assert save.call_args.kwargs["username"] == "ana"
+
+    def test_guardar_imagen_recibe_username_de_sesion_sintetica(self):
+        """FA-7: la integración pasa el username de la sesión sintética a guardar_imagen."""
+        image = self._image()
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")),
+            patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(True, "file_1.png")) as save,
+        ):
+            submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION, [image])
+
+        assert save.call_args.kwargs["username"] == "ana"
+
+    def test_guardar_imagen_sin_sesion_username_none(self):
+        """Sin sesión (None) → guardar_imagen recibe username=None (legacy)."""
+        image = self._image()
+        with (
+            patch("app.services.integration_service._resolve_responsable", return_value="LORENY ESPAÑA"),
+            patch("app.services.integration_service._persist", return_value={"id": "new-id"}),
+            patch("app.services.integration_service.errores_storage.validar_imagen", return_value=(True, "")),
+            patch("app.services.integration_service.errores_storage.guardar_imagen", return_value=(True, "file_1.png")) as save,
+        ):
+            submit(dict(VALID_PAYLOAD), None, [image])
+
+        assert save.call_args.kwargs.get("username") is None
 
     def test_missing_image_keeps_json_behavior(self):
         with (
@@ -377,6 +405,9 @@ class TestOptionalImage:
         assert save.call_args_list[0].args == ("new-id", image1)
         assert save.call_args_list[1].args == ("new-id", image2)
         assert save.call_args_list[2].args == ("new-id", image3)
+        assert all(
+            c.kwargs.get("username") == "ana" for c in save.call_args_list
+        )
 
     def test_more_than_max_images_rejected_before_persistence(self):
         images = [self._image(f"img_{i}.png") for i in range(4)]
@@ -464,7 +495,9 @@ class TestOptionalImage:
 
         assert status == 201
         assert envelope["status"] == "success"
-        save.assert_called_once_with("new-id", image)
+        save.assert_called_once()
+        assert save.call_args.args == ("new-id", image)
+        assert save.call_args.kwargs.get("username") == "ana"
 
 
 class TestBatchSubmit:
