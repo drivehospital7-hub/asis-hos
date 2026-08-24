@@ -405,6 +405,10 @@
     const result = await res.json();
     if (result.status === 'success') {
       cachedErrores = result.data.errores;
+      // Editor abierto sobre una fila ya inexistente → cerrar (no bloquear polling).
+      if (currentEditId && currentEditId !== 'new' && !cachedErrores.some(e => e.id === currentEditId)) {
+        closeEditor();
+      }
       // Log de facturas actuales
       const facturasRaw = cachedErrores.map(e => e.factura).filter(Boolean);
       console.log('Facturas raw:', facturasRaw);
@@ -502,6 +506,7 @@
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
@@ -570,69 +575,96 @@
   // Mostrar contenido sin login (solo lectura)
   function openFacturadorEditorImpl(errorId, btn) {
     const btnRect = btn.getBoundingClientRect();
-    const rect = btn.closest('td').getBoundingClientRect();
     currentEditId = errorId;
     currentEditType = 'text';
     currentCell = null; // No hay celda específica, usaremos el editor de forma independiente
-    
-    // Posicionar editor al lado izquierdo del botón (mismo tamaño)
+
+    // FE-3/D7: modo facturador → panel ancho fijo 540px (rango 520-560).
+    // Altura content-driven; closeEditor() limpia width/height/minHeight
+    // para que cell-edit conserve su sizing por rect de celda.
+    const FACTURADOR_EDITOR_WIDTH = 540;
+    // FE-5: auto-grow máx del textarea facturador (constante nombrada, sin magic number)
+    const FACTURADOR_TEXTAREA_MAX_HEIGHT = 300;
+    editor.classList.remove('select-mode');
+    // FE-6: marcar modo facturador → el contenedor adopta la superficie del
+    // modal (--facturador-surface) para que textarea + adjuntos se lean como
+    // una sola pieza. closeEditor() lo remueve para que cell-edit conserve su
+    // fondo blanco por defecto.
+    editor.classList.add('facturador-mode');
     editor.style.display = 'block';
     document.body.classList.add('editor-open');
-    const editorWidth = Math.max(260, rect.width);
-    const editorHeight = Math.max(90, rect.height);
     editor.style.top = btnRect.top + 'px';
-    editor.style.width = editorWidth + 'px';
-    editor.style.height = editorHeight + 'px';
+    editor.style.width = FACTURADOR_EDITOR_WIDTH + 'px';
+    editor.style.height = '';
+    // Altura 100% content-driven: textarea (auto-grow hasta MAX) + panel de
+    // adjuntos apilados, sin min-height forzado (FE-6). closeEditor() limpia.
     // Si no cabe a la izquierda, volver al lado derecho (fallback)
-    const editorLeft = btnRect.left - editorWidth - 8;
+    const editorLeft = btnRect.left - FACTURADOR_EDITOR_WIDTH - 8;
     editor.style.left = (editorLeft < 8 ? btnRect.left + btnRect.width + 8 : editorLeft) + 'px';
-    editor.style.minHeight = '';
-    
+
     // Obtener el valor actual de observacion_facturador
     const error = cachedErrores.find(e => e.id === errorId);
     const currentValue = error ? (error.observacion_facturador || '') : '';
-    
-    // Alias local para el HTML del botón ojo (FA-3/D5): el onclick queda
-    // literalmente "saveFacturadorEditor('${id}'); openImageModal('${id}','facturador')"
-    // y, en runtime, interpolado con el id real del registro.
-    const id = errorId;
+    // D5: baseline del save idempotente (keep-open) = valor actual del textarea
+    _facturadorLastSavedText = currentValue;
+
+    // FE-1/MOD-1: shell del panel de adjuntos embebido (sin puente de ojo)
     editor.innerHTML = `<textarea id="editor-input" 
       style="width:100%;min-height:100%;padding:0.5rem;border:none;background:#fef9c3;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;" 
-      placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea>
-      <button class="obs-img-btn editor-eye-btn" onclick="event.stopPropagation(); saveFacturadorEditor('${id}'); openImageModal('${id}','facturador')" title="Adjuntos facturador" style="position:absolute;top:4px;right:4px;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-      </button>`;
-    
-    // Guardar cuando se hace click fuera
-    const handleClickOutside = (e) => {
-      if (!editor.contains(e.target) && !btn.contains(e.target)) {
-        document.removeEventListener('click', handleClickOutside);
-        saveFacturadorEditor(errorId);
-      }
-    };
-    
-    // Guardar con Enter (Shift+Enter para nueva línea)
+      placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea><div id="facturador-attachments" class="facturador-attachments"></div>`;
+
+    // D2/FE-8: esqueleto del panel AL INSTANTE (mismo render async de thumbnails)
+    renderFacturadorAttachmentsShell(errorId);
+    renderFacturadorAttachments(errorId);
+
+    // Guardar con Enter (Shift+Enter para nueva línea); Escape cierra sin guardar
     const handleKeydown = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        document.removeEventListener('keydown', handleKeydown);
-        document.removeEventListener('click', handleClickOutside);
+        _removeFacturadorKeydownListener();
         saveFacturadorEditor(errorId);
       }
       if (e.key === 'Escape') {
-        document.removeEventListener('keydown', handleKeydown);
-        document.removeEventListener('click', handleClickOutside);
+        _removeFacturadorKeydownListener();
         closeEditor();
       }
     };
-    
+    _facturadorKeydownHandler = handleKeydown;
+
     setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
+      if (currentEditId !== errorId) return; // editor cerrado antes del bind
       document.addEventListener('keydown', handleKeydown);
       const textarea = editor.querySelector('textarea');
+      // FE-5: auto-grow SOLO en modo facturador. Se liga al textarea de este
+      // impl (nunca al de cell-edit/openEditor): resetea height a auto y
+      // fija min(scrollHeight, MAX) para que el modal crezca con el texto.
+      const autoResize = (ta) => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, FACTURADOR_TEXTAREA_MAX_HEIGHT) + 'px';
+      };
+      textarea.addEventListener('input', () => autoResize(textarea));
+      autoResize(textarea);
       textarea.focus();
     }, 10);
   }
+
+  // D5: UN solo listener doc-level (registrado una vez) para click-fuera del
+  // editor facturador. Reemplaza los per-open handleClickOutside que persistían
+  // tras un save keep-open (doble-fire). Actúa solo con editor facturador abierto.
+  document.addEventListener('click', function _facturadorEditorClick(e) {
+    if (!currentEditId || currentCell !== null) return;
+    // Click dentro del editor o en el botón disparador → no hacer nada (FE-4)
+    if (editor.contains(e.target)) return;
+    const triggerBtn = document.querySelector(`.action-icon--add-note[onclick*="${currentEditId}"]`);
+    if (triggerBtn && triggerBtn.contains(e.target)) return;
+    // FE-4/D5: click sobre el overlay de confirmación (fuera del editor) o con
+    // un confirm/alert en vuelo → save idempotente SIN cerrar el editor.
+    if ((e.target.closest && e.target.closest('.confirm-overlay')) || _facturadorModalBusy) {
+      saveFacturadorEditorKeepOpen(currentEditId);
+      return;
+    }
+    saveFacturadorEditor(currentEditId);
+  });
 
   function saveFacturadorEditor(errorId) {
     // Si currentEditId ya es null, el editor ya fue cerrado por otro save
@@ -645,39 +677,239 @@
     
     const newValue = input.value.trim();
     const error = cachedErrores.find(e => e.id === errorId);
-    if (!error) return;
+    // Fila eliminada mientras el editor estaba abierto → no hay a dónde guardar.
+    if (!error) { closeEditor(); return; }
     
     // Guardar valores ANTES de cerrar (el editor se reutiliza)
     const saveData = { observacion_facturador: newValue };
     const saveId = errorId;
-    
-    // Actualizar cache inmediatamente
-    error.observacion_facturador = newValue;
-    
-    // Actualizar lastUpdate INMEDIATAMENTE para bloquear el polling
-    lastUpdate = new Date().toISOString();
+    const originalValue = error.observacion_facturador || '';
     
     // Cerrar inmediatamente
     closeEditor();
     
-    // Actualizar UI del botón de nota directamente en el DOM
-    const btn = document.querySelector(`.action-icon--add-note[onclick*="${saveId}"]`);
-    if (btn) {
-      if (newValue) {
-        btn.classList.add('has-note');
-        btn.style.setProperty('color', '#f59e0b', 'important');
-      } else {
-        btn.classList.remove('has-note');
-        btn.style.setProperty('color', '#64748b', 'important');
-      }
-    }
-    
-    // Enviar SOLO el campo que cambió
+    // Enviar SOLO el campo que cambió; optimista/lastUpdate/UI SOLO en éxito.
     fetch(`/api/control-errores/${saveId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(saveData)
-    }).catch(err => console.error('[saveFacturador] error:', err));
+    }).then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      error.observacion_facturador = newValue;
+      lastUpdate = new Date().toISOString();
+      _updateFacturadorNoteButton(saveId, newValue);
+    }).catch(err => {
+      console.error('[saveFacturador] error:', err);
+      error.observacion_facturador = originalValue;
+      _updateFacturadorNoteButton(saveId, originalValue);
+      showToast('No se guardó la observación del facturador', 'error');
+    });
+  }
+
+  // ====== PANEL DE ADJUNTOS FACTURADOR EMBEBIDO (FE-1/D2/D8/D9) ======
+  let _facturadorModalBusy = false; // D4/D5: confirm/alert en vuelo
+  let _facturadorLastSavedText = null; // D5: save keep-open idempotente
+  let _facturadorKeydownHandler = null; // R4: listener per-open, removido en closeEditor
+
+  // R4: remueve el listener per-open del editor facturador (TODOS los close paths)
+  function _removeFacturadorKeydownListener() {
+    if (_facturadorKeydownHandler) {
+      document.removeEventListener('keydown', _facturadorKeydownHandler);
+      _facturadorKeydownHandler = null;
+    }
+  }
+
+  // Actualiza el botón de nota (has-note + color) según el valor persistido.
+  function _updateFacturadorNoteButton(saveId, value) {
+    const btn = document.querySelector(`.action-icon--add-note[onclick*="${saveId}"]`);
+    if (!btn) return;
+    if (value) {
+      btn.classList.add('has-note');
+    } else {
+      btn.classList.remove('has-note');
+    }
+  }
+
+  /** FE-8: esqueleto instantáneo del panel (conteo + dropzone) para que se sienta
+      simultáneo con la observación; renderFacturadorAttachments lo reemplaza con
+      conteo/thumbnails reales cuando llega la respuesta. */
+  function renderFacturadorAttachmentsShell(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    const dropzone = window._canFacturadorAttach
+      ? `<button type="button" class="editor-dropzone" id="editor-dropzone">
+          <input type="file" id="editor-file-input" multiple accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" style="display:none">
+          <span class="editor-dropzone-text">Subir adjuntos (imagen / PDF / Excel)</span>
+        </button>`
+      : '';
+    container.innerHTML = `<div class="editor-count">Adjuntos facturador (…/3)</div>${dropzone}`;
+    _bindFacturadorDropzone(errorId);
+  }
+
+  /** D2: render (y re-render inline) del panel embebido en #facturador-attachments. */
+  async function renderFacturadorAttachments(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    const scopeQuery = '?scope=facturador';
+    try {
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`);
+      const result = await res.json();
+      if (result.status !== 'success') {
+        container.innerHTML = '<div class="editor-count">Error: ' + JSON.stringify(result) + '</div>';
+        return;
+      }
+      const count = result.data.count;
+      container.dataset.count = count; // para el cupo max-3 del paste (D6)
+      let html = `<div class="editor-count">Adjuntos facturador (${count}/3)</div>`;
+      if (result.data.imagenes.length > 0) {
+        html += '<div class="editor-thumbs">' + result.data.imagenes.map(filename => {
+          const lower = filename.toLowerCase();
+          // D9: URL codificada (encodeURIComponent), labels escapados (escapeHtml)
+          const scopeUrl = `/api/control-errores/${errorId}/imagenes/${encodeURIComponent(filename)}${scopeQuery}`;
+          let body;
+          if (lower.endsWith('.pdf')) {
+            body = `<a href="${scopeUrl}" target="_blank" class="editor-thumb-link" title="${escapeHtml(filename)}">PDF</a>`;
+          } else if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) {
+            body = `<a href="${scopeUrl}" target="_blank" class="editor-thumb-link" title="${escapeHtml(filename)}">XLS</a>`;
+          } else {
+            body = `<img src="${scopeUrl}" class="editor-thumb-img" data-filename="${escapeHtml(filename)}" alt="${escapeHtml(filename)}">`;
+          }
+          // D8/D9: delete SOLO con permiso; filename en data-* (eventos delegados,
+          // nunca en onclick inline con filename crudo)
+          const deleteBtn = window._canFacturadorAttach ? `<button type="button" class="editor-thumb-delete" data-filename="${escapeHtml(filename)}" data-remove-thumb="1" title="Eliminar ${escapeHtml(filename)}">&times;</button>` : '';
+          return `<div class="editor-thumb">${body}${deleteBtn}</div>`;
+        }).join('') + '</div>';
+      }
+      // D8/FE-1: dropzone SOLO con permiso y con cupo (max 3)
+      if (window._canFacturadorAttach && count < 3) {
+        html += `<button type="button" class="editor-dropzone" id="editor-dropzone">
+          <input type="file" id="editor-file-input" multiple accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" style="display:none">
+          <span class="editor-dropzone-text">Subir adjuntos (imagen / PDF / Excel)</span>
+        </button>`;
+      }
+      container.innerHTML = html;
+      _bindFacturadorDropzone(errorId);
+    } catch (err) {
+      console.error('[FRONT][ERROR] renderFacturadorAttachments:', err);
+    }
+  }
+
+  /** D2/D9: eventos delegados del panel + binding del mini-dropzone. */
+  function _bindFacturadorDropzone(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    // Delegación única en el contenedor (sobrevive a los re-renders del panel)
+    if (!container.dataset.listeners) {
+      container.dataset.listeners = '1';
+      container.addEventListener('click', (e) => {
+        const del = e.target.closest('.editor-thumb-delete');
+        if (del) {
+          e.stopPropagation();
+          deleteFacturadorImage(errorId, del.dataset.filename);
+          return;
+        }
+        const img = e.target.closest('.editor-thumb-img');
+        if (img) {
+          e.stopPropagation();
+          viewFullImage(errorId, img.dataset.filename, 'facturador');
+        }
+      });
+    }
+    // El dropzone se recrea en cada render → re-bindear sus eventos
+    const dropzone = container.querySelector('#editor-dropzone');
+    const fileInput = container.querySelector('#editor-file-input');
+    if (dropzone && fileInput) {
+      dropzone.onclick = (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      };
+      fileInput.onchange = () => { uploadFacturadorImages(errorId, fileInput.files); fileInput.value = ''; };
+      dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+      dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+      dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer && e.dataTransfer.files.length) uploadFacturadorImages(errorId, e.dataTransfer.files);
+      };
+    }
+  }
+
+  /** D3: upload scope facturador (picker/drag-drop) → refresh inline + tabla. */
+  async function uploadFacturadorImages(errorId, files) {
+    if (!window._canFacturadorAttach) return;
+    const scopeQuery = '?scope=facturador';
+    for (const file of files) {
+      const name = file.name.toLowerCase();
+      const isImage = file.type.startsWith('image/');
+      const isDoc = /\.(pdf|xlsx|xls|xlsm|xlsb)$/.test(name);
+      if (!isImage && !isDoc) continue;
+      const formData = new FormData();
+      formData.append('imagen', file);
+      try {
+        const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`, { method: 'POST', body: formData });
+        const result = await res.json();
+        if (result.status !== 'success') Modal.alert(result.errors.join(', '));
+      } catch (err) {
+        console.error('[FRONT][ERROR] uploadFacturadorImages:', err);
+      }
+    }
+    renderFacturadorAttachments(errorId);
+    loadErrores();
+  }
+
+  /** D4: delete scope facturador con confirm; overlay click → save keep-open (FE-4). */
+  async function deleteFacturadorImage(errorId, filename) {
+    if (!window._canFacturadorAttach) return;
+    _facturadorModalBusy = true;
+    try {
+      if (!await Modal.confirm('¿Eliminar imagen facturador?')) return;
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}&scope=facturador`, { method: 'DELETE' });
+      const result = await res.json();
+      if (result.status === 'success') {
+        renderFacturadorAttachments(errorId);
+        loadErrores();
+      } else {
+        Modal.alert(result.errors.join(', '));
+      }
+    } catch (err) {
+      console.error('[FRONT][ERROR] deleteFacturadorImage:', err);
+    } finally {
+      _facturadorModalBusy = false;
+    }
+  }
+
+  /** D5/FE-4: PUT del textarea SIN cerrar el editor (idempotente). */
+  async function saveFacturadorEditorKeepOpen(errorId) {
+    if (!currentEditId || errorId !== currentEditId) return;
+    const input = editor.querySelector('textarea');
+    if (!input) return;
+    const newValue = input.value.trim();
+    if (newValue === _facturadorLastSavedText) return; // PUT único (idempotente)
+    const error = cachedErrores.find(e => e.id === errorId);
+    // Fila eliminada mientras el editor estaba abierto → cerrar, no bloquear.
+    if (!error) { closeEditor(); return; }
+    const originalValue = error.observacion_facturador || '';
+    try {
+      const res = await fetch(`/api/control-errores/${errorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ observacion_facturador: newValue })
+      });
+      if (!res.ok) {
+        // Fallo: revertir el optimista y avisar SIN cerrar el editor (retry posible)
+        error.observacion_facturador = originalValue;
+        showToast('No se guardó la observación del facturador', 'error');
+        return;
+      }
+      // Éxito: aplicar cache, bloquear polling y fijar el baseline idempotente
+      error.observacion_facturador = newValue;
+      lastUpdate = new Date().toISOString();
+      _facturadorLastSavedText = newValue;
+    } catch (err) {
+      console.error('[FRONT][ERROR] saveFacturadorEditorKeepOpen:', err);
+      error.observacion_facturador = originalValue;
+      showToast('Error de red: no se guardó la observación', 'error');
+    }
   }
 
   // ====== EDITOR GLOBAL ======
@@ -915,7 +1147,14 @@
   }
 
   function closeEditor() {
+    _removeFacturadorKeydownListener();
     editor.style.display = 'none';
+    // FE-6: quitar la marca de modo facturador (y su superficie amarilla)
+    // para que cell-edit conserve su fondo blanco por defecto.
+    editor.classList.remove('facturador-mode');
+    // FE-3/D7: resetear el tamaño ampliado del modo facturador (540px) para
+    // que cell-edit conserve su sizing por rect de celda
+    editor.style.width = '';
     editor.style.height = '';
     editor.style.minHeight = '';
     editor.style.alignItems = '';
@@ -1349,7 +1588,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (!await Modal.confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
-    if (result.status === 'success') loadErrores(); 
+    if (result.status === 'success') {
+      // Si la fila eliminada tenía el editor de facturador abierto, cerrarlo
+      if (currentEditId === id) closeEditor();
+      loadErrores(); 
+    }
     else Modal.alert(result.errors.join(', ')); 
   }
   function handleSearch() {
@@ -1412,6 +1655,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
@@ -1727,7 +1971,7 @@ function exportarExcel() {
       }
     }
     if (!imageFile) return;
-    
+
     // Subir al error que tenga el modal de imágenes abierto, o al editor activo.
     // Target scoped (FA-2): modal abierto → su scope; editor de celda → ''
     // (observación); editor de facturador → 'facturador'.
@@ -1737,8 +1981,25 @@ function exportarExcel() {
         ? { id: currentEditId, scope: currentCell ? '' : 'facturador' }
         : null;
     if (!target) return;
+
+    // FE-2/D6: sin permiso por scope → no subir por paste.
+    // Facturador → _canFacturadorAttach; observación (modal) → _canWrite.
+    const allowed = target.scope === 'facturador'
+      ? window._canFacturadorAttach
+      : window._canWrite;
+    if (!allowed) return;
     
     e.preventDefault();
+
+    // FE-2/D6: cupo max-3 en scope facturador → alert y skip (sin upload)
+    if (target.scope === 'facturador') {
+      const panel = document.getElementById('facturador-attachments');
+      const currentCount = panel ? parseInt(panel.dataset.count || '0', 10) : 0;
+      if (currentCount >= 3) {
+        Modal.alert('Máximo 3 archivos por observación facturador');
+        return;
+      }
+    }
     
     const formData = new FormData();
     formData.append('imagen', imageFile);
@@ -1750,12 +2011,20 @@ function exportarExcel() {
         body: formData
       });
       if (res.ok) {
-        loadErrores();
-        // Si el modal de imágenes está abierto, recargarlo
-        if (currentImageErrorId) openImageModal(currentImageErrorId, currentImageScope);
+        // D6/FE-2: facturador → refresh INLINE del panel + tabla/badge
+        // (nunca closeEditor, textarea sin re-render); else → refresh legacy
+        if (target.scope === 'facturador') {
+          renderFacturadorAttachments(target.id);
+          loadErrores();
+          lastUpdate = new Date().toISOString();
+        } else {
+          loadErrores();
+          // Si el modal de imágenes está abierto, recargarlo
+          if (currentImageErrorId) openImageModal(currentImageErrorId, currentImageScope);
+        }
       }
     } catch (err) {
-      console.error('Error al pegar imagen:', err);
+      console.error('[FRONT][ERROR] Error al pegar imagen:', err);
     }
   });
 
@@ -2307,6 +2576,8 @@ function exportarExcel() {
   // ====== AUTH DISABLED STATE ======
   // Permiso de escritura desde el server (control_urgencias:write o admin *)
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+  // Permiso de adjuntos facturador: lector base (control_urgencias SIN :write) o admin *
+  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or ('control_urgencias' in session.get('permisos', []) and 'control_urgencias:write' not in session.get('permisos', [])) else 'false' }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {

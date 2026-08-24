@@ -350,11 +350,44 @@ body.editor-open {
   outline: none;
 }
 
+/* FE-6: en modo facturador el contenedor adopta la superficie del modal
+   (#fef9c3) para que textarea + panel de adjuntos se lean como una sola
+   pieza integrada, sin hueco blanco visible dentro del editor. */
+#global-editor.facturador-mode {
+  background: var(--facturador-surface);
+}
+
 #global-editor textarea {
   border: none;
   outline: none;
   scrollbar-width: none;
   -ms-overflow-style: none;
+}
+#global-editor.facturador-mode #editor-input {
+  display: block;
+}
+
+/* FE-7: el panel de adjuntos comparte la tipografía de las letras de
+   observación del textarea facturador (#editor-input: font:inherit;
+   font-size:13px). No hay regla ::placeholder explícita para #editor-input /
+   #global-editor textarea, así que el texto del panel usa el tono muted del
+   proyecto (--muted-foreground) para leerse como el placeholder grisáceo de la
+   observación, no el foreground oscuro. Scoped a .facturador-mode para que
+   cell-edit y el modal de imágenes queden intactos. El tamaño se declara como
+   variable nombrada (sin magic number). */
+#global-editor.facturador-mode {
+  --facturador-obs-font-size: 13px;
+  color: var(--foreground);
+}
+#global-editor.facturador-mode .editor-count,
+#global-editor.facturador-mode .editor-dropzone,
+#global-editor.facturador-mode .editor-dropzone-text,
+#global-editor.facturador-mode .editor-thumb-link {
+  color: var(--muted-foreground);
+  font-family: inherit;
+  font-size: var(--facturador-obs-font-size);
+  font-weight: inherit;
+  line-height: inherit;
 }
 #global-editor textarea::-webkit-scrollbar {
   display: none;
@@ -577,8 +610,10 @@ body.editor-open {
   color: var(--sidebar-primary);
 }
 
-/* Badge de count de adjuntos facturador (FA-5): contador sobre el botón de nota */
-.action-icon--add-note .facturador-badge {
+/* Badge de count de adjuntos (FA-5/FE-9): contador sobre el botón de nota
+   facturador y sobre el ojito de descripción cuando tiene archivos */
+.action-icon--add-note .facturador-badge,
+.obs-img-btn .obs-badge {
   position: absolute;
   top: -5px;
   right: -5px;
@@ -1084,4 +1119,102 @@ body.editor-open {
 }
 .carga-progress .spinner {
   animation: carga-spin 0.6s linear infinite;
+}
+
+/* ====== Panel de adjuntos facturador embebido (FE-1/FE-5) ======
+   La paleta se alinea con el modal facturador (#global-editor en modo
+   facturador): superficie amarilla #fef9c3 (la del textarea) y acento ámbar
+   #f59e0b (el mismo del botón de nota facturador). El panel deja de ser un
+   elemento separado gris y pertenece visualmente al modal. Se declaran como
+   variables nombradas — sin magic numbers (convención del proyecto). */
+.facturador-attachments {
+  --facturador-surface: #fef9c3;
+  --facturador-accent: #f59e0b;
+  --facturador-border: #e2e8f0;
+  border-top: 1px solid var(--facturador-border);
+  margin-top: 0;
+  padding: 0.5rem;
+  background: var(--facturador-surface);
+  max-height: 180px;
+  overflow-y: auto;
+}
+.editor-count {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-bottom: 0.375rem;
+}
+.editor-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+  margin-bottom: 0.375rem;
+}
+.editor-thumb {
+  position: relative;
+  width: 64px;
+  height: 48px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--facturador-border);
+  background: #fff;
+  flex-shrink: 0;
+}
+.editor-thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  cursor: pointer;
+  display: block;
+}
+.editor-thumb-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  color: var(--facturador-accent);
+  background: #fff;
+}
+.editor-thumb-delete {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: #f44336;
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.editor-dropzone {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  border: 2px dashed #cbd5e1;
+  border-radius: 6px;
+  padding: 0.5rem;
+  text-align: center;
+  cursor: pointer;
+  background: var(--facturador-surface);
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.editor-dropzone:hover,
+.editor-dropzone.dragover {
+  border-color: var(--facturador-accent);
+  background: var(--facturador-surface);
+}
+.editor-dropzone-text {
+  color: var(--muted-foreground);
+  font-size: 0.85rem;
 }

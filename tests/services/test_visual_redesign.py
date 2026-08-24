@@ -215,21 +215,22 @@ class TestControlErroresTemplate:
         content = ctrl_path.read_text(encoding="utf-8")
         assert "stat" in content.lower() or "Total" in content
 
-    def test_control_errores_facturador_editor_hoists_size_before_left(self):
-        """R12/R13: facturador editor hoists width/height locals BEFORE left is assigned.
+    def test_control_errores_facturador_editor_sizes_540_before_left(self):
+        """FE-3/D7: facturador editor uses the 540px constant BEFORE left is assigned.
 
-        The editor must keep its exact size (Math.max(260, rect.width) x
-        Math.max(90, rect.height)) while opening to the LEFT of the trigger
-        button. Width/height are hoisted into locals so `left` can reuse
-        `editorWidth` for the mirror position.
+        The editor must size itself with the FACTURADOR_EDITOR_WIDTH constant
+        (540px, content-driven height WITHOUT a forced min-height) while opening
+        to the LEFT of the trigger button. Width is hoisted into a local so `left` can
+        reuse `FACTURADOR_EDITOR_WIDTH` for the mirror position (R12 fallback
+        preserved).
         """
         ctrl_path = Path("app/templates/control_errores.html")
         content = ctrl_path.read_text(encoding="utf-8")
-        assert "const editorWidth = Math.max(260, rect.width);" in content
-        assert "const editorHeight = Math.max(90, rect.height);" in content
-        assert "editor.style.width = editorWidth + 'px';" in content
-        assert "editor.style.height = editorHeight + 'px';" in content
-        assert "const editorLeft = btnRect.left - editorWidth - 8;" in content
+        assert "const FACTURADOR_EDITOR_WIDTH = 540;" in content
+        assert "editor.style.width = FACTURADOR_EDITOR_WIDTH + 'px';" in content
+        assert "editor.style.height = '';" in content
+        assert "editor.style.minHeight = '320px';" not in content
+        assert "const editorLeft = btnRect.left - FACTURADOR_EDITOR_WIDTH - 8;" in content
 
     def test_control_errores_facturador_editor_left_formula_with_fallback(self):
         """R12 + fallback: editor opens LEFT with 8px gap, falls back RIGHT near left edge.
@@ -306,3 +307,25 @@ class TestCleanup:
         assert not Path("app/static/css/components.css").exists(), "components.css must be deleted"
 
 
+# =============================================================================
+# Ordinary-review correction 6b9e2abb5976d4de — facturador save/delete/paste
+# =============================================================================
+
+
+class TestFacturadorSaveRegression:
+    """Regresiones del editor facturador (save/delete) — static asserts."""
+
+    TEMPLATE = Path("app/templates/control_errores.html").read_text(encoding="utf-8")
+
+    def test_save_facturador_validates_put_status(self):
+        """saveFacturadorEditor checa res.ok antes de aplicar el optimista."""
+        assert "if (!res.ok) throw new Error('HTTP ' + res.status);" in self.TEMPLATE
+
+    def test_save_facturador_rolls_back_and_toast_on_failure(self):
+        """Fallo del PUT → revertir cache y avisar con toast."""
+        assert "error.observacion_facturador = originalValue;" in self.TEMPLATE
+        assert "showToast('No se guardó la observación del facturador', 'error')" in self.TEMPLATE
+
+    def test_delete_closes_open_facturador_editor(self):
+        """Borrar la fila con editor abierto cierra el editor (no congela la página)."""
+        assert "if (currentEditId === id) closeEditor();" in self.TEMPLATE

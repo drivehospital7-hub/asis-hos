@@ -55,6 +55,37 @@ def _validar_error_id(error_id: str) -> tuple[bool, tuple | None]:
     return True, None
 
 
+def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
+    """Valida el permiso de subir/eliminar adjuntos según el scope.
+
+    Regla de negocio (facturador):
+    - scope ``facturador``: permitido solo a quien tenga el permiso base
+      ``control_urgencias`` SIN ``control_urgencias:write`` (lectura pura),
+      o a admin (``*``). Quien tenga ``:write`` queda BLOQUEADO (403).
+    - scope ``""`` (observación): comportamiento legacy — se requiere
+      ``control_urgencias:write`` (o admin).
+
+    Returns:
+        (True, None) si está permitido; (False, respuesta_json_403) si no.
+    """
+    permisos = session.get("permisos", [])
+    if "*" in permisos:
+        return True, None
+    if scope == "facturador":
+        allowed = (
+            "control_urgencias" in permisos
+            and "control_urgencias:write" not in permisos
+        )
+    else:
+        allowed = "control_urgencias:write" in permisos
+    if not allowed:
+        return False, (
+            jsonify({"status": "error", "data": {}, "errors": ["Permiso denegado"]}),
+            403,
+        )
+    return True, None
+
+
 def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
     """Extract a field from Vite's manifest.json for the given entry."""
     if not manifest_path.exists():
@@ -205,14 +236,17 @@ def listar_imagenes(error_id: str):
 
 
 @control_errores_bp.post("/api/control-errores/<error_id>/imagenes")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def subir_imagen(error_id: str):
-    """Subir imagen (scope opcional; permisos sin cambios, FA-4)."""
+    """Subir imagen (scope opcional; permisos por scope, FA-4)."""
     valid, err = _validar_error_id(error_id)
     if not valid:
         return err
     scope, err = _validar_scope()
     if err:
+        return err
+    valid, err = _validar_permiso_imagen(scope)
+    if not valid:
         return err
     if "imagen" not in request.files:
         return jsonify({"status": "error", "data": {}, "errors": ["No se encontró archivo"]})
@@ -226,15 +260,18 @@ def subir_imagen(error_id: str):
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/", methods=["DELETE"])
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def eliminar_imagen(error_id: str):
-    """Eliminar imagen (scope opcional); no listada o path trick → 404 (R1)."""
+    """Eliminar imagen (scope opcional); permisos por scope (R1)."""
     import urllib.parse
     valid, err = _validar_error_id(error_id)
     if not valid:
         return err
     scope, err = _validar_scope()
     if err:
+        return err
+    valid, err = _validar_permiso_imagen(scope)
+    if not valid:
         return err
     if not obtener_error(error_id):
         return jsonify({"status": "error", "data": {}, "errors": ["Error no encontrado"]}), 404
