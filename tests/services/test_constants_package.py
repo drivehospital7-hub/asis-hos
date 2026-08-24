@@ -54,8 +54,10 @@ from app.constants import (  # noqa: E402
     HORAS_POR_DIA,
     IMAGENES_ALLOWED_TYPES,
     IMAGENES_DIR,
+    IMAGENES_FACTURADOR_SCOPE,
     IMAGENES_MAX_PER_OBSERVACION,
     IMAGENES_MAX_SIZE_MB,
+    IMAGENES_SCOPES,
     PREFIJO_FACTURA_CAP,
     PREFIJO_FACTURA_MAL_CAPITADO,
     PROFESIONALES_EQUIPOS_BASICOS,
@@ -146,6 +148,11 @@ class TestConstantsAPI:
         assert IMAGENES_MAX_PER_OBSERVACION == 3
         assert ".pdf" in IMAGENES_ALLOWED_TYPES
         assert IMAGENES_MAX_SIZE_MB == 20
+
+    def test_imagenes_facturador_scope(self):
+        """IMAGENES_FACTURADOR_SCOPE + allowlist IMAGENES_SCOPES (R2/D2)."""
+        assert IMAGENES_FACTURADOR_SCOPE == "facturador"
+        assert IMAGENES_SCOPES == frozenset({"", "facturador"})
 
     def test_horas_por_dia(self):
         assert HORAS_POR_DIA == 24

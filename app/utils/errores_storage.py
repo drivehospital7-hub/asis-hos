@@ -11,7 +11,14 @@ from pathlib import Path
 from datetime import datetime
 from typing import Any
 
-from app.constants import IMAGENES_DIR, IMAGENES_MAX_PER_OBSERVACION, IMAGENES_ALLOWED_TYPES, IMAGENES_MAX_SIZE_MB
+from app.constants import (
+    IMAGENES_DIR,
+    IMAGENES_FACTURADOR_SCOPE,
+    IMAGENES_MAX_PER_OBSERVACION,
+    IMAGENES_ALLOWED_TYPES,
+    IMAGENES_MAX_SIZE_MB,
+    IMAGENES_SCOPES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +45,22 @@ def normalizar_identidad(s: str | None) -> str:
     return " ".join(value.casefold().split())
 
 
-def _get_imagenes_dir(error_id: str) -> Path:
-    """Obtener carpeta de imágenes para un error."""
+def _get_imagenes_dir(error_id: str, scope: str = "") -> Path:
+    """Obtener carpeta de imágenes para un error, por scope.
+
+    - scope "" (observación) → ``IMAGENES_PATH/{error_id}`` (legacy).
+    - scope "facturador" → ``IMAGENES_PATH/{error_id}/facturador`` (FA-1).
+
+    El scope alimenta un componente de ruta, así que TODO valor fuera del
+    allowlist ``IMAGENES_SCOPES`` lanza ``ValueError`` (backstop de R2/D2);
+    la ruta valida el scope y devuelve 400 antes de llegar acá.
+    """
+    if not error_id or error_id in {".", ".."} or Path(error_id).name != error_id:
+        raise ValueError("error_id no permitido")
+    if scope not in IMAGENES_SCOPES:
+        raise ValueError(f"scope no permitido: {scope!r}")
+    if scope == IMAGENES_FACTURADOR_SCOPE:
+        return IMAGENES_PATH / error_id / scope
     return IMAGENES_PATH / error_id
 
 
@@ -163,9 +184,13 @@ def listar_errores(
     # Ordenar por fecha de creación (más reciente primero)
     errores = sorted(errores, key=lambda e: e.get("creado_en", ""), reverse=True)
 
-    # Agregar conteo de imágenes
+    # Agregar conteo de imágenes (por scope: observación + facturador)
     for error in errores:
-        error["imagenes_count"] = obtener_imagenes_count(error.get("id", ""))
+        error_id = error.get("id", "")
+        error["imagenes_count"] = obtener_imagenes_count(error_id)
+        error["imagenes_facturador_count"] = obtener_imagenes_count(
+            error_id, IMAGENES_FACTURADOR_SCOPE
+        )
 
     return errores
 
@@ -324,17 +349,17 @@ def _eliminar_carpeta_imagenes(error_id: str) -> None:
         shutil.rmtree(imagenes_dir)
 
 
-def listar_imagenes(error_id: str) -> list[str]:
-    """Listar nombres de imágenes."""
-    imagenes_dir = _get_imagenes_dir(error_id)
+def listar_imagenes(error_id: str, scope: str = "") -> list[str]:
+    """Listar nombres de imágenes de un error, dentro del scope indicado."""
+    imagenes_dir = _get_imagenes_dir(error_id, scope)
     if not imagenes_dir.exists():
         return []
     return sorted([f.name for f in imagenes_dir.iterdir() if f.is_file()])
 
 
-def obtener_imagenes_count(error_id: str) -> int:
-    """Contar imágenes."""
-    return len(listar_imagenes(error_id))
+def obtener_imagenes_count(error_id: str, scope: str = "") -> int:
+    """Contar imágenes de un error, dentro del scope indicado."""
+    return len(listar_imagenes(error_id, scope))
 
 
 def validar_imagen(file) -> tuple[bool, str]:
@@ -350,33 +375,46 @@ def validar_imagen(file) -> tuple[bool, str]:
     return True, ""
 
 
-def guardar_imagen(error_id: str, file) -> tuple[bool, str]:
-    """Guardar archivo (imagen, PDF o Excel)."""
-    if obtener_imagenes_count(error_id) >= IMAGENES_MAX_PER_OBSERVACION:
-        return False, f"Máximo {IMAGENES_MAX_PER_OBSERVACION} archivos"
+def guardar_imagen(error_id: str, file, scope: str = "") -> tuple[bool, str]:
+    """Guardar archivo (imagen, PDF o Excel) dentro del scope indicado.
 
-    valid, error = validar_imagen(file)
-    if not valid:
-        return False, error
+    El cupo máximo (IMAGENES_MAX_PER_OBSERVACION) se aplica POR scope:
+    observación y facturador tienen 3 archivos cada uno (FA-1).
+    """
+    with _write_lock:
+        if obtener_imagenes_count(error_id, scope) >= IMAGENES_MAX_PER_OBSERVACION:
+            return False, f"Máximo {IMAGENES_MAX_PER_OBSERVACION} archivos"
 
-    imagenes_dir = _get_imagenes_dir(error_id)
-    imagenes_dir.mkdir(parents=True, exist_ok=True)
+        valid, error = validar_imagen(file)
+        if not valid:
+            return False, error
 
-    ext = Path(file.filename).suffix.lower()
-    count = obtener_imagenes_count(error_id)
-    filename = f"file_{count + 1}{ext}"
-    filepath = imagenes_dir / filename
+        imagenes_dir = _get_imagenes_dir(error_id, scope)
+        imagenes_dir.mkdir(parents=True, exist_ok=True)
+        ext = Path(file.filename).suffix.lower()
+        filename = f"file_{obtener_imagenes_count(error_id, scope) + 1}{ext}"
+        filepath = imagenes_dir / filename
+        file.seek(0)
+        try:
+            with filepath.open("xb") as output:
+                output.write(file.read())
+        except Exception:
+            filepath.unlink(missing_ok=True)
+            raise
+        logger.info("[BACK] Archivo guardado: %s", filepath)
+        return True, filename
 
-    file.seek(0)
-    filepath.write_bytes(file.read())
-    logger.info("[BACK] Archivo guardado: %s", filepath)
 
-    return True, filename
+def eliminar_imagen(error_id: str, filename: str, scope: str = "") -> tuple[bool, str]:
+    """Eliminar imagen dentro del scope, SOLO si está en su listado (R1).
 
-
-def eliminar_imagen(error_id: str, filename: str) -> tuple[bool, str]:
-    """Eliminar imagen."""
-    imagenes_dir = _get_imagenes_dir(error_id)
+    El check ``filename in listar_imagenes(error_id, scope)`` corre ANTES de
+    cualquier operación de filesystem: nombres con ``../`` o no listados se
+    rechazan sin tocar nada (bloquea borrados cross-scope y path tricks).
+    """
+    if filename not in listar_imagenes(error_id, scope):
+        return False, "Imagen no encontrada"
+    imagenes_dir = _get_imagenes_dir(error_id, scope)
     filepath = imagenes_dir / filename
     if not filepath.exists():
         return False, "Imagen no encontrada"

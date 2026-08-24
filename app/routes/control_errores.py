@@ -20,12 +20,39 @@ from app.services.control_errores_service import (
 )
 from app.services.control_errores_export import build_errores_export_workbook, filename_export
 
-from app.constants import IMAGENES_DIR
+from app.constants import IMAGENES_DIR, IMAGENES_SCOPES
 from app.utils.auth import permiso_requerido
+from app.utils.errores_storage import obtener_error
 
 logger = logging.getLogger(__name__)
 
 control_errores_bp = Blueprint("control_errores", __name__)
+
+
+def _validar_scope() -> tuple[str | None, tuple | None]:
+    """Lee ``?scope=`` y lo valida contra el allowlist (R2/D2).
+
+    El scope alimenta un componente de ruta en storage, así que todo valor
+    fuera de ``IMAGENES_SCOPES`` se rechaza acá (400) ANTES de tocar el
+    filesystem. Default "" = observación (comportamiento legacy).
+
+    Returns:
+        (scope, None) si es válido; (None, respuesta_json_400) si no.
+    """
+    scope = request.args.get("scope", "")
+    if scope not in IMAGENES_SCOPES:
+        return None, (
+            jsonify({"status": "error", "data": {}, "errors": ["scope inválido"]}),
+            400,
+        )
+    return scope, None
+
+
+def _validar_error_id(error_id: str) -> tuple[bool, tuple | None]:
+    """Rechaza IDs que no son un único componente de registro."""
+    if not error_id or error_id in {".", ".."} or Path(error_id).name != error_id:
+        return False, (jsonify({"status": "error", "data": {}, "errors": ["Error no encontrado"]}), 404)
+    return True, None
 
 
 def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
@@ -152,6 +179,9 @@ def actualizar_error(error_id: str):
 @permiso_requerido("control_urgencias:write")
 def eliminar_error(error_id: str):
     """Eliminar un error."""
+    valid, err = _validar_error_id(error_id)
+    if not valid:
+        return err
     return jsonify(delete_error(error_id))
 
 
@@ -162,32 +192,60 @@ def eliminar_error(error_id: str):
 @control_errores_bp.get("/api/control-errores/<error_id>/imagenes")
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def listar_imagenes(error_id: str):
-    """Listar imágenes."""
-    return jsonify(get_imagenes(error_id))
+    """Listar imágenes (scope opcional: "" observación | "facturador")."""
+    valid, err = _validar_error_id(error_id)
+    if not valid:
+        return err
+    scope, err = _validar_scope()
+    if err:
+        return err
+    if not obtener_error(error_id):
+        return jsonify({"status": "error", "data": {}, "errors": ["Error no encontrado"]}), 404
+    return jsonify(get_imagenes(error_id, scope))
 
 
 @control_errores_bp.post("/api/control-errores/<error_id>/imagenes")
 @permiso_requerido("control_urgencias:write")
 def subir_imagen(error_id: str):
-    """Subir imagen."""
+    """Subir imagen (scope opcional; permisos sin cambios, FA-4)."""
+    valid, err = _validar_error_id(error_id)
+    if not valid:
+        return err
+    scope, err = _validar_scope()
+    if err:
+        return err
     if "imagen" not in request.files:
         return jsonify({"status": "error", "data": {}, "errors": ["No se encontró archivo"]})
     file = request.files["imagen"]
     if file.filename == "":
         return jsonify({"status": "error", "data": {}, "errors": ["Archivo vacío"]})
-    return jsonify(upload_imagen(error_id, file))
+    result = upload_imagen(error_id, file, scope)
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/", methods=["DELETE"])
 @permiso_requerido("control_urgencias:write")
 def eliminar_imagen(error_id: str):
-    """Eliminar imagen."""
+    """Eliminar imagen (scope opcional); no listada o path trick → 404 (R1)."""
     import urllib.parse
+    valid, err = _validar_error_id(error_id)
+    if not valid:
+        return err
+    scope, err = _validar_scope()
+    if err:
+        return err
+    if not obtener_error(error_id):
+        return jsonify({"status": "error", "data": {}, "errors": ["Error no encontrado"]}), 404
     filename = request.args.get("filename")
     if not filename:
         return jsonify({"status": "error", "data": {}, "errors": ["filename requerido"]})
     filename = urllib.parse.unquote(filename)
-    return jsonify(delete_imagen(error_id, filename))
+    result = delete_imagen(error_id, filename, scope)
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 @control_errores_bp.route("/api/control-errores/<error_id>/imagenes/<path:filename>")
@@ -196,27 +254,35 @@ def servir_imagen(error_id: str, filename: str):
 
     Los links del Excel exportado deben abrir indefinidamente. La URL lleva el
     error_id (UUID), por lo que no es adivinable; además se valida que el
-    archivo sea un adjunto real del registro (contra path tricks).
+    archivo sea un adjunto real del registro DENTRO del scope solicitado
+    (contra path tricks y borrados cross-scope, R1/FA-6).
     """
     from flask import send_from_directory, abort
-    from app.utils.errores_storage import listar_imagenes
+    from app.utils.errores_storage import listar_imagenes, _get_imagenes_dir
 
-    # Defensa contra path tricks: el archivo debe ser un adjunto real del registro
-    if filename not in listar_imagenes(error_id):
-        logger.warning(f"Adjunto no listado para {error_id}: {filename}")
+    valid, err = _validar_error_id(error_id)
+    if not valid:
+        return err
+    scope, err = _validar_scope()
+    if err:
+        return err
+
+    # Defensa contra path tricks: el archivo debe ser un adjunto real del
+    # registro dentro del scope solicitado
+    if filename not in listar_imagenes(error_id, scope):
+        logger.warning(f"Adjunto no listado para {error_id} (scope={scope!r}): {filename}")
         return jsonify({
             "status": "error",
             "data": {},
             "errors": ["Archivo no encontrado"],
         }), 404
 
-    app_root = Path(current_app.root_path)
-    imagenes_dir = app_root / "data" / "imagenes" / error_id
+    imagenes_dir = _get_imagenes_dir(error_id, scope)
     filepath = imagenes_dir / filename
-    
+
     if not filepath.exists():
         logger.warning(f"Imagen no encontrada: {filepath}")
         abort(404)
-    
+
     logger.info(f"Sirviendo imagen: {filepath}")
     return send_from_directory(imagenes_dir, filename)

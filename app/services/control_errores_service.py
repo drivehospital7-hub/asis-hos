@@ -376,40 +376,53 @@ def delete_error(error_id: str) -> dict[str, Any]:
 # Gestión de Imágenes
 # =============================================================================
 
-def get_imagenes(error_id: str) -> dict[str, Any]:
-    """Listar imágenes."""
+def get_imagenes(error_id: str, scope: str = "") -> dict[str, Any]:
+    """Listar imágenes de un error, dentro del scope indicado (D1/R4).
+
+    ``scope=""`` (observación) conserva el comportamiento legacy.
+    """
     try:
-        imagenes = listar_imagenes(error_id)
-        count = obtener_imagenes_count(error_id)
+        imagenes = listar_imagenes(error_id, scope)
+        count = obtener_imagenes_count(error_id, scope)
         return {"status": "success", "data": {"imagenes": imagenes, "count": count}, "errors": []}
+    except ValueError as e:
+        return {"status": "error", "data": {}, "errors": [str(e)]}, 400
     except Exception as e:
         logger.exception("Error listando imágenes")
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def upload_imagen(error_id: str, file) -> dict[str, Any]:
-    """Subir imagen."""
+def upload_imagen(error_id: str, file, scope: str = "") -> dict[str, Any] | tuple[dict[str, Any], int]:
+    """Subir imagen dentro del scope indicado (FA-1/FA-4)."""
     try:
         if not obtener_error(error_id):
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
-        success, result = guardar_imagen(error_id, file)
+        success, result = guardar_imagen(error_id, file, scope)
         if success:
             logger.info("[BACK] Imagen subida: %s", result)
-            return {"status": "success", "data": {"filename": result, "count": obtener_imagenes_count(error_id)}, "errors": []}
+            return {"status": "success", "data": {"filename": result, "count": obtener_imagenes_count(error_id, scope)}, "errors": []}
         return {"status": "error", "data": {}, "errors": [result]}
+    except ValueError as e:
+        return {"status": "error", "data": {}, "errors": [str(e)]}, 400
     except Exception as e:
         logger.exception("[BACK][ERROR] Error subiendo imagen")
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def delete_imagen(error_id: str, filename: str) -> dict[str, Any]:
-    """Eliminar imagen."""
+def delete_imagen(error_id: str, filename: str, scope: str = "") -> dict[str, Any] | tuple[dict[str, Any], int]:
+    """Eliminar imagen dentro del scope.
+
+    R1/FA-6: el storage exige ``filename ∈ listar_imagenes(id, scope)`` antes
+    de tocar el filesystem; nombre no listado o path trick → envelope 404.
+    """
     try:
-        success, error = eliminar_imagen(error_id, filename)
+        success, error = eliminar_imagen(error_id, filename, scope)
         if success:
-            return {"status": "success", "data": {"count": obtener_imagenes_count(error_id)}, "errors": []}
-        return {"status": "error", "data": {}, "errors": [error]}
+            return {"status": "success", "data": {"count": obtener_imagenes_count(error_id, scope)}, "errors": []}
+        return {"status": "error", "data": {}, "errors": [error]}, 404
+    except ValueError as e:
+        return {"status": "error", "data": {}, "errors": [str(e)]}, 400
     except Exception as e:
         logger.exception("Error eliminando imagen")
         return {"status": "error", "data": {}, "errors": [str(e)]}

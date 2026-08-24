@@ -201,6 +201,14 @@ IMAGENES_MAX_PER_OBSERVACION = 3
 IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"}) | ALLOWED_EXCEL_SUFFIXES
 IMAGENES_MAX_SIZE_MB = 20
 
+# Scope de adjuntos del facturador: aisla los archivos del facturador en
+# data/imagenes/{id}/facturador/ con cupo max-3 propio (FA-1). El scope ""
+# (observación) conserva el comportamiento legacy.
+IMAGENES_FACTURADOR_SCOPE = "facturador"
+# Allowlist de scopes válidos: el scope alimenta un componente de ruta, así
+# que TODO valor fuera de este set se rechaza (R2/D2).
+IMAGENES_SCOPES = frozenset({"", IMAGENES_FACTURADOR_SCOPE})
+
 # =============================================================================
 # FILE SIZE - Límite de tamaño para archivos Excel subidos
 # =============================================================================
