@@ -762,7 +762,9 @@
       container.dataset.count = count; // para el cupo max-3 del paste (D6)
       let html = `<div class="editor-count">Adjuntos facturador (${count}/3)</div>`;
       if (result.data.imagenes.length > 0) {
-        html += '<div class="editor-thumbs">' + result.data.imagenes.map(filename => {
+        html += '<div class="editor-thumbs">' + result.data.imagenes.map(item => {
+          const filename = item.filename;
+          const canDelete = item.can_delete;
           const lower = filename.toLowerCase();
           // D9: URL codificada (encodeURIComponent), labels escapados (escapeHtml)
           const scopeUrl = `/api/control-errores/${errorId}/imagenes/${encodeURIComponent(filename)}${scopeQuery}`;
@@ -774,9 +776,8 @@
           } else {
             body = `<img src="${scopeUrl}" class="editor-thumb-img" data-filename="${escapeHtml(filename)}" alt="${escapeHtml(filename)}">`;
           }
-          // D8/D9: delete SOLO con permiso; filename en data-* (eventos delegados,
-          // nunca en onclick inline con filename crudo)
-          const deleteBtn = window._canFacturadorAttach ? `<button type="button" class="editor-thumb-delete" data-filename="${escapeHtml(filename)}" data-remove-thumb="1" title="Eliminar ${escapeHtml(filename)}">&times;</button>` : '';
+          // FA-9/D16: delete por can_delete (dueño/admin), no por el flag global
+          const deleteBtn = canDelete ? `<button type="button" class="editor-thumb-delete" data-filename="${escapeHtml(filename)}" data-remove-thumb="1" title="Eliminar ${escapeHtml(filename)}">&times;</button>` : '';
           return `<div class="editor-thumb">${body}${deleteBtn}</div>`;
         }).join('') + '</div>';
       }
@@ -1828,13 +1829,15 @@ function exportarExcel() {
     const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`);
     const result = await res.json();
     if (result.status === 'success') {
-      listEl.innerHTML = result.data.imagenes.map(filename => {
+      listEl.innerHTML = result.data.imagenes.map(item => {
+        const filename = item.filename;
+        const canDelete = item.can_delete;
         const lower = filename.toLowerCase();
-        if (lower.endsWith('.pdf')) return _renderPdfThumb(errorId, filename, window._canWrite, scope);
-        if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) return _renderExcelThumb(errorId, filename, window._canWrite, scope);
+        if (lower.endsWith('.pdf')) return _renderPdfThumb(errorId, filename, canDelete, scope);
+        if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) return _renderExcelThumb(errorId, filename, canDelete, scope);
         return `<div style="position:relative;width:120px;height:90px;">
           <img src="/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}','${scope}')" onerror="console.error('Error cargando imagen:', this.src)">
-          ${window._canWrite ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
+          ${canDelete ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
         </div>`;
       }).join('');
       // Solo mostrar dropzone si tiene permiso de escritura y hay espacio en el scope
@@ -2576,8 +2579,8 @@ function exportarExcel() {
   // ====== AUTH DISABLED STATE ======
   // Permiso de escritura desde el server (control_urgencias:write o admin *)
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
-  // Permiso de adjuntos facturador: lector base (control_urgencias SIN :write) o admin *
-  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or ('control_urgencias' in session.get('permisos', []) and 'control_urgencias:write' not in session.get('permisos', [])) else 'false' }};
+  // Permiso de adjuntos facturador: control_urgencias (con o sin :write) o admin *
+  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias' in session.get('permisos', []) else 'false' }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {
