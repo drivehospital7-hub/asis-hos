@@ -17,6 +17,7 @@ from app.utils.errores_storage import (
     obtener_imagenes_count,
     guardar_imagen,
     eliminar_imagen,
+    obtener_uploader,
     get_ultima_actualizacion,
     check_cambios,
     normalizar_identidad,
@@ -376,15 +377,36 @@ def delete_error(error_id: str) -> dict[str, Any]:
 # Gestión de Imágenes
 # =============================================================================
 
-def get_imagenes(error_id: str, scope: str = "") -> dict[str, Any]:
+def get_imagenes(
+    error_id: str,
+    scope: str = "",
+    username: str | None = None,
+    is_admin: bool = False,
+) -> dict[str, Any]:
     """Listar imágenes de un error, dentro del scope indicado (D1/R4).
 
-    ``scope=""`` (observación) conserva el comportamiento legacy.
+    ``scope=""`` (observación) conserva el comportamiento legacy. Cada ítem
+    expone ``{filename, can_delete}`` (FA-9): can_delete es true para admin
+    (*) o el dueño registrado (obtener_uploader == username); false para
+    ajenos y adjuntos legacy sin dueño.
     """
     try:
         imagenes = listar_imagenes(error_id, scope)
         count = obtener_imagenes_count(error_id, scope)
-        return {"status": "success", "data": {"imagenes": imagenes, "count": count}, "errors": []}
+        items = [
+            {
+                "filename": filename,
+                "can_delete": _puede_eliminar(
+                    error_id, filename, scope, username, is_admin
+                ),
+            }
+            for filename in imagenes
+        ]
+        return {
+            "status": "success",
+            "data": {"imagenes": items, "count": count},
+            "errors": [],
+        }
     except ValueError as e:
         return {"status": "error", "data": {}, "errors": [str(e)]}, 400
     except Exception as e:
@@ -392,13 +414,34 @@ def get_imagenes(error_id: str, scope: str = "") -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def upload_imagen(error_id: str, file, scope: str = "") -> dict[str, Any] | tuple[dict[str, Any], int]:
-    """Subir imagen dentro del scope indicado (FA-1/FA-4)."""
+def _puede_eliminar(
+    error_id: str,
+    filename: str,
+    scope: str = "",
+    username: str | None = None,
+    is_admin: bool = False,
+) -> bool:
+    """¿Puede este usuario eliminar ``filename``? Admin (*) o dueño (FA-8/FA-9)."""
+    if is_admin:
+        return True
+    if not username:
+        return False
+    return obtener_uploader(error_id, filename, scope) == username
+
+
+def upload_imagen(
+    error_id: str, file, scope: str = "", username: str | None = None
+) -> dict[str, Any] | tuple[dict[str, Any], int]:
+    """Subir imagen dentro del scope indicado (FA-1/FA-4).
+
+    ``username`` se reenvía a ``guardar_imagen`` para registrar la propiedad
+    en el sidecar (FA-7); None mantiene compatibilidad legacy.
+    """
     try:
         if not obtener_error(error_id):
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
 
-        success, result = guardar_imagen(error_id, file, scope)
+        success, result = guardar_imagen(error_id, file, scope, username=username)
         if success:
             logger.info("[BACK] Imagen subida: %s", result)
             return {"status": "success", "data": {"filename": result, "count": obtener_imagenes_count(error_id, scope)}, "errors": []}
@@ -410,13 +453,28 @@ def upload_imagen(error_id: str, file, scope: str = "") -> dict[str, Any] | tupl
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def delete_imagen(error_id: str, filename: str, scope: str = "") -> dict[str, Any] | tuple[dict[str, Any], int]:
+def delete_imagen(
+    error_id: str,
+    filename: str,
+    scope: str = "",
+    username: str | None = None,
+    is_admin: bool = False,
+) -> dict[str, Any] | tuple[dict[str, Any], int]:
     """Eliminar imagen dentro del scope.
 
     R1/FA-6: el storage exige ``filename ∈ listar_imagenes(id, scope)`` antes
     de tocar el filesystem; nombre no listado o path trick → envelope 404.
+
+    FA-8: la decisión de ownership vive en el service (no en storage). Si el
+    usuario no es admin (*) ni el dueño registrado → 403 sin tocar storage.
     """
     try:
+        if not _puede_eliminar(error_id, filename, scope, username, is_admin):
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["Solo el autor puede eliminar el archivo"],
+            }, 403
         success, error = eliminar_imagen(error_id, filename, scope)
         if success:
             return {"status": "success", "data": {"count": obtener_imagenes_count(error_id, scope)}, "errors": []}

@@ -374,14 +374,20 @@ class TestServiceScope:
             patch(
                 "app.services.control_errores_service.obtener_imagenes_count",
                 return_value=1,
-            ) as mock_count,
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value=None,
+            ),
         ):
             result = get_imagenes("e-1", scope="facturador")
 
         assert result["status"] == "success"
-        assert result["data"] == {"imagenes": ["file_1.png"], "count": 1}
+        assert result["data"] == {
+            "imagenes": [{"filename": "file_1.png", "can_delete": False}],
+            "count": 1,
+        }
         assert mock_list.call_args.args == ("e-1", "facturador")
-        assert mock_count.call_args.args == ("e-1", "facturador")
 
     def test_get_imagenes_default_scope_observacion(self):
         """Sin scope → observación (R4: callers de export no cambian)."""
@@ -393,16 +399,44 @@ class TestServiceScope:
             patch(
                 "app.services.control_errores_service.obtener_imagenes_count",
                 return_value=1,
-            ) as mock_count,
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value=None,
+            ),
         ):
             result = get_imagenes("e-1")
 
         assert result["status"] == "success"
         assert mock_list.call_args.args == ("e-1", "")
-        assert mock_count.call_args.args == ("e-1", "")
 
     def test_upload_imagen_scope_passthrough(self):
-        """upload_imagen(id, file, scope) guarda y cuenta en ese scope."""
+        """upload_imagen(id, file, scope, username) pasa username a storage."""
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_error",
+                return_value={"id": "e-1"},
+            ),
+            patch(
+                "app.services.control_errores_service.guardar_imagen",
+                return_value=(True, "file_1.png"),
+            ) as mock_guardar,
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=1,
+            ),
+        ):
+            result = upload_imagen("e-1", _png(), scope="facturador", username="u1")
+
+        assert result["status"] == "success"
+        assert result["data"]["filename"] == "file_1.png"
+        args = mock_guardar.call_args.args
+        assert args[0] == "e-1"
+        assert args[2] == "facturador"
+        assert mock_guardar.call_args.kwargs["username"] == "u1"
+
+    def test_upload_imagen_sin_username_legacy(self):
+        """upload_imagen sin username → guardar_imagen sin username (legacy)."""
         with (
             patch(
                 "app.services.control_errores_service.obtener_error",
@@ -420,14 +454,15 @@ class TestServiceScope:
             result = upload_imagen("e-1", _png(), scope="facturador")
 
         assert result["status"] == "success"
-        assert result["data"]["filename"] == "file_1.png"
-        args = mock_guardar.call_args.args
-        assert args[0] == "e-1"
-        assert args[2] == "facturador"
+        assert mock_guardar.call_args.kwargs.get("username") is None
 
     def test_delete_imagen_scope_passthrough(self):
         """delete_imagen(id, filename, scope) delega el scope a storage."""
         with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value="u1",
+            ),
             patch(
                 "app.services.control_errores_service.eliminar_imagen",
                 return_value=(True, ""),
@@ -437,18 +472,28 @@ class TestServiceScope:
                 return_value=0,
             ),
         ):
-            result = delete_imagen("e-1", "file_1.png", scope="facturador")
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="facturador", username="u1"
+            )
 
         assert result["status"] == "success"
         assert mock_elim.call_args.args == ("e-1", "file_1.png", "facturador")
 
     def test_delete_imagen_no_listado_404(self):
         """R1/FA-6: nombre no listado (o path trick) → envelope 404."""
-        with patch(
-            "app.services.control_errores_service.eliminar_imagen",
-            return_value=(False, "Imagen no encontrada"),
-        ) as mock_elim:
-            result = delete_imagen("e-1", "../file_1.png", scope="facturador")
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value="u1",
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+                return_value=(False, "Imagen no encontrada"),
+            ) as mock_elim,
+        ):
+            result = delete_imagen(
+                "e-1", "../file_1.png", scope="facturador", username="u1"
+            )
 
         assert isinstance(result, tuple)
         assert result[1] == 404
@@ -457,11 +502,18 @@ class TestServiceScope:
 
     def test_delete_imagen_scope_invalido_400(self):
         """R2: scope fuera del allowlist → envelope 400 (ValueError backstop)."""
-        with patch(
-            "app.services.control_errores_service.eliminar_imagen",
-            side_effect=ValueError("scope no permitido: 'bogus'"),
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                side_effect=ValueError("scope no permitido: 'bogus'"),
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+            ),
         ):
-            result = delete_imagen("e-1", "file_1.png", scope="bogus")
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="bogus", username="u1"
+            )
 
         assert isinstance(result, tuple)
         assert result[1] == 400
@@ -484,6 +536,173 @@ class TestServiceScope:
         assert isinstance(result, tuple)
         assert result[1] == 400
         assert result[0]["status"] == "error"
+
+
+# =============================================================================
+# FA-8/FA-9: can_delete en GET y ownership en DELETE (tasks 2.1, 2.2)
+# =============================================================================
+
+
+class TestServiceOwnership:
+    """FA-9: get_imagenes calcula can_delete por archivo (admin/dueño/ajeno)."""
+
+    def test_get_imagenes_can_delete_dueño(self):
+        """Dueño (obtener_uploader == username) → can_delete true."""
+        with (
+            patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png", "file_2.png"],
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=2,
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                side_effect=lambda eid, fname, scope="": (
+                    "u1" if fname == "file_1.png" else None
+                ),
+            ),
+        ):
+            result = get_imagenes("e-1", scope="facturador", username="u1")
+
+        assert result["data"]["imagenes"] == [
+            {"filename": "file_1.png", "can_delete": True},
+            {"filename": "file_2.png", "can_delete": False},
+        ]
+
+    def test_get_imagenes_can_delete_admin(self):
+        """Admin (*) → can_delete true en todos (incl. legacy)."""
+        with (
+            patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=1,
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value=None,
+            ),
+        ):
+            result = get_imagenes("e-1", scope="facturador", username="admin", is_admin=True)
+
+        assert result["data"]["imagenes"] == [
+            {"filename": "file_1.png", "can_delete": True}
+        ]
+
+    def test_get_imagenes_can_delete_ajeno_legacy(self):
+        """Ajeno o legacy (sin dueño) → can_delete false."""
+        with (
+            patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=1,
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value="otro",
+            ),
+        ):
+            result = get_imagenes("e-1", scope="facturador", username="u1")
+
+        assert result["data"]["imagenes"] == [
+            {"filename": "file_1.png", "can_delete": False}
+        ]
+
+    # FA-8: delete_imagen → 403 si no admin y no dueño
+    def test_delete_imagen_dueño_200(self):
+        """Dueño borra su archivo → 200."""
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value="u1",
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+                return_value=(True, ""),
+            ),
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=0,
+            ),
+        ):
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="facturador", username="u1"
+            )
+
+        assert isinstance(result, tuple) is False
+        assert result["status"] == "success"
+
+    def test_delete_imagen_ajeno_403(self):
+        """Usuario distinto del dueño → 403, storage no se toca."""
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value="otro",
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+                side_effect=AssertionError("no debe tocar storage"),
+            ) as mock_elim,
+        ):
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="facturador", username="u1"
+            )
+
+        assert isinstance(result, tuple)
+        assert result[1] == 403
+        assert result[0]["status"] == "error"
+        assert "autor" in result[0]["errors"][0]
+        mock_elim.assert_not_called()
+
+    def test_delete_imagen_legacy_no_admin_403(self):
+        """Legacy sin dueño, no-admin → 403."""
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value=None,
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+                side_effect=AssertionError("no debe tocar storage"),
+            ) as mock_elim,
+        ):
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="facturador", username="u1"
+            )
+
+        assert isinstance(result, tuple)
+        assert result[1] == 403
+        mock_elim.assert_not_called()
+
+    def test_delete_imagen_admin_200(self):
+        """Admin (*) borra cualquiera (incl. legacy) → 200."""
+        with (
+            patch(
+                "app.services.control_errores_service.obtener_uploader",
+                return_value=None,
+            ),
+            patch(
+                "app.services.control_errores_service.eliminar_imagen",
+                return_value=(True, ""),
+            ) as mock_elim,
+            patch(
+                "app.services.control_errores_service.obtener_imagenes_count",
+                return_value=0,
+            ),
+        ):
+            result = delete_imagen(
+                "e-1", "file_1.png", scope="facturador", username="admin", is_admin=True
+            )
+
+        assert result["status"] == "success"
+        mock_elim.assert_called_once()
 
 
 # =============================================================================
