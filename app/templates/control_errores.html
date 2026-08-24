@@ -1957,22 +1957,27 @@ function exportarExcel() {
       return; // No seguir al upload del error activo
     }
 
-    // Si el usuario está escribiendo en un textarea/input común,
-    // dejar que el navegador pegue el texto sin interferir
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
-      return;
-    }
-
+    // Detectar imagen del portapapeles ANTES del guard de textarea/input,
+    // para permitir Ctrl+V de imagen con el foco en la caja de texto del
+    // editor (textarea) sin romper el pegado de texto normal.
     const items = e.clipboardData?.items;
     if (!items) return;
-    
+
     let imageFile = null;
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         imageFile = item.getAsFile();
       }
     }
+
+    // Si el usuario está escribiendo en un textarea/input común y NO hay
+    // imagen en el portapapeles, dejar que el navegador pegue el texto
+    // sin interferir.
+    const activeEl = document.activeElement;
+    if (!imageFile && activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
+      return;
+    }
+
     if (!imageFile) return;
 
     // Subir al error que tenga el modal de imágenes abierto, o al editor activo.

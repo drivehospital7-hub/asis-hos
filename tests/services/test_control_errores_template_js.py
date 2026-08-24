@@ -259,12 +259,22 @@ class TestPasteTarget:
         """Sin modal → editor: cell '' (observación) | facturador editor 'facturador'."""
         assert "scope: currentCell ? '' : 'facturador'" in PASTE_REGION
 
-    def test_textarea_guard_unchanged(self):
-        """El guard de textarea/input NO se toca: pegar texto sigue default."""
+    def test_textarea_guard_allows_image_paste(self):
+        """El guard de textarea/input NO bloquea el paste de imagen.
+
+        La detección de imagen (items → imageFile) corre ANTES del guard de
+        activeElement, y el guard solo aplica cuando NO hay imagen, para
+        permitir Ctrl+V de imagen con el foco en la caja de texto del editor
+        (que es un textarea) sin romper el pegado de texto normal.
+        """
+        items_idx = PASTE_REGION.index("const items = e.clipboardData?.items;")
+        guard_idx = PASTE_REGION.index("if (!imageFile && activeEl &&")
+        assert items_idx < guard_idx
+        assert "imageFile = item.getAsFile();" in PASTE_REGION
         assert (
-            "if (activeEl && (activeEl.tagName === 'TEXTAREA' || "
+            "if (!imageFile && activeEl && (activeEl.tagName === 'TEXTAREA' || "
             "activeEl.tagName === 'INPUT')) {"
-        ) in HTML
+        ) in PASTE_REGION
 
 
 class TestPasteFacturadorBranch:
