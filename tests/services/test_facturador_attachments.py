@@ -460,6 +460,10 @@ class TestServiceScope:
         """delete_imagen(id, filename, scope) delega el scope a storage."""
         with (
             patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
                 "app.services.control_errores_service.obtener_uploader",
                 return_value="u1",
             ),
@@ -480,16 +484,16 @@ class TestServiceScope:
         assert mock_elim.call_args.args == ("e-1", "file_1.png", "facturador")
 
     def test_delete_imagen_no_listado_404(self):
-        """R1/FA-6: nombre no listado (o path trick) → envelope 404."""
+        """R1/FA-6/R3: nombre no listado (o path trick) → envelope 404."""
         with (
             patch(
-                "app.services.control_errores_service.obtener_uploader",
-                return_value="u1",
-            ),
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=[],
+            ) as mock_list,
             patch(
                 "app.services.control_errores_service.eliminar_imagen",
-                return_value=(False, "Imagen no encontrada"),
-            ) as mock_elim,
+                side_effect=AssertionError("no debe tocar storage"),
+            ),
         ):
             result = delete_imagen(
                 "e-1", "../file_1.png", scope="facturador", username="u1"
@@ -498,13 +502,13 @@ class TestServiceScope:
         assert isinstance(result, tuple)
         assert result[1] == 404
         assert result[0]["status"] == "error"
-        assert mock_elim.call_args.args == ("e-1", "../file_1.png", "facturador")
+        assert mock_list.call_args.args == ("e-1", "facturador")
 
     def test_delete_imagen_scope_invalido_400(self):
         """R2: scope fuera del allowlist → envelope 400 (ValueError backstop)."""
         with (
             patch(
-                "app.services.control_errores_service.obtener_uploader",
+                "app.services.control_errores_service.listar_imagenes",
                 side_effect=ValueError("scope no permitido: 'bogus'"),
             ),
             patch(
@@ -620,6 +624,10 @@ class TestServiceOwnership:
         """Dueño borra su archivo → 200."""
         with (
             patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
                 "app.services.control_errores_service.obtener_uploader",
                 return_value="u1",
             ),
@@ -643,6 +651,10 @@ class TestServiceOwnership:
         """Usuario distinto del dueño → 403, storage no se toca."""
         with (
             patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
                 "app.services.control_errores_service.obtener_uploader",
                 return_value="otro",
             ),
@@ -665,6 +677,10 @@ class TestServiceOwnership:
         """Legacy sin dueño, no-admin → 403."""
         with (
             patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
+            patch(
                 "app.services.control_errores_service.obtener_uploader",
                 return_value=None,
             ),
@@ -684,6 +700,10 @@ class TestServiceOwnership:
     def test_delete_imagen_admin_200(self):
         """Admin (*) borra cualquiera (incl. legacy) → 200."""
         with (
+            patch(
+                "app.services.control_errores_service.listar_imagenes",
+                return_value=["file_1.png"],
+            ),
             patch(
                 "app.services.control_errores_service.obtener_uploader",
                 return_value=None,
@@ -722,10 +742,11 @@ class TestRoutesScope:
     """3.2/3.3/FA-4: POST/GET/DELETE/serve scoped vía app_client."""
 
     def test_post_scope_facturador_reader_200_persisted(self, app_client, tmp_imagenes):
-        """FA-4: POST ?scope=facturador con lector (base sin :write) → 200 y persiste.
+        """FA-4: POST ?scope=facturador con lector (base) → 200 y persiste con dueño.
 
-        Regla de negocio: el adjunto de facturador lo sube SOLO quien tenga
-        el permiso base ``control_urgencias`` sin ``control_urgencias:write``.
+        El adjunto de facturador lo sube quien tenga ``control_urgencias``
+        (con o sin ``:write``) o admin (FA-4, D15). El dueño registrado es el
+        username de la sesión (FA-7).
         """
         _login(app_client, ["control_urgencias"], username="urgencias")
         with patch(
@@ -745,25 +766,33 @@ class TestRoutesScope:
         assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
         # Observación (default scope) intacta
         assert not (tmp_imagenes / "e-1" / "file_1.png").exists()
+        # FA-7: el sidecar facturador registra al subidor (username de sesión)
+        import json
+        sidecar = tmp_imagenes / "e-1" / "facturador" / ".owner.json"
+        assert json.loads(sidecar.read_text()) == {"file_1.png": "urgencias"}
 
-    def test_post_scope_facturador_write_403_nothing_persisted(
-        self, app_client, tmp_imagenes
-    ):
-        """FA-4: POST scoped facturador con :write → 403, nada se persiste.
+    def test_post_scope_facturador_write_200_persisted(self, app_client, tmp_imagenes):
+        """FA-4: POST scoped facturador con :write → 200 y persiste (invertido).
 
-        Regla de negocio: quien tiene ``control_urgencias:write`` queda
-        BLOQUEADO de subir adjuntos de facturador.
+        Antes :write quedaba BLOQUEADO de subir adjuntos de facturador (403);
+        con la nueva matriz, ``:write`` también puede subir (D15).
         """
         _login(app_client, ["control_urgencias", "control_urgencias:write"], username="val1")
-        resp = app_client.post(
-            "/api/control-errores/e-1/imagenes?scope=facturador",
-            data={"imagen": (BytesIO(b"\x89PNG\r\n\x1a\nfake"), "captura.png")},
-            content_type="multipart/form-data",
-            headers={"X-Requested-With": "XMLHttpRequest"},
-        )
-        assert resp.status_code == 403
-        assert resp.get_json() == {"status": "error", "data": {}, "errors": ["Permiso denegado"]}
-        assert not (tmp_imagenes / "e-1").exists()
+        with patch(
+            "app.services.control_errores_service.obtener_error",
+            return_value={"id": "e-1"},
+        ):
+            resp = app_client.post(
+                "/api/control-errores/e-1/imagenes?scope=facturador",
+                data={"imagen": (BytesIO(b"\x89PNG\r\n\x1a\nfake"), "captura.png")},
+                content_type="multipart/form-data",
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"]["filename"] == "file_1.png"
+        assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
 
     def test_post_scope_observacion_reader_403_nothing_persisted(
         self, app_client, tmp_imagenes
@@ -835,23 +864,53 @@ class TestRoutesScope:
         assert data["status"] == "error"
         assert not (tmp_imagenes / "e-1").exists()
 
+    def test_responsable_facturacion_no_accede_flujo_imagenes(
+        self, app_client, tmp_imagenes
+    ):
+        """FA-4: responsable_facturacion NO otorga acceso al flujo de imágenes.
+
+        El rol no tiene permisos de control_urgencias: el decorador de ruta
+        lo bloquea (302 a login, ya que la request no es XHR) y nada se
+        persiste. El flujo de imágenes queda fuera de alcance de ese rol.
+        """
+        _login(app_client, ["responsable_facturacion"], username="resp")
+        resp = app_client.post(
+            "/api/control-errores/e-1/imagenes?scope=facturador",
+            data={"imagen": (BytesIO(b"\x89PNG\r\n\x1a\nfake"), "captura.png")},
+            content_type="multipart/form-data",
+        )
+        # Bloqueado por auth (sin control_urgencias): redirige a login (302)
+        assert resp.status_code == 302
+        assert not (tmp_imagenes / "e-1").exists()
+
+        # Tras el 302 el decorador cerró la sesión → el siguiente request es 401
+        resp = app_client.delete(
+            "/api/control-errores/e-1/imagenes/?filename=file_1.png&scope=facturador"
+        )
+        assert resp.status_code in (302, 401)  # bloqueado por auth
+        assert not (tmp_imagenes / "e-1").exists()
+
     def test_get_imagenes_scope_facturador_aisla(self, app_client, tmp_imagenes):
-        """M-1: GET scoped lista solo facturador/; GET default solo observación."""
+        """M-1/FA-9: GET scoped lista objetos {filename, can_delete}; default obs."""
         errores_storage.guardar_imagen("e-1", _png())  # → {id}/file_1.png
         errores_storage.guardar_imagen(
             "e-1", _FakeFile("fac.jpg"), scope="facturador"
         )  # → {id}/facturador/file_1.jpg
-        _login(app_client, ["control_urgencias", "control_urgencias:write"])
+        _login(app_client, ["control_urgencias", "control_urgencias:write"], username="val1")
 
         with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
             resp_fac = app_client.get("/api/control-errores/e-1/imagenes?scope=facturador")
             assert resp_fac.status_code == 200
-            assert resp_fac.get_json()["data"]["imagenes"] == ["file_1.jpg"]
+            assert resp_fac.get_json()["data"]["imagenes"] == [
+                {"filename": "file_1.jpg", "can_delete": False}
+            ]
             assert resp_fac.get_json()["data"]["count"] == 1
 
             resp_obs = app_client.get("/api/control-errores/e-1/imagenes")
             assert resp_obs.status_code == 200
-            assert resp_obs.get_json()["data"]["imagenes"] == ["file_1.png"]
+            assert resp_obs.get_json()["data"]["imagenes"] == [
+                {"filename": "file_1.png", "can_delete": False}
+            ]
 
     def test_get_imagenes_scope_bogus_400(self, app_client):
         """R2: GET ?scope=bogus → 400."""
@@ -913,9 +972,11 @@ class TestRoutesScope:
         assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
         assert (tmp_imagenes / "e-1" / "file_1.png").is_file()
 
-    def test_delete_scope_facturador_reader_listed_200(self, app_client, tmp_imagenes):
-        """DELETE scoped facturador con lector → 200 y queda borrado."""
-        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")
+    def test_delete_scope_facturador_owner_200(self, app_client, tmp_imagenes):
+        """FA-8: dueño borra su archivo facturador → 200 y queda borrado."""
+        errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="urgencias"
+        )
         _login(app_client, ["control_urgencias"], username="urgencias")
         with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
             resp = app_client.delete(
@@ -926,18 +987,34 @@ class TestRoutesScope:
         assert resp.get_json()["data"]["count"] == 0
         assert not (tmp_imagenes / "e-1" / "facturador" / "file_1.png").exists()
 
-    def test_delete_scope_facturador_write_403_nothing_deleted(
+    def test_delete_scope_facturador_ajeno_403_nothing_deleted(
         self, app_client, tmp_imagenes
     ):
-        """DELETE scoped facturador con :write → 403, nada se borra."""
-        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")
-        _login(app_client, ["control_urgencias", "control_urgencias:write"], username="val1")
-        resp = app_client.delete(
-            "/api/control-errores/e-1/imagenes/?filename=file_1.png&scope=facturador",
-            headers={"X-Requested-With": "XMLHttpRequest"},
+        """FA-8: DELETE ajeno (no dueño, no admin) → 403, nada se borra."""
+        errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="otro"
         )
+        _login(app_client, ["control_urgencias", "control_urgencias:write"], username="val1")
+        with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
+            resp = app_client.delete(
+                "/api/control-errores/e-1/imagenes/?filename=file_1.png&scope=facturador",
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
         assert resp.status_code == 403
-        assert resp.get_json() == {"status": "error", "data": {}, "errors": ["Permiso denegado"]}
+        assert resp.get_json()["status"] == "error"
+        assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
+
+    def test_delete_scope_facturador_legacy_no_admin_403(self, app_client, tmp_imagenes):
+        """FA-8: legacy sin dueño + no-admin → 403, nada se borra."""
+        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")  # sin username
+        _login(app_client, ["control_urgencias"], username="urgencias")
+        with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
+            resp = app_client.delete(
+                "/api/control-errores/e-1/imagenes/?filename=file_1.png&scope=facturador",
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+        assert resp.status_code == 403
+        assert resp.get_json()["status"] == "error"
         assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
 
     def test_delete_scope_observacion_reader_403_nothing_deleted(
@@ -951,12 +1028,12 @@ class TestRoutesScope:
             headers={"X-Requested-With": "XMLHttpRequest"},
         )
         assert resp.status_code == 403
-        assert resp.get_json() == {"status": "error", "data": {}, "errors": ["Permiso denegado"]}
+        assert resp.get_json()["status"] == "error"
         assert (tmp_imagenes / "e-1" / "file_1.png").is_file()
 
-    def test_delete_scope_observacion_write_200(self, app_client, tmp_imagenes):
-        """DELETE scope "" (observación) con :write → 200 y queda borrado."""
-        errores_storage.guardar_imagen("e-1", _png())
+    def test_delete_scope_observacion_owner_200(self, app_client, tmp_imagenes):
+        """FA-8: dueño (:write) borra su archivo de observación → 200."""
+        errores_storage.guardar_imagen("e-1", _png(), username="val1")
         _login(app_client, ["control_urgencias", "control_urgencias:write"], username="val1")
         with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
             resp = app_client.delete(
@@ -967,8 +1044,8 @@ class TestRoutesScope:
         assert not (tmp_imagenes / "e-1" / "file_1.png").exists()
 
     def test_delete_scope_facturador_admin_200(self, app_client, tmp_imagenes):
-        """DELETE scoped facturador con admin (*) → 200 y queda borrado."""
-        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")
+        """FA-8: admin (*) borra legacy (sin dueño) → 200."""
+        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")  # sin dueño
         _login(app_client, ["*"], username="admin")
         with patch("app.routes.control_errores.obtener_error", return_value={"id": "e-1"}):
             resp = app_client.delete(

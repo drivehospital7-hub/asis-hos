@@ -56,14 +56,14 @@ def _validar_error_id(error_id: str) -> tuple[bool, tuple | None]:
 
 
 def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
-    """Valida el permiso de subir/eliminar adjuntos según el scope.
+    """Valida el permiso de subir/eliminar adjuntos según el scope (FA-4, D15).
 
-    Regla de negocio (facturador):
-    - scope ``facturador``: permitido solo a quien tenga el permiso base
-      ``control_urgencias`` SIN ``control_urgencias:write`` (lectura pura),
-      o a admin (``*``). Quien tenga ``:write`` queda BLOQUEADO (403).
-    - scope ``""`` (observación): comportamiento legacy — se requiere
-      ``control_urgencias:write`` (o admin).
+    - scope ``facturador``: permitido a quien tenga ``control_urgencias``
+      (con o sin ``:write``) o admin (``*``).
+    - scope ``""`` (observación): se requiere ``control_urgencias:write``
+      (o admin).
+
+    El rol ``responsable_facturacion`` NO otorga acceso al flujo de imágenes.
 
     Returns:
         (True, None) si está permitido; (False, respuesta_json_403) si no.
@@ -72,10 +72,7 @@ def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
     if "*" in permisos:
         return True, None
     if scope == "facturador":
-        allowed = (
-            "control_urgencias" in permisos
-            and "control_urgencias:write" not in permisos
-        )
+        allowed = "control_urgencias" in permisos
     else:
         allowed = "control_urgencias:write" in permisos
     if not allowed:
@@ -232,7 +229,9 @@ def listar_imagenes(error_id: str):
         return err
     if not obtener_error(error_id):
         return jsonify({"status": "error", "data": {}, "errors": ["Error no encontrado"]}), 404
-    return jsonify(get_imagenes(error_id, scope))
+    username = session.get("username")
+    is_admin = "*" in session.get("permisos", [])
+    return jsonify(get_imagenes(error_id, scope, username=username, is_admin=is_admin))
 
 
 @control_errores_bp.post("/api/control-errores/<error_id>/imagenes")
@@ -253,7 +252,8 @@ def subir_imagen(error_id: str):
     file = request.files["imagen"]
     if file.filename == "":
         return jsonify({"status": "error", "data": {}, "errors": ["Archivo vacío"]})
-    result = upload_imagen(error_id, file, scope)
+    username = session.get("username")
+    result = upload_imagen(error_id, file, scope, username=username)
     if isinstance(result, tuple):
         return jsonify(result[0]), result[1]
     return jsonify(result)
@@ -279,7 +279,9 @@ def eliminar_imagen(error_id: str):
     if not filename:
         return jsonify({"status": "error", "data": {}, "errors": ["filename requerido"]})
     filename = urllib.parse.unquote(filename)
-    result = delete_imagen(error_id, filename, scope)
+    username = session.get("username")
+    is_admin = "*" in session.get("permisos", [])
+    result = delete_imagen(error_id, filename, scope, username=username, is_admin=is_admin)
     if isinstance(result, tuple):
         return jsonify(result[0]), result[1]
     return jsonify(result)
