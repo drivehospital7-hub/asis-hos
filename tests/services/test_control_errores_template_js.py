@@ -249,32 +249,34 @@ class TestFacturadorSizing:
 
 
 class TestPasteTarget:
-    """FE-2: el paste apunta al scope del modal abierto o del editor."""
+    """El paste de imagen SOLO actúa con el modal de archivos abierto.
+
+    Excel copia las celdas como texto + un bitmap de preview. Si el handler
+    interceptara siempre el paste, pegar texto desde Excel subiría la preview
+    como adjunto y el texto jamás llegaría al textarea. Regla: sin el modal de
+    archivos (#image-modal) abierto, el paste es texto puro — nunca se hace
+    preventDefault ni se sube imagen desde textareas/editores/carga masiva.
+    """
 
     def test_paste_uses_current_image_scope(self):
-        """Modal abierto → {id, scope: currentImageScope}."""
+        """Modal abierto → target usa currentImageScope."""
         assert "scope: currentImageScope" in PASTE_REGION
 
-    def test_paste_falls_back_to_editor_record_scope(self):
-        """Sin modal → editor: cell '' (observación) | facturador editor 'facturador'."""
-        assert "scope: currentCell ? '' : 'facturador'" in PASTE_REGION
+    def test_paste_requires_modal_open(self):
+        """Sin el modal de archivos abierto → el handler retorna sin interceptar."""
+        assert "if (!currentImageErrorId) return;" in PASTE_REGION
 
-    def test_textarea_guard_allows_image_paste(self):
-        """El guard de textarea/input NO bloquea el paste de imagen.
+    def test_paste_no_editor_fallback(self):
+        """Ya no existe fallback al editor de celda/facturador (paste = texto)."""
+        assert "scope: currentCell ? '' : 'facturador'" not in PASTE_REGION
 
-        La detección de imagen (items → imageFile) corre ANTES del guard de
-        activeElement, y el guard solo aplica cuando NO hay imagen, para
-        permitir Ctrl+V de imagen con el foco en la caja de texto del editor
-        (que es un textarea) sin romper el pegado de texto normal.
-        """
-        items_idx = PASTE_REGION.index("const items = e.clipboardData?.items;")
-        guard_idx = PASTE_REGION.index("if (!imageFile && activeEl &&")
-        assert items_idx < guard_idx
-        assert "imageFile = item.getAsFile();" in PASTE_REGION
-        assert (
-            "if (!imageFile && activeEl && (activeEl.tagName === 'TEXTAREA' || "
-            "activeEl.tagName === 'INPUT')) {"
-        ) in PASTE_REGION
+    def test_carga_masiva_paste_is_pure_text(self):
+        """Carga masiva abierta → el handler retorna (los datos de Excel son texto)."""
+        assert "document.getElementById('cargaModal').classList.contains('open'))" in PASTE_REGION
+
+    def test_paste_no_textarea_guard(self):
+        """El guard de textarea/input desaparece: sin modal nunca se intercepta."""
+        assert "activeEl" not in PASTE_REGION
 
 
 class TestPasteFacturadorBranch:
@@ -295,10 +297,10 @@ class TestPasteFacturadorBranch:
         assert "currentCount >= 3" in PASTE_REGION
         assert "Modal.alert('Máximo 3" in PASTE_REGION
 
-    def test_paste_facturador_inline_refresh(self):
-        """Éxito + scope facturador → render inline del panel."""
-        assert "if (target.scope === 'facturador') {" in PASTE_REGION
-        assert "renderFacturadorAttachments(target.id)" in PASTE_REGION
+    def test_paste_refreshes_modal_after_upload(self):
+        """Éxito → recarga la tabla y reabre el modal de archivos con su scope."""
+        assert "loadErrores()" in PASTE_REGION
+        assert "openImageModal(currentImageErrorId, currentImageScope)" in PASTE_REGION
 
     def test_paste_no_close_editor(self):
         """El paste facturador NUNCA cierra el editor (textarea intacto)."""
@@ -460,15 +462,12 @@ class TestKeydownListenerCleanup:
 
 
 class TestPasteFacturadorRefresh:
-    """R6: el paste facturador refresca tabla/badge y avanza lastUpdate."""
+    """R6: el paste desde el modal facturador refresca tabla/badge y lastUpdate."""
 
-    def test_paste_facturador_refreshes_table_and_advances_last_update(self):
-        """Éxito + scope facturador → loadErrores + lastUpdate (badge al día)."""
-        fact_idx = PASTE_REGION.index("if (target.scope === 'facturador') {")
-        branch = PASTE_REGION[fact_idx:PASTE_REGION.index("} else {", fact_idx)]
-        assert "loadErrores()" in branch
-        assert "lastUpdate = new Date().toISOString();" in branch
-        assert "renderFacturadorAttachments(target.id)" in branch
+    def test_paste_refreshes_table_and_advances_last_update(self):
+        """Éxito → loadErrores + lastUpdate (badge al día) sin importar el scope."""
+        assert "loadErrores();" in PASTE_REGION
+        assert "lastUpdate = new Date().toISOString();" in PASTE_REGION
 
 
 class TestFacturadorIntegratedColors:

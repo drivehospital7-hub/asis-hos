@@ -1930,36 +1930,23 @@ function exportarExcel() {
     }
   });
 
-  // Pegar imagen del portapapeles al error activo
+  // Pegar imagen del portapapeles SOLO con el modal de archivos abierto.
+  // Excel copia las celdas como texto + un bitmap de preview: si este handler
+  // interceptara siempre el paste, pegar texto desde Excel subiría esa preview
+  // como adjunto y el texto jamás llegaría al textarea. Por eso la imagen se
+  // captura únicamente cuando el modal de archivos (#image-modal) está abierto;
+  // en cualquier otro contexto (textareas, carga masiva, editores) el paste es
+  // texto puro y nunca se hace preventDefault.
   document.addEventListener('paste', async (e) => {
-    // Si el modal de carga masiva está abierto
+    // Carga masiva abierta: el pegado de datos (texto de Excel) no se toca.
+    // Las imágenes se agregan desde el dropzone / selector del paso 2.
     if (document.getElementById('cargaModal').classList.contains('open')) {
-      // Si estamos en PASO 2 (previsualización): auto-agregar imagen sin preguntar
-      if (!document.getElementById('cargaStep2').classList.contains('hidden')) {
-        e.preventDefault();
-        var clipItems = e.clipboardData?.items;
-        if (clipItems) {
-          for (var idx = clipItems.length - 1; idx >= 0; idx--) {
-            if (clipItems[idx].type.startsWith('image/')) {
-              var file = clipItems[idx].getAsFile();
-              if (file) {
-                setTimeout(function() {
-                  if (cargaImages.length >= 3) return;
-                  addCargaImageFile(file);
-                  renderCargaThumbs();
-                }, 100);
-              }
-              break;
-            }
-          }
-        }
-      }
-      return; // No seguir al upload del error activo
+      return;
     }
 
-    // Detectar imagen del portapapeles ANTES del guard de textarea/input,
-    // para permitir Ctrl+V de imagen con el foco en la caja de texto del
-    // editor (textarea) sin romper el pegado de texto normal.
+    // Sin el modal de archivos abierto → nunca interceptar el paste.
+    if (!currentImageErrorId) return;
+
     const items = e.clipboardData?.items;
     if (!items) return;
 
@@ -1969,26 +1956,10 @@ function exportarExcel() {
         imageFile = item.getAsFile();
       }
     }
-
-    // Si el usuario está escribiendo en un textarea/input común y NO hay
-    // imagen en el portapapeles, dejar que el navegador pegue el texto
-    // sin interferir.
-    const activeEl = document.activeElement;
-    if (!imageFile && activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
-      return;
-    }
-
     if (!imageFile) return;
 
-    // Subir al error que tenga el modal de imágenes abierto, o al editor activo.
-    // Target scoped (FA-2): modal abierto → su scope; editor de celda → ''
-    // (observación); editor de facturador → 'facturador'.
-    const target = currentImageErrorId
-      ? { id: currentImageErrorId, scope: currentImageScope }
-      : (currentEditId && currentEditId !== 'new')
-        ? { id: currentEditId, scope: currentCell ? '' : 'facturador' }
-        : null;
-    if (!target) return;
+    // Subir al error del modal de archivos abierto (scope: observación o facturador).
+    const target = { id: currentImageErrorId, scope: currentImageScope };
 
     // FE-2/D6: sin permiso por scope → no subir por paste.
     // Facturador → _canFacturadorAttach; observación (modal) → _canWrite.
@@ -1996,8 +1967,6 @@ function exportarExcel() {
       ? window._canFacturadorAttach
       : window._canWrite;
     if (!allowed) return;
-    
-    e.preventDefault();
 
     // FE-2/D6: cupo max-3 en scope facturador → alert y skip (sin upload)
     if (target.scope === 'facturador') {
@@ -2008,10 +1977,12 @@ function exportarExcel() {
         return;
       }
     }
-    
+
+    e.preventDefault();
+
     const formData = new FormData();
     formData.append('imagen', imageFile);
-    
+
     const scopeQuery = _scopeQuery(target.scope);
     try {
       const res = await fetch(`/api/control-errores/${target.id}/imagenes${scopeQuery}`, {
@@ -2019,17 +1990,10 @@ function exportarExcel() {
         body: formData
       });
       if (res.ok) {
-        // D6/FE-2: facturador → refresh INLINE del panel + tabla/badge
-        // (nunca closeEditor, textarea sin re-render); else → refresh legacy
-        if (target.scope === 'facturador') {
-          renderFacturadorAttachments(target.id);
-          loadErrores();
-          lastUpdate = new Date().toISOString();
-        } else {
-          loadErrores();
-          // Si el modal de imágenes está abierto, recargarlo
-          if (currentImageErrorId) openImageModal(currentImageErrorId, currentImageScope);
-        }
+        loadErrores();
+        lastUpdate = new Date().toISOString();
+        // Si el modal de archivos sigue abierto, recargarlo con su scope actual
+        if (currentImageErrorId) openImageModal(currentImageErrorId, currentImageScope);
       }
     } catch (err) {
       console.error('[FRONT][ERROR] Error al pegar imagen:', err);
@@ -2232,33 +2196,10 @@ function exportarExcel() {
     lightbox.onclick = function(e) { if (e.target === lightbox) closeLightbox(); };
   }
 
-  // Capturar imagen del portapapeles al pegar en el textarea de carga masiva
-  document.getElementById('cargaTextarea').addEventListener('paste', function(e) {
-    if (cargaImages.length >= 3) return;
-
-    // No usar preventDefault — el texto de Excel (con posible preview
-    // visual) debe pegarse igual. Solo extraemos la imagen al lado.
-    var items = e.clipboardData?.items;
-    if (items) {
-      for (var idx = items.length - 1; idx >= 0; idx--) {
-        if (items[idx].type.startsWith('image/')) {
-          var file = items[idx].getAsFile();
-          if (file) {
-            preguntarImagenCarga(file);
-          }
-          break;
-        }
-      }
-    }
-  });
-
-  function preguntarImagenCarga(file) {
-    setTimeout(function() {
-      if (cargaImages.length >= 3) return;
-      addCargaImageFile(file);
-      renderCargaThumbs();
-    }, 100);
-  }
+  // NOTA: pegar en el textarea de carga masiva es SOLO texto. Excel copia las
+  // celdas con un bitmap de preview; si capturáramos esa imagen, cada pegado
+  // de datos llenaría los adjuntos con imágenes basura. Los adjuntos de carga
+  // masiva se agregan desde el dropzone / selector de archivos del paso 2.
 
   // ====== FLUJO PRINCIPAL CARGA MASIVA ======
 
