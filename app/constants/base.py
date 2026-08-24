@@ -208,6 +208,10 @@ IMAGENES_FACTURADOR_SCOPE = "facturador"
 # Allowlist de scopes válidos: el scope alimenta un componente de ruta, así
 # que TODO valor fuera de este set se rechaza (R2/D2).
 IMAGENES_SCOPES = frozenset({"", IMAGENES_FACTURADOR_SCOPE})
+# Sidecar de ownership: mapeo {filename: username} por scope. Es un dotfile,
+# así que `listar_imagenes` lo excluye (no cuenta para cupo, no se exporta ni
+# se sirve) y ``_get_imagenes_dir`` lo crea junto al scope (FA-7/R3).
+IMAGENES_OWNER_SIDECAR = ".owner.json"
 
 # =============================================================================
 # FILE SIZE - Límite de tamaño para archivos Excel subidos

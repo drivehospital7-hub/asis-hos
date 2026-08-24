@@ -18,6 +18,7 @@ from app.constants import (
     IMAGENES_ALLOWED_TYPES,
     IMAGENES_MAX_SIZE_MB,
     IMAGENES_SCOPES,
+    IMAGENES_OWNER_SIDECAR,
 )
 
 logger = logging.getLogger(__name__)
@@ -350,16 +351,71 @@ def _eliminar_carpeta_imagenes(error_id: str) -> None:
 
 
 def listar_imagenes(error_id: str, scope: str = "") -> list[str]:
-    """Listar nombres de imágenes de un error, dentro del scope indicado."""
+    """Listar nombres de imágenes de un error, dentro del scope indicado.
+
+    Excluye dotfiles (el sidecar ``.owner.json``) para que no cuente para
+    cupo/count ni sea exportable/servible (FA-7/R3/D11).
+    """
     imagenes_dir = _get_imagenes_dir(error_id, scope)
     if not imagenes_dir.exists():
         return []
-    return sorted([f.name for f in imagenes_dir.iterdir() if f.is_file()])
+    return sorted(
+        f.name
+        for f in imagenes_dir.iterdir()
+        if f.is_file() and not f.name.startswith(".")
+    )
 
 
 def obtener_imagenes_count(error_id: str, scope: str = "") -> int:
     """Contar imágenes de un error, dentro del scope indicado."""
     return len(listar_imagenes(error_id, scope))
+
+
+def _owner_sidecar_path(error_id: str, scope: str = "") -> Path:
+    """Ruta del sidecar de ownership dentro del scope ({id}/.owner.json).
+
+    ``_get_imagenes_dir`` ya valida error_id y scope contra el allowlist
+    (backstop de R2/D2), así que el sidecar nunca escapa del scope.
+    """
+    return _get_imagenes_dir(error_id, scope) / IMAGENES_OWNER_SIDECAR
+
+
+def _leer_owner(error_id: str, scope: str = "") -> dict[str, str]:
+    """Leer el mapeo {filename: username} del sidecar (vacío si no existe)."""
+    sidecar = _owner_sidecar_path(error_id, scope)
+    if not sidecar.exists():
+        return {}
+    try:
+        data = json.loads(sidecar.read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return {str(k): str(v) for k, v in data.items()}
+        return {}
+    except Exception:
+        logger.exception("[BACK][ERROR] Sidecar ilegible: %s", sidecar)
+        return {}
+
+
+def _escribir_owner(error_id: str, owner: dict[str, str], scope: str = "") -> None:
+    """Persistir el sidecar de ownership de forma atómica bajo ``_write_lock``.
+
+    Patrón tempfile→replace igual que ``_escribir_datos``. Solo se llama
+    desde guardar/eliminar_imagen, que ya corren dentro de ``_write_lock``
+    (no anida el lock).
+    """
+    sidecar = _owner_sidecar_path(error_id, scope)
+    sidecar.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_path = tempfile.mkstemp(dir=sidecar.parent, suffix=".tmp")
+    try:
+        with open(fd, "w", encoding="utf-8") as f:
+            json.dump(owner, f, ensure_ascii=False, indent=2)
+        Path(tmp_path).replace(sidecar)
+    except Exception:
+        try:
+            Path(tmp_path).unlink(missing_ok=True)
+        except Exception:
+            pass
+        logger.error("[BACK][ERROR] Fallo escribiendo sidecar de ownership: %s", sidecar)
+        raise
 
 
 def validar_imagen(file) -> tuple[bool, str]:
@@ -375,11 +431,17 @@ def validar_imagen(file) -> tuple[bool, str]:
     return True, ""
 
 
-def guardar_imagen(error_id: str, file, scope: str = "") -> tuple[bool, str]:
+def guardar_imagen(
+    error_id: str, file, scope: str = "", username: str | None = None
+) -> tuple[bool, str]:
     """Guardar archivo (imagen, PDF o Excel) dentro del scope indicado.
 
     El cupo máximo (IMAGENES_MAX_PER_OBSERVACION) se aplica POR scope:
     observación y facturador tienen 3 archivos cada uno (FA-1).
+
+    Si ``username`` se provee, registra la propiedad en el sidecar
+    ``{filename: username}`` (FA-7). El storage persiste metadata pero NO
+    decide permisos (D1/D13); la autorización vive en el service.
     """
     with _write_lock:
         if obtener_imagenes_count(error_id, scope) >= IMAGENES_MAX_PER_OBSERVACION:
@@ -401,16 +463,26 @@ def guardar_imagen(error_id: str, file, scope: str = "") -> tuple[bool, str]:
         except Exception:
             filepath.unlink(missing_ok=True)
             raise
+        if username:
+            owner = _leer_owner(error_id, scope)
+            owner[filename] = username
+            _escribir_owner(error_id, owner, scope)
         logger.info("[BACK] Archivo guardado: %s", filepath)
         return True, filename
 
 
-def eliminar_imagen(error_id: str, filename: str, scope: str = "") -> tuple[bool, str]:
+def eliminar_imagen(
+    error_id: str, filename: str, scope: str = "", username: str | None = None
+) -> tuple[bool, str]:
     """Eliminar imagen dentro del scope, SOLO si está en su listado (R1).
 
     El check ``filename in listar_imagenes(error_id, scope)`` corre ANTES de
     cualquier operación de filesystem: nombres con ``../`` o no listados se
     rechazan sin tocar nada (bloquea borrados cross-scope y path tricks).
+
+    Al borrar, limpia la entrada del sidecar para mantener la metadata
+    consistente con el filesystem (FA-7/D10). ``username`` no se usa en
+    storage (no decide permisos); queda para simetría de firma.
     """
     if filename not in listar_imagenes(error_id, scope):
         return False, "Imagen no encontrada"
@@ -419,5 +491,21 @@ def eliminar_imagen(error_id: str, filename: str, scope: str = "") -> tuple[bool
     if not filepath.exists():
         return False, "Imagen no encontrada"
     filepath.unlink()
+    owner = _leer_owner(error_id, scope)
+    if filename in owner:
+        del owner[filename]
+        if owner:
+            _escribir_owner(error_id, owner, scope)
+        else:
+            _owner_sidecar_path(error_id, scope).unlink(missing_ok=True)
     logger.info("[BACK] Imagen eliminada: %s", filepath)
     return True, ""
+
+
+def obtener_uploader(error_id: str, filename: str, scope: str = "") -> str | None:
+    """Devuelve el username que subió ``filename`` (o None si legacy/sin dueño).
+
+    Lee el sidecar ``{filename: username}`` del scope. Los adjuntos legacy
+    (sin sidecar) devuelven None → no borrables por no-admin (FA-8).
+    """
+    return _leer_owner(error_id, scope).get(filename)

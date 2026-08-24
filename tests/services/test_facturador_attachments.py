@@ -267,6 +267,96 @@ class TestListarErroresEnrichment:
 
 
 # =============================================================================
+# FA-7/R3: sidecar de ownership por scope (tasks 1.1, 1.2)
+# =============================================================================
+
+
+class TestOwnerSidecar:
+    """FA-7: guardar_imagen registra al subidor en sidecar por scope.
+
+    El sidecar ``.owner.json`` es invisible: no cuenta para count/cupo, no
+    se lista, no se sirve (filtro dotfiles en listar_imagenes, R3).
+    """
+
+    def test_obtener_uploader_legacy_none(self, tmp_imagenes):
+        """Adjunto previo sin sidecar → obtener_uploader devuelve None."""
+        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")
+        assert errores_storage.obtener_uploader("e-1", "file_1.png", scope="facturador") is None
+
+    def test_guardar_con_username_registra_owner(self, tmp_imagenes):
+        """guardar_imagen(..., username="u") escribe sidecar {file_1.png: u}."""
+        ok, name = errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="urgencias"
+        )
+        assert ok is True
+        assert name == "file_1.png"
+        sidecar = tmp_imagenes / "e-1" / "facturador" / ".owner.json"
+        assert sidecar.is_file()
+        import json
+        assert json.loads(sidecar.read_text()) == {"file_1.png": "urgencias"}
+        assert errores_storage.obtener_uploader(
+            "e-1", "file_1.png", scope="facturador"
+        ) == "urgencias"
+
+    def test_owner_registrado_por_scope(self, tmp_imagenes):
+        """El sidecar de observación y el de facturador son independientes."""
+        errores_storage.guardar_imagen("e-1", _png(), username="obs")
+        errores_storage.guardar_imagen(
+            "e-1", _FakeFile("fac.jpg"), scope="facturador", username="fac"
+        )
+        assert errores_storage.obtener_uploader("e-1", "file_1.png") == "obs"
+        assert errores_storage.obtener_uploader(
+            "e-1", "file_1.jpg", scope="facturador"
+        ) == "fac"
+
+    def test_guardar_sin_username_no_crea_sidecar(self, tmp_imagenes):
+        """Sin username → no se escribe sidecar (compat legacy, FA-7)."""
+        ok, name = errores_storage.guardar_imagen("e-1", _png())
+        assert ok is True
+        assert not (tmp_imagenes / "e-1" / ".owner.json").exists()
+        assert errores_storage.obtener_uploader("e-1", name) is None
+
+    def test_listar_imagenes_excluye_sidecar(self, tmp_imagenes):
+        """listar_imagenes filtra dotfiles → count sin sidecar (R3/FA-7)."""
+        errores_storage.guardar_imagen("e-1", _png(), scope="facturador")
+        errores_storage.guardar_imagen(
+            "e-1", _FakeFile("b.png"), scope="facturador", username="u"
+        )
+        # sidecar presente (1 guardado con username) → el dotfile NO se lista
+        listing = errores_storage.listar_imagenes("e-1", "facturador")
+        assert ".owner.json" not in listing
+        assert listing == ["file_1.png", "file_2.png"]
+        assert errores_storage.obtener_imagenes_count("e-1", "facturador") == 2
+
+    def test_eliminar_imagen_limpia_entrada_sidecar(self, tmp_imagenes):
+        """eliminar_imagen borra la entrada del sidecar (FA-7/D10)."""
+        errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="u"
+        )
+        assert errores_storage.obtener_uploader(
+            "e-1", "file_1.png", scope="facturador"
+        ) == "u"
+        ok, err = errores_storage.eliminar_imagen(
+            "e-1", "file_1.png", scope="facturador"
+        )
+        assert ok is True
+        assert err == ""
+        assert not (tmp_imagenes / "e-1" / "facturador" / "file_1.png").exists()
+        assert errores_storage.obtener_uploader(
+            "e-1", "file_1.png", scope="facturador"
+        ) is None
+
+    def test_eliminar_carpeta_imagenes_incluye_sidecar(self, tmp_imagenes):
+        """_eliminar_carpeta_imagenes (rmtree) remueve también el sidecar."""
+        errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="u"
+        )
+        assert (tmp_imagenes / "e-1" / "facturador" / ".owner.json").is_file()
+        errores_storage._eliminar_carpeta_imagenes("e-1")
+        assert not (tmp_imagenes / "e-1").exists()
+
+
+# =============================================================================
 # Service: scope threading get/upload/delete_imagen (tasks 1.4, 3.1)
 # =============================================================================
 
