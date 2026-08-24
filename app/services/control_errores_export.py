@@ -10,6 +10,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from app.constants import IMAGENES_FACTURADOR_SCOPE
 from app.utils.errores_storage import listar_imagenes
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,9 @@ HEADERS = [
     "Adjunto 2",
     "Adjunto 3",
     "Observación del Facturador",
+    "Adjunto 4",
+    "Adjunto 5",
+    "Adjunto 6",
 ]
 
 MESES = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"]
@@ -86,14 +90,19 @@ def _label_adjunto(filename: str) -> str:
     return "Abrir imagen"
 
 
-def _adjunto_url(base_url: str, error_id: str, filename: str) -> str:
+def _adjunto_url(base_url: str, error_id: str, filename: str, scope: str = "") -> str:
     """URL absoluta para descargar un adjunto sin token ni sesión.
 
     La ruta de servicio es pública a propósito: los links del Excel deben
     seguir abriendo indefinidamente. El error_id (UUID) hace la URL difícil
     de adivinar y la ruta valida que el archivo pertenezca al registro.
+    El ``scope`` aísla los adjuntos de observación (``""``) de los del
+    facturador (``"facturador"``) y se añade como query param cuando existe.
     """
-    return f"{base_url}api/control-errores/{error_id}/imagenes/{quote(filename)}"
+    url = f"{base_url}api/control-errores/{error_id}/imagenes/{quote(filename)}"
+    if scope:
+        url += f"?scope={quote(scope)}"
+    return url
 
 
 def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO:
@@ -138,6 +147,20 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
                 cell.value = ""
 
         ws.cell(row=row_idx, column=11).value = error.get("observacion_facturador", "")
+
+        adjuntos_facturador = listar_imagenes(error_id, IMAGENES_FACTURADOR_SCOPE)
+        for i in range(3):
+            cell = ws.cell(row=row_idx, column=12 + i)
+            if i < len(adjuntos_facturador):
+                filename = adjuntos_facturador[i]
+                cell.value = _label_adjunto(filename)
+                cell.hyperlink = _adjunto_url(
+                    base_url, error_id, filename, IMAGENES_FACTURADOR_SCOPE
+                )
+                cell.font = LINK_FONT
+                link_cols.add(12 + i)
+            else:
+                cell.value = ""
 
         row_fill = ROW_FILL_LIGHT if row_index % 2 == 0 else ROW_FILL_WHITE
         for col in range(1, len(HEADERS) + 1):

@@ -37,6 +37,15 @@ def _error_fixture(error_id="err-1", factura="FAC-001", creado_en="2026-05-15T10
     }
 
 
+def _adjuntos_por_scope(obs, fac):
+    """Side effect para listar_imagenes: scope "" → obs, scope "facturador" → fac."""
+
+    def _impl(error_id, scope=""):
+        return obs if scope == "" else fac
+
+    return _impl
+
+
 class TestFilenameExport:
     def test_mes_valido_deriva_nombre(self):
         assert filename_export("2026-05") == "control-errores-May-2026.xlsx"
@@ -51,7 +60,9 @@ class TestBuildWorkbook:
     def test_headers_y_fila_con_hipervinculos(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=["file_1.pdf", "image_2.jpg"],
+            side_effect=_adjuntos_por_scope(
+                ["file_1.pdf", "image_2.jpg"], ["f_1.pdf"]
+            ),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
@@ -74,6 +85,9 @@ class TestBuildWorkbook:
         assert row[8] == "Abrir imagen"      # Adjunto 2
         assert row[9] is None                # Adjunto 3 vacío
         assert row[10] == "Revisar"          # Observación del Facturador
+        assert row[11] == "Abrir PDF"        # Adjunto 4 (facturador)
+        assert row[12] is None               # Adjunto 5 vacío
+        assert row[13] is None               # Adjunto 6 vacío
 
         cell8 = ws.cell(row=2, column=8)
         assert cell8.hyperlink.target == (
@@ -92,10 +106,22 @@ class TestBuildWorkbook:
 
         assert ws.cell(row=2, column=10).hyperlink is None
 
+        cell12 = ws.cell(row=2, column=12)
+        assert cell12.hyperlink.target == (
+            "http://testserver/api/control-errores/err-1/imagenes/f_1.pdf?scope=facturador"
+        )
+        assert "?token=" not in cell12.hyperlink.target
+        assert cell12.style != "Hyperlink"
+        assert cell12.font.color.rgb == "000563C1"
+        assert cell12.font.underline == "single"
+
+        assert ws.cell(row=2, column=13).hyperlink is None
+        assert ws.cell(row=2, column=14).hyperlink is None
+
     def test_estado_resuelto_y_fecha_bruta(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=[],
+            side_effect=_adjuntos_por_scope([], []),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook(
@@ -112,7 +138,7 @@ class TestBuildWorkbook:
     def test_hipervinculo_escapada_nombre_con_espacios(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=["mi archivo.pdf"],
+            side_effect=_adjuntos_por_scope(["mi archivo.pdf"], []),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
@@ -128,7 +154,7 @@ class TestBuildWorkbook:
     def test_hipervinculo_sin_token(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=["file_1.pdf"],
+            side_effect=_adjuntos_por_scope(["file_1.pdf"], []),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
@@ -142,7 +168,7 @@ class TestBuildWorkbook:
     def test_estilos_tabla(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=[],
+            side_effect=_adjuntos_por_scope([], []),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook(
@@ -161,30 +187,86 @@ class TestBuildWorkbook:
         assert ws["A3"].fill.fgColor.rgb == "00FFFFFF"
         assert ws["A2"].fill.fgColor.rgb != ws["A3"].fill.fgColor.rgb
 
-        for cell in (ws["A2"], ws["K2"], ws["A3"], ws["A1"]):
+        for cell in (ws["A2"], ws["K2"], ws["N2"], ws["A3"], ws["A1"]):
             assert cell.font.color.rgb == "00000000" or cell.font.bold is True
             for side in ("left", "right", "top", "bottom"):
                 assert getattr(cell.border, side).style == "thin"
 
         assert ws.column_dimensions["A"].width == 20
         assert ws.column_dimensions["A"].width == ws.column_dimensions["K"].width
+        assert ws.column_dimensions["A"].width == ws.column_dimensions["N"].width
 
     def test_hipervinculo_estilo_fuente_azul_subrayado(self):
         with patch(
             "app.services.control_errores_export.listar_imagenes",
-            return_value=["file_1.pdf"],
+            side_effect=_adjuntos_por_scope([], ["file_1.pdf"]),
         ):
             with _APP.app_context():
                 buffer = build_errores_export_workbook([_error_fixture()], "http://testserver/")
 
         wb = load_workbook(BytesIO(buffer.read()))
         ws = wb.active
-        cell = ws.cell(row=2, column=8)
+        cell = ws.cell(row=2, column=12)
         assert cell.hyperlink is not None
-        assert cell.hyperlink.target.endswith("file_1.pdf")
+        assert cell.hyperlink.target.endswith("file_1.pdf?scope=facturador")
         assert cell.font.color.rgb == "000563C1"
         assert cell.font.underline == "single"
         assert cell.style != "Hyperlink"
+        assert cell.fill.fgColor.rgb == "00E8F5E9"
+        assert cell.border.left.style == "thin"
+
+    def test_facturador_adjuntos_en_columnas_12_14_con_scope(self):
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            side_effect=_adjuntos_por_scope(
+                ["obs_1.png"], ["fac_1.pdf", "fac_2.xlsx", "fac_3.jpg"]
+            ),
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook(
+                    [_error_fixture()], "http://testserver/"
+                )
+
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+        row = [c.value for c in ws[2]]
+
+        assert row[11] == "Abrir PDF"        # Adjunto 4 (fac_1.pdf)
+        assert row[12] == "Abrir Excel"      # Adjunto 5 (fac_2.xlsx)
+        assert row[13] == "Abrir imagen"     # Adjunto 6 (fac_3.jpg)
+
+        for col, name in ((12, "fac_1.pdf"), (13, "fac_2.xlsx"), (14, "fac_3.jpg")):
+            cell = ws.cell(row=2, column=col)
+            assert cell.hyperlink is not None
+            assert cell.hyperlink.target == (
+                f"http://testserver/api/control-errores/err-1/imagenes/{name}?scope=facturador"
+            )
+            assert "?token=" not in cell.hyperlink.target
+            assert cell.font.color.rgb == "000563C1"
+            assert cell.font.underline == "single"
+
+        obs_cell = ws.cell(row=2, column=8)
+        assert obs_cell.hyperlink.target == (
+            "http://testserver/api/control-errores/err-1/imagenes/obs_1.png"
+        )
+        assert "?scope=" not in obs_cell.hyperlink.target
+
+    def test_facturador_sin_adjuntos_deja_vacias_12_14(self):
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            side_effect=_adjuntos_por_scope([], []),
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook(
+                    [_error_fixture()], "http://testserver/"
+                )
+
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+        assert ws.cell(row=2, column=12).value in (None, "")
+        assert ws.cell(row=2, column=13).value in (None, "")
+        assert ws.cell(row=2, column=14).value in (None, "")
+        assert ws.cell(row=2, column=12).hyperlink is None
 
 
 def _login(app_client):
@@ -195,14 +277,19 @@ def _login(app_client):
         sess["permisos"] = ["control_urgencias", "control_urgencias:write"]
 
 
-def _patch_export_pipeline(fixture, stack: ExitStack, adjuntos=None):
+def _patch_export_pipeline(fixture, stack: ExitStack, adjuntos=None, adjuntos_facturador=None):
     """Parchea el pipeline completo que la ruta usa (storage + adjuntos)."""
     stack.enter_context(patch("app.utils.errores_storage._leer_datos",
                               return_value={"errores": fixture}))
     stack.enter_context(patch("app.utils.errores_storage.obtener_imagenes_count",
                               return_value=0))
-    stack.enter_context(patch("app.services.control_errores_export.listar_imagenes",
-                              return_value=adjuntos if adjuntos is not None else []))
+    stack.enter_context(patch(
+        "app.services.control_errores_export.listar_imagenes",
+        side_effect=_adjuntos_por_scope(
+            adjuntos if adjuntos is not None else [],
+            adjuntos_facturador if adjuntos_facturador is not None else [],
+        ),
+    ))
 
 
 def _client(**config_overrides):
