@@ -462,13 +462,16 @@ def delete_imagen(
 ) -> dict[str, Any] | tuple[dict[str, Any], int]:
     """Eliminar imagen dentro del scope.
 
-    R1/FA-6: el storage exige ``filename ∈ listar_imagenes(id, scope)`` antes
-    de tocar el filesystem; nombre no listado o path trick → envelope 404.
+    R1/FA-6/R3: primero se exige ``filename ∈ listar_imagenes(id, scope)``;
+    un path trick o nombre no listado → envelope 404 (antes que ownership),
+    sin tocar el filesystem.
 
     FA-8: la decisión de ownership vive en el service (no en storage). Si el
     usuario no es admin (*) ni el dueño registrado → 403 sin tocar storage.
     """
     try:
+        if filename not in listar_imagenes(error_id, scope):
+            return {"status": "error", "data": {}, "errors": ["Imagen no encontrada"]}, 404
         if not _puede_eliminar(error_id, filename, scope, username, is_admin):
             return {
                 "status": "error",

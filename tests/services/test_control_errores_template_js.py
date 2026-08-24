@@ -149,15 +149,16 @@ class TestEmbeddedPanel:
 class TestCanFacturadorAttachFlag:
     """Regla de negocio: flag server-rendered para adjuntos de facturador.
 
-    ``window._canFacturadorAttach`` = admin (*) O (control_urgencias SIN
-    control_urgencias:write). Se usa SOLO en el panel de adjuntos facturador;
-    el resto sigue con ``_canWrite``.
+    ``window._canFacturadorAttach`` = admin (*) O control_urgencias (con o
+    sin ``:write``). Con la matriz FA-4/D15, ``:write`` también puede subir a
+    facturador, así que el flag ya NO exige la ausencia de ``:write``.
+    Se usa para el dropzone del panel facturador; el delete por archivo usa
+    ``can_delete`` (FA-9).
     """
 
     FLAG = (
         "window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', [])"
-        " or ('control_urgencias' in session.get('permisos', []) and "
-        "'control_urgencias:write' not in session.get('permisos', [])) else 'false' }};"
+        " or 'control_urgencias' in session.get('permisos', []) else 'false' }};"
     )
 
     def test_flag_is_server_rendered(self):
@@ -165,11 +166,12 @@ class TestCanFacturadorAttachFlag:
         assert "window._canFacturadorAttach =" in HTML
 
     def test_flag_uses_exact_rule_expression(self):
-        """La expresión del flag es: admin O (control_urgencias SIN :write)."""
+        """La expresión del flag es: admin O control_urgencias (con/sin :write)."""
+        assert self.FLAG in HTML
         assert (
             "'control_urgencias' in session.get('permisos', []) and "
             "'control_urgencias:write' not in session.get('permisos', [])"
-        ) in HTML
+        ) not in HTML
 
     def test_can_write_flag_unchanged(self):
         """El flag _canWrite original se conserva."""
@@ -186,8 +188,8 @@ class TestCanFacturadorAttachFlag:
         assert "dropzone.style.display = 'none';" in MODAL_REGION
 
     def test_observacion_modal_delete_keeps_can_write(self):
-        """Botón delete del modal observación condicionado a _canWrite."""
-        assert "window._canWrite ? `<button class=\"modal-delete-img\"" in MODAL_REGION
+        """Botón delete del modal observación condicionado a can_delete (FA-9/D16)."""
+        assert "${canDelete ? `<button class=\"modal-delete-img\"" in MODAL_REGION
 
 
 class TestPanelGating:
@@ -201,17 +203,17 @@ class TestPanelGating:
         """Los guards de subir/borrar facturador NO usan _canWrite (regla de negocio)."""
         assert "if (!window._canWrite) return;" not in PANEL_REGION
 
-    def test_delete_button_gated_by_can_facturador_attach(self):
-        """El botón delete del panel se condiciona a _canFacturadorAttach."""
-        assert 'window._canFacturadorAttach ? `<button type="button" class="editor-thumb-delete"' in PANEL_REGION
+    def test_delete_button_gated_by_can_delete(self):
+        """El botón delete del panel se condiciona a can_delete (FA-9/D16)."""
+        assert 'const deleteBtn = canDelete ? `<button type="button" class="editor-thumb-delete"' in PANEL_REGION
 
     def test_dropzone_hidden_at_max_count(self):
         """Dropzone del panel solo con permiso y con cupo (count < 3)."""
         assert "window._canFacturadorAttach && count < 3" in PANEL_REGION
 
     def test_files_render_unconditionally(self):
-        """Los archivos se renderizan siempre (no dependen de _canFacturadorAttach)."""
-        assert "result.data.imagenes.map(filename => {" in PANEL_REGION
+        """Los archivos se renderizan siempre (no dependen del permiso)."""
+        assert "result.data.imagenes.map(item => {" in PANEL_REGION
 
 
 class TestFacturadorSizing:
@@ -351,13 +353,13 @@ class TestReadOnlyGating:
         assert "if (!window._canWrite) {" in MODAL_REGION
         assert "dropzone.style.display = 'none';" in MODAL_REGION
 
-    def test_delete_button_gated_by_can_write(self):
-        """Botón delete del modal condicionado a _canWrite."""
-        assert "window._canWrite ? `<button class=\"modal-delete-img\"" in MODAL_REGION
+    def test_delete_button_gated_by_can_delete(self):
+        """Botón delete del modal condicionado a can_delete (FA-9/D16)."""
+        assert "${canDelete ? `<button class=\"modal-delete-img\"" in MODAL_REGION
 
     def test_files_visible_sin_permiso(self):
         """Los archivos del modal se renderizan siempre."""
-        assert "result.data.imagenes.map(filename => {" in MODAL_REGION
+        assert "result.data.imagenes.map(item => {" in MODAL_REGION
 
 
 class TestThreatInlineJs:

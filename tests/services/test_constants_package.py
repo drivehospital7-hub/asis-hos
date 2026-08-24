@@ -58,6 +58,7 @@ from app.constants import (  # noqa: E402
     IMAGENES_MAX_PER_OBSERVACION,
     IMAGENES_MAX_SIZE_MB,
     IMAGENES_SCOPES,
+    IMAGENES_OWNER_SIDECAR,
     PREFIJO_FACTURA_CAP,
     PREFIJO_FACTURA_MAL_CAPITADO,
     PROFESIONALES_EQUIPOS_BASICOS,
@@ -153,6 +154,11 @@ class TestConstantsAPI:
         """IMAGENES_FACTURADOR_SCOPE + allowlist IMAGENES_SCOPES (R2/D2)."""
         assert IMAGENES_FACTURADOR_SCOPE == "facturador"
         assert IMAGENES_SCOPES == frozenset({"", "facturador"})
+
+    def test_imagenes_owner_sidecar(self):
+        """IMAGENES_OWNER_SIDECAR es el dotfile de ownership por scope (FA-7/R3)."""
+        assert IMAGENES_OWNER_SIDECAR == ".owner.json"
+        assert IMAGENES_OWNER_SIDECAR.startswith(".")  # invisible para listar_imagenes
 
     def test_horas_por_dia(self):
         assert HORAS_POR_DIA == 24

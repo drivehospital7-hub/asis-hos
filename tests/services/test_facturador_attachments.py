@@ -953,6 +953,25 @@ class TestRoutesScope:
         assert resp.status_code == 200
         assert resp.data == b"\x89PNG\r\n\x1a\nfake-png"
 
+    def test_serve_sidecar_owner_json_404(self, app_client, tmp_imagenes):
+        """R3: GET scoped del sidecar .owner.json → 404 (no servible)."""
+        errores_storage.guardar_imagen(
+            "e-1", _png(), scope="facturador", username="u"
+        )
+        assert (tmp_imagenes / "e-1" / "facturador" / ".owner.json").is_file()
+        resp = app_client.get(
+            "/api/control-errores/e-1/imagenes/.owner.json?scope=facturador"
+        )
+        assert resp.status_code == 404
+        assert resp.get_json()["status"] == "error"
+
+    def test_serve_sidecar_owner_json_default_404(self, app_client, tmp_imagenes):
+        """R3: GET default scope del sidecar → 404."""
+        errores_storage.guardar_imagen("e-1", _png(), username="u")
+        resp = app_client.get("/api/control-errores/e-1/imagenes/.owner.json")
+        assert resp.status_code == 404
+        assert resp.get_json()["status"] == "error"
+
     def test_delete_scope_facturador_path_trick_404_file_intact(
         self, app_client, tmp_imagenes
     ):
