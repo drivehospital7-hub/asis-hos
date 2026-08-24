@@ -158,7 +158,8 @@ class TestCanFacturadorAttachFlag:
 
     FLAG = (
         "window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', [])"
-        " or 'control_urgencias' in session.get('permisos', []) else 'false' }};"
+        " or 'control_urgencias' in session.get('permisos', [])"
+        " or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};"
     )
 
     def test_flag_is_server_rendered(self):
@@ -166,7 +167,13 @@ class TestCanFacturadorAttachFlag:
         assert "window._canFacturadorAttach =" in HTML
 
     def test_flag_uses_exact_rule_expression(self):
-        """La expresión del flag es: admin O control_urgencias (con/sin :write)."""
+        """La expresión del flag es: admin O control_urgencias (con/sin :write).
+
+        Incluye ``control_urgencias:write`` explícito porque la configuración
+        real de 'control_urgencias modificar' es SOLO ``:write`` (la base y
+        ``:write`` no coexisten, PERMISO_MUTUAL_EXCLUSION). Sin el término
+        explícito, un :write-only quedaría con el flag en false (R-1).
+        """
         assert self.FLAG in HTML
         assert (
             "'control_urgencias' in session.get('permisos', []) and "

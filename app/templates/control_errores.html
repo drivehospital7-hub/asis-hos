@@ -2580,7 +2580,7 @@ function exportarExcel() {
   // Permiso de escritura desde el server (control_urgencias:write o admin *)
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
   // Permiso de adjuntos facturador: control_urgencias (con o sin :write) o admin *
-  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias' in session.get('permisos', []) else 'false' }};
+  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {

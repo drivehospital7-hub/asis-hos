@@ -794,6 +794,34 @@ class TestRoutesScope:
         assert data["data"]["filename"] == "file_1.png"
         assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
 
+    def test_post_scope_facturador_write_only_200_persisted(
+        self, app_client, tmp_imagenes
+    ):
+        """FA-4: POST scoped facturador con SOLO :write → 200 y persiste.
+
+        La configuración real de 'control_urgencias modificar' es SOLO
+        ``control_urgencias:write`` (PERMISO_MUTUAL_EXCLUSION impide coexistir
+        base y :write). _validar_permiso_imagen debe expandir :write→base
+        (igual que permiso_requerido en auth.py) para que el :write-only
+        también pueda subir adjuntos de facturador (R-1).
+        """
+        _login(app_client, ["control_urgencias:write"], username="val1")
+        with patch(
+            "app.services.control_errores_service.obtener_error",
+            return_value={"id": "e-1"},
+        ):
+            resp = app_client.post(
+                "/api/control-errores/e-1/imagenes?scope=facturador",
+                data={"imagen": (BytesIO(b"\x89PNG\r\n\x1a\nfake"), "captura.png")},
+                content_type="multipart/form-data",
+            )
+
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"]["filename"] == "file_1.png"
+        assert (tmp_imagenes / "e-1" / "facturador" / "file_1.png").is_file()
+
     def test_post_scope_observacion_reader_403_nothing_persisted(
         self, app_client, tmp_imagenes
     ):

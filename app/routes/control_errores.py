@@ -72,7 +72,13 @@ def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
     if "*" in permisos:
         return True, None
     if scope == "facturador":
-        allowed = "control_urgencias" in permisos
+        # Expande :write→base igual que permiso_requerido (auth.py): la
+        # configuración real de "control_urgencias modificar" es SOLO :write
+        # (PERMISO_MUTUAL_EXCLUSION impide coexistir base y :write).
+        allowed = (
+            "control_urgencias" in permisos
+            or "control_urgencias:write" in permisos
+        )
     else:
         allowed = "control_urgencias:write" in permisos
     if not allowed:
