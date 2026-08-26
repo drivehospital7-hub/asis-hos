@@ -31,8 +31,23 @@ VALID_PAYLOAD = {
     "factura": "FEV123",
     "observacion": "falta soporte",
     "responsable": "LORENY ESPAÑA",
+    "nombres": "CARLOS PEREZ",
     "observacion_facturador": "",
 }
+
+
+@pytest.fixture(autouse=True)
+def _default_validator_resolution(monkeypatch):
+    """Default integration path: payload ``nombres`` resolves to a unique
+    canonical validator identity ("carlos perez").
+
+    Tests that exercise rejection (missing / no-match / ambiguous) override
+    this with an explicit patch returning None or a side_effect.
+    """
+    monkeypatch.setattr(
+        "app.services.integration_service._resolve_validador",
+        lambda raw: "carlos perez",
+    )
 
 
 class TestSchemaValidation:
@@ -177,16 +192,27 @@ class TestResponsibleResolution:
         mock_persist.assert_not_called()
 
 
-class TestValidatorFromToken:
-    def test_validator_from_session_not_payload(self):
-        """Validator identity comes from the synthetic session, never payload."""
-        # Client tries to inject validador/created_by — MUST be stripped
+class TestValidatorFromPayload:
+    """Validator identity comes from payload ``nombres`` (resolved against the
+    DB validator pool); ``created_by`` stays the token-owner username.
+
+    Strict TDD RED: these tests replace the old token-derived validator tests
+    and fail against the current _persist(session-derived) behavior.
+    """
+
+    def test_validator_resolved_from_payload_nombres(self):
+        """Client-injected validador/created_by are stripped; the payload
+        nombres is resolved and passed separately to _persist."""
         payload = dict(VALID_PAYLOAD, validador="hacker", created_by="hacker")
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
                 return_value="loreny españa",
             ),
+            patch(
+                "app.services.integration_service._resolve_validador",
+                return_value="carlos perez",
+            ) as mock_validador,
             patch(
                 "app.services.integration_service._persist",
                 return_value={"id": "x"},
@@ -198,12 +224,135 @@ class TestValidatorFromToken:
         # The client's validador/created_by are NOT forwarded
         assert "validador" not in call_data
         assert "created_by" not in call_data
-        # The token session (with validator identity) is passed separately
+        # The payload nombres drives the resolved validator identity
+        assert mock_validador.call_args.args[0] == "CARLOS PEREZ"
+        assert mock_persist.call_args.args[2] == "carlos perez"
+        # created_by comes from the synthetic session (token owner), distinct
+        # from the resolved validator
         sess = mock_persist.call_args.args[1]
-        assert sess["primer_nombre"] == "Ana"
-        assert sess["apellido_1"] == "Valdez"
+        assert sess["username"] == "ana"
         # responsible stays a separate identity from validator (persisted UPPERCASE)
         assert call_data["responsable"] == "LORENY ESPAÑA"
+
+
+class TestMissingNombres:
+    """``nombres`` is required: single → 400 whole envelope; batch item
+    lacking it → per-item error, other items continue (never structural)."""
+
+    def test_single_missing_nombres_rejected(self):
+        """Single payload without ``nombres`` → 400, nothing persisted."""
+        payload = dict(VALID_PAYLOAD)
+        del payload["nombres"]
+        with patch("app.services.integration_service._persist") as mock_persist:
+            envelope, status = submit(payload, _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("nombres" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_item_missing_nombres_per_item_error(self):
+        """A batch item without ``nombres`` is rejected per item; the other
+        items of the batch still process."""
+        batch = {
+            "novedades": [
+                # item 1: missing nombres
+                {"factura": "FEV1", "observacion": "obs 1", "responsable": "LORENY ESPAÑA"},
+                {"factura": "FEV2", "observacion": "obs 2", "responsable": "LORENY ESPAÑA", "nombres": "CARLOS PEREZ"},
+            ]
+        }
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._resolve_validador",
+                side_effect=[None, "carlos perez"],
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "r2"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(batch, _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        data = envelope["data"]
+        assert data["procesadas"] == 1
+        assert data["rechazadas"] == 1
+        rejected, ok = data["resultados"]
+        assert rejected["factura"] == "FEV1"
+        assert rejected["status"] == "error"
+        assert "Validador no resuelto" in rejected["motivo"]
+        assert ok["factura"] == "FEV2"
+        assert ok["status"] == "success"
+        assert ok["error"]["id"] == "r2"
+        # Only the valid item is persisted; the rejected one does not abort the batch
+        mock_persist.assert_called_once()
+
+
+class TestUnresolvableNombres:
+    """``nombres`` with no unique validator coincidence → rejected
+    (single: 400; batch: per-item error)."""
+
+    def test_single_no_match_or_ambiguous_rejected(self):
+        """Unmatched or ambiguous ``nombres`` → 400, nothing persisted."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._resolve_validador",
+                return_value=None,
+            ),
+            patch("app.services.integration_service._persist") as mock_persist,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 400
+        assert envelope["status"] == "error"
+        assert any("Validador no resuelto" in e for e in envelope["errors"])
+        mock_persist.assert_not_called()
+
+    def test_batch_no_match_per_item_error(self):
+        """A batch item whose ``nombres`` does not resolve → per-item error,
+        the other items still process."""
+        batch = {
+            "novedades": [
+                {"factura": "FEV1", "observacion": "obs 1", "responsable": "LORENY ESPAÑA", "nombres": "JUAN MARTINEZ"},
+                {"factura": "FEV2", "observacion": "obs 2", "responsable": "LORENY ESPAÑA", "nombres": "CARLOS PEREZ"},
+            ]
+        }
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._resolve_validador",
+                side_effect=[None, "carlos perez"],
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "r2"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(batch, _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        data = envelope["data"]
+        assert data["procesadas"] == 1
+        assert data["rechazadas"] == 1
+        rejected, ok = data["resultados"]
+        assert rejected["factura"] == "FEV1"
+        assert rejected["status"] == "error"
+        assert "Validador no resuelto" in rejected["motivo"]
+        assert ok["status"] == "success"
+        mock_persist.assert_called_once()
 
 
 class TestNoIdempotency:
@@ -506,8 +655,8 @@ class TestBatchSubmit:
 
     BATCH = {
         "novedades": [
-            {"factura": "FEV1", "observacion": "falta soporte 1", "responsable": "LORENY ESPAÑA"},
-            {"factura": "FEV2", "observacion": "falta soporte 2", "responsable": "LORENY ESPAÑA"},
+            {"factura": "FEV1", "observacion": "falta soporte 1", "responsable": "LORENY ESPAÑA", "nombres": "CARLOS PEREZ"},
+            {"factura": "FEV2", "observacion": "falta soporte 2", "responsable": "LORENY ESPAÑA", "nombres": "CARLOS PEREZ"},
         ]
     }
 
@@ -873,6 +1022,9 @@ class TestRealJsonPersistence:
         with data_patch, file_patch, patch(
             "app.services.integration_service._resolve_responsable",
             return_value="loreny españa",
+        ), patch(
+            "app.services.integration_service._resolve_validador",
+            return_value="carlos perez",
         ):
             envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
 
@@ -886,9 +1038,11 @@ class TestRealJsonPersistence:
         assert record["tipo_error"] == "Soportes de Carpeta"
         # Idempotency key must NOT be persisted
         assert "idempotency_key" not in record
-        # Validator from the synthetic session (token owner)
-        assert record["validador"] == "Ana Valdez"
+        # Validator from the payload nombres, persisted UPPERCASE canonical
+        assert record["validador"] == "CARLOS PEREZ"
+        # created_by stays the token-owner username, distinct from the validator
         assert record["created_by"] == "ana"
+        assert record["validador"] != record["created_by"]
         # Responsible normalized, UPPERCASE, and separate from validator
         assert record["responsable"] == "LORENY ESPAÑA"
         assert record["validador"] != record["responsable"]

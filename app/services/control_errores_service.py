@@ -70,25 +70,24 @@ def _resolve_owner_identity(sess: dict[str, Any]) -> str | None:
     return identities[0] if identities else None
 
 
-def _resolve_responsable_identities(
-    responsable: str | None,
+def _match_identity(
+    raw: str | None,
+    eligible_identities: list[tuple[str, str]],
 ) -> tuple[str, str] | None:
-    """Resolve an eligible responsible value to canonical and full DB identities.
+    """Match a raw identity to a unique eligible DB identity (canonical, full).
 
-    Eligibility is shared with the options endpoint through get_facturadores:
-    facturador role or ``responsable_facturacion`` permission.
+    Coincidence semantics (shared by responsable and validator resolution):
+    - Normalize the raw value (casefold + accent removal + whitespace collapse).
+    - Fewer than 2 tokens never matches (common-token guard).
+    - An exact canonical match wins; several exact matches → ambiguous → None.
+    - Otherwise the highest full-identity token coincidence wins; a tie →
+      ambiguous → None. No coincidence → None.
     """
-    if not responsable:
-        return None
-
-    selected = normalizar_identidad(responsable)
+    selected = normalizar_identidad(raw)
     selected_tokens = set(selected.split())
     if len(selected_tokens) < 2:
         return None
 
-    eligible_identities = [
-        _user_identities(user) for user in users_store.get_facturadores()
-    ]
     exact_matches = [
         identities for identities in eligible_identities if identities[0] == selected
     ]
@@ -113,6 +112,42 @@ def _resolve_responsable_identities(
     highest = max(score for score, _ in ranked)
     matches = [identities for score, identities in ranked if score == highest]
     return matches[0] if len(matches) == 1 else None
+
+
+def _resolve_responsable_identities(
+    responsable: str | None,
+) -> tuple[str, str] | None:
+    """Resolve an eligible responsible value to canonical and full DB identities.
+
+    Eligibility is shared with the options endpoint through get_facturadores:
+    facturador role or ``responsable_facturacion`` permission. Delegates the
+    coincidence matching to the shared ``_match_identity``.
+    """
+    if not responsable:
+        return None
+
+    eligible_identities = [
+        _user_identities(user) for user in users_store.get_facturadores()
+    ]
+    return _match_identity(responsable, eligible_identities)
+
+
+def _resolve_validador_identity(nombres: str | None) -> str | None:
+    """Resolve a payload ``nombres`` value to the canonical DB validator identity.
+
+    The match population is the validator pool (rol ``validador`` or ``admin``)
+    exposed by ``users_store.get_validadores()``, with the same coincidence
+    semantics as responsable resolution. Returns the canonical identity or None
+    (missing, unmatched, or ambiguous).
+    """
+    if not nombres:
+        return None
+
+    eligible_identities = [
+        _user_identities(user) for user in users_store.get_validadores()
+    ]
+    identities = _match_identity(nombres, eligible_identities)
+    return identities[0] if identities else None
 
 
 def _resolve_responsable_identity(responsable: str | None) -> str | None:

@@ -97,11 +97,12 @@ def create_app(config=None):
     def _handle_bearer_auth():
         """Autentica un request sin sesión vía bearer token de integración.
 
-        Resuelve el token a un usuario validador de la DB y expone su identidad
-        en ``flask.g`` (per-request, NUNCA persistida como cookie de sesión).
+        Resuelve el token a un usuario de la DB y expone su identidad en
+        ``flask.g`` (per-request, NUNCA persistida como cookie de sesión).
         La ruta construye luego una sesión sintética (mismas claves que
-        do_login) para que add_error derive validador/created_by desde el
-        token, nunca del payload.
+        do_login) que aporta username → ``created_by`` y la puerta auth/
+        permiso; el ``validador`` persistido se resuelve del payload
+        ``nombres``, nunca del token.
         """
         auth_header = request.headers.get("Authorization", "")
         scheme, _, raw_token = auth_header.partition(" ")

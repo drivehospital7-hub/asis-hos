@@ -6,6 +6,7 @@ Task 4.2: non-admin lifecycle operations are denied.
 """
 
 import importlib
+import json
 import os
 from io import BytesIO
 from unittest.mock import patch
@@ -53,7 +54,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-write-token"},
-                json={"factura": "FEV1", "responsable": "X"},
+                json={"factura": "FEV1", "responsable": "X", "nombres": "CARLOS PEREZ"},
             )
 
         assert resp.status_code == 403
@@ -78,7 +79,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer write-token"},
-                json={"factura": "FEV2", "responsable": "X"},
+                json={"factura": "FEV2", "responsable": "X", "nombres": "CARLOS PEREZ"},
             )
 
         assert resp.status_code == 201
@@ -101,7 +102,7 @@ class TestSubmitPermission:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer admin-token"},
-                json={"factura": "FEV3", "responsable": "X"},
+                json={"factura": "FEV3", "responsable": "X", "nombres": "CARLOS PEREZ"},
             )
 
         assert resp.status_code == 201
@@ -110,9 +111,10 @@ class TestSubmitPermission:
 
 
 class TestEndToEndSubmit:
-    def test_valid_token_persists_record_with_validator_from_token(self, app_client):
-        """Full POST flow: token auth + forced category + validator from token."""
-        persisted = {"id": "rec-1", "validador": "Ana Valdez", "created_by": "ana"}
+    def test_valid_token_persists_record_with_validator_from_payload(self, app_client):
+        """Full POST flow: token auth + payload ``nombres`` resolves the
+        validator; ``created_by`` stays the token-owner username (distinct)."""
+        persisted = {"id": "rec-1", "validador": "CARLOS PEREZ", "created_by": "ana"}
         with (
             patch("app.utils.token_store.get_user_for_token",
                   return_value=_fake_validator_user()),
@@ -128,6 +130,7 @@ class TestEndToEndSubmit:
                     "factura": "FEV123",
                     "observacion": "falta soporte",
                     "responsable": "LORENY ESPAÑA",
+                    "nombres": "CARLOS PEREZ",
                     "tipo_error": "Factura Abierta",  # MUST be forced
                 },
             )
@@ -135,8 +138,12 @@ class TestEndToEndSubmit:
         assert resp.status_code == 201
         data = resp.get_json()
         assert data["status"] == "success"
-        # The record's validator is the token owner, not any payload field
-        assert data["data"]["error"]["validador"] == "Ana Valdez"
+        # The record's validator is the payload-resolved identity, never a
+        # payload-injected or token-derived value
+        assert data["data"]["error"]["validador"] == "CARLOS PEREZ"
+        # created_by is the token-owner username, distinct from the validator
+        assert data["data"]["error"]["created_by"] == "ana"
+        assert data["data"]["error"]["validador"] != data["data"]["error"]["created_by"]
         # submit was called with the synthetic session derived from the token
         assert mock_submit.called
         synth_session = mock_submit.call_args.args[1]
@@ -149,8 +156,8 @@ class TestEndToEndSubmit:
         """A list payload {'novedades': [...]} is forwarded to submit unchanged."""
         batch = {
             "novedades": [
-                {"factura": "FEV1", "observacion": "obs 1", "responsable": "X"},
-                {"factura": "FEV2", "observacion": "obs 2", "responsable": "Y"},
+                {"factura": "FEV1", "observacion": "obs 1", "responsable": "X", "nombres": "CARLOS PEREZ"},
+                {"factura": "FEV2", "observacion": "obs 2", "responsable": "Y", "nombres": "ANA VALDEZ"},
             ]
         }
         batch_envelope = {
@@ -190,7 +197,7 @@ class TestEndToEndSubmit:
                     {"status": "success", "data": {"error": {"id": "r1"}}, "errors": []},
                     201,
                 ),
-            ) as mock_submit,
+) as mock_submit,
         ):
             response = app_client.post(
                 "/api/integration/control-novedades",
@@ -199,7 +206,8 @@ class TestEndToEndSubmit:
                     "factura": "FEV-M1",
                     "observacion": "falta soporte",
                     "responsable": "LORENY ESPAÑA",
-"imagen": (BytesIO(b"png-data"), "support.png"),
+                    "nombres": "CARLOS PEREZ",
+                    "imagen": (BytesIO(b"png-data"), "support.png"),
                 },
                 content_type="multipart/form-data",
             )
@@ -212,6 +220,7 @@ class TestEndToEndSubmit:
             "factura": "FEV-M1",
             "observacion": "falta soporte",
             "responsable": "LORENY ESPAÑA",
+            "nombres": "CARLOS PEREZ",
         }
         assert isinstance(mock_submit.call_args.args[2], list)
         assert mock_submit.call_args.args[2][0].filename == "support.png"
@@ -234,6 +243,7 @@ class TestEndToEndSubmit:
                     "factura": "FEV-M3",
                     "observacion": "dos imagenes",
                     "responsable": "LORENY ESPAÑA",
+                    "nombres": "CARLOS PEREZ",
                     "imagen": [
                         (BytesIO(b"png-a"), "a.png"),
                         (BytesIO(b"png-b"), "b.png"),
@@ -258,7 +268,7 @@ class TestEndToEndSubmit:
                     {"status": "success", "data": {"error": {"id": "r2"}}, "errors": []},
                     201,
                 ),
-            ) as mock_submit,
+) as mock_submit,
         ):
             response = app_client.post(
                 "/api/integration/control-novedades",
@@ -267,6 +277,7 @@ class TestEndToEndSubmit:
                     "factura": "FEV-M2",
                     "observacion": "sin imagen",
                     "responsable": "LORENY ESPAÑA",
+                    "nombres": "CARLOS PEREZ",
                 },
                 content_type="multipart/form-data",
             )
@@ -284,12 +295,127 @@ class TestEndToEndSubmit:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer nope"},
-                json={"factura": "X", "responsable": "Y"},
+                json={"factura": "X", "responsable": "Y", "nombres": "CARLOS PEREZ"},
             )
 
         assert resp.status_code == 401
         assert resp.get_json()["status"] == "error"
         mock_submit.assert_not_called()
+
+
+class TestValidatorFromPayloadRealPath:
+    """E2E through the REAL route→service→storage path: the persisted
+    validator comes from payload ``nombres`` (UPPERCASE canonical), while
+    ``created_by`` stays the token-owner username. Token/auth gates unchanged."""
+
+    _PAYLOAD = {
+        "factura": "FEV-REAL",
+        "observacion": "falta soporte",
+        "responsable": "LORENY ESPAÑA",
+        "nombres": "CARLOS PEREZ",
+    }
+
+    @staticmethod
+    def _patch_storage(tmp_path):
+        from app.utils import errores_storage
+
+        errores_file = tmp_path / "control_errores.json"
+        errores_file.write_text(json.dumps({"errores": []}), encoding="utf-8")
+        return patch.object(errores_storage, "DATA_DIR", tmp_path), patch.object(
+            errores_storage, "ERRORES_FILE", errores_file
+        )
+
+    def test_validator_from_payload_created_by_token_owner(self, app_client, tmp_path):
+        """201: payload nombres resolves the validator; created_by is the
+        token-owner username; both persisted as distinct fields."""
+        data_patch, file_patch = self._patch_storage(tmp_path)
+        with data_patch, file_patch, patch(
+            "app.utils.token_store.get_user_for_token",
+            return_value=_fake_validator_user(),
+        ), patch(
+            "app.services.integration_service._resolve_responsable",
+            return_value="LORENY ESPAÑA",
+        ), patch(
+            "app.services.integration_service._resolve_validador",
+            return_value="carlos perez",
+        ):
+            resp = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer valid-token"},
+                json=dict(self._PAYLOAD),
+            )
+
+        assert resp.status_code == 201
+        data = resp.get_json()
+        assert data["status"] == "success"
+        # Response carries the payload-resolved validator + token-owner creator
+        assert data["data"]["error"]["validador"] == "CARLOS PEREZ"
+        assert data["data"]["error"]["created_by"] == "ana"
+        assert data["data"]["error"]["validador"] != data["data"]["error"]["created_by"]
+
+        # The persisted JSON record confirms the same distinct fields
+        records = json.loads(
+            (tmp_path / "control_errores.json").read_text(encoding="utf-8")
+        )["errores"]
+        assert len(records) == 1
+        assert records[0]["validador"] == "CARLOS PEREZ"
+        assert records[0]["created_by"] == "ana"
+
+    def test_missing_nombres_rejected_400(self, app_client, tmp_path):
+        """Single payload without nombres → 400 through the real path, nothing persisted."""
+        data_patch, file_patch = self._patch_storage(tmp_path)
+        payload = dict(self._PAYLOAD)
+        del payload["nombres"]
+        with data_patch, file_patch, patch(
+            "app.utils.token_store.get_user_for_token",
+            return_value=_fake_validator_user(),
+        ), patch(
+            "app.services.integration_service._resolve_responsable",
+            return_value="LORENY ESPAÑA",
+        ):
+            resp = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer valid-token"},
+                json=payload,
+            )
+
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["status"] == "error"
+        assert any("nombres" in e for e in body["errors"])
+        records = json.loads(
+            (tmp_path / "control_errores.json").read_text(encoding="utf-8")
+        )["errores"]
+        assert records == []
+
+    def test_no_match_nombres_rejected_400(self, app_client, tmp_path):
+        """nombres with no validator coincidence → 400 through the real path,
+        nothing persisted."""
+        data_patch, file_patch = self._patch_storage(tmp_path)
+        with data_patch, file_patch, patch(
+            "app.utils.token_store.get_user_for_token",
+            return_value=_fake_validator_user(),
+        ), patch(
+            "app.services.integration_service._resolve_responsable",
+            return_value="LORENY ESPAÑA",
+        ), patch(
+            "app.services.integration_service._resolve_validador",
+            return_value=None,
+        ):
+            resp = app_client.post(
+                "/api/integration/control-novedades",
+                headers={"Authorization": "Bearer valid-token"},
+                json=dict(self._PAYLOAD),
+            )
+
+        assert resp.status_code == 400
+        body = resp.get_json()
+        assert body["status"] == "error"
+        assert any("Validador no resuelto" in e for e in body["errors"])
+        records = json.loads(
+            (tmp_path / "control_errores.json").read_text(encoding="utf-8")
+        )["errores"]
+        assert records == []
 
 
 class TestNoSessionCookie:
@@ -312,7 +438,7 @@ class TestNoSessionCookie:
             resp = app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-cookie-token"},
-                json={"factura": "FEV1", "responsable": "X"},
+                json={"factura": "FEV1", "responsable": "X", "nombres": "CARLOS PEREZ"},
             )
 
         assert resp.status_code == 201
@@ -339,7 +465,7 @@ class TestNoSessionCookie:
             app_client.post(
                 "/api/integration/control-novedades",
                 headers={"Authorization": "Bearer no-cookie-token-2"},
-                json={"factura": "FEV2", "responsable": "X"},
+                json={"factura": "FEV2", "responsable": "X", "nombres": "CARLOS PEREZ"},
             )
 
         # A follow-up protected API request without a session cookie must be 401:
@@ -406,6 +532,7 @@ class TestHttpsEnforcement:
                     "factura": "FEV-H",
                     "observacion": "falta soporte",
                     "responsable": "X",
+                    "nombres": "CARLOS PEREZ",
                 },
                 environ_overrides={"wsgi.url_scheme": "http"},
             )
@@ -433,6 +560,7 @@ class TestHttpsEnforcement:
                     "factura": "FEV-H",
                     "observacion": "falta soporte",
                     "responsable": "X",
+                    "nombres": "CARLOS PEREZ",
                 },
                 environ_overrides={"wsgi.url_scheme": "http"},
             )
@@ -462,6 +590,7 @@ class TestHttpsEnforcement:
                     "factura": "FEV-S",
                     "observacion": "falta soporte",
                     "responsable": "X",
+                    "nombres": "CARLOS PEREZ",
                 },
                 environ_overrides={"wsgi.url_scheme": "https"},
             )

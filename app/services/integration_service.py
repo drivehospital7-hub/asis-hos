@@ -1,24 +1,33 @@
 """Servicio de integración LAN para control-novedades.
 
 Recibe un payload autenticado por bearer token, fuerza la categoría
-"Soportes de Carpeta", resuelve el responsable con la lógica de coincidencia
-existente y mantiene el validador (del token) separado del responsable.
+"Soportes de Carpeta", resuelve el responsable y el validador con la lógica de
+coincidencia existente y mantiene el validador (del payload ``nombres``)
+separado del responsable y de ``created_by`` (username del dueño del token).
 Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
 Si ya existe un registro con la misma categoría y factura, la respuesta incluye
 una advertencia (``ya_existia`` / ``cantidad_existentes``) sin bloquear nada.
+
+El token es EXCLUSIVAMENTE la puerta de autenticación/permiso y la fuente de
+``created_by``; la identidad persistida del validador proviene de ``nombres``.
+Cualquier titular de un token válido puede atribuir un registro a cualquier
+nombre de validador que coincida: ``created_by`` queda como identidad de
+auditoría del llamador.
 
 Contrato primario (lista): el endpoint acepta ``{"novedades": [...]}`` y
 procesa todos los items en una sola request. Cada item se procesa de forma
 independiente:
 
 - Un responsable que no resuelve a un usuario DB único rechaza SOLO ese item.
+- Un ``nombres`` ausente o que no resuelve a un validador DB único rechaza
+  SOLO ese item (per-item, nunca estructural).
 - Un fallo de persistencia en un item lo rechaza a él, sin abortar el lote.
 
 Semántica de respuesta del lote:
 
 - Lote estructuralmente inválido (``novedades`` no es lista, es una lista
-  vacía, o un item no es objeto / le falta un campo requerido) → HTTP 400 con
-  ``status: "error"``.
+  vacía, o un item no es objeto / le falta un campo requerido distinto de
+  ``nombres``) → HTTP 400 con ``status: "error"``.
 - Lote válido, con todos o con algunos items rechazados → HTTP 200 con
   ``status: "success"`` y el detalle por item en ``data.resultados``. Los items
   exitosos NO se revierten ante rechazos de otros items del mismo lote.
@@ -34,6 +43,7 @@ from app.constants import IMAGENES_MAX_PER_OBSERVACION
 from app.constants.urgencias import ERROR_TIPO_URGENCIAS
 from app.services.control_errores_service import (
     _resolve_responsable_identity,
+    _resolve_validador_identity,
 )
 from app.utils import errores_storage
 
@@ -43,7 +53,7 @@ logger = logging.getLogger(__name__)
 FORCED_CATEGORY = "Soportes de Carpeta"
 
 # Campos requeridos y sus tipos (strings no vacíos).
-REQUIRED_FIELDS = ("factura", "observacion", "responsable")
+REQUIRED_FIELDS = ("factura", "observacion", "responsable", "nombres")
 
 
 def _resolve_responsable(raw: str) -> str | None:
@@ -51,19 +61,34 @@ def _resolve_responsable(raw: str) -> str | None:
     return _resolve_responsable_identity(raw)
 
 
-def _persist(data: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
+def _resolve_validador(raw: str) -> str | None:
+    """Resuelve ``nombres`` crudos a la identidad DB canónica del validador.
+
+    None → sin coincidencia única (missing, ambiguo o sin match).
+    """
+    return _resolve_validador_identity(raw)
+
+
+def _persist(
+    data: dict[str, Any],
+    session: dict[str, Any],
+    validador: str = "",
+) -> dict[str, Any]:
     """Persiste el registro de forma atómica.
 
     Usa ``errores_storage.crear_error``: el write corre bajo el lock del
     almacén, evitando pérdidas de actualizaciones entre envíos concurrentes.
     Cada llamada crea SIEMPRE un registro nuevo (los duplicados se permiten).
 
+    ``validador`` llega resuelto del payload ``nombres`` (nunca del cliente ni
+    de la sesión); ``created_by`` proviene siempre de la sesión sintética del
+    token. Se persiste el validador en mayúsculas (identidad canónica).
+
     Returns:
         El registro persistido.
     """
     sess = session or {}
     responsable = data["responsable"].upper()
-    validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
     created_by = sess.get("username", "")
     return errores_storage.crear_error(
         tipo_error=data["tipo_error"],
@@ -72,7 +97,7 @@ def _persist(data: dict[str, Any], session: dict[str, Any]) -> dict[str, Any]:
         observacion_facturador=data.get("observacion_facturador", "") or "",
         estado=data.get("estado", "S"),
         responsable=responsable,
-        validador=validador,
+        validador=(validador or "").upper(),
         created_by=created_by,
     )
 
@@ -112,6 +137,10 @@ def _validate_items(items: list[Any]) -> list[str]:
 
     Un item inválido (no objeto o con un campo requerido faltante/incorrecto)
     invalida TODO el lote → 400. Devuelve la lista de errores (vacía si OK).
+
+    ``nombres`` se excluye de la validación estructural: un item sin ``nombres``
+    (o con uno no resoluble) se rechaza POR ITEM en ``_process_item`` para no
+    abortar el resto del lote.
     """
     errors: list[str] = []
     for index, item in enumerate(items, start=1):
@@ -119,6 +148,8 @@ def _validate_items(items: list[Any]) -> list[str]:
             errors.append(f"Item {index}: debe ser un objeto")
             continue
         for field in REQUIRED_FIELDS:
+            if field == "nombres":
+                continue
             value = item.get(field)
             if not isinstance(value, str) or not value.strip():
                 errors.append(
@@ -130,8 +161,9 @@ def _validate_items(items: list[Any]) -> list[str]:
 def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[str, Any]:
     """Procesa un item del lote de forma independiente.
 
-    El rechazo por responsable no resuelto (o un fallo de persistencia) solo
-    afecta a este item; los demás items del lote continúan procesándose.
+    El rechazo por responsable o validador no resuelto (o un fallo de
+    persistencia) solo afecta a este item; los demás items del lote continúan
+    procesándose.
     """
     factura = item["factura"]
     try:
@@ -146,6 +178,17 @@ def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[
                 ),
             }
 
+        validador = _resolve_validador(item.get("nombres"))
+        if not validador:
+            return {
+                "factura": factura,
+                "status": "error",
+                "motivo": (
+                    "Validador no resuelto a un usuario DB único "
+                    "(ambiguo o sin coincidencia)"
+                ),
+            }
+
         record_data = {
             "tipo_error": _forced_category(),
             "factura": factura,
@@ -155,7 +198,7 @@ def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[
         }
 
         existentes = _contar_existentes(factura)
-        nuevo = _persist(record_data, session)
+        nuevo = _persist(record_data, session, validador)
         logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
         resultado: dict[str, Any] = {
             "factura": factura,
@@ -213,7 +256,19 @@ def _submit_single(
             ],
         }, 400
 
-    # 4. Construcción del registro (identidad de validador del token)
+    # 3b. Resolución del validador desde ``nombres`` (rechazo si es
+    #     ambiguo/sin coincidencia). Nunca se deriva del token.
+    validador = _resolve_validador(payload["nombres"])
+    if not validador:
+        return {
+            "status": "error",
+            "data": {},
+            "errors": [
+                "Validador no resuelto a un usuario DB único (ambiguo o sin coincidencia)"
+            ],
+        }, 400
+
+    # 4. Construcción del registro (identidad de validador del payload)
     record_data = {
         "tipo_error": categoria,
         "factura": payload["factura"],
@@ -226,7 +281,7 @@ def _submit_single(
     existentes = _contar_existentes(payload["factura"])
 
     # 6. Persistencia atómica (siempre crea un registro nuevo)
-    nuevo = _persist(record_data, session)
+    nuevo = _persist(record_data, session, validador)
     logger.info("[BACK] Integración: novedad %s persistida", nuevo["id"])
     guardadas = 0
     if imagenes:
@@ -334,7 +389,8 @@ def submit(
     - Si el payload trae ``novedades`` (lista) → contrato de lote (HTTP 200).
     - Si no → formato heredado de un solo item (HTTP 201).
 
-    El validador y created_by provienen de la sesión sintética del token; el
+    El validador se resuelve del payload ``nombres`` contra la DB; ``created_by``
+    proviene de la sesión sintética del token (puerta de auth/permiso). El
     responsable se normaliza contra la DB. Nunca se confía en la categoría ni
     en la identidad del validador enviada por el cliente.
     """

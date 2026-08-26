@@ -12,7 +12,11 @@ from flask import session
 
 from app import create_app
 from app.services.control_errores_service import update_error, add_error, get_errores, get_opciones
-from app.services.control_errores_service import _resolve_responsable_identities
+from app.services.control_errores_service import (
+    _resolve_responsable_identities,
+    _match_identity,
+    _resolve_validador_identity,
+)
 from app.utils.errores_storage import (
     listar_errores,
     crear_error,
@@ -814,6 +818,139 @@ class TestResponsibleIdentityResolution:
             result = _resolve_responsable_identities(" CÁRLOS   OMAR ")
 
         assert result == ("carlos meza", "carlos omar meza fernandez")
+
+
+class TestMatchIdentity:
+    """_match_identity: shared coincidence matcher used by responsable and
+    validator resolution (exact canonical or token-coincidence, >=2 tokens).
+
+    Strict TDD RED: these tests reference _match_identity before it exists.
+    """
+
+    def test_exact_canonical_matches(self):
+        """A raw value equal to a canonical identity resolves to that identity."""
+        eligible = [
+            ("carlos perez", "carlos perez"),
+            ("ana valdez", "ana valdez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) == (
+            "carlos perez",
+            "carlos perez",
+        )
+
+    def test_token_coincidence_two_tokens_matches(self):
+        """>=2 tokens contained in a full DB identity resolve to that user."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) == (
+            "carlos perez",
+            "carlos omar perez lopez",
+        )
+
+    def test_ambiguous_returns_none(self):
+        """An identity shared by multiple eligible users is not assigned arbitrarily."""
+        eligible = [
+            ("carlos perez", "carlos omar perez"),
+            ("carlos perez", "carlos meza perez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) is None
+
+    def test_single_token_returns_none(self):
+        """Fewer than 2 tokens never matches (common-token guard)."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("CARLOS", eligible) is None
+
+    def test_no_match_returns_none(self):
+        """A raw value with no coincidence in the eligible pool → None."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("JUAN MARTINEZ", eligible) is None
+
+    def test_blank_returns_none(self):
+        """None/empty raw values never resolve."""
+        eligible = [("carlos perez", "carlos perez")]
+        assert _match_identity(None, eligible) is None
+        assert _match_identity("", eligible) is None
+
+
+class TestResolveValidadorIdentity:
+    """_resolve_validador_identity: payload ``nombres`` matched against the
+    validator population (users_store.get_validadores(), rol validador|admin).
+
+    Strict TDD RED: these tests reference _resolve_validador_identity before
+    it exists.
+    """
+
+    @staticmethod
+    def _validadores():
+        return [
+            {
+                "username": "cperez",
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Perez",
+                "apellido_2": "Lopez",
+                "nombre_completo": "CARLOS PEREZ",
+                "rol": "validador",
+            },
+            {
+                "username": "avaldez",
+                "primer_nombre": "Ana",
+                "segundo_nombre": "",
+                "apellido_1": "Valdez",
+                "apellido_2": "",
+                "nombre_completo": "ANA VALDEZ",
+                "rol": "admin",
+            },
+        ]
+
+    def test_matching_nombres_resolves_canonical(self):
+        """\"CARLOS PEREZ\" matching validator Carlos Perez → canonical identity."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity("CARLOS PEREZ") == "carlos perez"
+
+    def test_no_match_returns_none(self):
+        """nombres with no validator coincidence → None."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity("JUAN MARTINEZ") is None
+
+    def test_ambiguous_returns_none(self):
+        """nombres matching more than one validator identity → None."""
+        validadores = self._validadores() + [
+            {
+                "username": "cperez2",
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "",
+                "apellido_1": "Perez",
+                "apellido_2": "",
+                "nombre_completo": "CARLOS PEREZ",
+                "rol": "validador",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=validadores,
+        ):
+            assert _resolve_validador_identity("CARLOS PEREZ") is None
+
+    def test_blank_returns_none(self):
+        """None/empty nombres → None (never resolves)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity(None) is None
+            assert _resolve_validador_identity("") is None
 
 
 def _fake_error() -> dict:

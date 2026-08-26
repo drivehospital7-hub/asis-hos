@@ -36,10 +36,14 @@ def _maybe_warn_https() -> None:
 
 
 def _build_synth_session(bearer_user: dict) -> dict:
-    """Construye la sesión sintética (mismas claves que do_login) a partir de
-    la identidad del validador resuelta del bearer token en ``flask.g``.
+    """Construye la sesión sintética (mismas claves que do_login) a partir del
+    usuario del bearer token en ``flask.g``.
 
     Solo vive durante la request; no se persiste como cookie de sesión.
+    Sus campos de nombre ya NO alimentan el ``validador`` persistido: desde
+    sdd control-novedades-validador-nombres el validador se resuelve del
+    payload ``nombres``. La sesión sintética sigue aportando ``username``
+    (→ ``created_by``) y la puerta auth/permiso.
     """
     return {
         "ce_authenticated": True,
@@ -60,9 +64,10 @@ def control_novedades_submit():
 Multipart procesa un solo registro plano y acepta el campo ``imagen``
     (repetible, hasta 3 archivos por registro). JSON conserva el contrato de
     lote ``{"novedades": [...]}`` y el formato heredado de un item como objeto
-    plano. La identidad del validador se
-    resuelve desde el token en _handle_bearer_auth
-    (before_request) y se expone en ``flask.g`` (per-request, sin cookie). El
+    plano. El token autentica la request en _handle_bearer_auth
+    (before_request) y se expone en ``flask.g`` (per-request, sin cookie).
+    El ``validador`` persistido se resuelve del payload ``nombres`` contra la
+    DB (nunca del token); ``created_by`` proviene del username del token. El
     permiso ``control_urgencias:write`` se valida AQUÍ manualmente leyendo
     ``g.bearer_user`` porque permiso_requerido (app/utils/auth.py) solo lee la
     sesión de browser, y este endpoint es "sin sesión". Luego se delega al
