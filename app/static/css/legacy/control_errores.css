@@ -74,7 +74,6 @@ html {
   font-size: 0.8125rem; 
   font-weight: 600; 
   color: var(--muted-foreground);
-  text-transform: uppercase;
   letter-spacing: 0.025em;
 }
 
@@ -143,7 +142,6 @@ html {
   color: var(--muted-foreground);
   font-weight: 600;
   font-size: 0.75rem;
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 0.75rem 0.875rem;
   border-bottom: 1px solid var(--border);
@@ -978,7 +976,6 @@ body.editor-open {
   font-weight: 600;
   color: var(--muted-foreground);
   margin-bottom: 0.5rem;
-  text-transform: uppercase;
   letter-spacing: 0.025em;
 }
 .carga-label small {
@@ -1024,7 +1021,6 @@ body.editor-open {
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted-foreground);
-  text-transform: uppercase;
   letter-spacing: 0.05em;
   border-bottom: 2px solid var(--border);
   background: var(--muted);

@@ -16,6 +16,7 @@ the modal `_canWrite` gating, the facturador badge) — they protect against
 regression while the NEW embedded-panel asserts fail RED first.
 """
 
+import unicodedata
 from pathlib import Path
 
 import pytest
@@ -73,6 +74,37 @@ PASTE_REGION = HTML[_PASTE_IDX:_CARGA_IDX]
 _KEEPOPEN_IDX = PANEL_REGION.index("function saveFacturadorEditorKeepOpen(")
 SAVE_CLOSE_REGION = PANEL_REGION[:_KEEPOPEN_IDX]
 SAVE_KEEPOPEN_REGION = PANEL_REGION[_KEEPOPEN_IDX:]
+
+# Regiones Title Case (control-novedades-title-case-ui)
+_BUILDERS_IDX = HTML.index("function _buildResponsableOptions(")
+_LOAD_OPCIONES_IDX = HTML.index("async function loadOpciones()")
+BUILDERS_REGION = HTML[_BUILDERS_IDX:_LOAD_OPCIONES_IDX]
+_MONTH_TABS_IDX = HTML.index("// ====== MONTH TABS ======")
+LOAD_OPCIONES_REGION = HTML[_LOAD_OPCIONES_IDX:_MONTH_TABS_IDX]
+
+# Filas renderizadas de cada path (sin helpers intermedios)
+_TABLE_ROWS_START = HTML.index("cachedErrores.forEach(e => {")
+TABLE_ROWS_REGION = HTML[_TABLE_ROWS_START:_RENDER_TABLE_IDX + RENDER_TABLE_REGION.index("tbody.innerHTML = html;")]
+_FILTERED_ROWS_START = HTML.index("pageItems.forEach(e => {")
+FILTERED_ROWS_REGION = HTML[_FILTERED_ROWS_START:_RENDER_FILTERED_IDX + RENDER_FILTERED_REGION.index("tbody.innerHTML = html;")]
+
+# Regiones de save: payload source = trigger.dataset.value (nunca textContent)
+_SAVE_EDITOR_IDX = HTML.index("async function saveFromEditor()")
+_SAVE_CALLBACK_IDX = HTML.index("async function saveFromEditorWithCallback(")
+SAVE_EDITOR_REGION = HTML[_SAVE_EDITOR_IDX:_SAVE_CALLBACK_IDX]
+_TOAST_IDX = HTML.index("// ====== TOAST NOTIFICATION ======")
+SAVE_CALLBACK_REGION = HTML[_SAVE_CALLBACK_IDX:_TOAST_IDX]
+
+# Carga masiva preview
+_CARGA_PREVIEW_IDX = HTML.index("function renderCargaPreview(")
+CARGA_PREVIEW_REGION = HTML[_CARGA_PREVIEW_IDX:]
+
+
+def _css_block(selector):
+    """Bloque CSS completo de un selector (hasta el '}' de cierre)."""
+    start = CSS.index(selector + " {")
+    end = CSS.index("}\n", start)
+    return CSS[start:end]
 
 
 class TestModalScope:
@@ -820,3 +852,183 @@ class TestObsEyeAttachmentBadge:
         assert "background: #f59e0b;" in badge_block
         assert "color: #ffffff;" in badge_block
         assert "position: absolute;" in badge_block
+
+
+class TestTitleCase:
+    """Título: Normalización Title Case de display (control-novedades-title-case-ui).
+
+    RED-first: estos asserts FALLAN contra el template actual, que renderiza
+    labels y celdas de validador/responsable en el casing almacenado (UPPER) y
+    lee el payload de save desde trigger.textContent.
+
+    Contrato display-only: `toTitleCase` (NFKD accent-safe) se aplica ANTES de
+    `escapeHtml` en cada sitio transformado; los atributos value/data-value
+    conservan el casing canónico raw; factura/observacion conservan sus guards
+    `.toUpperCase()`; las celdas de observación no se transforman; los labels de
+    filtro/headers pierden el forzado CSS `text-transform: uppercase`.
+    """
+
+    def test_helper_defined_with_nfkd_normalization(self):
+        """toTitleCase existe y usa normalize('NFKD') (accent-safe)."""
+        assert "function toTitleCase(" in HTML
+        assert "normalize('NFKD')" in HTML
+
+    def test_helper_escapes_empty_input(self):
+        """toTitleCase('') → '' (guard de entrada)."""
+        assert "if (!s) return '';" in HTML
+
+    def test_helper_token_capitalize_without_particle_lowering(self):
+        """'MARIA DEL PILAR' → 'Maria Del Pilar': capitaliza por token (NFKD),
+        sin toLowerCase global ni lista de partículas que fuerce minúsculas.
+        Cada letra base conserva sus marcas de acento (el bug de acentos al
+        final de palabra ya no existe)."""
+        helper = HTML[HTML.index("function toTitleCase("):HTML.index("let currentCell = null;")]
+        assert "grouped[grouped.length - 1] += d[i]" in helper
+        assert "+ marks" not in helper
+        assert "s.toLowerCase()" not in helper
+        assert "String(s).toLowerCase()" not in helper
+
+    def test_helper_preserves_accents_behaviorally(self):
+        """Réplica en Python del algoritmo del helper: los acentos quedan en su
+        letra correcta ('PÉREZ' → 'Pérez', 'ÁNGELA' → 'Ángela', 'MARÍA' → 'María'),
+        las partículas se capitalizan y '' → ''."""
+        def to_title_case(s):
+            if not s:
+                return ''
+            out = []
+            for w in s.split():
+                d = unicodedata.normalize('NFKD', w)
+                grouped = []
+                for ch in d:
+                    if unicodedata.combining(ch) and grouped:
+                        grouped[-1] += ch
+                    else:
+                        grouped.append(ch)
+                out.append(''.join(
+                    g[0].upper() + g[1:].lower() if i == 0 else g.lower()
+                    for i, g in enumerate(grouped)
+                ))
+            return ' '.join(out)
+
+        assert unicodedata.normalize('NFC', to_title_case('PÉREZ')) == 'Pérez'
+        assert unicodedata.normalize('NFC', to_title_case('SÁNCHEZ')) == 'Sánchez'
+        assert unicodedata.normalize('NFC', to_title_case('ÁNGELA')) == 'Ángela'
+        assert unicodedata.normalize('NFC', to_title_case('ÓSCAR')) == 'Óscar'
+        assert unicodedata.normalize('NFC', to_title_case('MUÑOZ')) == 'Muñoz'
+        assert unicodedata.normalize('NFC', to_title_case('MARÍA')) == 'María'
+        assert unicodedata.normalize('NFC', to_title_case('MARÍA DEL PILAR')) == 'María Del Pilar'
+        assert to_title_case('') == ''
+        # El helper JS debe implementar el mismo agrupamiento (no el bug "+ marks").
+        helper = HTML[HTML.index("function toTitleCase("):HTML.index("let currentCell = null;")]
+        assert "normalize('NFKD')" in helper
+        assert "grouped[grouped.length - 1] += d[i]" in helper
+
+    def test_applied_in_both_render_paths(self):
+        """toTitleCase se aplica en las filas de renderTable Y renderFilteredTable
+        (validador + responsable, count >= 2 por path)."""
+        assert TABLE_ROWS_REGION.count("toTitleCase(") >= 2
+        assert FILTERED_ROWS_REGION.count("toTitleCase(") >= 2
+
+    def test_validador_cell_title_cased_before_escape(self):
+        """Celda validador: escapeHtml(toTitleCase(...)) en AMBOS paths."""
+        assert "escapeHtml(toTitleCase(e.validador || '-'))" in RENDER_TABLE_REGION
+        assert "escapeHtml(toTitleCase(e.validador || '-'))" in RENDER_FILTERED_REGION
+
+    def test_responsable_cell_title_cased_with_raw_data_value(self):
+        """Celda responsable: span Title Case + data-value raw en AMBOS paths."""
+        assert "escapeHtml(toTitleCase(e.responsable))" in RENDER_TABLE_REGION
+        assert "escapeHtml(toTitleCase(e.responsable))" in RENDER_FILTERED_REGION
+        assert 'data-value="${escapeHtml(e.responsable)}"' in RENDER_TABLE_REGION
+        assert 'data-value="${escapeHtml(e.responsable)}"' in RENDER_FILTERED_REGION
+
+    def test_validador_filter_label_title_cased_value_keeps_uppercase(self):
+        """Filter validador: label toTitleCase, value conserva display.toUpperCase()."""
+        assert "escapeHtml(toTitleCase(display))" in LOAD_OPCIONES_REGION
+        assert 'value="${escapeHtml(display)}"' in LOAD_OPCIONES_REGION
+        assert (
+            "const display = ([v.primer_nombre, v.apellido_1].filter(Boolean).join(' ')).toUpperCase();"
+            in LOAD_OPCIONES_REGION
+        )
+
+    def test_option_builders_label_title_cased_value_raw(self):
+        """Builders de responsable: labels toTitleCase, value/data-value raw."""
+        assert "escapeHtml(toTitleCase(r))" in BUILDERS_REGION
+        assert 'value="${escapeHtml(r)}"' in BUILDERS_REGION
+        assert "escapeHtml(toTitleCase(opt))" in BUILDERS_REGION
+        assert 'data-value="${escapeHtml(opt)}"' in BUILDERS_REGION
+
+    def test_trigger_renders_title_case_with_raw_data_value(self):
+        """Trigger del custom-select: texto toTitleCase (no estado) + data-value raw."""
+        assert 'data-value="${escapeHtml(currentValue)}"' in OPEN_EDITOR_REGION
+        assert "toTitleCase(displayValue)" in OPEN_EDITOR_REGION
+
+    def test_option_click_sets_raw_dataset_value(self):
+        """Click en opción: trigger.dataset.value = value (raw) y texto toTitleCase."""
+        assert "trigger.dataset.value = value;" in OPEN_EDITOR_REGION
+        assert "toTitleCase(value)" in OPEN_EDITOR_REGION
+
+    def test_save_paths_read_dataset_value_not_text_content(self):
+        """Los saves leen trigger.dataset.value; ningún payload lee textContent."""
+        assert (
+            "customSelect.querySelector('.custom-select-trigger').dataset.value.trim()"
+            in SAVE_EDITOR_REGION
+        )
+        assert (
+            "customSelect.querySelector('.custom-select-trigger').dataset.value.trim()"
+            in SAVE_CALLBACK_REGION
+        )
+        assert (
+            "customSelect.querySelector('.custom-select-trigger').textContent.trim()"
+            not in HTML
+        )
+
+    def test_responsable_write_back_title_cased(self):
+        """saveFromEditor escribe el span responsable con toTitleCase; data-value raw."""
+        assert "spans[1].textContent = toTitleCase(newValue);" in SAVE_EDITOR_REGION
+        assert "currentCell.dataset.value = newValue;" in SAVE_EDITOR_REGION
+
+    def test_select_write_back_title_cased(self):
+        """saveFromEditorWithCallback escribe el select con toTitleCase."""
+        assert "currentCell.innerHTML = toTitleCase(newValue);" in SAVE_CALLBACK_REGION
+
+    def test_css_filters_label_no_uppercase(self):
+        """.filters__label sin text-transform:uppercase."""
+        block = _css_block(".filters__label")
+        assert "text-transform: uppercase;" not in block
+
+    def test_css_table_header_no_uppercase(self):
+        """.table thead th sin text-transform:uppercase."""
+        block = _css_block(".table thead th")
+        assert "text-transform: uppercase;" not in block
+
+    def test_css_carga_label_no_uppercase(self):
+        """.carga-label sin text-transform:uppercase."""
+        block = _css_block(".carga-label")
+        assert "text-transform: uppercase;" not in block
+
+    def test_css_carga_preview_header_no_uppercase(self):
+        """.carga-preview-table th sin text-transform:uppercase."""
+        block = _css_block(".carga-preview-table th")
+        assert "text-transform: uppercase;" not in block
+
+    def test_inline_group_header_no_uppercase(self):
+        """El header de grupo inline del custom-select pierde text-transform:uppercase."""
+        assert "text-transform:uppercase;letter-spacing:.04em" not in HTML
+
+    def test_factura_observacion_upper_guards_intact(self):
+        """Los guards .toUpperCase() de factura/observacion se conservan en saves."""
+        assert "if (field === 'factura' || field === 'observacion') {" in SAVE_EDITOR_REGION
+        assert "if (field === 'factura' || field === 'observacion') {" in SAVE_CALLBACK_REGION
+
+    def test_observacion_cells_keep_stored_casing(self):
+        """Las celdas de observación NO se transforman (casing almacenado)."""
+        assert "escapeHtml(e.observacion||'-')" in RENDER_TABLE_REGION
+        assert "escapeHtml(e.observacion||'-')" in RENDER_FILTERED_REGION
+
+    def test_carga_preview_keeps_inline_uppercase_for_factura_desc(self):
+        """Carga masiva: inputs factura/desc KEEP text-transform:uppercase inline."""
+        assert 'style="text-transform:uppercase;"' in CARGA_PREVIEW_REGION
+
+    def test_carga_preview_responsable_uses_shared_builder(self):
+        """Carga masiva: select responsable usa _buildResponsableOptions (auto cubierto)."""
+        assert "_buildResponsableOptions(row.responsable)" in CARGA_PREVIEW_REGION

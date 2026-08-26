@@ -201,6 +201,29 @@
     });
   }
 
+  // Display-only Title Case (control-novedades-title-case-ui). NFKD accent-safe:
+  // "MARÍA" → "María", particles NOT lowercased ("MARIA DEL PILAR" → "Maria Del Pilar").
+  // Applied BEFORE escapeHtml at every transformed site; never emits markup.
+  function toTitleCase(s) {
+    if (!s) return '';
+    return String(s).split(/\s+/).map(function (w) {
+      var d = w.normalize('NFKD');                     // NFKD (spec): decomposes accents + compatibility chars
+      // Agrupar cada letra base con sus marcas de acento para que el acento
+      // quede en la letra correcta: "PÉREZ" → "Pérez", "ÁNGELA" → "Ángela".
+      var grouped = [];
+      for (var i = 0; i < d.length; i++) {
+        if (/[\u0300-\u036f]/.test(d[i]) && grouped.length) {
+          grouped[grouped.length - 1] += d[i];
+        } else {
+          grouped.push(d[i]);
+        }
+      }
+      return grouped.map(function (g, idx) {
+        return idx === 0 ? g.charAt(0).toUpperCase() + g.slice(1).toLowerCase() : g.toLowerCase();
+      }).join('');
+    }).join(' ');
+  }
+
   let currentCell = null;
   let currentEditId = null;
   let currentEditType = null;
@@ -276,11 +299,11 @@
   function _buildResponsableOptions(selectedValue) {
     const list = _currentResponsables();
     if (!_responsableAreas) {
-      return list.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+      return list.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(toTitleCase(r))}</option>`).join('');
     }
     return _groupResponsablesByArea(list).map(g =>
       `<optgroup label="${escapeHtml(g.label)}">` +
-      g.items.map(r => `<option value="${escapeHtml(r)}"${r === selectedValue ? ' selected' : ''}>${escapeHtml(r)}</option>`).join('') +
+      g.items.map(r => `<option value="${escapeHtml(r)}"${r === selectedValue ? ' selected' : ''}>${escapeHtml(toTitleCase(r))}</option>`).join('') +
       `</optgroup>`
     ).join('');
   }
@@ -289,13 +312,13 @@
   function _buildCustomResponsableOptions(list, currentValue) {
     if (!_responsableAreas) {
       return list.map(opt =>
-        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
       ).join('');
     }
     return _groupResponsablesByArea(list).map(g =>
-      `<div class="custom-select-group" style="padding:6px 10px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b;background:#f8fafc;">${escapeHtml(g.label)}</div>` +
+      `<div class="custom-select-group" style="padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;color:#64748b;background:#f8fafc;">${escapeHtml(g.label)}</div>` +
       g.items.map(opt =>
-        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
       ).join('')
     ).join('');
   }
@@ -310,7 +333,7 @@
       document.getElementById('filterValidador').innerHTML = '<option value="">Todos</option>' +
         (opciones.validadores || []).map(v => {
           const display = ([v.primer_nombre, v.apellido_1].filter(Boolean).join(' ')).toUpperCase();
-          return `<option value="${escapeHtml(display)}">${escapeHtml(display)}</option>`;
+          return `<option value="${escapeHtml(display)}">${escapeHtml(toTitleCase(display))}</option>`;
         }).join('');
       _buildResponsableAreaMap();
       // Select de área (aditivo, sdd Empieza)
@@ -494,7 +517,7 @@
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
-          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
+          <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
@@ -512,7 +535,7 @@
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
-              <span>${escapeHtml(e.responsable)}</span>
+              <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
@@ -1083,13 +1106,13 @@
         ).join('');
       } else {
         optionsHtml = options.map(opt => 
-          `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
+          `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
         ).join('');
       }
 
       editor.innerHTML = `
         <div class="custom-select" id="customSelect" data-field="${field}">
-          <div class="custom-select-trigger">${escapeHtml(displayValue)}</div>
+          <div class="custom-select-trigger" data-value="${escapeHtml(currentValue)}">${escapeHtml(field === 'estado' ? displayValue : toTitleCase(displayValue))}</div>
           <div class="custom-select-dropdown">${optionsHtml}</div>
         </div>
       `;
@@ -1108,7 +1131,8 @@
           opt.onclick = (e) => {
             e.stopPropagation();
             const value = opt.dataset.value;
-            trigger.textContent = field === 'estado' ? _estadoLabel(value) : value;
+            trigger.dataset.value = value;
+            trigger.textContent = field === 'estado' ? _estadoLabel(value) : toTitleCase(value);
             dropdown.classList.remove('show');
             // Guardar y cerrar inmediatamente
             saveFromEditor();
@@ -1231,7 +1255,7 @@
     if (input) {
       newValue = input.value.trim();
     } else if (customSelect) {
-      newValue = customSelect.querySelector('.custom-select-trigger').textContent.trim();
+      newValue = customSelect.querySelector('.custom-select-trigger').dataset.value.trim();
     }
 
     // Determinar campo
@@ -1269,14 +1293,14 @@
         // responsable: actualizar el texto del segundo span, las iniciales Y el data-value
         const spans = currentCell.querySelectorAll('span');
         if (spans.length > 1) {
-          spans[1].textContent = newValue;
+          spans[1].textContent = toTitleCase(newValue);
           // Recalcular iniciales del nuevo responsable
           const newInitials = newValue ? newValue.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
           spans[0].textContent = newInitials;
           // IMPORTANTE: también actualizar data-value para que al reabrir muestre el valor correcto
           currentCell.dataset.value = newValue;
         } else {
-          currentCell.textContent = newValue;
+          currentCell.textContent = toTitleCase(newValue);
         }
       }
     } else {
@@ -1360,7 +1384,7 @@
     if (input) {
       newValue = input.value.trim();
     } else if (customSelect) {
-      newValue = customSelect.querySelector('.custom-select-trigger').textContent.trim();
+      newValue = customSelect.querySelector('.custom-select-trigger').dataset.value.trim();
     }
     
     const field = currentCell.dataset.field;
@@ -1416,7 +1440,7 @@
       currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${newValue==='S'?'Pendiente':'Resuelto'}</span>`;
       currentCell.dataset.value = newValue;
     } else if (currentEditType === 'select') {
-      currentCell.innerHTML = newValue;
+      currentCell.innerHTML = toTitleCase(newValue);
     } else {
       updateObservationCellText(currentCell, newValue);
     }
@@ -1644,7 +1668,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
-          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
+          <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
@@ -1662,7 +1686,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
-              <span>${escapeHtml(e.responsable)}</span>
+              <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
