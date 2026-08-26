@@ -254,11 +254,11 @@ class TestPasteTarget:
     Excel copia las celdas como texto + un bitmap de preview. Si el handler
     interceptara siempre el paste, pegar texto desde Excel subiría la preview
     como adjunto y el texto jamás llegaría al textarea. Por eso la imagen se
-    captura únicamente cuando:
+    captura únicamente cuando el portapapeles NO trae texto (text/plain) y:
       - El modal de archivos (#image-modal) está abierto → su scope.
       - El editor de OBSERVACIÓN DEL FACTURADOR está activo (currentEditId
-        seteado y currentCell === null, sin celda específica) → el facturador,
-        pegando la imagen con el puntero dentro del textarea, sin modal.
+        seteado y currentCell === null, sin celda específica) y el foco está
+        dentro del editor (puntero en el textarea) → el facturador, sin modal.
     En cualquier otro contexto (celda de observación, carga masiva, textareas
     comunes) el paste es texto puro y nunca se hace preventDefault.
     """
@@ -280,6 +280,12 @@ class TestPasteTarget:
         assert "currentCell === null" in PASTE_REGION
         assert "target = { id: currentEditId, scope: 'facturador' };" in PASTE_REGION
 
+    def test_paste_facturador_requires_focus_in_editor(self):
+        """El fallback facturador exige el foco dentro del editor (puntero en el textarea)."""
+        assert "document.activeElement" in PASTE_REGION
+        assert "editorEl.contains(activeEl)" in PASTE_REGION
+        assert "if (!focusInEditor) return;" in PASTE_REGION
+
     def test_paste_observacion_cell_ignored(self):
         """Celda de observación (currentCell seteado) → no se intercepta.
 
@@ -289,13 +295,24 @@ class TestPasteTarget:
         assert "currentCell === null" in PASTE_REGION
         assert "scope: currentCell ? '' : 'facturador'" not in PASTE_REGION
 
+    def test_paste_ignores_pure_text_clipboard(self):
+        """Con texto (Excel) en el portapapeles → nunca intercepta (texto puro).
+
+        Evita que el preview bitmap de Excel se suba como adjunto tanto en el
+        modal como en el editor facturador.
+        """
+        assert "hasText" in PASTE_REGION
+        assert "if (!imageFile || hasText) return;" in PASTE_REGION
+
     def test_carga_masiva_paste_is_pure_text(self):
         """Carga masiva abierta → el handler retorna (los datos de Excel son texto)."""
         assert "document.getElementById('cargaModal').classList.contains('open'))" in PASTE_REGION
 
-    def test_paste_no_textarea_guard(self):
-        """El guard de textarea/input común desaparece (se resuelve por contexto)."""
-        assert "activeEl" not in PASTE_REGION
+    def test_paste_textarea_guard_only_for_facturador(self):
+        """El guard de foco (activeEl) existe SOLO en la rama del editor facturador,
+        no como guard global de textarea/input."""
+        assert "activeEl" in PASTE_REGION
+        assert "!imageFile && activeEl" not in PASTE_REGION
 
 
 class TestPasteFacturadorBranch:
@@ -317,17 +334,17 @@ class TestPasteFacturadorBranch:
         assert "Modal.alert('Máximo 3" in PASTE_REGION
 
     def test_paste_refreshes_modal_after_upload(self):
-        """Éxito → recarga la tabla y reabre el modal de archivos con su scope.
+        """Éxito → recarga la tabla y refresca el destino con guards de identidad.
 
-        El refresh usa el target capturado al inicio del paste (inmune a que
-        las globales cambien durante el await del POST) y solo si el modal
-        sigue abierto (currentImageErrorId). El scope facturador además
-        refresca el panel embebido inline (renderFacturadorAttachments).
+        El refresh usa el target capturado al inicio del paste y guards de
+        identidad: el panel facturador solo si el editor sigue en el MISMO
+        error; el modal solo si sigue abierto PARA EL MISMO error/scope.
         """
         assert "loadErrores()" in PASTE_REGION
         assert "renderFacturadorAttachments(target.id)" in PASTE_REGION
+        assert "currentEditId === target.id" in PASTE_REGION
         assert "openImageModal(target.id, target.scope)" in PASTE_REGION
-        assert "if (currentImageErrorId)" in PASTE_REGION
+        assert "currentImageErrorId === target.id" in PASTE_REGION
 
     def test_paste_no_close_editor(self):
         """El paste facturador NUNCA cierra el editor (textarea intacto)."""

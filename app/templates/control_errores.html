@@ -1945,6 +1945,11 @@ function exportarExcel() {
   //     pegando la imagen con el puntero dentro del textarea, sin modal.
   // En cualquier otro contexto (celda de observación, carga masiva, textareas
   // comunes) el paste es texto puro y nunca se hace preventDefault.
+  // Además: si el portapapeles trae texto (Excel copia texto + preview bitmap),
+  // NUNCA se intercepta — se deja pegar el texto (ni el modal ni el editor
+  // facturador suben el preview). El editor facturador además exige el foco
+  // dentro del editor (#global-editor) para no secuestrar pastes de otros
+  // campos mientras está abierto.
   document.addEventListener('paste', async (e) => {
     // Carga masiva abierta: el pegado de datos (texto de Excel) no se toca.
     // Las imágenes se agregan desde el dropzone / selector del paso 2.
@@ -1956,12 +1961,16 @@ function exportarExcel() {
     if (!items) return;
 
     let imageFile = null;
+    let hasText = false;
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         imageFile = item.getAsFile();
+      } else if (item.type === 'text/plain' && item.kind === 'string') {
+        hasText = true;
       }
     }
-    if (!imageFile) return;
+    // Sin imagen, o con texto en el portapapeles (Excel/documentos) → texto puro.
+    if (!imageFile || hasText) return;
 
     // Determinar el error destino según el contexto activo.
     let target;
@@ -1970,7 +1979,12 @@ function exportarExcel() {
       target = { id: currentImageErrorId, scope: currentImageScope };
     } else if (currentEditId && currentEditId !== 'new' && currentCell === null) {
       // Editor de observación del facturador activo (sin celda específica):
-      // se pega la imagen sin necesidad de abrir el modal.
+      // se pega la imagen sin necesidad de abrir el modal. Exige que el foco
+      // esté dentro del editor (puntero en el textarea), como si se escribiera.
+      const activeEl = document.activeElement;
+      const editorEl = document.getElementById('global-editor');
+      const focusInEditor = editorEl && activeEl && (editorEl === activeEl || editorEl.contains(activeEl));
+      if (!focusInEditor) return;
       target = { id: currentEditId, scope: 'facturador' };
     } else {
       // Celda de observación, carga masiva o sin editor → texto puro.
@@ -2010,13 +2024,28 @@ function exportarExcel() {
         lastUpdate = new Date().toISOString();
         // Paste en el editor del facturador → refresh INLINE del panel embebido
         // (nunca closeEditor, el textarea queda intacto), con o sin modal.
-        if (target.scope === 'facturador') {
+        // Guard de identidad: solo si el editor sigue en el MISMO error.
+        if (target.scope === 'facturador' && currentEditId === target.id && currentCell === null) {
           renderFacturadorAttachments(target.id);
         }
-        // Si el modal de archivos sigue abierto, recargarlo con su scope actual.
-        // Se usa target (capturado al inicio) en vez de las globales: durante
-        // el await del POST nada debe poder desincronizar el refresh.
-        if (currentImageErrorId) openImageModal(target.id, target.scope);
+        // Si el modal de archivos sigue abierto PARA EL MISMO error/scope,
+        // recargarlo. Guard de identidad: si durante el await del POST el
+        // usuario abrió el modal de otro error, no pisarlo con target stale.
+        if (currentImageErrorId === target.id && currentImageScope === target.scope) {
+          openImageModal(target.id, target.scope);
+        }
+      } else {
+        // Fallo del POST (cupo superado en server, permiso, archivo inválido):
+        // avisar con los errores del backend en vez de fallar en silencio.
+        try {
+          const result = await res.json();
+          const errs = result.errors && result.errors.length
+            ? result.errors
+            : ['Error al subir imagen (HTTP ' + res.status + ')'];
+          Modal.alert(errs.join(', '));
+        } catch {
+          Modal.alert('Error al subir imagen (HTTP ' + res.status + ')');
+        }
       }
     } catch (err) {
       console.error('[FRONT][ERROR] Error al pegar imagen:', err);
