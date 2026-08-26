@@ -2019,7 +2019,13 @@ function exportarExcel() {
         method: 'POST',
         body: formData
       });
-      if (res.ok) {
+      // El backend devuelve HTTP 200 con envelope status:"error" para los
+      // rechazos comunes (cupo server-side, archivo no permitido, tamaño):
+      // hay que validar AMBOS (res.ok y el envelope) antes de tratar el
+      // upload como éxito.
+      let result = null;
+      try { result = await res.json(); } catch { /* sin JSON */ }
+      if (res.ok && result && result.status === 'success') {
         loadErrores();
         lastUpdate = new Date().toISOString();
         // Paste en el editor del facturador → refresh INLINE del panel embebido
@@ -2037,15 +2043,10 @@ function exportarExcel() {
       } else {
         // Fallo del POST (cupo superado en server, permiso, archivo inválido):
         // avisar con los errores del backend en vez de fallar en silencio.
-        try {
-          const result = await res.json();
-          const errs = result.errors && result.errors.length
-            ? result.errors
-            : ['Error al subir imagen (HTTP ' + res.status + ')'];
-          Modal.alert(errs.join(', '));
-        } catch {
-          Modal.alert('Error al subir imagen (HTTP ' + res.status + ')');
-        }
+        const errs = result && result.errors && result.errors.length
+          ? result.errors
+          : ['Error al subir imagen (HTTP ' + res.status + ')'];
+        Modal.alert(errs.join(', '));
       }
     } catch (err) {
       console.error('[FRONT][ERROR] Error al pegar imagen:', err);

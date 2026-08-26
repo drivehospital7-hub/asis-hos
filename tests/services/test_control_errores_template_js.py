@@ -337,14 +337,29 @@ class TestPasteFacturadorBranch:
         """Éxito → recarga la tabla y refresca el destino con guards de identidad.
 
         El refresh usa el target capturado al inicio del paste y guards de
-        identidad: el panel facturador solo si el editor sigue en el MISMO
-        error; el modal solo si sigue abierto PARA EL MISMO error/scope.
+        identidad COMPLETOS: el panel facturador solo si el editor sigue en el
+        MISMO error con currentCell === null; el modal solo si sigue abierto
+        PARA EL MISMO error/scope.
         """
         assert "loadErrores()" in PASTE_REGION
         assert "renderFacturadorAttachments(target.id)" in PASTE_REGION
         assert "currentEditId === target.id" in PASTE_REGION
+        assert "currentCell === null" in PASTE_REGION
         assert "openImageModal(target.id, target.scope)" in PASTE_REGION
         assert "currentImageErrorId === target.id" in PASTE_REGION
+        assert "currentImageScope === target.scope" in PASTE_REGION
+
+    def test_paste_error_envelope_alerts(self):
+        """Fallo del POST (cupo server, archivo inválido) → alerta con errores.
+
+        El backend devuelve HTTP 200 con envelope status:"error" para los
+        rechazos comunes, así que el handler valida AMBOS (res.ok y el
+        envelope) antes de tratar el upload como éxito; si no, alerta.
+        """
+        assert "res.ok && result && result.status === 'success'" in PASTE_REGION
+        assert "Modal.alert(errs.join(', '))" in PASTE_REGION
+        assert "['Error al subir imagen (HTTP ' + res.status + ')']" in PASTE_REGION
+        assert "if (!res.ok || result.status !== 'success')" not in PASTE_REGION
 
     def test_paste_no_close_editor(self):
         """El paste facturador NUNCA cierra el editor (textarea intacto)."""
