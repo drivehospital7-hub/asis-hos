@@ -35,20 +35,6 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_clock-BKWXDcK3.js": {
-    "file": "assets/clock-BKWXDcK3.js",
-    "name": "clock",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
-  "_download-C8wq8Rqr.js": {
-    "file": "assets/download-C8wq8Rqr.js",
-    "name": "download",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
   "_eye-Cy85FeWW.js": {
     "file": "assets/eye-Cy85FeWW.js",
     "name": "eye",
@@ -67,14 +53,6 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_input-BvTfto5U.js": {
-    "file": "assets/input-BvTfto5U.js",
-    "name": "input",
-    "imports": [
-      "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js"
-    ]
-  },
   "_list-NshXNfY5.js": {
     "file": "assets/list-NshXNfY5.js",
     "name": "list",
@@ -88,13 +66,6 @@
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-C1i39maw.js"
-    ]
-  },
-  "_pencil-DccyUFYy.js": {
-    "file": "assets/pencil-DccyUFYy.js",
-    "name": "pencil",
-    "imports": [
-      "_globals-IEYCF5gg.js"
     ]
   },
   "_play-CUidqCOP.js": {
@@ -127,7 +98,7 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-DFtHntjJ.js",
+    "file": "assets/index-C8P0hjyx.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
@@ -140,27 +111,6 @@
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
-    ]
-  },
-  "src/pages/control-novedades/index.html": {
-    "file": "assets/index-BGeCqyDJ.js",
-    "name": "index",
-    "src": "src/pages/control-novedades/index.html",
-    "isEntry": true,
-    "imports": [
-      "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
-      "_input-BvTfto5U.js",
-      "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
-      "_download-C8wq8Rqr.js",
-      "_plus-BLq7eTNT.js",
-      "_clock-BKWXDcK3.js",
-      "_circle-check-D7L-pulr.js",
-      "_eye-Cy85FeWW.js",
-      "_pencil-DccyUFYy.js",
-      "_trash-2-CHuTzTk0.js"
     ]
   },
   "src/pages/derechos/index.html": {
@@ -180,7 +130,7 @@
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-LeX4NpsK.js",
+    "file": "assets/index-3Cfgs5CT.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
@@ -188,12 +138,11 @@
       "_globals-IEYCF5gg.js",
       "_app-layout-C1i39maw.js",
       "_status-badge-DeI3ymvl.js",
-      "_eye-Cy85FeWW.js",
-      "_download-C8wq8Rqr.js"
+      "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/index/index.html": {
-    "file": "assets/index-BiZgGxgP.js",
+    "file": "assets/index-DZgJjBYy.js",
     "name": "index",
     "src": "src/pages/index/index.html",
     "isEntry": true,
@@ -202,7 +151,6 @@
       "_app-layout-C1i39maw.js",
       "_page-title-BRN5kTjg.js",
       "_status-badge-DeI3ymvl.js",
-      "_clock-BKWXDcK3.js",
       "_circle-check-D7L-pulr.js",
       "_arrow-right-svMThmkB.js",
       "_eye-Cy85FeWW.js"
@@ -219,14 +167,13 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-BzLDdPMA.js",
+    "file": "assets/index-Bvb5Yju5.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-C1i39maw.js",
-      "_input-BvTfto5U.js",
       "_breadcrumbs-CQhrzMeU.js",
       "_page-title-BRN5kTjg.js",
       "_status-badge-DeI3ymvl.js",
@@ -315,7 +262,7 @@
     ]
   },
   "src/pages/usuarios/index.html": {
-    "file": "assets/index-CWXYWVDH.js",
+    "file": "assets/index-BH4OPYLZ.js",
     "name": "index",
     "src": "src/pages/usuarios/index.html",
     "isEntry": true,
@@ -323,13 +270,12 @@
       "_globals-IEYCF5gg.js",
       "_app-layout-C1i39maw.js",
       "_status-badge-DeI3ymvl.js",
-      "_pencil-DccyUFYy.js",
       "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "style.css": {
-    "file": "assets/style-oE4rfJUB.css",
+    "file": "assets/style-CrXau3hM.css",
     "src": "style.css"
   }
 }

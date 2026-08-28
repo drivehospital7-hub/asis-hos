@@ -73,12 +73,12 @@ function parseFecha(str: string): Date | null {
 }
 
 function esVencida(
-  estado: string,
   fechaEgreso: string,
   responsable?: string,
   schedule?: ScheduleDay[] | null,
 ): boolean {
-  if (estado !== "Abierta") return false;
+  // Vencimiento aplica sin importar el estado (incluye Cerrada): una factura
+  // vencida debe seguir marcándose en rojo aunque ya esté cerrada.
 
   // Shift rule: when schedule is loaded and responsable exists
   if (schedule && schedule.length > 0 && responsable) {
@@ -659,7 +659,7 @@ export function AbiertasUrgenciasPage({
               </thead>
               <tbody className="divide-y divide-border">
                 {(filteredResults ?? results).map((r, idx) => {
-                  const isVencida = esVencida(r.estado, r.fechaEgreso, r.responsable, schedule);
+                  const isVencida = esVencida(r.fechaEgreso, r.responsable, schedule);
                   const yaExiste = envioExistentes.current.has(r.factura);
                   const yaEnviada =
                     r._enviada || envioEnviadas.current.has(r.factura);
