@@ -6,7 +6,6 @@ import {
   listadoFechaInfo,
   groupMonths,
   filterByMonth,
-  autocompleteFacturador,
   buildPrefactura,
   formatFechaEsCo,
   formatHoraEsCo,
@@ -234,42 +233,6 @@ describe("filterByMonth", () => {
 
   it("returns empty array for a month with no records", () => {
     expect(filterByMonth(listado, "2026-12")).toEqual([]);
-  });
-});
-
-// ─── autocompleteFacturador (EX-8) ────────────────────────────────────────
-
-const FACTURADORES = ["Angie Chapuel", "Cataleya Tapia", "Silvia Ordoñez"];
-
-describe("autocompleteFacturador", () => {
-  it("inline-completes from name start at >=2 chars with selection start", () => {
-    expect(autocompleteFacturador("ang", FACTURADORES)).toEqual({
-      text: "Angie Chapuel",
-      inline: true,
-    });
-  });
-
-  it("returns word-start completion (Tab-only) when name start does not match", () => {
-    expect(autocompleteFacturador("ta", FACTURADORES)).toEqual({
-      text: "Cataleya Tapia",
-      inline: false,
-    });
-  });
-
-  it("returns null for single-char input", () => {
-    expect(autocompleteFacturador("a", FACTURADORES)).toBeNull();
-  });
-
-  it("returns null when the typed value equals a full name (nothing to complete)", () => {
-    expect(autocompleteFacturador("SILVIA ORDOÑEZ", FACTURADORES)).toBeNull();
-  });
-
-  it("returns null when no name matches", () => {
-    expect(autocompleteFacturador("zzz", FACTURADORES)).toBeNull();
-  });
-
-  it("returns null for empty facturadores list", () => {
-    expect(autocompleteFacturador("ang", [])).toBeNull();
   });
 });
 

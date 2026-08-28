@@ -27,7 +27,6 @@ import {
   listadoFechaInfo,
   groupMonths,
   filterByMonth,
-  autocompleteFacturador,
   buildPrefactura,
   formatFechaEsCo,
   tcDisplay,
@@ -84,13 +83,13 @@ const flagValue = (base: boolean, auth: boolean): string =>
 
 interface ExamenesPageProps {
   can_write: boolean;
-  facturadores: string[];
+  current_facturador: string;
   default_examenes: Examen[];
 }
 
 export function ExamenesPage({
   can_write,
-  facturadores,
+  current_facturador,
   default_examenes,
 }: ExamenesPageProps) {
   // ─── Data ──────────────────────────────────────────────────────────
@@ -136,7 +135,6 @@ export function ExamenesPage({
   const [pacNom, setPacNom] = useState("");
   const [pacCed, setPacCed] = useState("");
   const [fecha, setFecha] = useState(() => formatFechaEsCo(new Date()));
-  const [fact, setFact] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchError, setSearchError] = useState(false);
   const [singleResult, setSingleResult] = useState<Examen | null>(null);
@@ -148,10 +146,7 @@ export function ExamenesPage({
   const pacNomRef = useRef<HTMLInputElement>(null);
   const pacCedRef = useRef<HTMLInputElement>(null);
   const fechaRef = useRef<HTMLInputElement>(null);
-  const factRef = useRef<HTMLInputElement>(null);
   const qRef = useRef<HTMLInputElement>(null);
-  const factPredRef = useRef("");
-  const factSkipRef = useRef(false);
 
   // ─── Listado state ─────────────────────────────────────────────────
   const [monthFilter, setMonthFilter] = useState("todos");
@@ -329,47 +324,6 @@ export function ExamenesPage({
     else buscar();
   };
 
-  // ─── Consulta: facturador autocomplete (EX-8) ──────────────────────
-  const handleFactChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const el = e.currentTarget;
-    if (factSkipRef.current) {
-      factSkipRef.current = false;
-      return;
-    }
-    const v = el.value;
-    if (v.length < 2) {
-      factPredRef.current = "";
-      setFact(v);
-      return;
-    }
-    const r = autocompleteFacturador(v, facturadores);
-    if (r && r.inline) {
-      factPredRef.current = "";
-      setFact(r.text);
-      requestAnimationFrame(() => {
-        el.setSelectionRange(v.length, r.text.length);
-      });
-    } else {
-      factPredRef.current = r ? r.text : "";
-      setFact(v);
-    }
-  };
-
-  const handleFactKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") {
-      if (factPredRef.current) {
-        setFact(factPredRef.current);
-        factPredRef.current = "";
-      }
-      e.preventDefault();
-      qRef.current?.focus();
-    } else if (e.key === "Tab" && factPredRef.current) {
-      setFact(factPredRef.current);
-      factPredRef.current = "";
-    }
-    if (e.key === "Backspace" || e.key === "Delete") factSkipRef.current = true;
-  };
-
   // ─── Consulta: save-to-listado (EX-10, write-gated) ────────────────
   const handleSavePrefactura = async () => {
     if (!cart.length) {
@@ -380,17 +334,18 @@ export function ExamenesPage({
     const pf = buildPrefactura({
       paciente: pacNom,
       cedula: pacCed,
-      facturador: fact,
+      facturador: current_facturador,
       items: snapshot,
       now: new Date(),
     });
-    // Print preview mirrors the source: blank fields show underscores
+    // Print preview mirrors the source: blank fields show underscores;
+    // facturador vacío (sin nombre ni username) se muestra como "—" (EX-10).
     const previewDoc = buildPrefacturaDoc(
       {
         ...pf,
         paciente: pacNom.trim() || "________________________________",
         cedula: pacCed.trim() || "________________________________",
-        facturador: fact.trim() || "________________________________",
+        facturador: current_facturador.trim() || "—",
       },
       fecha || "___/___/____",
     );
@@ -760,7 +715,7 @@ export function ExamenesPage({
                   type="text"
                   value={fecha}
                   onChange={(e) => setFecha(e.target.value)}
-                  onKeyDown={focusNextOnEnter(factRef)}
+                  onKeyDown={focusNextOnEnter(qRef)}
                   placeholder="DD/MM/AAAA"
                   className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary"
                   style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)" }}
@@ -770,17 +725,12 @@ export function ExamenesPage({
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Facturador(a)
                 </label>
-                <input
-                  ref={factRef}
-                  type="text"
-                  value={fact}
-                  onChange={handleFactChange}
-                  onKeyDown={handleFactKeyDown}
-                  placeholder="Nombre del facturador"
-                  autoComplete="off"
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary"
+                <div
+                  className="flex w-full items-center rounded-lg border bg-gray-50 px-3 py-2 text-sm font-semibold text-gray-700"
                   style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)" }}
-                />
+                >
+                  {current_facturador || "—"}
+                </div>
               </div>
             </div>
           </Card>

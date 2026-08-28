@@ -10,7 +10,7 @@ interface InitialData {
   username?: string;
   permisos?: string[];
   can_write?: boolean;
-  facturadores?: string[];
+  current_facturador?: string;
   default_examenes?: Examen[];
 }
 
@@ -24,7 +24,7 @@ createRoot(root).render(
     <AppLayout username={data?.username} permisos={data?.permisos}>
       <ExamenesPage
         can_write={data?.can_write ?? false}
-        facturadores={data?.facturadores ?? []}
+        current_facturador={data?.current_facturador ?? ""}
         default_examenes={data?.default_examenes ?? []}
       />
     </AppLayout>

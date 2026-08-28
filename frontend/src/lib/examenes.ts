@@ -195,38 +195,6 @@ export function filterByMonth(listado: Prefactura[], monthKey: string): Prefactu
   return listado.filter((pf) => listadoFechaInfo(pf.hora).monthKey === monthKey);
 }
 
-// ─── Facturador autocomplete (EX-8) ────────────────────────────────────
-
-export interface AutocompleteResult {
-  text: string;
-  /** true → inline completion (set value + selection); false → Tab/Enter only. */
-  inline: boolean;
-}
-
-/**
- * Prefix completion at >=2 chars. First tries name-start (inline); then
- * any-word-start (prediction for Tab/Enter, no inline selection). Returns
- * null when there is nothing to complete (source `_FACT_LIST` logic).
- */
-export function autocompleteFacturador(
-  value: string,
-  facturadores: string[],
-): AutocompleteResult | null {
-  const v = value ?? "";
-  if (v.length < 2) return null;
-  const up = v.toUpperCase();
-  const inline = facturadores.find(
-    (f) => f.toUpperCase().startsWith(up) && f.toUpperCase() !== up,
-  );
-  if (inline) return { text: inline, inline: true };
-  const word = facturadores.find(
-    (f) =>
-      f.toUpperCase().split(" ").some((p) => p.startsWith(up)) &&
-      f.toUpperCase() !== up,
-  );
-  return word ? { text: word, inline: false } : null;
-}
-
 // ─── Date/time formatters ───────────────────────────────────────────────
 
 /** dd/mm/yyyy with zero padding (es-CO display). */

@@ -22,9 +22,8 @@ from app.constants.examenes import (
     DEFAULT_EXAMENES,
     EX_EXAMENES_FILE,
     EX_LISTADO_FILE,
-    FACTURADORES_FALLBACK,
 )
-from app.utils import examenes_store, users_store
+from app.utils import examenes_store
 from app.utils.auth import permiso_requerido
 
 logger = logging.getLogger(__name__)
@@ -40,19 +39,23 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
     return manifest.get(entry_key, {}).get(field, "")
 
 
-def _shell_facturadores() -> list[str]:
-    """Facturadores de la DB si existen; si no, la lista hardcodeada (EX-8).
+def _session_facturador() -> str:
+    """Facturador del shell compuesto desde la sesión (EX-21), CERO consultas DB.
 
-    La DB caída tampoco tumba el shell: se loguea y se usa el fallback.
+    Mismo formato que ``users_store.get_facturadores`` (``nombre_completo``):
+    ``primer_nombre`` + ``apellido_1`` en mayúsculas, cada campo con strip
+    (idéntico a get_facturadores). Sin campos de nombre → ``username`` en
+    mayúsculas; sin ambos → ``""`` (el frontend mapea "" → "—").
     """
-    try:
-        facturadores = users_store.get_facturadores()
-    except Exception:
-        logger.exception("Error obteniendo facturadores de la DB — usando fallback")
-        return list(FACTURADORES_FALLBACK)
-    if not facturadores:
-        return list(FACTURADORES_FALLBACK)
-    return [f["nombre_completo"] for f in facturadores]
+    nombre = " ".join(
+        n
+        for n in [
+            session.get("primer_nombre", "").strip(),
+            session.get("apellido_1", "").strip(),
+        ]
+        if n
+    ).upper()
+    return nombre or session.get("username", "").upper()
 
 
 def _success(data: dict | None = None):
@@ -103,7 +106,7 @@ def examenes_react():
             "username": session.get("username", ""),
             "permisos": permisos,
             "can_write": can_write,
-            "facturadores": _shell_facturadores(),
+            "current_facturador": _session_facturador(),
             "default_examenes": DEFAULT_EXAMENES,
         },
     )

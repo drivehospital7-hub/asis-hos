@@ -1,7 +1,7 @@
 """Constantes del módulo Exámenes (Lab Prefactura).
 
-Catálogo por defecto (DEFAULT_EXAMENES), nombres de archivos de datos,
-facturadores de respaldo y encabezados CSV.
+Catálogo por defecto (DEFAULT_EXAMENES), nombres de archivos de datos y
+encabezados CSV.
 
 DEFAULT_EXAMENES se copia VERBATIM desde ``D:\\CODE\\examenes\\examenes.json``
 (66 entradas; los artefactos SDD mencionan 54 — discrepancia documentada en
@@ -20,16 +20,6 @@ EX_EXAMENES_FILE: str = "examenes.json"
 
 EX_LISTADO_FILE: str = "listado.json"
 """Archivo del listado (PHI, copia manual de despliegue — nunca re-seed)."""
-
-# =============================================================================
-# FACTURADORES — respaldo hardcodeado del app fuente (EX-8)
-# =============================================================================
-
-FACTURADORES_FALLBACK: list[str] = [
-    "Angie Chapuel",
-    "Cataleya Tapia",
-    "Silvia Ordoñez",
-]
 
 # =============================================================================
 # CSV — encabezado exacto de exportación (EX-14)

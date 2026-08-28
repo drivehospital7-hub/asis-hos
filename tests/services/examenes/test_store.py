@@ -2,8 +2,8 @@
 
 Covers EX-4 (catalog store), EX-5 (listado no-reseed policy), EX-19
 (store tests) and the constants module that drives the store: filenames,
-DEFAULT_EXAMENES (verbatim source defaults), FACTURADORES_FALLBACK and
-CSV_HEADERS. All file IO is redirected to tmp_path via DATA_DIR monkeypatch.
+DEFAULT_EXAMENES (verbatim source defaults) and CSV_HEADERS. All file IO is
+redirected to tmp_path via DATA_DIR monkeypatch.
 
 NOTE: the source catalog (D:\\CODE\\examenes\\examenes.json) contains 66
 entries, not the 54 stated in the SDD artifacts. Tests assert 66 (the
@@ -23,7 +23,6 @@ from app.constants.examenes import (
     DEFAULT_EXAMENES,
     EX_EXAMENES_FILE,
     EX_LISTADO_FILE,
-    FACTURADORES_FALLBACK,
 )
 from app.utils import examenes_store
 
@@ -42,7 +41,7 @@ def _tmp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 class TestExamenesConstants:
-    """app/constants/examenes.py values (filenames, seed, fallbacks, CSV)."""
+    """app/constants/examenes.py values (filenames, seed, CSV)."""
 
     def test_data_filenames(self) -> None:
         """EX_EXAMENES_FILE/EX_LISTADO_FILE MUST name the catalog/listado files."""
@@ -67,14 +66,6 @@ class TestExamenesConstants:
         assert by_cod["904921"]["neps"] == "AUTH"
         assert by_cod["904921"]["emss"] == ""
         assert by_cod["903833"]["nom"] == "FOSFATASA ALCALINA"
-
-    def test_facturadores_fallback_is_source_list(self) -> None:
-        """FACTURADORES_FALLBACK MUST keep the three source hardcoded names."""
-        assert FACTURADORES_FALLBACK == [
-            "Angie Chapuel",
-            "Cataleya Tapia",
-            "Silvia Ordoñez",
-        ]
 
     def test_csv_headers_exact(self) -> None:
         """CSV_HEADERS MUST be the exact EX-14 header row (order sensitive)."""

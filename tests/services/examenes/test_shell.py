@@ -1,8 +1,9 @@
-"""Integration tests for the /examenes shell route (EX-1/EX-8, task 2.1).
+"""Integration tests for the /examenes shell route (EX-1/EX-21, task 2.1).
 
 Covers: 200 with __INITIAL_DATA__ {username, permisos, can_write,
-facturadores}, can_write gating, admin `*` bypass, HTML redirect for users
-without the permission, and facturador DB/fallback behavior.
+current_facturador}, can_write gating, admin `*` bypass, HTML redirect for
+users without the permission, and session-composed facturador behavior
+(composition, username fallback, empty, DB-down invariant — EX-21).
 """
 
 from __future__ import annotations
@@ -13,15 +14,9 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from werkzeug.security import generate_password_hash
 
-from app.constants.examenes import DEFAULT_EXAMENES, FACTURADORES_FALLBACK
-from app.database import Base
+from app.constants.examenes import DEFAULT_EXAMENES
 from app.utils import examenes_store, users_store
-import app.models  # noqa: F401
 
 
 @pytest.fixture(autouse=True)
@@ -30,12 +25,20 @@ def _tmp_data_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(examenes_store, "DATA_DIR", tmp_path)
 
 
-def _authenticate(client, permisos: list[str], username: str = "test") -> None:
-    """Establece sesión autenticada con los permisos dados."""
+def _authenticate(
+    client,
+    permisos: list[str],
+    username: str = "test",
+    primer_nombre: str = "",
+    apellido_1: str = "",
+) -> None:
+    """Establece sesión autenticada con los permisos y campos de nombre dados."""
     with client.session_transaction() as sess:
         sess["ce_authenticated"] = True
         sess["username"] = username
         sess["permisos"] = permisos
+        sess["primer_nombre"] = primer_nombre
+        sess["apellido_1"] = apellido_1
 
 
 def _extract_initial_data(response) -> dict[str, Any]:
@@ -49,30 +52,11 @@ def _extract_initial_data(response) -> dict[str, Any]:
     return json.loads(match.group(1))
 
 
-def _patch_db_with_facturador(monkeypatch: pytest.MonkeyPatch, users: list[dict]) -> None:
-    """Sobrescribe SessionLocal con un engine sembrado (override del autouse)."""
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(engine)
-    Session = sessionmaker(bind=engine)
-    db = Session()
-    try:
-        for u in users:
-            db.add(users_store.User(**u))
-        db.commit()
-    finally:
-        db.close()
-    monkeypatch.setattr(users_store, "SessionLocal", Session)
-
-
 class TestShell200:
     """GET /examenes with the permission → 200 shell + initial data."""
 
     def test_read_only_shell_initial_data(self, app_client) -> None:
-        """Read-only user → 200; can_write False; fallback facturadores."""
+        """Read-only user → 200; can_write False; username fallback (EX-21)."""
         _authenticate(app_client, ["examenes"], username="lectora")
 
         response = app_client.get("/examenes")
@@ -82,7 +66,7 @@ class TestShell200:
         assert data["username"] == "lectora"
         assert data["permisos"] == ["examenes"]
         assert data["can_write"] is False
-        assert data["facturadores"] == FACTURADORES_FALLBACK
+        assert data["current_facturador"] == "LECTORA"
 
     def test_write_shell_can_write_true(self, app_client) -> None:
         """examenes:write user → can_write True (Admin tab + save gating)."""
@@ -93,7 +77,7 @@ class TestShell200:
         assert response.status_code == 200
         data = _extract_initial_data(response)
         assert data["can_write"] is True
-        assert data["facturadores"] == FACTURADORES_FALLBACK
+        assert "facturadores" not in data
 
     def test_admin_bypass(self, app_client) -> None:
         """Admin (*) → 200 with can_write True (EX-1 admin scenario)."""
@@ -140,62 +124,49 @@ class TestShellDenied:
         assert response.status_code == 401
 
 
-class TestShellFacturadores:
-    """EX-8: DB facturadores win; hardcoded list is only the fallback."""
+class TestShellCurrentFacturador:
+    """EX-21: current_facturador compuesto desde la sesión, CERO consultas DB."""
 
-    def test_db_facturadores_used_when_present(self, app_client, monkeypatch) -> None:
-        """DB has facturadores → shell exposes their composed names."""
-        _patch_db_with_facturador(
-            monkeypatch,
-            [
-                {
-                    "username": "admin",
-                    "password_hash": generate_password_hash("admin123"),
-                    "rol": "admin",
-                    "permisos": ["*"],
-                    "primer_nombre": "",
-                    "segundo_nombre": "",
-                    "apellido_1": "",
-                    "apellido_2": "",
-                },
-                {
-                    "username": "angie",
-                    "password_hash": generate_password_hash("pass123"),
-                    "rol": "facturador",
-                    "permisos": ["examenes"],
-                    "primer_nombre": "ANGIE ",
-                    "segundo_nombre": "",
-                    "apellido_1": "ARIAS ",
-                    "apellido_2": "",
-                },
-            ],
+    def test_composes_uppercase_name_from_session(self, app_client) -> None:
+        """primer_nombre + apellido_1 → UPPERCASE joined name (EX-21 happy)."""
+        _authenticate(
+            app_client, ["examenes"], primer_nombre="ANGIE ", apellido_1="ARIAS "
         )
-        _authenticate(app_client, ["examenes"])
-
-        response = app_client.get("/examenes")
-
-        assert response.status_code == 200
-        data = _extract_initial_data(response)
-        assert data["facturadores"] == ["ANGIE ARIAS"]
-
-    def test_fallback_when_db_has_no_facturadores(self, app_client) -> None:
-        """No facturador users in DB (autouse seed) → FACTURADORES_FALLBACK."""
-        _authenticate(app_client, ["examenes"])
 
         data = _extract_initial_data(app_client.get("/examenes"))
 
-        assert data["facturadores"] == FACTURADORES_FALLBACK
+        assert data["current_facturador"] == "ANGIE ARIAS"
 
-    def test_fallback_when_db_down(self, app_client, monkeypatch) -> None:
-        """DB unavailable → shell still renders with fallback (never 500)."""
+    def test_username_fallback_when_names_absent(self, app_client) -> None:
+        """Sin campos de nombre → username en mayúsculas (EX-21 fallback)."""
+        _authenticate(app_client, ["examenes"], username="lectora")
+
+        data = _extract_initial_data(app_client.get("/examenes"))
+
+        assert data["current_facturador"] == "LECTORA"
+
+    def test_empty_when_no_name_and_no_username(self, app_client) -> None:
+        """Sin nombre ni username → "" (el frontend mapea "" → "—")."""
+        _authenticate(app_client, ["examenes"], username="")
+
+        data = _extract_initial_data(app_client.get("/examenes"))
+
+        assert data["current_facturador"] == ""
+
+    def test_shell_200_composes_from_session_when_db_down(
+        self, app_client, monkeypatch
+    ) -> None:
+        """DB caída → shell 200; current_facturador sale SOLO de la sesión
+        (invariante EX-21, antes test_shell.py:189-201)."""
+
         def boom():
             raise RuntimeError("db down")
 
         monkeypatch.setattr(users_store, "SessionLocal", boom)
-        _authenticate(app_client, ["examenes"])
+        _authenticate(app_client, ["examenes"], primer_nombre="ANGIE", apellido_1="ARIAS")
 
         response = app_client.get("/examenes")
 
         assert response.status_code == 200
         data = _extract_initial_data(response)
-        assert data["facturadores"] == FACTURADORES_FALLBACK
+        assert data["current_facturador"] == "ANGIE ARIAS"
