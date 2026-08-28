@@ -34,6 +34,7 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/unauthorized/index.html"),
         path.resolve(__dirname, "src/pages/abiertas-urgencias/index.html"),
         path.resolve(__dirname, "src/pages/monitoreo-carpetas/index.html"),
+        path.resolve(__dirname, "src/pages/examenes/index.html"),
       ],
     },
   },

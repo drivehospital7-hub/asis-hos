@@ -312,6 +312,58 @@ class TestUpdateUser:
 
 
 # =============================================================================
+# examenes permissions (sdd examenes-module, UP-1/UP-2)
+# =============================================================================
+
+
+class TestExamenesPermissions:
+    """examenes / examenes:write MUST be assignable; the pair is rejected."""
+
+    def test_create_user_with_examenes_accepted(self, db_session):
+        """create_user(['examenes']) → saved without 'permiso inválido'."""
+        ok, msg = users_store.create_user(
+            "lab_read", "pass123", "usuario", ["examenes"]
+        )
+        assert ok is True
+        user = users_store.get_user("lab_read")
+        assert user["permisos"] == ["examenes"]
+
+    def test_create_user_with_examenes_write_accepted(self, db_session):
+        """create_user(['examenes:write']) → saved (write implies read)."""
+        ok, msg = users_store.create_user(
+            "lab_write", "pass123", "usuario", ["examenes:write"]
+        )
+        assert ok is True
+        assert users_store.get_user("lab_write")["permisos"] == ["examenes:write"]
+
+    def test_create_user_rejects_examenes_pair(self, db_session):
+        """examenes + examenes:write together → (False, msg), nothing saved."""
+        ok, msg = users_store.create_user(
+            "lab_both", "pass123", "usuario", ["examenes", "examenes:write"]
+        )
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+        assert users_store.get_user("lab_both") is None
+
+    def test_update_user_with_examenes_write_accepted(self, db_session):
+        """update_user(permisos=['examenes:write']) → saved."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, msg = users_store.update_user("odonto", {"permisos": ["examenes:write"]})
+        assert ok is True
+        assert users_store.get_user("odonto")["permisos"] == ["examenes:write"]
+
+    def test_update_user_rejects_examenes_pair(self, db_session):
+        """update_user with both examenes permisos → (False, msg), unchanged."""
+        _add_user(db_session, username="odonto", rol="usuario")
+        ok, msg = users_store.update_user(
+            "odonto", {"permisos": ["examenes", "examenes:write"]}
+        )
+        assert ok is False
+        assert "mutuamente excluyentes" in msg.lower()
+        assert users_store.get_user("odonto")["permisos"] == ["odontologia"]
+
+
+# =============================================================================
 # delete_user()
 # =============================================================================
 

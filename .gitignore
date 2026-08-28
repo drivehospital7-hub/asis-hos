@@ -74,6 +74,10 @@ app/data/*
 !app/data/input/
 !app/data/output/
 
+# Seed no-PHI del catálogo de Exámenes (se commitea; listado.json NO — copia
+# manual de despliegue, nunca re-seed por código)
+!app/data/examenes.json
+
 # Mantener carpetas vacías
 app/data/input/*
 app/data/output/*

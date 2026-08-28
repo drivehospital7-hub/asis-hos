@@ -1,6 +1,6 @@
 {
-  "_app-layout-C1i39maw.js": {
-    "file": "assets/app-layout-C1i39maw.js",
+  "_app-layout-CwsVbtlp.js": {
+    "file": "assets/app-layout-CwsVbtlp.js",
     "name": "app-layout",
     "imports": [
       "_globals-IEYCF5gg.js",
@@ -17,6 +17,13 @@
   "_breadcrumbs-CQhrzMeU.js": {
     "file": "assets/breadcrumbs-CQhrzMeU.js",
     "name": "breadcrumbs",
+    "imports": [
+      "_globals-IEYCF5gg.js"
+    ]
+  },
+  "_chevron-up-Czuk_0aS.js": {
+    "file": "assets/chevron-up-Czuk_0aS.js",
+    "name": "chevron-up",
     "imports": [
       "_globals-IEYCF5gg.js"
     ]
@@ -42,6 +49,13 @@
       "_globals-IEYCF5gg.js"
     ]
   },
+  "_file-down-CxlYU9tI.js": {
+    "file": "assets/file-down-CxlYU9tI.js",
+    "name": "file-down",
+    "imports": [
+      "_globals-IEYCF5gg.js"
+    ]
+  },
   "_globals-IEYCF5gg.js": {
     "file": "assets/globals-IEYCF5gg.js",
     "name": "globals"
@@ -60,12 +74,19 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_page-title-BRN5kTjg.js": {
-    "file": "assets/page-title-BRN5kTjg.js",
+  "_page-title-wpFhG2r2.js": {
+    "file": "assets/page-title-wpFhG2r2.js",
     "name": "page-title",
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js"
+      "_app-layout-CwsVbtlp.js"
+    ]
+  },
+  "_pencil-DccyUFYy.js": {
+    "file": "assets/pencil-DccyUFYy.js",
+    "name": "pencil",
+    "imports": [
+      "_globals-IEYCF5gg.js"
     ]
   },
   "_play-CUidqCOP.js": {
@@ -82,12 +103,12 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_status-badge-DeI3ymvl.js": {
-    "file": "assets/status-badge-DeI3ymvl.js",
+  "_status-badge-DjlUlfAt.js": {
+    "file": "assets/status-badge-DjlUlfAt.js",
     "name": "status-badge",
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js"
+      "_app-layout-CwsVbtlp.js"
     ]
   },
   "_trash-2-CHuTzTk0.js": {
@@ -98,15 +119,16 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-C8P0hjyx.js",
+    "file": "assets/index-CUX1mdJA.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
+      "_page-title-wpFhG2r2.js",
+      "_chevron-up-Czuk_0aS.js",
       "_clipboard-copy-Kyd3Hqo0.js",
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
@@ -114,43 +136,61 @@
     ]
   },
   "src/pages/derechos/index.html": {
-    "file": "assets/index-CjSh1UZO.js",
+    "file": "assets/index-XEH6urtY.js",
     "name": "index",
     "src": "src/pages/derechos/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_play-CUidqCOP.js",
       "_circle-check-D7L-pulr.js",
       "_eye-Cy85FeWW.js"
     ]
   },
+  "src/pages/examenes/index.html": {
+    "file": "assets/index-BBE87X_y.js",
+    "name": "index",
+    "src": "src/pages/examenes/index.html",
+    "isEntry": true,
+    "imports": [
+      "_globals-IEYCF5gg.js",
+      "_app-layout-CwsVbtlp.js",
+      "_breadcrumbs-CQhrzMeU.js",
+      "_page-title-wpFhG2r2.js",
+      "_plus-BLq7eTNT.js",
+      "_trash-2-CHuTzTk0.js",
+      "_eye-Cy85FeWW.js",
+      "_file-down-CxlYU9tI.js",
+      "_pencil-DccyUFYy.js",
+      "_chevron-up-Czuk_0aS.js"
+    ]
+  },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-3Cfgs5CT.js",
+    "file": "assets/index-3b-tTFl8.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
-      "_status-badge-DeI3ymvl.js",
+      "_app-layout-CwsVbtlp.js",
+      "_status-badge-DjlUlfAt.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/index/index.html": {
-    "file": "assets/index-DZgJjBYy.js",
+    "file": "assets/index-CtCDMk-C.js",
     "name": "index",
     "src": "src/pages/index/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_app-layout-CwsVbtlp.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_circle-check-D7L-pulr.js",
       "_arrow-right-svMThmkB.js",
       "_eye-Cy85FeWW.js"
@@ -167,34 +207,35 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-Bvb5Yju5.js",
+    "file": "assets/index-GPOrpe4M.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
       "_play-CUidqCOP.js",
+      "_file-down-CxlYU9tI.js",
       "_circle-check-D7L-pulr.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/odontologia-equipos-basicos/index.html": {
-    "file": "assets/index-ChkbjgWc.js",
+    "file": "assets/index-Dcn3tjyd.js",
     "name": "index",
     "src": "src/pages/odontologia-equipos-basicos/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
       "_list-NshXNfY5.js",
       "_arrow-right-svMThmkB.js",
@@ -202,16 +243,16 @@
     ]
   },
   "src/pages/odontologia/index.html": {
-    "file": "assets/index-CnqAonWU.js",
+    "file": "assets/index-DgSRKkr9.js",
     "name": "index",
     "src": "src/pages/odontologia/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
       "_list-NshXNfY5.js",
       "_arrow-right-svMThmkB.js",
@@ -219,16 +260,16 @@
     ]
   },
   "src/pages/ordenado-facturado/index.html": {
-    "file": "assets/index-BUWVkEIG.js",
+    "file": "assets/index-BBbjyst9.js",
     "name": "index",
     "src": "src/pages/ordenado-facturado/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_arrow-right-svMThmkB.js",
       "_circle-check-D7L-pulr.js",
       "_info-CaFPEwhM.js",
@@ -246,36 +287,37 @@
     ]
   },
   "src/pages/urgencias/index.html": {
-    "file": "assets/index-CBDz0gxc.js",
+    "file": "assets/index-DMZTcNi_.js",
     "name": "index",
     "src": "src/pages/urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
+      "_app-layout-CwsVbtlp.js",
       "_breadcrumbs-CQhrzMeU.js",
-      "_page-title-BRN5kTjg.js",
-      "_status-badge-DeI3ymvl.js",
+      "_page-title-wpFhG2r2.js",
+      "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
       "_arrow-right-svMThmkB.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "src/pages/usuarios/index.html": {
-    "file": "assets/index-BH4OPYLZ.js",
+    "file": "assets/index-1bd5cBmj.js",
     "name": "index",
     "src": "src/pages/usuarios/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
-      "_app-layout-C1i39maw.js",
-      "_status-badge-DeI3ymvl.js",
+      "_app-layout-CwsVbtlp.js",
+      "_status-badge-DjlUlfAt.js",
+      "_pencil-DccyUFYy.js",
       "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js"
     ]
   },
   "style.css": {
-    "file": "assets/style-CrXau3hM.css",
+    "file": "assets/style-KAXI7kKw.css",
     "src": "style.css"
   }
 }

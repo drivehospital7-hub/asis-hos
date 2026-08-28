@@ -222,7 +222,7 @@ class TestNewReactRoutes:
             pytest.skip("manifest.json not found — build may not have run yet")
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
         html_keys = [k for k in manifest if k.endswith(".html")]
-        assert len(html_keys) >= 12, f"Expected at least 12 HTML entries, got {len(html_keys)}: {html_keys}"
+        assert len(html_keys) >= 13, f"Expected at least 13 HTML entries, got {len(html_keys)}: {html_keys}"
         assert "src/pages/index/index.html" in html_keys
         assert "src/pages/abiertas-urgencias/index.html" in html_keys
         assert "src/pages/urgencias/index.html" in html_keys
@@ -235,6 +235,7 @@ class TestNewReactRoutes:
         assert "src/pages/genderize/index.html" in html_keys
         assert "src/pages/login/index.html" in html_keys
         assert "src/pages/unauthorized/index.html" in html_keys
+        assert "src/pages/examenes/index.html" in html_keys
 
 
 class TestDashboardPermisos:
@@ -248,10 +249,11 @@ class TestDashboardPermisos:
         """Admin (*) sees all DASHBOARD_AREAS."""
         from app.constants.base import _filter_areas
         result = _filter_areas(["*"])
-        assert len(result) == 10
+        assert len(result) == 11
         titles = [a["title"] for a in result]
         assert "Urgencias" in titles
         assert "Derechos" in titles
+        assert "Exámenes" in titles
 
     def test_filter_areas_single_permiso(self):
         """User with only odontologia sees exactly 1 area."""
@@ -284,7 +286,7 @@ class TestDashboardPermisos:
         """None sees all areas (safe fallback for missing session)."""
         from app.constants.base import _filter_areas
         result = _filter_areas(None)
-        assert len(result) == 10
+        assert len(result) == 11
 
     # ═══════════════════════════════════════════
     # Integration: dashboard filtering
@@ -301,7 +303,7 @@ class TestDashboardPermisos:
         return json.loads(match.group(1))
 
     def test_dashboard_admin_sees_all_areas(self, app_client):
-        """Admin user sees all 10 areas in /dashboard."""
+        """Admin user sees all 11 areas in /dashboard."""
         app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
         response = app_client.get("/dashboard", follow_redirects=True)
         html = response.data.decode("utf-8")
@@ -316,9 +318,10 @@ class TestDashboardPermisos:
         assert "Derechos" in titles
         assert "Equipos Básicos" in titles
         assert "Monitoreo de Carpetas" in titles
+        assert "Exámenes" in titles
         assert "Usuarios" in titles
         assert "Importar Facturas" in titles
-        assert len(areas) == 10
+        assert len(areas) == 11
 
     def test_dashboard_odontologia_only(self, app_client):
         """User with only odontologia permiso sees exactly 1 area."""

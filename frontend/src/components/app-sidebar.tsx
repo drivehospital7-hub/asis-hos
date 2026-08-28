@@ -10,6 +10,7 @@ import {
   Users,
   Upload,
   LogOut,
+  FlaskConical,
 } from "lucide-react";
 
 interface NavItem {
@@ -30,6 +31,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
   { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },
+  { label: "Exámenes", href: "/examenes", icon: FlaskConical, permiso: "examenes" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
   { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
 ];

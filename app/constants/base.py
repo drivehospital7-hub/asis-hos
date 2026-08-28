@@ -124,6 +124,8 @@ ALLOWED_PERMISOS = frozenset({
     "derechos",
     "monitoreo_carpetas",
     "monitoreo_carpetas:write",
+    "examenes",
+    "examenes:write",
     PERMISO_RESPONSABLE_FACTURACION,
 })
 
@@ -137,6 +139,8 @@ PERMISO_MUTUAL_EXCLUSION: dict[str, str] = {
     "facturas_abiertas:write": "facturas_abiertas",
     "monitoreo_carpetas": "monitoreo_carpetas:write",
     "monitoreo_carpetas:write": "monitoreo_carpetas",
+    "examenes": "examenes:write",
+    "examenes:write": "examenes",
 }
 
 # =============================================================================
@@ -301,6 +305,15 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "",
         "description": "Escaneo y monitoreo de carpetas de red de facturadores.",
+    },
+    {
+        "title": "Exámenes",
+        "slug": "examenes",
+        "permiso": "examenes",
+        "href": "/examenes",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Laboratorio: consulta de exámenes, listado y prefacturación.",
     },
     {
         "title": "Usuarios",

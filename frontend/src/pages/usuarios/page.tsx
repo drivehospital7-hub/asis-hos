@@ -47,8 +47,10 @@ const ALL_PERMISOS = [
   { value: "equipos_basicos", label: "Ordenado y Facturado" },
   { value: "odontologia_equipos_basicos", label: "Equipos Básicos" },
   { value: "derechos", label: "Derechos" },
-  { value: "monitoreo_carpetas", label: "Monitoreo de Carpetas" },
+{ value: "monitoreo_carpetas", label: "Monitoreo de Carpetas" },
   { value: "monitoreo_carpetas:write", label: "Monitoreo de Carpetas (configurar rutas)" },
+  { value: "examenes", label: "Exámenes (lectura)" },
+  { value: "examenes:write", label: "Exámenes (modificar)" },
   { value: "responsable_facturacion", label: "Responsable de Facturación" },
 ];
 
@@ -60,6 +62,8 @@ const PERMISO_PAIRS: Record<string, string> = {
   "facturas_abiertas:write": "facturas_abiertas",
   "monitoreo_carpetas": "monitoreo_carpetas:write",
   "monitoreo_carpetas:write": "monitoreo_carpetas",
+  "examenes": "examenes:write",
+  "examenes:write": "examenes",
 };
 
 // Áreas organizacionales asignables (sdd Empieza — espejo de ORGANIZATIONAL_AREAS
