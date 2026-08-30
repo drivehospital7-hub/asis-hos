@@ -6,14 +6,15 @@ import {
   searchListado,
   inRange,
   filterByDateRange,
+  currentMonthRange,
+  sortByDateDesc,
+  composeListadoView,
   paginate,
   listadoRowNumbers,
   daySectionTotals,
   badgeTooltip,
   migrateFlatToGrouped,
   listadoFechaInfo,
-  groupMonths,
-  filterByMonth,
   buildPrefactura,
   normalizeItem,
   formatFechaEsCo,
@@ -160,7 +161,7 @@ describe("migrateFlatToGrouped", () => {
   });
 });
 
-// ─── listadoFechaInfo / groupMonths / filterByMonth (EX-11) ───────────────
+// ─── listadoFechaInfo (EX-11) ───────────────────────────────────────────
 
 describe("listadoFechaInfo", () => {
   it("parses dd/mm/yyyy with time into month/day keys", () => {
@@ -205,52 +206,6 @@ describe("listadoFechaInfo", () => {
   it("rejects malformed day/month segments", () => {
     expect(listadoFechaInfo("2026-01-15").monthKey).toBe("sin-fecha");
     expect(listadoFechaInfo("15/13/2026").monthKey).toBe("sin-fecha");
-  });
-});
-
-describe("groupMonths", () => {
-  it("returns unique months sorted newest-first", () => {
-    const listado = [
-      { id: "a", paciente: "A", cedula: "", facturador: "", hora: "15/01/2026", items: [] },
-      { id: "b", paciente: "B", cedula: "", facturador: "", hora: "28/08/2026", items: [] },
-      { id: "c", paciente: "C", cedula: "", facturador: "", hora: "05/01/2026", items: [] },
-      { id: "d", paciente: "D", cedula: "", facturador: "", hora: "n/a", items: [] },
-    ] as never[];
-    const months = groupMonths(listado);
-    expect(months.map((m) => m.monthKey)).toEqual(["2026-08", "2026-01", "sin-fecha"]);
-    expect(months[0].monthLabel).toBe("Agosto de 2026");
-    expect(months[2].monthLabel).toBe("Fecha no disponible");
-  });
-
-  it("returns empty array for empty listado", () => {
-    expect(groupMonths([])).toEqual([]);
-  });
-});
-
-describe("filterByMonth", () => {
-  const listado = [
-    { id: "a", paciente: "A", hora: "15/01/2026", items: [] },
-    { id: "b", paciente: "B", hora: "28/08/2026", items: [] },
-  ] as never[];
-
-  it("returns all records for 'todos'", () => {
-    expect(filterByMonth(listado, "todos")).toHaveLength(2);
-  });
-
-  it("returns only records of the selected month", () => {
-    const result = filterByMonth(listado, "2026-08");
-    expect(result).toHaveLength(1);
-    expect(result[0].id).toBe("b");
-  });
-
-  it("includes sin-fecha records under the sin-fecha filter", () => {
-    const mixed = [...listado, { id: "c", paciente: "C", hora: "n/a", items: [] }] as never[];
-    expect(filterByMonth(mixed, "sin-fecha")).toHaveLength(1);
-    expect(filterByMonth(mixed, "sin-fecha")[0].id).toBe("c");
-  });
-
-  it("returns empty array for a month with no records", () => {
-    expect(filterByMonth(listado, "2026-12")).toEqual([]);
   });
 });
 
@@ -781,5 +736,157 @@ describe("badgeTooltip", () => {
 
   it("returns empty string for a prefactura without items", () => {
     expect(badgeTooltip([])).toBe("");
+  });
+});
+
+// ─── Current-month default range (EX-32) ────────────────────────────────
+
+describe("currentMonthRange", () => {
+  it("returns day-1..last-day for a mid-month `now` (EX-32 mid-month)", () => {
+    expect(currentMonthRange(new Date(2026, 7, 30))).toEqual({
+      from: "2026-08-01",
+      to: "2026-08-31",
+    });
+  });
+
+  it("returns the full month even when `now` is day 1 (EX-32 month start)", () => {
+    expect(currentMonthRange(new Date(2026, 7, 1))).toEqual({
+      from: "2026-08-01",
+      to: "2026-08-31",
+    });
+  });
+
+  it("handles leap February (2024 → 29 days)", () => {
+    expect(currentMonthRange(new Date(2024, 1, 15))).toEqual({
+      from: "2024-02-01",
+      to: "2024-02-29",
+    });
+  });
+
+  it("handles non-leap February (2026 → 28 days)", () => {
+    expect(currentMonthRange(new Date(2026, 1, 15))).toEqual({
+      from: "2026-02-01",
+      to: "2026-02-28",
+    });
+  });
+
+  it("handles 31-day months (December)", () => {
+    expect(currentMonthRange(new Date(2026, 11, 10))).toEqual({
+      from: "2026-12-01",
+      to: "2026-12-31",
+    });
+  });
+
+  it("is deterministic with an injected `now` (EX-32 injectable)", () => {
+    expect(currentMonthRange(new Date(2026, 7, 30))).toEqual(
+      currentMonthRange(new Date(2026, 7, 30)),
+    );
+  });
+});
+
+// ─── Descending sort (EX-33) ────────────────────────────────────────────
+
+describe("sortByDateDesc", () => {
+  it("sorts multi-day records most-recent-first (08-03, 08-01, 07-30)", () => {
+    const listado = [
+      mkPf("old", "O", "30/07/2026 08:00", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("mid", "M", "01/08/2026 09:00", [{ cod: "903016", nom: "Ferritina" }]),
+      mkPf("new", "N", "03/08/2026 10:00", [{ cod: "903810", nom: "Calcio" }]),
+    ];
+    expect(sortByDateDesc(listado).map((p) => p.id)).toEqual(["new", "mid", "old"]);
+  });
+
+  it("sorts time-descending within the same day (14:05 before 08:30)", () => {
+    const listado = [
+      mkPf("morning", "A", "03/08/2026 08:30", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("afternoon", "B", "03/08/2026 14:05", [{ cod: "903016", nom: "Ferritina" }]),
+    ];
+    expect(sortByDateDesc(listado).map((p) => p.id)).toEqual(["afternoon", "morning"]);
+  });
+
+  it("sorts untimed records last within their day", () => {
+    const listado = [
+      mkPf("untimed", "A", "03/08/2026", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("timed", "B", "03/08/2026 08:30", [{ cod: "903016", nom: "Ferritina" }]),
+    ];
+    expect(sortByDateDesc(listado).map((p) => p.id)).toEqual(["timed", "untimed"]);
+  });
+
+  it("sorts sin-fecha records last, preserving their relative input order", () => {
+    const listado = [
+      mkPf("sin2", "B", "n/a", [{ cod: "903810", nom: "Calcio" }]),
+      mkPf("dated", "A", "03/08/2026 08:30", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("sin1", "C", "n/a", [{ cod: "906131", nom: "Trypanosoma" }]),
+    ];
+    expect(sortByDateDesc(listado).map((p) => p.id)).toEqual(["dated", "sin2", "sin1"]);
+  });
+
+  it("preserves input order for equal date+time keys (stable)", () => {
+    const listado = [
+      mkPf("first", "A", "03/08/2026 10:00", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("second", "B", "03/08/2026 10:00", [{ cod: "903016", nom: "Ferritina" }]),
+    ];
+    expect(sortByDateDesc(listado).map((p) => p.id)).toEqual(["first", "second"]);
+  });
+
+  it("does not mutate the input listado", () => {
+    const listado = [
+      mkPf("b", "B", "01/08/2026", [{ cod: "903859", nom: "Potasio" }]),
+      mkPf("a", "A", "03/08/2026", [{ cod: "903016", nom: "Ferritina" }]),
+    ];
+    const before = listado.map((p) => p.id);
+    sortByDateDesc(listado);
+    expect(listado.map((p) => p.id)).toEqual(before);
+  });
+
+  it("returns an empty array for an empty listado", () => {
+    expect(sortByDateDesc([])).toEqual([]);
+  });
+});
+
+// ─── composeListadoView (D1/D2/D4 pipeline) ─────────────────────────────
+
+describe("composeListadoView", () => {
+  const listado: Prefactura[] = [
+    mkPf("aug-in", "Ana", "10/08/2026 09:00", [{ cod: "903859", nom: "Potasio" }]),
+    mkPf("aug-out", "Beto", "20/08/2026 08:00", [{ cod: "903016", nom: "Ferritina" }]),
+    mkPf("jul", "Caro", "15/07/2026 10:00", [{ cod: "903810", nom: "Calcio" }]),
+    mkPf("sin", "Dora", "n/a", [{ cod: "906131", nom: "Trypanosoma" }]),
+  ];
+
+  it("applies the date range when the query is blank (D1 blank → range view)", () => {
+    const view = composeListadoView(listado, { from: "2026-08-01", to: "2026-08-15", query: "" });
+    expect(view.map((p) => p.id)).toEqual(["aug-in"]);
+  });
+
+  it("search ignores the active range and searches the FULL listado (D1)", () => {
+    const view = composeListadoView(listado, { from: "2026-08-01", to: "2026-08-15", query: "beto" });
+    expect(view.map((p) => p.id)).toEqual(["aug-out"]);
+  });
+
+  it("cleared range returns ALL records including sin-fecha (D2)", () => {
+    const view = composeListadoView(listado, { from: null, to: null, query: "" });
+    expect(view).toHaveLength(4);
+    expect(view.some((p) => p.id === "sin")).toBe(true);
+  });
+
+  it("any range bound set excludes sin-fecha records", () => {
+    const view = composeListadoView(listado, { from: "2026-07-01", to: null, query: "" });
+    expect(view.map((p) => p.id)).toEqual(["aug-out", "aug-in", "jul"]);
+    expect(view.some((p) => p.id === "sin")).toBe(false);
+  });
+
+  it("sin-fecha records match a global search even with a range active", () => {
+    const view = composeListadoView(listado, { from: "2026-08-01", to: "2026-08-15", query: "dora" });
+    expect(view.map((p) => p.id)).toEqual(["sin"]);
+  });
+
+  it("output is sorted date-descending (D4)", () => {
+    const view = composeListadoView(listado, { from: null, to: null, query: "" });
+    expect(view.map((p) => p.id)).toEqual(["aug-out", "aug-in", "jul", "sin"]);
+  });
+
+  it("returns an empty listado unchanged (empty → [])", () => {
+    expect(composeListadoView([], { from: null, to: null, query: "" })).toEqual([]);
   });
 });

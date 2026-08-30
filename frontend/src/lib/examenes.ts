@@ -159,6 +159,30 @@ export function filterByDateRange(
   return listado.filter((pf) => inRange(pf, from, to));
 }
 
+// ─── Current-month default range (EX-32) ────────────────────────────────
+
+/** ISO `yyyy-mm-dd` inclusive range bounds for the Listado toolbar. */
+export interface DateRange {
+  from: string;
+  to: string;
+}
+
+/**
+ * Day-1..last-day of the month containing `now`, as ISO `yyyy-mm-dd`
+ * (EX-32). `now` is injectable for deterministic tests. ISO strings are
+ * required: `<input type="date">` values ARE ISO and `inRange` compares
+ * dayKey lexicographically — dd/mm/yyyy would break both (A10).
+ */
+export function currentMonthRange(now: Date = new Date()): DateRange {
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1; // 1-based for display/padding
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  return {
+    from: `${year}-${String(month).padStart(2, "0")}-01`,
+    to: `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  };
+}
+
 // ─── Pagination (EX-31) ─────────────────────────────────────────────────
 
 export interface Page<T> {
@@ -188,6 +212,58 @@ export function paginate<T>(records: T[], page: number, pageSize: number): Page<
     total,
     totalPages,
   };
+}
+
+// ─── Descending sort + view composition (EX-31/33, D1/D2/D4) ────────────
+
+/**
+ * Minutes-since-midnight from an es-CO hora `dd/mm/yyyy hh:mm`; untimed
+ * (date-only) horas → 0 so they sort last within their day (EX-33).
+ */
+function horaMinutes(hora: string): number {
+  const match = String(hora || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})\s+(\d{1,2}):(\d{1,2})/);
+  if (!match) return 0;
+  return Number(match[4]) * 60 + Number(match[5]);
+}
+
+/**
+ * Sort the listado date-descending (most recent first), time-descending
+ * within the same day, sin-fecha records last — stable for equal keys
+ * (EX-33, D4). Applied to the FULL displayed set BEFORE pagination so pages
+ * stay contiguous most-recent-first. Non-mutating (ES2019 stable sort).
+ */
+export function sortByDateDesc(listado: Prefactura[]): Prefactura[] {
+  return [...listado].sort((a, b) => {
+    const ka = listadoFechaInfo(a.hora).dayKey;
+    const kb = listadoFechaInfo(b.hora).dayKey;
+    if (ka === "sin-fecha" || kb === "sin-fecha") {
+      if (ka === kb) return 0; // both sin-fecha → input order (stable)
+      return ka === "sin-fecha" ? 1 : -1;
+    }
+    if (ka !== kb) return ka < kb ? 1 : -1; // ISO dayKey desc
+    return horaMinutes(b.hora) - horaMinutes(a.hora); // time desc within day
+  });
+}
+
+/**
+ * EX-11 pipeline composition: date range (D2 — both bounds empty → the raw
+ * listado incl. sin-fecha, `filterByDateRange` skipped entirely) → global
+ * search on the FULL listado while the query is non-blank (D1 — the active
+ * range is ignored) → descending sort (D4). Pure; the page memo calls this
+ * once and derives rowNumbers / paginate / CSV from its output.
+ */
+export function composeListadoView(
+  listado: Prefactura[],
+  opts: { from: string | null; to: string | null; query: string },
+): Prefactura[] {
+  const ranged =
+    opts.from !== null || opts.to !== null
+      ? filterByDateRange(listado, opts.from, opts.to)
+      : listado;
+  const displayed = normalizeListadoQuery(opts.query)
+    ? searchListado(listado, opts.query)
+    : ranged;
+  return sortByDateDesc(displayed);
 }
 
 // ─── Listado numbering / totals / tooltip (EX-11) ───────────────────────
@@ -332,26 +408,6 @@ export function listadoFechaInfo(hora: string | null | undefined): FechaInfo {
     monthLabel: "Fecha no disponible",
     dayLabel: "Fecha no disponible",
   };
-}
-
-/** Unique months present in the listado, newest-first (sin-fecha last). */
-export function groupMonths(
-  listado: Prefactura[],
-): Array<{ monthKey: string; monthLabel: string }> {
-  const monthMap = new Map<string, FechaInfo>();
-  for (const pf of listado) {
-    const info = listadoFechaInfo(pf.hora);
-    if (!monthMap.has(info.monthKey)) monthMap.set(info.monthKey, info);
-  }
-  return [...monthMap.values()]
-    .sort((a, b) => b.sortKey - a.sortKey)
-    .map((m) => ({ monthKey: m.monthKey, monthLabel: m.monthLabel }));
-}
-
-/** Filter listado by month key; "todos" returns everything. */
-export function filterByMonth(listado: Prefactura[], monthKey: string): Prefactura[] {
-  if (monthKey === "todos" || !monthKey) return listado;
-  return listado.filter((pf) => listadoFechaInfo(pf.hora).monthKey === monthKey);
 }
 
 // ─── Date/time formatters ───────────────────────────────────────────────
