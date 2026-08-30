@@ -13,8 +13,6 @@ import {
   Eye,
   RefreshCcw,
   X,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -31,7 +29,6 @@ import {
   buildPrefactura,
   normalizeItem,
   formatFechaEsCo,
-  tcDisplay,
   resolveUiActions,
   postArray,
   type Examen,
@@ -153,7 +150,6 @@ export function ExamenesPage({
 
   // ─── Listado state ─────────────────────────────────────────────────
   const [monthFilter, setMonthFilter] = useState("todos");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState<Prefactura | null>(null);
   const [pickerIdx, setPickerIdx] = useState<number | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -380,17 +376,12 @@ export function ExamenesPage({
   };
 
   // ─── Listado: row actions ──────────────────────────────────────────
-  const toggleExpand = (id: string) => {
-    setExpandedId((prev) => (prev === id ? null : id));
-  };
-
   const delReg = async (id: string) => {
     const pf = listado.find((p) => p.id === id);
     if (!pf) return;
     if (!(await askConfirm(`¿Eliminar toda la prefactura de ${pf.paciente}?`))) return;
     const next = listado.filter((p) => p.id !== id);
     setListado(next);
-    if (expandedId === id) setExpandedId(null);
     if ((await postArray("/api/listado", next, listado)) === "conflict") {
       await handleConflict("El listado");
     }
@@ -982,7 +973,6 @@ export function ExamenesPage({
                     <th className="px-2 py-2 font-semibold">Facturador</th>
                     <th className="px-2 py-2 font-semibold">Fec/Hora</th>
                     <th className="px-2 py-2 text-center font-semibold">Items</th>
-                    <th className="px-2 py-2 text-center font-semibold"></th>
                     <th className="px-2 py-2 font-semibold">Acc</th>
                   </tr>
                 </thead>
@@ -991,9 +981,7 @@ export function ExamenesPage({
                     <DaySectionRows
                       key={day.info.dayKey}
                       day={day}
-                      expandedId={expandedId}
                       ui={ui}
-                      onToggleExpand={toggleExpand}
                       onPrint={verRegistro}
                       onEdit={openEdit}
                       onDelete={delReg}
@@ -1411,13 +1399,11 @@ export function ExamenesPage({
   );
 }
 
-// ─── Day section with expandable prefactura rows ─────────────────────────
+// ─── Day section with non-expandable prefactura rows ────────────────────
 
 interface DaySectionRowsProps {
   day: { info: FechaInfo; entries: Prefactura[] };
-  expandedId: string | null;
   ui: ReturnType<typeof resolveUiActions>;
-  onToggleExpand: (id: string) => void;
   onPrint: (id: string) => void;
   onEdit: (pf: Prefactura) => void;
   onDelete: (id: string) => void;
@@ -1425,9 +1411,7 @@ interface DaySectionRowsProps {
 
 function DaySectionRows({
   day,
-  expandedId,
   ui,
-  onToggleExpand,
   onPrint,
   onEdit,
   onDelete,
@@ -1436,21 +1420,18 @@ function DaySectionRows({
   return (
     <>
       <tr className="bg-[#e8f5ee] text-[11px] font-bold" style={{ color: "#1a4731" }}>
-        <td colSpan={8} className="px-2 py-2">
+        <td colSpan={7} className="px-2 py-2">
           {day.info.dayLabel}
         </td>
       </tr>
       {day.entries.map((pf) => {
-        const isExpanded = expandedId === pf.id;
         rowNumber += 1;
         return (
           <PfRows
             key={pf.id}
             pf={pf}
             rowNumber={rowNumber}
-            isExpanded={isExpanded}
             ui={ui}
-            onToggleExpand={onToggleExpand}
             onPrint={onPrint}
             onEdit={onEdit}
             onDelete={onDelete}
@@ -1464,9 +1445,7 @@ function DaySectionRows({
 interface PfRowsProps {
   pf: Prefactura;
   rowNumber: number;
-  isExpanded: boolean;
   ui: ReturnType<typeof resolveUiActions>;
-  onToggleExpand: (id: string) => void;
   onPrint: (id: string) => void;
   onEdit: (pf: Prefactura) => void;
   onDelete: (id: string) => void;
@@ -1475,20 +1454,14 @@ interface PfRowsProps {
 function PfRows({
   pf,
   rowNumber,
-  isExpanded,
   ui,
-  onToggleExpand,
   onPrint,
   onEdit,
   onDelete,
 }: PfRowsProps) {
   return (
     <>
-      <tr
-        className="cursor-pointer border-b"
-        onClick={() => onToggleExpand(pf.id)}
-        style={{ borderColor: "oklch(0.55 0.04 160 / 0.08)" }}
-      >
+      <tr className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.08)" }}>
         <td className="px-2 py-2 text-[10px] text-gray-400">{rowNumber}</td>
         <td className="px-2 py-2 font-bold text-gray-900">{pf.paciente}</td>
         <td className="px-2 py-2">{pf.cedula}</td>
@@ -1499,14 +1472,10 @@ function PfRows({
             {pf.items.length}
           </span>
         </td>
-        <td className="px-2 py-2 text-center">{isExpanded ? <ChevronUp className="mx-auto h-3.5 w-3.5" /> : <ChevronDown className="mx-auto h-3.5 w-3.5" />}</td>
         <td className="px-2 py-2">
           <div className="flex items-center gap-1">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                onPrint(pf.id);
-              }}
+              onClick={() => onPrint(pf.id)}
               title="Ver e imprimir"
               className="rounded p-1 text-white"
               style={{ background: "#1a6b47" }}
@@ -1515,10 +1484,7 @@ function PfRows({
             </button>
             {ui.edit && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onEdit(pf);
-                }}
+                onClick={() => onEdit(pf)}
                 title="Editar"
                 className="rounded p-1 text-white"
                 style={{ background: "#2c5282" }}
@@ -1528,10 +1494,7 @@ function PfRows({
             )}
             {ui.delete && (
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void onDelete(pf.id);
-                }}
+                onClick={() => void onDelete(pf.id)}
                 title="Eliminar"
                 className="rounded p-1 text-white"
                 style={{ background: "#c0392b" }}
@@ -1542,59 +1505,6 @@ function PfRows({
           </div>
         </td>
       </tr>
-      {isExpanded && (
-        <tr>
-          <td colSpan={8} className="bg-gray-50 p-0">
-            <table className="w-full text-[11px]">
-              <thead>
-                <tr className="text-left text-[10px] text-white" style={{ background: "#2c6e4e" }}>
-                  <th className="px-2 py-1.5 font-semibold">#</th>
-                  <th className="px-2 py-1.5 font-semibold">Código</th>
-                  <th className="px-2 py-1.5 font-semibold">Examen</th>
-                  <th className="w-10 px-2 py-1.5 text-center font-semibold">Cant</th>
-                  <th className="w-14 px-2 py-1.5 text-center font-semibold">NEPS</th>
-                  <th className="w-14 px-2 py-1.5 text-center font-semibold">MALL</th>
-                  <th className="w-14 px-2 py-1.5 text-center font-semibold">EMSS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pf.items.map((item, j) => (
-                  <tr key={j} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.06)" }}>
-                    <td className="px-2 py-1.5 text-center text-gray-400">{j + 1}</td>
-                    <td className="px-2 py-1.5 font-bold" style={{ color: "#1a4731" }}>
-                      {item.cod}
-                    </td>
-                    <td className="px-2 py-1.5">{item.nom}</td>
-                    <td className="px-2 py-1.5 text-center font-semibold" style={{ color: "#1a4731" }}>
-                      {normalizeItem(item).cantidad}
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <PayerCell value={item.neps} />
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <PayerCell value={item.mall} />
-                    </td>
-                    <td className="px-2 py-1.5 text-center">
-                      <PayerCell value={item.emss} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </td>
-        </tr>
-      )}
     </>
   );
-}
-
-function PayerCell({ value }: { value: string }) {
-  const display = tcDisplay(value);
-  if (value === "AUTH") {
-    return <span className="text-[9px] font-bold" style={{ color: "#a32d2d" }}>{display}</span>;
-  }
-  if (value === "X") {
-    return <span className="text-xs font-bold" style={{ color: "#1a6b47" }}>{display}</span>;
-  }
-  return <span className="text-xs text-gray-200">—</span>;
 }
