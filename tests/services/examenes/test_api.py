@@ -27,7 +27,14 @@ PREFACTURAS = [
         "facturador": "ANGIE ARIAS",
         "hora": "01/01/2026 08:00",
         "items": [
-            {"cod": "903859", "nom": "Potasio En Suero U Otros Fluidos", "neps": "X", "mall": "X", "emss": "X"}
+            {
+                "cod": "903859",
+                "nom": "Potasio En Suero U Otros Fluidos",
+                "neps": "X",
+                "mall": "X",
+                "emss": "X",
+                "cantidad": 2,
+            }
         ],
     },
     {
@@ -37,6 +44,7 @@ PREFACTURAS = [
         "facturador": "CATALEYA TAPIA",
         "hora": "02/01/2026 09:30",
         "items": [
+            # legacy 5-field item — no cantidad key, must stay valid (EX-21/EX-28)
             {"cod": "904921", "nom": "Tiroxina Libre", "neps": "AUTH", "mall": "X", "emss": ""}
         ],
     },
@@ -180,6 +188,19 @@ class TestRoundTrip:
 
         assert response.status_code == 200
         assert response.get_json()["data"]["listado"] == PREFACTURAS
+
+    def test_cantidad_persists_round_trip_legacy_valid(self, app_client, tmp_path: Path) -> None:
+        """EX-28: item cantidad persists POST→GET; legacy 5-field items valid."""
+        _authenticate(app_client, ["examenes:write"])
+        assert app_client.post("/api/listado", json=PREFACTURAS).status_code == 200
+
+        response = app_client.get("/api/listado")
+
+        assert response.status_code == 200
+        listado = response.get_json()["data"]["listado"]
+        assert listado[0]["items"][0]["cantidad"] == 2
+        # legacy item is returned verbatim: cantidad key stays ABSENT
+        assert "cantidad" not in listado[1]["items"][0]
 
     def test_catalog_round_trip(self, app_client, tmp_path: Path) -> None:
         _authenticate(app_client, ["examenes:write"])

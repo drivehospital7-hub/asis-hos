@@ -10,7 +10,7 @@ const LISTADO: Prefactura[] = [
     facturador: "Angie Chapuel",
     hora: "15/01/2026 08:30",
     items: [
-      { cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X" },
+      { cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X", cantidad: 2 },
       { cod: "903016", nom: "Ferritina", neps: "AUTH", mall: "AUTH", emss: "AUTH" },
     ],
   },
@@ -25,13 +25,14 @@ const LISTADO: Prefactura[] = [
 ];
 
 describe("CSV_HEADERS", () => {
-  it("has the exact EX-14 header", () => {
+  it("has the exact EX-14 header (11 cols, Cant after Examen)", () => {
     expect(CSV_HEADERS).toEqual([
       "N°",
       "Paciente",
       "Cedula",
       "Codigo",
       "Examen",
+      "Cant",
       "NEPS",
       "MALLAM",
       "EMSS",
@@ -76,7 +77,7 @@ describe("buildCsv", () => {
   it("emits the exact header line first (after BOM)", () => {
     const { csv } = buildCsv(LISTADO, null);
     const body = csv.slice(1);
-    expect(body.startsWith("N°,Paciente,Cedula,Codigo,Examen,NEPS,MALLAM,EMSS,Facturador,Fecha/Hora\n")).toBe(true);
+    expect(body.startsWith("N°,Paciente,Cedula,Codigo,Examen,Cant,NEPS,MALLAM,EMSS,Facturador,Fecha/Hora\n")).toBe(true);
   });
 
   it("emits one row per item with sequential numbering", () => {
@@ -84,9 +85,17 @@ describe("buildCsv", () => {
     const lines = csv.slice(1).trimEnd().split("\n");
     // header + 3 items
     expect(lines).toHaveLength(4);
-    expect(lines[1]).toBe('1,"Juan Perez","111","903859","Potasio","SI","SI","SI","Angie Chapuel","15/01/2026 08:30"');
-    expect(lines[2]).toBe('2,"Juan Perez","111","903016","Ferritina","AUTH","AUTH","AUTH","Angie Chapuel","15/01/2026 08:30"');
-    expect(lines[3]).toBe('3,"Maria Lopez","222","906131","Trypanosoma","","","","Cataleya Tapia","28/08/2026 09:00"');
+    expect(lines[1]).toBe('1,"Juan Perez","111","903859","Potasio","2","SI","SI","SI","Angie Chapuel","15/01/2026 08:30"');
+    expect(lines[2]).toBe('2,"Juan Perez","111","903016","Ferritina","1","AUTH","AUTH","AUTH","Angie Chapuel","15/01/2026 08:30"');
+    expect(lines[3]).toBe('3,"Maria Lopez","222","906131","Trypanosoma","1","","","","Cataleya Tapia","28/08/2026 09:00"');
+  });
+
+  it("carries the normalized Cant value between Examen and NEPS (EX-14)", () => {
+    const { csv } = buildCsv(LISTADO, null);
+    expect(csv).toContain('"Potasio","2","SI"');
+    // legacy item without cantidad → 1 (EX-27 read-time default)
+    expect(csv).toContain('"Ferritina","1","AUTH"');
+    expect(csv).toContain('"Trypanosoma","1",""');
   });
 
   it("maps X→SI, AUTH→AUTH and leaves empties blank", () => {
@@ -114,6 +123,6 @@ describe("buildCsv", () => {
 
   it("returns header-only csv for an empty filtered listado", () => {
     const { csv } = buildCsv([], null);
-    expect(csv).toBe("\uFEFFN°,Paciente,Cedula,Codigo,Examen,NEPS,MALLAM,EMSS,Facturador,Fecha/Hora\n");
+    expect(csv).toBe("\uFEFFN°,Paciente,Cedula,Codigo,Examen,Cant,NEPS,MALLAM,EMSS,Facturador,Fecha/Hora\n");
   });
 });

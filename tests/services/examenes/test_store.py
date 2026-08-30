@@ -75,12 +75,14 @@ class TestExamenesConstants:
             "Cedula",
             "Codigo",
             "Examen",
+            "Cant",
             "NEPS",
             "MALLAM",
             "EMSS",
             "Facturador",
             "Fecha/Hora",
         ]
+        assert len(CSV_HEADERS) == 11
 
 
 # =============================================================================
@@ -152,7 +154,11 @@ class TestGetListado:
         assert not (tmp_path / "listado.json").exists()
 
     def test_reads_existing(self, tmp_path: Path) -> None:
-        """Existing listado with live records → identical records (no overwrite)."""
+        """Existing listado with live records → identical records (no overwrite).
+
+        EX-21/EX-27: a 5-field legacy item AND an item with ``cantidad`` both
+        pass through VERBATIM — the store never normalizes (R4-001 base_hash).
+        """
         records = [
             {
                 "id": "pf-1",
@@ -161,13 +167,26 @@ class TestGetListado:
                 "facturador": "ANGIE ARIAS",
                 "hora": "01/01/2026 08:00",
                 "items": [{"cod": "903859", "nom": "Potasio", "neps": "X", "mall": "X", "emss": "X"}],
-            }
+            },
+            {
+                "id": "pf-2",
+                "paciente": "Paciente Dos",
+                "cedula": "124",
+                "facturador": "CATALEYA TAPIA",
+                "hora": "02/01/2026 09:30",
+                "items": [
+                    {"cod": "903016", "nom": "Ferritina", "neps": "AUTH", "mall": "AUTH", "emss": "AUTH", "cantidad": 4}
+                ],
+            },
         ]
         (tmp_path / "listado.json").write_text(
             json.dumps(records, ensure_ascii=False), encoding="utf-8"
         )
 
         assert examenes_store.get_listado() == records
+        # legacy item keeps NO cantidad key; new item keeps its cantidad value
+        assert "cantidad" not in records[0]["items"][0]
+        assert records[1]["items"][0]["cantidad"] == 4
 
     def test_corrupt_file_returns_empty_and_logs(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture

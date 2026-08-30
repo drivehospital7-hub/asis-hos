@@ -9,6 +9,7 @@ import {
   Trash2,
   Pencil,
   Plus,
+  Minus,
   Eye,
   RefreshCcw,
   X,
@@ -28,6 +29,7 @@ import {
   groupMonths,
   filterByMonth,
   buildPrefactura,
+  normalizeItem,
   formatFechaEsCo,
   tcDisplay,
   resolveUiActions,
@@ -35,6 +37,7 @@ import {
   type Examen,
   type FlatExamen,
   type Prefactura,
+  type PrefacturaItem,
   type FechaInfo,
 } from "@/lib/examenes";
 import { buildCsv, downloadCsv } from "@/lib/csv";
@@ -140,7 +143,7 @@ export function ExamenesPage({
   const [singleResult, setSingleResult] = useState<Examen | null>(null);
   const [multiResults, setMultiResults] = useState<Examen[]>([]);
   const [selectedMulti, setSelectedMulti] = useState<Set<string>>(new Set());
-  const [cart, setCart] = useState<Examen[]>([]);
+  const [cart, setCart] = useState<PrefacturaItem[]>([]);
   const [saving, setSaving] = useState(false);
 
   const pacNomRef = useRef<HTMLInputElement>(null);
@@ -269,7 +272,7 @@ export function ExamenesPage({
       window.alert("Este examen ya está en la prefactura.");
       return;
     }
-    setCart([...cart, { ...item }]);
+    setCart([...cart, { ...item, cantidad: 1 }]);
   };
 
   const addSelectedToCart = () => {
@@ -280,11 +283,18 @@ export function ExamenesPage({
     }
     const next = [...cart];
     for (const e of sel) {
-      if (!next.some((c) => c.cod === e.cod)) next.push({ ...e });
+      if (!next.some((c) => c.cod === e.cod)) next.push({ ...e, cantidad: 1 });
     }
     setCart(next);
     setMultiResults([]);
     setSelectedMulti(new Set());
+  };
+
+  /** Stepper onChange clamp: 0/negativos/NaN → 1 (EX-22/EX-27). */
+  const setCartQty = (idx: number, value: string) => {
+    setCart((prev) =>
+      prev.map((c, i) => (i === idx ? normalizeItem({ ...c, cantidad: Number(value) }) : c)),
+    );
   };
 
   const addFirstVisible = () => {
@@ -440,14 +450,16 @@ export function ExamenesPage({
       window.alert("Paciente y Cédula son obligatorios.");
       return;
     }
-    // Rebuild items from catalog snapshot by code; fallback keeps name + empty flags
+    // Rebuild items from catalog snapshot by code; fallback keeps name + empty
+    // flags. cantidad se preserva del borrador (EX-12, #1651): el catálogo no
+    // tiene cantidad y reconstruir sin copiarla la DROPEARÍA silenciosamente.
     const items = editDraft.items
       .filter((i) => i.cod || i.nom)
       .map((i) => {
         const exam = examenes.find((e) => e.cod === i.cod);
         return exam
-          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "" }
-          : { cod: i.cod, nom: i.nom, neps: "", mall: "", emss: "" };
+          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", cantidad: normalizeItem(i).cantidad }
+          : { cod: i.cod, nom: i.nom, neps: "", mall: "", emss: "", cantidad: normalizeItem(i).cantidad };
       });
     const next = listado.map((p) =>
       p.id === editDraft.id
@@ -472,7 +484,7 @@ export function ExamenesPage({
     const idx = editDraft.items.length;
     setEditDraft({
       ...editDraft,
-      items: [...editDraft.items, { cod: "", nom: "Nuevo procedimiento", neps: "", mall: "", emss: "" }],
+      items: [...editDraft.items, { cod: "", nom: "Nuevo procedimiento", neps: "", mall: "", emss: "", cantidad: 1 }],
     });
     setPickerIdx(idx);
     setPickerQuery("");
@@ -487,11 +499,12 @@ export function ExamenesPage({
   const editSelectItem = (idx: number, cod: string) => {
     if (!editDraft) return;
     const exam = examenes.find((e) => e.cod === cod);
+    // cantidad se preserva del borrador (EX-12, #1651) — no del catálogo.
     const items = editDraft.items.map((it, i) =>
       i === idx
         ? exam
-          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "" }
-          : { cod, nom: it.nom, neps: "", mall: "", emss: "" }
+          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", cantidad: normalizeItem(it).cantidad }
+          : { cod, nom: it.nom, neps: "", mall: "", emss: "", cantidad: normalizeItem(it).cantidad }
         : it,
     );
     setEditDraft({ ...editDraft, items });
@@ -836,22 +849,53 @@ export function ExamenesPage({
                 )}
               </div>
               <div className="space-y-1.5">
-                {cart.map((e, i) => (
-                  <div key={`${e.cod}-${i}`} className="flex items-start justify-between gap-2 rounded-md border bg-white p-2.5" style={{ borderColor: "#c5ddd0" }}>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-bold" style={{ color: "#1a6b47" }}>{e.cod}</div>
-                      <div className="text-xs font-semibold text-gray-900">{e.nom}</div>
+                {cart.map((e, i) => {
+                  const q = normalizeItem(e).cantidad;
+                  return (
+                    <div key={`${e.cod}-${i}`} className="flex items-start justify-between gap-2 rounded-md border bg-white p-2.5" style={{ borderColor: "#c5ddd0" }}>
+                      <div className="min-w-0">
+                        <div className="text-[10px] font-bold" style={{ color: "#1a6b47" }}>{e.cod}</div>
+                        <div className="text-xs font-semibold text-gray-900">{e.nom}</div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => setCartQty(i, String(q - 1))}
+                          title="Disminuir cantidad"
+                          className="rounded border p-1 leading-none"
+                          style={{ borderColor: "#c5ddd0", color: "#1a6b47" }}
+                        >
+                          <Minus className="h-3 w-3" />
+                        </button>
+                        <input
+                          type="number"
+                          min={1}
+                          step={1}
+                          value={q}
+                          onChange={(e) => setCartQty(i, e.target.value)}
+                          title="Cantidad"
+                          className="w-12 rounded border px-1 py-0.5 text-center text-xs outline-none"
+                          style={{ borderColor: "#c5ddd0" }}
+                        />
+                        <button
+                          onClick={() => setCartQty(i, String(q + 1))}
+                          title="Aumentar cantidad"
+                          className="rounded border p-1 leading-none"
+                          style={{ borderColor: "#c5ddd0", color: "#1a6b47" }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                        <button
+                          onClick={() => removeFromCart(i)}
+                          title="Quitar"
+                          className="p-1 text-base leading-none"
+                          style={{ color: "#c0392b" }}
+                        >
+                          ×
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => removeFromCart(i)}
-                      title="Quitar"
-                      className="p-1 text-base leading-none"
-                      style={{ color: "#c0392b" }}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               {ui.save && (
                 <Button className="mt-3 w-full" disabled={saving} onClick={handleSavePrefactura}>
@@ -1176,6 +1220,7 @@ export function ExamenesPage({
                         <th style={{ width: 30 }}>#</th>
                         <th style={{ width: 80 }}>Código</th>
                         <th>Examen</th>
+                        <th style={{ width: 60 }}>Cant</th>
                         <th style={{ width: 140 }}>Aplica en</th>
                         <th style={{ width: 30 }}></th>
                       </tr>
@@ -1221,6 +1266,26 @@ export function ExamenesPage({
                                 </div>
                               </div>
                             )}
+                          </td>
+                          <td>
+                            <input
+                              type="number"
+                              min={1}
+                              step={1}
+                              value={normalizeItem(item).cantidad}
+                              onChange={(e) => {
+                                const q = Number(e.target.value);
+                                setEditDraft({
+                                  ...editDraft,
+                                  items: editDraft.items.map((it, i) =>
+                                    i === idx ? normalizeItem({ ...it, cantidad: q }) : it,
+                                  ),
+                                });
+                              }}
+                              title="Cantidad"
+                              className="w-14 rounded border px-1 py-0.5 text-center text-xs outline-none"
+                              style={{ borderColor: "#ccc" }}
+                            />
                           </td>
                           <td>
                             <div className="flex gap-1 text-[9px] font-bold">
@@ -1486,6 +1551,7 @@ function PfRows({
                   <th className="px-2 py-1.5 font-semibold">#</th>
                   <th className="px-2 py-1.5 font-semibold">Código</th>
                   <th className="px-2 py-1.5 font-semibold">Examen</th>
+                  <th className="w-10 px-2 py-1.5 text-center font-semibold">Cant</th>
                   <th className="w-14 px-2 py-1.5 text-center font-semibold">NEPS</th>
                   <th className="w-14 px-2 py-1.5 text-center font-semibold">MALL</th>
                   <th className="w-14 px-2 py-1.5 text-center font-semibold">EMSS</th>
@@ -1499,6 +1565,9 @@ function PfRows({
                       {item.cod}
                     </td>
                     <td className="px-2 py-1.5">{item.nom}</td>
+                    <td className="px-2 py-1.5 text-center font-semibold" style={{ color: "#1a4731" }}>
+                      {normalizeItem(item).cantidad}
+                    </td>
                     <td className="px-2 py-1.5 text-center">
                       <PayerCell value={item.neps} />
                     </td>

@@ -31,6 +31,7 @@ CSV_HEADERS: list[str] = [
     "Cedula",
     "Codigo",
     "Examen",
+    "Cant",
     "NEPS",
     "MALLAM",
     "EMSS",

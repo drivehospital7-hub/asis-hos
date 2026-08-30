@@ -6,15 +6,16 @@
  * Only the records passed in (the filtered view) are exported.
  */
 
-import type { Prefactura } from "./examenes";
+import { normalizeItem, type Prefactura } from "./examenes";
 
-/** Exact EX-14 header (Cedula without accent, Fecha/Hora). */
+/** Exact EX-14 header (Cedula without accent, Fecha/Hora, Cant after Examen). */
 export const CSV_HEADERS = [
   "N°",
   "Paciente",
   "Cedula",
   "Codigo",
   "Examen",
+  "Cant",
   "NEPS",
   "MALLAM",
   "EMSS",
@@ -53,7 +54,7 @@ export function buildCsv(listado: Prefactura[], monthLabel: string | null): CsvR
   for (const pf of listado) {
     for (const item of pf.items) {
       n++;
-      body += `${n},"${pf.paciente}","${pf.cedula}","${item.cod}","${item.nom}","${tcCsv(item.neps)}","${tcCsv(item.mall)}","${tcCsv(item.emss)}","${pf.facturador}","${pf.hora}"\n`;
+      body += `${n},"${pf.paciente}","${pf.cedula}","${item.cod}","${item.nom}","${normalizeItem(item).cantidad}","${tcCsv(item.neps)}","${tcCsv(item.mall)}","${tcCsv(item.emss)}","${pf.facturador}","${pf.hora}"\n`;
     }
   }
   const label = csvLabelFor(monthLabel);

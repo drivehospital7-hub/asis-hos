@@ -15,7 +15,7 @@ const PF: Prefactura = {
   facturador: "Angie Chapuel",
   hora: "15/01/2026 08:30",
   items: [
-    { cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X" },
+    { cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X", cantidad: 2 },
     { cod: "903016", nom: "Ferritina", neps: "AUTH", mall: "AUTH", emss: "AUTH" },
     { cod: "906131", nom: "Trypanosoma", neps: "", mall: "", emss: "" },
   ],
@@ -54,6 +54,14 @@ describe("buildPrefacturaDoc (EX-13)", () => {
     expect(doc).toContain("Potasio");
     expect(doc).toContain("903016");
     expect(doc).toContain("Ferritina");
+  });
+
+  it("shows a Cant column with the normalized quantity (EX-13)", () => {
+    expect(doc).toContain(">Cant<");
+    // item carries its own cantidad (2)
+    expect(doc).toContain(">2<");
+    // legacy items without cantidad render as 1 (EX-27)
+    expect(doc).toContain(">1<");
   });
 
   it("keeps the signature and footer (source parity)", () => {
@@ -101,6 +109,12 @@ describe("buildListadoDoc (EX-13)", () => {
     expect(doc).toContain("SI");
     expect(doc).toContain("AUTH");
     expect(doc).toContain("—");
+  });
+
+  it("shows a Cant column with the normalized quantity per section (EX-13)", () => {
+    expect(doc).toContain(">Cant<");
+    expect(doc).toContain(">2<"); // Potasio carries cantidad 2
+    expect(doc).toContain(">1<"); // Calcio legacy → 1
   });
 });
 

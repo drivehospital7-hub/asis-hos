@@ -23,6 +23,8 @@ export interface PrefacturaItem {
   neps: string;
   mall: string;
   emss: string;
+  /** Cantidad por ítem (EX-21). Opcional: ausente = 1 (registros legacy 5-campos). */
+  cantidad?: number;
 }
 
 export interface Prefactura {
@@ -117,6 +119,7 @@ export function migrateFlatToGrouped(flat: FlatExamen[]): Prefactura[] {
       neps: r.neps || "",
       mall: r.mall || "",
       emss: r.emss || "",
+      cantidad: 1,
     });
   }
   return [...groups.values()];
@@ -223,9 +226,29 @@ export interface BuildPrefacturaInput {
   paciente: string;
   cedula: string;
   facturador: string;
-  items: Array<{ cod: string; nom: string; neps?: string; mall?: string; emss?: string }>;
+  items: Array<{
+    cod: string;
+    nom: string;
+    neps?: string;
+    mall?: string;
+    emss?: string;
+    cantidad?: number;
+  }>;
   /** Injectable clock for deterministic tests. */
   now?: Date;
+}
+
+/** ítem con cantidad garantizada (post-normalización). */
+export type NormalizedPrefacturaItem = PrefacturaItem & { cantidad: number };
+
+/**
+ * Normaliza la cantidad de un ítem (EX-27): ausente/NaN/<1 → 1;
+ * entero ≥1 pasa tal cual; fracciones se truncan (2.9 → 2). Único clamp
+ * read-time del frontend — el store queda verbatim (R4-001).
+ */
+export function normalizeItem(item: PrefacturaItem): NormalizedPrefacturaItem {
+  const q = Math.trunc(Number(item.cantidad));
+  return { ...item, cantidad: Number.isFinite(q) && q >= 1 ? q : 1 };
 }
 
 /**
@@ -240,13 +263,16 @@ export function buildPrefactura(input: BuildPrefacturaInput): Prefactura {
     cedula: input.cedula.trim() || "—",
     facturador: input.facturador.trim() || "—",
     hora: formatHoraEsCo(now),
-    items: input.items.map((item) => ({
-      cod: item.cod,
-      nom: item.nom,
-      neps: item.neps || "",
-      mall: item.mall || "",
-      emss: item.emss || "",
-    })),
+    items: input.items.map((item) =>
+      normalizeItem({
+        cod: item.cod,
+        nom: item.nom,
+        neps: item.neps || "",
+        mall: item.mall || "",
+        emss: item.emss || "",
+        cantidad: item.cantidad,
+      }),
+    ),
   };
 }
 

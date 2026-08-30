@@ -11,7 +11,7 @@
  */
 
 import type { Prefactura, PrefacturaItem } from "./examenes";
-import { tcDisplay } from "./examenes";
+import { normalizeItem, tcDisplay } from "./examenes";
 
 /** Escapa texto de usuario para interpolar en HTML sin ejecutar (R1-001). */
 export function escapeHtml(value: string | null | undefined): string {
@@ -76,6 +76,7 @@ export function buildPrefacturaDoc(pf: Prefactura, fechaStr: string): string {
         <td style="color:#888;text-align:center;">${i + 1}</td>
         <td style="font-weight:700;color:#1a4731;">${escapeHtml(item.cod)}</td>
         <td>${escapeHtml(item.nom)}</td>
+        <td style="text-align:center;">${normalizeItem(item).cantidad}</td>
         <td>${renderTagsPrint(item)}</td>
       </tr>`,
     )
@@ -92,7 +93,7 @@ export function buildPrefacturaDoc(pf: Prefactura, fechaStr: string): string {
       <div class="prow"><span class="plbl">Cédula / Doc.:</span><span class="pval">${escapeHtml(pf.cedula)}</span></div>
       <div class="psep"></div>
       <table class="ptbl">
-        <thead><tr><th style="width:30px;">#</th><th style="width:80px;">Código</th><th>Examen</th><th style="width:160px;">Aplica en</th></tr></thead>
+        <thead><tr><th style="width:30px;">#</th><th style="width:80px;">Código</th><th>Examen</th><th style="width:40px;">Cant</th><th style="width:160px;">Aplica en</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="pfirma">Facturador(a): ${escapeHtml(pf.facturador)}</div>
@@ -117,6 +118,7 @@ export function buildListadoDoc(listado: Prefactura[], fechaStr: string): string
             <td style="color:#aaa;text-align:center;">${j + 1}</td>
             <td style="font-weight:700;color:#1a4731;">${escapeHtml(item.cod)}</td>
             <td style="font-size:10px;">${escapeHtml(item.nom)}</td>
+            <td style="text-align:center;">${normalizeItem(item).cantidad}</td>
             <td style="text-align:center;">${tcDisplay(item.neps)}</td>
             <td style="text-align:center;">${tcDisplay(item.mall)}</td>
             <td style="text-align:center;">${tcDisplay(item.emss)}</td>
@@ -128,7 +130,7 @@ export function buildListadoDoc(listado: Prefactura[], fechaStr: string): string
         <div style="font-size:12px;font-weight:700;color:#1a4731;margin-bottom:4px;">${escapeHtml(pf.paciente)}</div>
         <div style="font-size:10px;color:#666;margin-bottom:8px;">Cédula: ${escapeHtml(pf.cedula)} &nbsp;|&nbsp; Facturador: ${escapeHtml(pf.facturador)} &nbsp;|&nbsp; Hora: ${escapeHtml(pf.hora)}</div>
         <table class="ptbl" style="min-width:460px;">
-          <thead><tr><th style="width:30px;">#</th><th style="width:80px;">Código</th><th>Examen</th><th style="width:50px;">NEPS</th><th style="width:55px;">MALL</th><th style="width:55px;">EMSS</th></tr></thead>
+          <thead><tr><th style="width:30px;">#</th><th style="width:80px;">Código</th><th>Examen</th><th style="width:40px;">Cant</th><th style="width:50px;">NEPS</th><th style="width:55px;">MALL</th><th style="width:55px;">EMSS</th></tr></thead>
           <tbody>${itemsHtml}</tbody>
         </table>
       </div>`;

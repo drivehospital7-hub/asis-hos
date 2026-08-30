@@ -7,6 +7,7 @@ import {
   groupMonths,
   filterByMonth,
   buildPrefactura,
+  normalizeItem,
   formatFechaEsCo,
   formatHoraEsCo,
   tcDisplay,
@@ -126,7 +127,15 @@ describe("migrateFlatToGrouped", () => {
       neps: "",
       mall: "",
       emss: "",
+      cantidad: 1,
     });
+  });
+
+  it("initializes grouped items with cantidad 1 (EX-23 migration)", () => {
+    const result = migrateFlatToGrouped([flat[0]]);
+    expect(result[0].items[0]).toEqual(
+      expect.objectContaining({ cod: "903859", cantidad: 1 }),
+    );
   });
 
   it("generates unique pf ids in pf-<ts>-<rand> format", () => {
@@ -272,7 +281,51 @@ describe("buildPrefactura", () => {
       items: [{ cod: "906131", nom: "Trypanosoma" } as never],
       now,
     });
-    expect(pf.items[0]).toEqual({ cod: "906131", nom: "Trypanosoma", neps: "", mall: "", emss: "" });
+    expect(pf.items[0]).toEqual({ cod: "906131", nom: "Trypanosoma", neps: "", mall: "", emss: "", cantidad: 1 });
+  });
+
+  it("carries each item's cantidad (normalized) into the prefactura (EX-23)", () => {
+    const pf = buildPrefactura({
+      paciente: "A",
+      cedula: "1",
+      facturador: "F",
+      items: [{ cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X", cantidad: 2 }],
+      now,
+    });
+    expect(pf.items[0]).toEqual(
+      expect.objectContaining({ cod: "903859", cantidad: 2 }),
+    );
+  });
+});
+
+// ─── normalizeItem (EX-21/EX-27) ──────────────────────────────────────────
+
+describe("normalizeItem", () => {
+  const base = { cod: "903859", nom: "Potasio", neps: "X", mall: "X", emss: "X" };
+
+  it("defaults missing cantidad to 1 (legacy 5-field items)", () => {
+    expect(normalizeItem(base).cantidad).toBe(1);
+  });
+
+  it("clamps NaN to 1", () => {
+    expect(normalizeItem({ ...base, cantidad: Number.NaN }).cantidad).toBe(1);
+  });
+
+  it("clamps 0 and negative values to 1", () => {
+    expect(normalizeItem({ ...base, cantidad: 0 }).cantidad).toBe(1);
+    expect(normalizeItem({ ...base, cantidad: -2 }).cantidad).toBe(1);
+  });
+
+  it("truncates fractional quantities (2.9 → 2)", () => {
+    expect(normalizeItem({ ...base, cantidad: 2.9 }).cantidad).toBe(2);
+  });
+
+  it("passes valid integers through unchanged", () => {
+    expect(normalizeItem({ ...base, cantidad: 4 }).cantidad).toBe(4);
+  });
+
+  it("preserves the other item fields while clamping", () => {
+    expect(normalizeItem({ ...base, cantidad: 0 })).toEqual({ ...base, cantidad: 1 });
   });
 });
 
