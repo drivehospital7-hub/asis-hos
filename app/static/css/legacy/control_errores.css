@@ -178,12 +178,13 @@ html {
 
 .table thead th:nth-child(1) { width: 6%; }    /* Validador */
 .table thead th:nth-child(2) { width: 8%; }    /* Factura */
-.table thead th:nth-child(3) { width: 8%; }    /* Creado */
-.table thead th:nth-child(4) { width: 11%; }   /* CategorÃ­a */
-.table thead th:nth-child(5) { width: 36%; }   /* DescripciÃ³n */
-.table thead th:nth-child(6) { width: 15%; }   /* Responsable */
-.table thead th:nth-child(7) { width: 11%; }    /* Estado */
-.table thead th:nth-child(8) { width: 10%; }   /* Acciones */
+.table thead th:nth-child(3) { width: 8%; }    /* ReFactura */
+.table thead th:nth-child(4) { width: 8%; }    /* Creado */
+.table thead th:nth-child(5) { width: 11%; }   /* Categoría */
+.table thead th:nth-child(6) { width: 28%; }   /* Descripción */
+.table thead th:nth-child(7) { width: 15%; }   /* Responsable */
+.table thead th:nth-child(8) { width: 11%; }   /* Estado */
+.table thead th:nth-child(9) { width: 10%; }   /* Acciones */
 
 .table-actions { 
   font-size: 0.75rem; 
