@@ -14,8 +14,8 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_breadcrumbs-CQhrzMeU.js": {
-    "file": "assets/breadcrumbs-CQhrzMeU.js",
+  "_breadcrumbs-NWWLMxrF.js": {
+    "file": "assets/breadcrumbs-NWWLMxrF.js",
     "name": "breadcrumbs",
     "imports": [
       "_globals-IEYCF5gg.js"
@@ -112,14 +112,14 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-CgFHLE5P.js",
+    "file": "assets/index-DX7VMVZ7.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_clipboard-copy-Kyd3Hqo0.js",
       "_plus-BLq7eTNT.js",
@@ -128,14 +128,14 @@
     ]
   },
   "src/pages/derechos/index.html": {
-    "file": "assets/index-XEH6urtY.js",
+    "file": "assets/index-Bi6lL8Jy.js",
     "name": "index",
     "src": "src/pages/derechos/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_play-CUidqCOP.js",
@@ -144,14 +144,14 @@
     ]
   },
   "src/pages/examenes/index.html": {
-    "file": "assets/index-CbOGDaK8.js",
+    "file": "assets/index-DQSUbsjO.js",
     "name": "index",
     "src": "src/pages/examenes/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
@@ -198,14 +198,14 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-GPOrpe4M.js",
+    "file": "assets/index-QCpXHb33.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_plus-BLq7eTNT.js",
@@ -217,14 +217,14 @@
     ]
   },
   "src/pages/odontologia-equipos-basicos/index.html": {
-    "file": "assets/index-Dcn3tjyd.js",
+    "file": "assets/index-DL6jVKkR.js",
     "name": "index",
     "src": "src/pages/odontologia-equipos-basicos/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
@@ -234,14 +234,14 @@
     ]
   },
   "src/pages/odontologia/index.html": {
-    "file": "assets/index-DgSRKkr9.js",
+    "file": "assets/index-Dm0azzWp.js",
     "name": "index",
     "src": "src/pages/odontologia/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
@@ -251,14 +251,14 @@
     ]
   },
   "src/pages/ordenado-facturado/index.html": {
-    "file": "assets/index-BBbjyst9.js",
+    "file": "assets/index-XpOgMrpQ.js",
     "name": "index",
     "src": "src/pages/ordenado-facturado/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_arrow-right-svMThmkB.js",
@@ -278,14 +278,14 @@
     ]
   },
   "src/pages/urgencias/index.html": {
-    "file": "assets/index-DMZTcNi_.js",
+    "file": "assets/index-BCRbuE5H.js",
     "name": "index",
     "src": "src/pages/urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_globals-IEYCF5gg.js",
       "_app-layout-CwsVbtlp.js",
-      "_breadcrumbs-CQhrzMeU.js",
+      "_breadcrumbs-NWWLMxrF.js",
       "_page-title-wpFhG2r2.js",
       "_status-badge-DjlUlfAt.js",
       "_info-CaFPEwhM.js",
@@ -308,7 +308,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-CqTOvZBY.css",
+    "file": "assets/style-8VxH8AsD.css",
     "src": "style.css"
   }
 }

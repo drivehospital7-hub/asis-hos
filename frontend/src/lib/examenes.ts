@@ -86,6 +86,162 @@ export function searchExamenes(examenes: Examen[], query: string): Examen[] {
   );
 }
 
+// ─── Listado search (EX-29) ─────────────────────────────────────────────
+
+/**
+ * Listado query normalization: trim + uppercase AFTER accent folding
+ * (NFD + strip combining marks, `\p{M}`), so "Álvaro Ñúñez" ≈ "alvaro nunez".
+ * Independent of `normalizeSearch` — Consulta EX-6 semantics stay frozen.
+ */
+export function normalizeListadoQuery(q: string): string {
+  return (q ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .toUpperCase();
+}
+
+/**
+ * Filter prefacturas by substring on paciente | cedula | facturador or ANY
+ * item cod/nom (folded). sin-fecha records match normally (hora not searched).
+ * Blank query → the input listado unchanged (same reference).
+ */
+export function searchListado(listado: Prefactura[], query: string): Prefactura[] {
+  const q = normalizeListadoQuery(query);
+  if (!q) return listado;
+  return listado.filter((pf) => {
+    if (normalizeListadoQuery(pf.paciente).includes(q)) return true;
+    if (normalizeListadoQuery(pf.cedula).includes(q)) return true;
+    if (normalizeListadoQuery(pf.facturador).includes(q)) return true;
+    return pf.items.some(
+      (it) =>
+        normalizeListadoQuery(it.cod).includes(q) ||
+        normalizeListadoQuery(it.nom).includes(q),
+    );
+  });
+}
+
+// ─── Listado pagination (EX-31) ─────────────────────────────────────────
+
+/** Records-per-page options for the Listado (no hardcoding in page.tsx). */
+export const LISTADO_PAGE_SIZES = [25, 50, 100] as const;
+
+/** Default page size; any filter/search change resets to this (EX-31). */
+export const DEFAULT_LISTADO_PAGE_SIZE = 25;
+
+// ─── Date-range filter (EX-30) ──────────────────────────────────────────
+
+/**
+ * Inclusive range membership on ISO `yyyy-mm-dd` bounds (A10): dayKey is
+ * lexicographically comparable to ISO dates (zero-padded). sin-fecha records
+ * are NEVER in range (A5 — no date → cannot be "in range"). Both bounds null
+ * → true for dated records. One-sided bounds are open-ended; to < from
+ * naturally yields false for every dayKey.
+ */
+export function inRange(
+  pf: Prefactura,
+  from: string | null,
+  to: string | null,
+): boolean {
+  const dayKey = listadoFechaInfo(pf.hora).dayKey;
+  if (dayKey === "sin-fecha") return false;
+  if (from !== null && dayKey < from) return false;
+  if (to !== null && dayKey > to) return false;
+  return true;
+}
+
+/** Keep only prefacturas whose date falls within [from, to] (EX-30). */
+export function filterByDateRange(
+  listado: Prefactura[],
+  from: string | null,
+  to: string | null,
+): Prefactura[] {
+  return listado.filter((pf) => inRange(pf, from, to));
+}
+
+// ─── Pagination (EX-31) ─────────────────────────────────────────────────
+
+export interface Page<T> {
+  items: T[];
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+/**
+ * Slice a filtered listado into pages (EX-31). Page is clamped into
+ * 1..totalPages; empty input → `{ items: [], page: 1, totalPages: 0 }`.
+ * Page size is floored to ≥ 1. Never mutates the input.
+ */
+export function paginate<T>(records: T[], page: number, pageSize: number): Page<T> {
+  const size = Math.max(1, Math.trunc(pageSize) || 1);
+  const total = records.length;
+  const totalPages = total === 0 ? 0 : Math.max(1, Math.ceil(total / size));
+  const clamped =
+    total === 0 ? 1 : Math.min(Math.max(1, Math.trunc(page) || 1), totalPages);
+  const start = (clamped - 1) * size;
+  return {
+    items: records.slice(start, start + size),
+    page: clamped,
+    pageSize: size,
+    total,
+    totalPages,
+  };
+}
+
+// ─── Listado numbering / totals / tooltip (EX-11) ───────────────────────
+
+/**
+ * Screen row N° per prefactura: continuous 1-based over the FULL filtered
+ * set (pre-pagination, stable across pages). CSV (EX-14) numbers one row per
+ * ITEM, so a prefactura's screen N° = its FIRST item's CSV N° =
+ * 1 + Σ items.length of all preceding prefacturas (#1682 parity rule).
+ */
+export function listadoRowNumbers(filtered: Prefactura[]): Map<string, number> {
+  const map = new Map<string, number>();
+  let n = 0;
+  for (const pf of filtered) {
+    map.set(pf.id, n + 1);
+    n += pf.items.length;
+  }
+  return map;
+}
+
+export interface DayTotals {
+  records: number;
+  items: number;
+  cantidad: number;
+}
+
+/**
+ * Day-section totals header: `N registros · M ítems · K cantidades`,
+ * computed over the page slice passed in (EX-11). K sums normalized
+ * item cantidad (absent/NaN/<1 → 1 via normalizeItem).
+ */
+export function daySectionTotals(entries: Prefactura[]): DayTotals {
+  let items = 0;
+  let cantidad = 0;
+  for (const pf of entries) {
+    items += pf.items.length;
+    for (const it of pf.items) cantidad += normalizeItem(it).cantidad;
+  }
+  return { records: entries.length, items, cantidad };
+}
+
+/**
+ * Badge hover tooltip: up to 8 lines `cod — nom (x cantidad)`, capped with
+ * `+N más` when the prefactura has more items (EX-11 tooltip cap).
+ */
+export function badgeTooltip(items: PrefacturaItem[]): string {
+  const lines = items
+    .slice(0, 8)
+    .map((it) => `${it.cod} — ${it.nom} (x ${normalizeItem(it).cantidad})`);
+  const extra = items.length - 8;
+  if (extra > 0) lines.push(`+${extra} más`);
+  return lines.join("\n");
+}
+
 // ─── IDs ───────────────────────────────────────────────────────────────
 
 /** `pf-<timestamp>-<4 random chars>` (source `genPrefacturaId`). */

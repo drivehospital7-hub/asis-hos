@@ -13,6 +13,8 @@ import {
   Eye,
   RefreshCcw,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -31,6 +33,14 @@ import {
   formatFechaEsCo,
   resolveUiActions,
   postArray,
+  searchListado,
+  filterByDateRange,
+  paginate,
+  listadoRowNumbers,
+  daySectionTotals,
+  badgeTooltip,
+  LISTADO_PAGE_SIZES,
+  DEFAULT_LISTADO_PAGE_SIZE,
   type Examen,
   type FlatExamen,
   type Prefactura,
@@ -118,6 +128,7 @@ export function ExamenesPage({
     ]);
     if (catsData?.examenes) setExamenes(catsData.examenes);
     if (listData?.listado) setListado(listData.listado);
+    setListadoStatus(listData === null ? "error" : "ready");
   };
 
   const handleConflict = async (what: string) => {
@@ -150,6 +161,13 @@ export function ExamenesPage({
 
   // ─── Listado state ─────────────────────────────────────────────────
   const [monthFilter, setMonthFilter] = useState("todos");
+  const [listadoStatus, setListadoStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [listadoQuery, setListadoQuery] = useState("");
+  const [allMonths, setAllMonths] = useState(false);
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_LISTADO_PAGE_SIZE);
   const [editDraft, setEditDraft] = useState<Prefactura | null>(null);
   const [pickerIdx, setPickerIdx] = useState<number | null>(null);
   const [pickerQuery, setPickerQuery] = useState("");
@@ -194,6 +212,8 @@ export function ExamenesPage({
       }
       setExamenes(cats);
       setListado(list);
+      // EX-11: fetch failures are an ERROR state — never "No hay registros".
+      setListadoStatus(listData === null ? "error" : "ready");
     })();
     return () => {
       cancelled = true;
@@ -212,17 +232,42 @@ export function ExamenesPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [months]);
 
-  const visible = useMemo(() => filterByMonth(listado, monthFilter), [listado, monthFilter]);
+  // Pipeline (EX-11/29/30/31): listado → month|Rango|all → search → paginate.
+  const scoped = useMemo(() => {
+    if (allMonths) return listado;
+    if (monthFilter === "rango") return filterByDateRange(listado, from || null, to || null);
+    return filterByMonth(listado, monthFilter);
+  }, [listado, allMonths, monthFilter, from, to]);
 
-  const daySections = useMemo(() => {
+  const filtered = useMemo(
+    () => searchListado(scoped, listadoQuery),
+    [scoped, listadoQuery],
+  );
+
+  // Continuous N° over the FULL filtered set — stable across pages (#1682).
+  const rowNumbers = useMemo(() => listadoRowNumbers(filtered), [filtered]);
+
+  const paged = useMemo(
+    () => paginate(filtered, page, pageSize),
+    [filtered, page, pageSize],
+  );
+
+  // Day sections regroup INSIDE the page slice; headers repeat across pages.
+  const pageDaySections = useMemo(() => {
     const map = new Map<string, { info: FechaInfo; entries: Prefactura[] }>();
-    for (const pf of visible) {
+    for (const pf of paged.items) {
       const info = listadoFechaInfo(pf.hora);
       if (!map.has(info.dayKey)) map.set(info.dayKey, { info, entries: [] });
       map.get(info.dayKey)!.entries.push(pf);
     }
     return [...map.values()].sort((a, b) => b.info.sortKey - a.info.sortKey);
-  }, [visible]);
+  }, [paged.items]);
+
+  // EX-31: ANY month/range/search/toggle change resets page → 1 and size → 25.
+  useEffect(() => {
+    setPage(1);
+    setPageSize(DEFAULT_LISTADO_PAGE_SIZE);
+  }, [listadoQuery, monthFilter, allMonths, from, to]);
 
   const fechaStr = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
@@ -407,15 +452,23 @@ export function ExamenesPage({
       window.alert("El listado está vacío.");
       return;
     }
-    if (!visible.length) {
+    if (!filtered.length) {
       window.alert("No hay registros en el filtro seleccionado.");
       return;
     }
-    const monthLabel =
-      monthFilter === "todos"
-        ? null
-        : months.find((m) => m.monthKey === monthFilter)?.monthLabel ?? null;
-    const { csv, filename } = buildCsv(visible, monthLabel);
+    // EX-14: exports the FULL filtered set (month|Rango + search), NOT the
+    // current page — CSV N° matches the on-screen continuous N°.
+    let label: string | null;
+    if (allMonths) {
+      label = null;
+    } else if (monthFilter === "rango") {
+      // Resolved design open question: Rango filename label `${from}_${to}`
+      // (missing bound → "hasta"); sanitized by csvLabelFor.
+      label = `${from || ""}_${to || "hasta"}`;
+    } else {
+      label = months.find((m) => m.monthKey === monthFilter)?.monthLabel ?? null;
+    }
+    const { csv, filename } = buildCsv(filtered, label);
     downloadCsv(csv, filename);
   };
 
@@ -915,17 +968,40 @@ export function ExamenesPage({
               </span>
             </div>
             <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "#1a4731" }}>
-              {visible.length} registro{visible.length !== 1 ? "s" : ""}
+              {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
             </span>
           </div>
 
+          {/* Toolbar: search (EX-29) + all-months toggle (EX-11) + month|Rango (EX-30) */}
           <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-gray-400" />
+              <input
+                type="text"
+                value={listadoQuery}
+                onChange={(e) => setListadoQuery(e.target.value)}
+                placeholder="Buscar por paciente, cédula, facturador o examen…"
+                maxLength={80}
+                className="w-64 rounded-md border py-1.5 pl-8 pr-2 text-xs outline-none focus:border-primary"
+                style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
+              />
+            </div>
+            <label className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+              <input
+                type="checkbox"
+                checked={allMonths}
+                onChange={(e) => setAllMonths(e.target.checked)}
+                className="accent-[#1a4731]"
+              />
+              Buscar en todos los meses
+            </label>
             <label className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
               Mes a mostrar:
               <select
                 value={monthFilter}
+                disabled={allMonths}
                 onChange={(e) => setMonthFilter(e.target.value)}
-                className="rounded-md border px-2 py-1.5 text-xs outline-none focus:border-primary"
+                className="rounded-md border px-2 py-1.5 text-xs outline-none focus:border-primary disabled:opacity-50"
                 style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
               >
                 <option value="todos">Todos los meses</option>
@@ -934,8 +1010,33 @@ export function ExamenesPage({
                     {m.monthLabel}
                   </option>
                 ))}
+                <option value="rango">Rango de fechas…</option>
               </select>
             </label>
+            {monthFilter === "rango" && !allMonths && (
+              <>
+                <label className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
+                  Desde:
+                  <input
+                    type="date"
+                    value={from}
+                    onChange={(e) => setFrom(e.target.value)}
+                    className="rounded-md border px-2 py-1.5 text-xs outline-none focus:border-primary"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
+                  />
+                </label>
+                <label className="flex items-center gap-1 text-[10px] font-bold text-gray-500">
+                  Hasta:
+                  <input
+                    type="date"
+                    value={to}
+                    onChange={(e) => setTo(e.target.value)}
+                    className="rounded-md border px-2 py-1.5 text-xs outline-none focus:border-primary"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
+                  />
+                </label>
+              </>
+            )}
           </div>
 
           <div className="mb-4 flex flex-wrap gap-2">
@@ -955,41 +1056,104 @@ export function ExamenesPage({
             )}
           </div>
 
-          {visible.length === 0 ? (
+          {listadoStatus === "loading" ? (
+            <Card className="p-10 text-center text-xs text-gray-400">
+              <FlaskConical className="mx-auto mb-2 h-8 w-8 animate-pulse opacity-40" />
+              Cargando listado…
+            </Card>
+          ) : listadoStatus === "error" ? (
+            <Card className="p-10 text-center text-xs" style={{ background: "#fdf0ee", borderColor: "#f5c6c0", color: "#a32d2d" }}>
+              <FlaskConical className="mx-auto mb-2 h-8 w-8 opacity-40" />
+              No se pudo cargar el listado. Verifique la conexión e intente de nuevo.
+            </Card>
+          ) : listado.length === 0 ? (
             <Card className="p-10 text-center text-xs text-gray-400">
               <FlaskConical className="mx-auto mb-2 h-8 w-8 opacity-40" />
-              {listado.length === 0
-                ? <>No hay registros. Busque exámenes y use <strong>"Imprimir y Enlistar"</strong> para agregarlos al listado.</>
-                : <>No hay registros en el mes seleccionado. Seleccione otro mes o agregue registros desde la Consulta.</>}
+              <>No hay registros. Busque exámenes y use <strong>"Imprimir y Enlistar"</strong> para agregarlos al listado.</>
+            </Card>
+          ) : filtered.length === 0 ? (
+            <Card className="p-10 text-center text-xs text-gray-400">
+              <FlaskConical className="mx-auto mb-2 h-8 w-8 opacity-40" />
+              {listadoQuery.trim() ? (
+                <>Sin resultados para «{listadoQuery.trim()}». Ajuste la búsqueda o el filtro.</>
+              ) : (
+                <>No hay registros en el {monthFilter === "rango" ? "periodo" : "mes"} seleccionado. Seleccione otro mes o agregue registros desde la Consulta.</>
+              )}
             </Card>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="bg-[#1a4731] text-left text-[10px] text-white">
-                    <th className="px-2 py-2 font-semibold">#</th>
-                    <th className="px-2 py-2 font-semibold">Paciente</th>
-                    <th className="px-2 py-2 font-semibold">Cédula</th>
-                    <th className="px-2 py-2 font-semibold">Facturador</th>
-                    <th className="px-2 py-2 font-semibold">Fec/Hora</th>
-                    <th className="px-2 py-2 text-center font-semibold">Items</th>
-                    <th className="px-2 py-2 font-semibold">Acc</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {daySections.map((day) => (
-                    <DaySectionRows
-                      key={day.info.dayKey}
-                      day={day}
-                      ui={ui}
-                      onPrint={verRegistro}
-                      onEdit={openEdit}
-                      onDelete={delReg}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              {/* Resolved design open question: 65vh internal scroll wrapper (A9) */}
+              <div className="max-h-[65vh] overflow-y-auto overflow-x-auto rounded-lg border">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 z-10">
+                    <tr className="bg-[#1a4731] text-left text-[10px] text-white">
+                      <th className="px-2 py-2 font-semibold">#</th>
+                      <th className="px-2 py-2 font-semibold">Paciente</th>
+                      <th className="px-2 py-2 font-semibold">Cédula</th>
+                      <th className="px-2 py-2 font-semibold">Facturador</th>
+                      <th className="px-2 py-2 font-semibold">Fec/Hora</th>
+                      <th className="px-2 py-2 text-center font-semibold">Items</th>
+                      <th className="px-2 py-2 font-semibold">Acc</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageDaySections.map((day) => (
+                      <DaySectionRows
+                        key={day.info.dayKey}
+                        day={day}
+                        rowNumbers={rowNumbers}
+                        ui={ui}
+                        onPrint={verRegistro}
+                        onEdit={openEdit}
+                        onDelete={delReg}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Pager + page-size (EX-31) */}
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                <label className="flex items-center gap-2 text-[10px] font-bold text-gray-500">
+                  Registros por página:
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="rounded-md border px-2 py-1.5 text-xs outline-none focus:border-primary"
+                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
+                  >
+                    {LISTADO_PAGE_SIZES.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={paged.page <= 1}
+                    onClick={() => setPage(paged.page - 1)}
+                  >
+                    <ChevronLeft className="h-3.5 w-3.5" />
+                    Anterior
+                  </Button>
+                  <span className="text-[10px] font-bold text-gray-500">
+                    Página {paged.page} de {paged.totalPages}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    disabled={paged.page >= paged.totalPages}
+                    onClick={() => setPage(paged.page + 1)}
+                  >
+                    Siguiente
+                    <ChevronRight className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </div>
       )}
@@ -1403,6 +1567,7 @@ export function ExamenesPage({
 
 interface DaySectionRowsProps {
   day: { info: FechaInfo; entries: Prefactura[] };
+  rowNumbers: Map<string, number>;
   ui: ReturnType<typeof resolveUiActions>;
   onPrint: (id: string) => void;
   onEdit: (pf: Prefactura) => void;
@@ -1411,33 +1576,38 @@ interface DaySectionRowsProps {
 
 function DaySectionRows({
   day,
+  rowNumbers,
   ui,
   onPrint,
   onEdit,
   onDelete,
 }: DaySectionRowsProps) {
-  let rowNumber = 0;
+  // Totals computed over the PAGE slice of this day (EX-11).
+  const totals = daySectionTotals(day.entries);
   return (
     <>
       <tr className="bg-[#e8f5ee] text-[11px] font-bold" style={{ color: "#1a4731" }}>
         <td colSpan={7} className="px-2 py-2">
-          {day.info.dayLabel}
+          <div className="flex items-center justify-between gap-2">
+            <span>{day.info.dayLabel}</span>
+            <span className="text-[10px] font-semibold">
+              {totals.records} registros · {totals.items} ítems · {totals.cantidad} cantidades
+            </span>
+          </div>
         </td>
       </tr>
-      {day.entries.map((pf) => {
-        rowNumber += 1;
-        return (
-          <PfRows
-            key={pf.id}
-            pf={pf}
-            rowNumber={rowNumber}
-            ui={ui}
-            onPrint={onPrint}
-            onEdit={onEdit}
-            onDelete={onDelete}
-          />
-        );
-      })}
+      {day.entries.map((pf) => (
+        <PfRows
+          key={pf.id}
+          pf={pf}
+          // Continuous N° over the full filtered set — CSV parity (#1682).
+          rowNumber={rowNumbers.get(pf.id) ?? 0}
+          ui={ui}
+          onPrint={onPrint}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ))}
     </>
   );
 }
@@ -1461,14 +1631,18 @@ function PfRows({
 }: PfRowsProps) {
   return (
     <>
-      <tr className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.08)" }}>
+      <tr className="border-b transition-colors hover:bg-[#f0f7f2]" style={{ borderColor: "oklch(0.55 0.04 160 / 0.08)" }}>
         <td className="px-2 py-2 text-[10px] text-gray-400">{rowNumber}</td>
         <td className="px-2 py-2 font-bold text-gray-900">{pf.paciente}</td>
         <td className="px-2 py-2">{pf.cedula}</td>
         <td className="px-2 py-2 text-[10px]">{pf.facturador}</td>
         <td className="px-2 py-2 text-[10px] text-gray-500">{pf.hora}</td>
         <td className="px-2 py-2 text-center">
-          <span className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white" style={{ background: "#2c6e4e" }}>
+          <span
+            title={badgeTooltip(pf.items)}
+            className="rounded-full px-2.5 py-0.5 text-[10px] font-bold text-white"
+            style={{ background: "#2c6e4e" }}
+          >
             {pf.items.length}
           </span>
         </td>
