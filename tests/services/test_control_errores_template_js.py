@@ -1016,9 +1016,15 @@ class TestTitleCase:
         assert "text-transform:uppercase;letter-spacing:.04em" not in HTML
 
     def test_factura_observacion_upper_guards_intact(self):
-        """Los guards .toUpperCase() de factura/observacion se conservan en saves."""
-        assert "if (field === 'factura' || field === 'observacion') {" in SAVE_EDITOR_REGION
-        assert "if (field === 'factura' || field === 'observacion') {" in SAVE_CALLBACK_REGION
+        """Los guards .toUpperCase() de factura/observacion/refactura se conservan en saves."""
+        assert (
+            "if (field === 'factura' || field === 'observacion' || field === 'refactura') {"
+            in SAVE_EDITOR_REGION
+        )
+        assert (
+            "if (field === 'factura' || field === 'observacion' || field === 'refactura') {"
+            in SAVE_CALLBACK_REGION
+        )
 
     def test_observacion_cells_keep_stored_casing(self):
         """Las celdas de observación NO se transforman (casing almacenado)."""
@@ -1032,3 +1038,116 @@ class TestTitleCase:
     def test_carga_preview_responsable_uses_shared_builder(self):
         """Carga masiva: select responsable usa _buildResponsableOptions (auto cubierto)."""
         assert "_buildResponsableOptions(row.responsable)" in CARGA_PREVIEW_REGION
+
+
+class TestReFacturaColumn:
+    """R12/R13: columna ReFactura opcional a la derecha de Factura.
+
+    RED-first: estos asserts fallan contra el template actual (sin columna
+    ReFactura). Cubren th/td en AMBOS render paths, guard readonly, editor
+    (upperFields + write-back), 3 save paths, nueva fila, disabled-state y
+    búsqueda. Capa estática por diseño (sin runner de browser).
+    """
+
+    def test_thead_refactura_despues_de_factura(self):
+        """El <th> ReFactura va inmediatamente después del <th> Factura."""
+        assert "<th>Factura</th>\n        <th>ReFactura</th>" in HTML
+
+    def test_colspan_nueve_en_todos_los_sitios(self):
+        """R10: todo colspan del template es 9 (nunca 8)."""
+        assert 'colspan="8"' not in HTML
+        assert HTML.count('colspan="9"') >= 4
+
+    def test_cell_refactura_en_render_table(self):
+        """renderTable: td editable-cell data-field=refactura + span con escapeHtml."""
+        assert 'data-field="refactura"' in RENDER_TABLE_REGION
+        assert "escapeHtml(e.refactura || '')" in RENDER_TABLE_REGION
+
+    def test_cell_refactura_en_render_filtered_table(self):
+        """renderFilteredTable: td editable-cell data-field=refactura."""
+        assert 'data-field="refactura"' in RENDER_FILTERED_REGION
+        assert "escapeHtml(e.refactura || '')" in RENDER_FILTERED_REGION
+
+    def test_readonly_guard_incluye_refactura(self):
+        """R3: handleCellClick muestra tooltip readonly para refactura sin write."""
+        start = HTML.index("function handleCellClick(td)")
+        end = HTML.index("// ====== READONLY TOOLTIP")
+        region = HTML[start:end]
+        assert (
+            "field === 'observacion' || field === 'factura' || field === 'refactura'"
+            in region
+        )
+
+    def test_upper_fields_incluye_refactura(self):
+        """openEditor fuerza mayúsculas en refactura (upperFields)."""
+        assert (
+            "const upperFields = ['factura', 'observacion', 'refactura'];"
+            in OPEN_EDITOR_REGION
+        )
+
+    def test_write_back_branch_refactura(self):
+        """updateObservationCellText escribe el span de refactura."""
+        start = HTML.index("function updateObservationCellText(td, newText)")
+        end = HTML.index("async function saveFromEditor()")
+        region = HTML[start:end]
+        assert "td.dataset.field === 'refactura'" in region
+
+    def test_save_from_editor_payload_incluye_refactura(self):
+        """saveFromEditor: payload de fila nueva incluye refactura."""
+        assert "var refactura = field === 'refactura' ? newValue : '';" in SAVE_EDITOR_REGION
+        assert "refactura: refactura," in SAVE_EDITOR_REGION
+
+    def test_save_callback_payload_incluye_refactura(self):
+        """saveFromEditorWithCallback: payload de fila nueva incluye refactura."""
+        assert (
+            "refactura: field === 'refactura' ? newValue : '',"
+            in SAVE_CALLBACK_REGION
+        )
+
+    def test_update_backend_guard_incluye_refactura(self):
+        """updateBackend fuerza mayúsculas en refactura (3 guards en total)."""
+        assert (
+            HTML.count(
+                "if (field === 'factura' || field === 'observacion' || field === 'refactura') {"
+            )
+            == 3
+        )
+
+    def test_new_row_cell_refactura(self):
+        """addNewRow: la fila nueva incluye celda refactura vacía."""
+        start = HTML.rindex("function addNewRow()")
+        end = HTML.index("async function saveNewRow()")
+        region = HTML[start:end]
+        assert 'data-field="refactura"' in region
+
+    def test_new_row_input_refactura(self):
+        """renderTable isAdding: input newRefactura presente (celda opcional vacía)."""
+        assert 'id="newRefactura"' in RENDER_TABLE_REGION
+
+    def test_save_new_row_refactura_uppercase(self):
+        """saveNewRow lee newRefactura, lo pone en mayúsculas y lo envía."""
+        start = HTML.index("async function saveNewRow()")
+        end = HTML.index("// ====== EDICIÓN DIRECTA")
+        region = HTML[start:end]
+        assert "newRefactura" in region
+        assert "toUpperCase()" in region
+        assert "refactura: refactura," in region
+
+    def test_update_disabled_state_excluye_refactura(self):
+        """updateDisabledState: refactura queda clickeable sin write (tooltip R3)."""
+        start = HTML.index("function updateDisabledState()")
+        end = HTML.index("// Escuchar cambios de auth")
+        region = HTML[start:end]
+        assert "field !== 'refactura'" in region
+
+    def test_search_incluye_refactura(self):
+        """R13: handleSearch y renderFilteredByMonth matchean refactura."""
+        search_start = HTML.index("function handleSearch()")
+        search_end = HTML.index("function renderFilteredTable(")
+        search_region = HTML[search_start:search_end]
+        assert "(e.refactura || '').toLowerCase()" in search_region
+
+        month_start = HTML.index("function renderFilteredByMonth()")
+        month_end = HTML.index("// ====== LOAD ERRORES")
+        month_region = HTML[month_start:month_end]
+        assert "(e.refactura || '').toLowerCase()" in month_region

@@ -99,6 +99,7 @@ def _persist(
         responsable=responsable,
         validador=(validador or "").upper(),
         created_by=created_by,
+        refactura=data.get("refactura", "") or "",
     )
 
 
@@ -195,6 +196,7 @@ def _process_item(item: dict[str, Any], session: dict[str, Any] | None) -> dict[
             "observacion": item["observacion"],
             "observacion_facturador": item.get("observacion_facturador", "") or "",
             "responsable": responsable.upper(),
+            "refactura": item.get("refactura", "") or "",
         }
 
         existentes = _contar_existentes(factura)
@@ -275,6 +277,7 @@ def _submit_single(
         "observacion": payload["observacion"],
         "observacion_facturador": payload.get("observacion_facturador", "") or "",
         "responsable": responsable.upper(),
+        "refactura": payload.get("refactura", "") or "",
     }
 
     # 5. Advertencia de duplicado (no bloquea; el registro se crea igual)

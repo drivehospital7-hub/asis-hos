@@ -19,6 +19,7 @@ HEADERS = [
     "Validador",
     "Creado",
     "Factura",
+    "ReFactura",
     "Categoría",
     "Descripción",
     "Responsables",
@@ -126,6 +127,7 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
             error.get("validador", ""),
             _formatear_fecha(error.get("creado_en", "")),
             error.get("factura", ""),
+            error.get("refactura", ""),
             error.get("tipo_error", ""),
             error.get("observacion", ""),
             error.get("responsable", ""),
@@ -136,21 +138,21 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
         adjuntos = listar_imagenes(error_id)
         link_cols: set[int] = set()
         for i in range(3):
-            cell = ws.cell(row=row_idx, column=8 + i)
+            cell = ws.cell(row=row_idx, column=9 + i)
             if i < len(adjuntos):
                 filename = adjuntos[i]
                 cell.value = _label_adjunto(filename)
                 cell.hyperlink = _adjunto_url(base_url, error_id, filename)
                 cell.font = LINK_FONT
-                link_cols.add(8 + i)
+                link_cols.add(9 + i)
             else:
                 cell.value = ""
 
-        ws.cell(row=row_idx, column=11).value = error.get("observacion_facturador", "")
+        ws.cell(row=row_idx, column=12).value = error.get("observacion_facturador", "")
 
         adjuntos_facturador = listar_imagenes(error_id, IMAGENES_FACTURADOR_SCOPE)
         for i in range(3):
-            cell = ws.cell(row=row_idx, column=12 + i)
+            cell = ws.cell(row=row_idx, column=13 + i)
             if i < len(adjuntos_facturador):
                 filename = adjuntos_facturador[i]
                 cell.value = _label_adjunto(filename)
@@ -158,7 +160,7 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
                     base_url, error_id, filename, IMAGENES_FACTURADOR_SCOPE
                 )
                 cell.font = LINK_FONT
-                link_cols.add(12 + i)
+                link_cols.add(13 + i)
             else:
                 cell.value = ""
 

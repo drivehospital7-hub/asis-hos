@@ -64,6 +64,7 @@
       <tr>
         <th>Validador</th>
         <th>Factura</th>
+        <th>ReFactura</th>
         <th>Creado</th>
         <th>Categoría</th>
         <th>Descripción</th>
@@ -72,7 +73,7 @@
         <th>Acciones</th>
       </tr>
     </thead>
-    <tbody id="erroresBody"><tr><td colspan="8" class="empty-state">Cargando...</td></tr></tbody>
+    <tbody id="erroresBody"><tr><td colspan="9" class="empty-state">Cargando...</td></tr></tbody>
   </table>
 </div>
 
@@ -408,7 +409,8 @@
       if (searchQuery) {
         const factura = (e.factura || '').toLowerCase();
         const observacion = (e.observacion || '').toLowerCase();
-        return factura.includes(searchQuery) || observacion.includes(searchQuery);
+        const refactura = (e.refactura || '').toLowerCase();
+        return factura.includes(searchQuery) || observacion.includes(searchQuery) || refactura.includes(searchQuery);
       }
       return true;
     });
@@ -482,9 +484,10 @@
     // Nueva fila
     if (isAdding) {
       html += `<tr>
-        <td colspan="8" style="padding: 1.5rem; background: #f8fafc;">
+        <td colspan="9" style="padding: 1.5rem; background: #f8fafc;">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <input type="text" id="newFactura" class="inline-input" placeholder="ID" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
+            <input type="text" id="newRefactura" class="inline-input" placeholder="ReFactura" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newTipo" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
               <option value="">Categoría...</option>
               ${opciones.tipos_error.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
@@ -502,7 +505,7 @@
     }
 
     if (!cachedErrores || cachedErrores.length === 0) {
-      if (!isAdding) html += '<tr><td colspan="8" class="empty-state">No hay errores registrados</td></tr>';
+      if (!isAdding) html += '<tr><td colspan="9" class="empty-state">No hay errores registrados</td></tr>';
     } else {
       cachedErrores.forEach(e => {
         // Determinar clase de categoría
@@ -520,6 +523,9 @@
           <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
+          </td>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+            <span>${escapeHtml(e.refactura || '')}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
@@ -940,8 +946,8 @@
   function handleCellClick(td) {
     const field = td.dataset.field;
 
-    // Sin permiso de escritura: observacion/factura muestran tooltip readonly
-    if (!window._canWrite && (field === 'observacion' || field === 'factura')) {
+    // Sin permiso de escritura: observacion/factura/refactura muestran tooltip readonly
+    if (!window._canWrite && (field === 'observacion' || field === 'factura' || field === 'refactura')) {
       showObservacionReadOnly(td);
       return;
     }
@@ -1152,7 +1158,7 @@
       } else {
         cellContent = td.textContent.trim();
       }
-      const upperFields = ['factura', 'observacion'];
+      const upperFields = ['factura', 'observacion', 'refactura'];
       const forceUpper = upperFields.includes(field) ? 'text-transform:uppercase;' : '';
       editor.innerHTML = `<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;${forceUpper}">${escapeHtml(cellContent)}</textarea>`;
       setTimeout(() => {
@@ -1237,6 +1243,9 @@
     } else if (td.dataset.field === 'factura') {
       const span = td.querySelector('span');
       if (span) { span.textContent = text; return; }
+    } else if (td.dataset.field === 'refactura') {
+      const span = td.querySelector('span');
+      if (span) { span.textContent = text; return; }
     }
     td.textContent = text; // legacy rows / other text fields
   }
@@ -1261,8 +1270,8 @@
     // Determinar campo
     const field = currentCell.dataset.field;
 
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
     }
 
@@ -1310,6 +1319,7 @@
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
     if (currentEditId === 'new') {
       var factura = field === 'factura' ? newValue : '';
+      var refactura = field === 'refactura' ? newValue : '';
       if (factura) {
         var dup = buscarDuplicados(factura);
         if (dup.length) {
@@ -1318,7 +1328,7 @@
           }
         }
       }
-    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       // Validar duplicados en factura para registros existentes
@@ -1390,8 +1400,8 @@
     const field = currentCell.dataset.field;
     const prevId = currentEditId;
 
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
     }
 
@@ -1424,6 +1434,7 @@
       const data = {
         tipo_error: 'Otros',
         factura: field === 'factura' ? newValue : '',
+        refactura: field === 'refactura' ? newValue : '',
         observacion: '',
         observacion_facturador: '',
         estado: 'S',
@@ -1469,8 +1480,8 @@
   }
 
   async function updateBackend(id, field, value) {
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       value = value.toUpperCase();
     }
     var error = cachedErrores.find(function(e){return e.id===id});
@@ -1542,6 +1553,7 @@
     newRow.innerHTML = `
       <td class="fecha-creado">${currentUserName || '-'}</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
+      <td class="new-row-cell" data-type="text" data-id="new" data-field="refactura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
@@ -1576,12 +1588,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function saveNewRow() {
     var factura = (document.getElementById('newFactura')?.value?.trim() || '').toUpperCase();
+    var refactura = (document.getElementById('newRefactura')?.value?.trim() || '').toUpperCase();
     if (!factura) { isAdding = false; loadErrores(); return; }
     var dup = buscarDuplicados(factura);
     if (dup.length && !await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
@@ -1635,7 +1648,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const filtered = erroresDelMes.filter(e => {
       const factura = (e.factura || '').toLowerCase();
       const observacion = (e.observacion || '').toLowerCase();
-      return factura.includes(query) || observacion.includes(query);
+      const refactura = (e.refactura || '').toLowerCase();
+      return factura.includes(query) || observacion.includes(query) || refactura.includes(query);
     });
     renderFilteredTable(filtered);
     updateDisabledState();
@@ -1655,7 +1669,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const pageItems = errores.slice(startIndex, endIndex);
     
     if (!errores || errores.length === 0) {
-      html += '<tr><td colspan="8" class="empty-state">No se encontraron resultados</td></tr>';
+      html += '<tr><td colspan="9" class="empty-state">No se encontraron resultados</td></tr>';
     } else {
       pageItems.forEach(e => {
         let categoryClass = 'clinico';
@@ -1671,6 +1685,9 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
           <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
+          </td>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+            <span>${escapeHtml(e.refactura || '')}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
@@ -2650,10 +2667,10 @@ function exportarExcel() {
         btn.setAttribute('disabled', '');
       });
 
-      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion y factura)
+      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion, factura y refactura)
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
-        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') {
+        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura' && field !== 'refactura') {
           const imgBtn = cell.querySelector('.obs-img-btn');
           if (imgBtn) {
             cell.classList.add('disabled-action--has-img');

@@ -324,6 +324,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
 
         tipo_error = data.get("tipo_error", "").strip() or "Otros"
         factura = (data.get("factura", "").strip() or "").upper()
+        refactura = (data.get("refactura", "").strip() or "").upper()
         observacion = (data.get("observacion", "").strip() or "").upper()
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
@@ -336,6 +337,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
         nuevo = crear_error(
             tipo_error, factura, observacion, estado, responsable,
             observacion_facturador, validador=validador, created_by=created_by,
+            refactura=refactura,
         )
         logger.info("[BACK] Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}
@@ -384,6 +386,10 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
             responsable = data["responsable"].strip() if data["responsable"] else ""
             kwargs["responsable"] = (
                 _resolve_responsable_identity(responsable) or responsable
+            ).upper()
+        if "refactura" in data:
+            kwargs["refactura"] = (
+                data["refactura"].strip() if data["refactura"] else ""
             ).upper()
 
         actualizado = actualizar_error(error_id, **kwargs)
