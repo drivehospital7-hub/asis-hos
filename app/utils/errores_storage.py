@@ -238,6 +238,7 @@ def crear_error(
     observacion_facturador: str = "",
     validador: str = "",
     created_by: str = "",
+    refactura: str = "",
 ) -> dict[str, Any]:
     """Crea un error de forma ATÓMICA bajo ``_write_lock``.
 
@@ -248,6 +249,8 @@ def crear_error(
     Args:
         created_by: username del creador (auditoría automática, nunca
             proviene del payload del cliente).
+        refactura: campo opcional (ReFactura); default ``""``. Se agrega al
+            final de la firma para no romper callers posicionales existentes.
 
     Returns:
         El registro persistido.
@@ -259,6 +262,7 @@ def crear_error(
             "id": str(uuid.uuid4()),
             "tipo_error": tipo_error,
             "factura": factura,
+            "refactura": refactura,
             "observacion": observacion,
             "observacion_facturador": observacion_facturador,
             "estado": estado,
@@ -293,6 +297,7 @@ def actualizar_error(
     observacion_facturador: str | None = _NOT_SET,
     estado: str | None = _NOT_SET,
     responsable: str | None = _NOT_SET,
+    refactura: str | None = _NOT_SET,
 ) -> dict[str, Any] | None:
     """Actualizar un error existente."""
     data = _leer_datos()
@@ -311,6 +316,8 @@ def actualizar_error(
                 error["estado"] = estado
             if responsable is not _NOT_SET:
                 error["responsable"] = responsable
+            if refactura is not _NOT_SET:
+                error["refactura"] = refactura
 
             error["actualizado_en"] = datetime.now().isoformat()
 

@@ -1284,3 +1284,180 @@ class TestValidadorColumn:
             import inspect
             sig = inspect.signature(actualizar_error)
             assert "validador" not in sig.parameters
+
+
+class TestReFacturaColumnService:
+    """R12: refactura opcional, uppercase forzado, permisos heredados (R1)."""
+
+    # ── add_error: uppercase + optional ──────────────────────────────
+
+    def test_add_error_uppercases_refactura(self):
+        """add_error() MUST uppercase refactura before crear_error."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "refactura": "abc-1",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == "ABC-1"
+
+    def test_add_error_refactura_optional_empty(self):
+        """add_error() without refactura → crear_error recibe '' (opcional)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == ""
+
+    def test_add_error_refactura_blank_stored_empty(self):
+        """add_error() with blank refactura → '' (never None)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "refactura": "   ",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == ""
+
+    # ── update_error: stores sent refactura, uppercased ──────────────
+
+    def test_update_error_stores_sent_refactura_uppercased(self):
+        """update_error() MUST forward refactura uppercased to actualizar_error."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "refactura": "ABC-1"}
+
+            result = update_error("test-1", {"refactura": "abc-1"})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["refactura"] == "ABC-1"
+
+    def test_update_error_accepts_empty_refactura(self):
+        """update_error() with refactura='' → forwarded as '' (clears value)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "refactura": ""}
+
+            result = update_error("test-1", {"refactura": ""})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["refactura"] == ""
+
+    def test_update_error_does_not_send_refactura_when_absent(self):
+        """update_error() without refactura key → actualizar_error NOT called with it."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "estado": "R"}
+
+            update_error("test-1", {"estado": "R"})
+
+            assert "refactura" not in mock_upd.call_args.kwargs
+
+    # ── R1: non-write PUT refactura → 403 ────────────────────────────
+
+    def test_limited_rejects_refactura(self):
+        """User with 'control_urgencias' MUST get 403 for 'refactura' (R1)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias"]
+            session["ce_authenticated"] = True
+            mock_get.return_value = _fake_error()
+
+            result = update_error("test-1", {"refactura": "X"})
+
+        assert isinstance(result, tuple)
+        assert result[1] == 403
+        assert "refactura" in result[0]["errors"][0]
+        mock_upd.assert_not_called()
+
+
+class TestReFacturaColumnStorage:
+    """R12: storage — crear_error stores refactura (default ''), actualizar_error branch."""
+
+    def test_crear_error_stores_refactura_key(self):
+        """crear_error() MUST store refactura when param is passed."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-001",
+                observacion="test obs",
+                estado="S",
+                responsable="Admin",
+                refactura="R-42",
+            )
+
+        assert error["refactura"] == "R-42"
+        mock_write.assert_called_once()
+
+    def test_crear_error_refactura_default_empty(self):
+        """crear_error() MUST default refactura to empty string (optional)."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-002",
+                observacion="no refactura",
+                estado="S",
+                responsable="Admin",
+            )
+
+        assert error["refactura"] == ""
+        mock_write.assert_called_once()
+
+    def test_actualizar_error_updates_refactura_only_when_sent(self):
+        """actualizar_error() MUST update refactura only when the param is provided."""
+        with patch("app.utils.errores_storage._leer_datos") as mock_read, \
+             patch("app.utils.errores_storage._escribir_datos") as mock_write:
+
+            mock_read.return_value = {"errores": [{"id": "test-1", "refactura": "OLD"}]}
+
+            result = actualizar_error(error_id="test-1", refactura="NEW-1")
+
+            assert result["refactura"] == "NEW-1"
+
+    def test_actualizar_error_leaves_refactura_when_absent(self):
+        """actualizar_error() MUST NOT touch refactura when not sent (legacy-safe)."""
+        with patch("app.utils.errores_storage._leer_datos") as mock_read, \
+             patch("app.utils.errores_storage._escribir_datos") as mock_write:
+
+            mock_read.return_value = {"errores": [{"id": "test-1", "refactura": "OLD"}]}
+
+            result = actualizar_error(error_id="test-1", estado="N")
+
+            assert result["refactura"] == "OLD"

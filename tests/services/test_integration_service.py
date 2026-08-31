@@ -1160,3 +1160,115 @@ class TestConcurrentWrites:
         # Both calls created a record
         data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
         assert len(data["errores"]) == 2
+
+
+class TestOptionalRefactura:
+    """R13: el endpoint LAN acepta refactura opcional y la persiste via crear_error."""
+
+    def test_single_with_refactura_forwarded_to_persist(self):
+        """Payload individual con refactura → record_data la incluye."""
+        payload = dict(VALID_PAYLOAD, refactura="R-42")
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "x"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(payload, _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        call_data = mock_persist.call_args.args[0]
+        assert call_data["refactura"] == "R-42"
+
+    def test_single_without_refactura_stores_empty(self):
+        """Payload individual sin refactura → record_data refactura='' (opcional)."""
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "x"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        call_data = mock_persist.call_args.args[0]
+        assert call_data["refactura"] == ""
+
+    def test_batch_item_with_refactura_forwarded_to_persist(self):
+        """Item de lote con refactura → record_data la incluye."""
+        batch = {
+            "novedades": [
+                {"factura": "FEV1", "observacion": "obs 1",
+                 "responsable": "LORENY ESPAÑA", "nombres": "CARLOS PEREZ",
+                 "refactura": "rf-batch-1"},
+            ]
+        }
+        with (
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+            patch(
+                "app.services.integration_service._persist",
+                return_value={"id": "r1"},
+            ) as mock_persist,
+        ):
+            envelope, status = submit(batch, _VALIDATOR_SESSION)
+
+        assert status == 200
+        assert envelope["status"] == "success"
+        call_data = mock_persist.call_args.args[0]
+        assert call_data["refactura"] == "rf-batch-1"
+
+    def test_real_json_persists_refactura(self, tmp_path):
+        """Storage real: submit con refactura → el registro persistido la lleva."""
+        from app.utils import errores_storage
+
+        errores_file = tmp_path / "control_errores.json"
+        errores_file.write_text(json.dumps({"errores": []}), encoding="utf-8")
+        payload = dict(VALID_PAYLOAD, refactura="R-99")
+        with (
+            patch.object(errores_storage, "DATA_DIR", tmp_path),
+            patch.object(errores_storage, "ERRORES_FILE", errores_file),
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+        ):
+            envelope, status = submit(payload, _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
+        assert data["errores"][0]["refactura"] == "R-99"
+
+    def test_real_json_without_refactura_stores_empty(self, tmp_path):
+        """Storage real: payload sin refactura → registro con refactura='' (opcional)."""
+        from app.utils import errores_storage
+
+        errores_file = tmp_path / "control_errores.json"
+        errores_file.write_text(json.dumps({"errores": []}), encoding="utf-8")
+        with (
+            patch.object(errores_storage, "DATA_DIR", tmp_path),
+            patch.object(errores_storage, "ERRORES_FILE", errores_file),
+            patch(
+                "app.services.integration_service._resolve_responsable",
+                return_value="LORENY ESPAÑA",
+            ),
+        ):
+            envelope, status = submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
+
+        assert status == 201
+        assert envelope["status"] == "success"
+        data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
+        assert data["errores"][0]["refactura"] == ""
