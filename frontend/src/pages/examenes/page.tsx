@@ -677,7 +677,7 @@ export function ExamenesPage({
   const TABS: Array<{ id: TabId; label: string; icon: typeof Search; visible: boolean }> = [
     { id: "consulta", label: "Consulta", icon: Search, visible: true },
     { id: "listado", label: "Listado", icon: ClipboardList, visible: true },
-    { id: "admin", label: "Admin", icon: Settings2, visible: ui.admin },
+    { id: "admin", label: "Listado de CUPS", icon: Settings2, visible: true },
   ];
 
   const tabs = TABS.filter((t) => t.visible);
@@ -1103,8 +1103,13 @@ export function ExamenesPage({
         </div>
       )}
 
-      {activeTab === "admin" && ui.admin && (
+      {activeTab === "admin" && (
         <div className="space-y-5">
+          {!ui.admin && (
+            <p className="rounded-md border px-3 py-2 text-sm text-muted-foreground" style={{ background: "#f7faf8", borderColor: "#c8ddd4" }}>
+              Solo lectura — solicite permiso examenes:write para modificar
+            </p>
+          )}
           <Card className="p-5">
             <h2 className="mb-3 font-heading text-sm font-semibold" style={{ color: "#1a4731" }}>
               Agregar / Editar Examen
@@ -1120,7 +1125,8 @@ export function ExamenesPage({
                   onChange={(e) => setAdmCod(e.target.value)}
                   maxLength={10}
                   placeholder="Ej: 903859"
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary"
+                  disabled={!ui.admin}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
                   style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)" }}
                 />
               </div>
@@ -1133,7 +1139,8 @@ export function ExamenesPage({
                   value={admNom}
                   onChange={(e) => setAdmNom(e.target.value)}
                   placeholder="Nombre completo del examen"
-                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary"
+                  disabled={!ui.admin}
+                  className="w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-primary disabled:opacity-50"
                   style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)" }}
                 />
               </div>
@@ -1152,7 +1159,8 @@ export function ExamenesPage({
                     type="checkbox"
                     checked={admFlags[key]}
                     onChange={() => setFlag(key)}
-                    className="accent-[#1a4731]"
+                    disabled={!ui.admin}
+                    className="accent-[#1a4731] disabled:opacity-50"
                   />
                   {label}
                   <input
@@ -1160,14 +1168,15 @@ export function ExamenesPage({
                     checked={admFlags[`${key}Auth` as keyof FlagState]}
                     onChange={() => setFlag(`${key}Auth` as keyof FlagState)}
                     title={`${label} AUTH`}
-                    className="accent-[#1a4731]"
+                    disabled={!ui.admin}
+                    className="accent-[#1a4731] disabled:opacity-50"
                   />
                   <span className="text-[10px] text-gray-400">AUTH</span>
                 </div>
               ))}
             </div>
             <div className="mt-3 flex gap-2">
-              <Button onClick={guardarExamen}>
+              <Button onClick={guardarExamen} disabled={!ui.admin} title={!ui.admin ? "Solo lectura — requiere examenes:write" : undefined}>
                 <FlaskConical className="h-4 w-4" />
                 Guardar examen
               </Button>
@@ -1222,10 +1231,10 @@ export function ExamenesPage({
                         )}
                       </div>
                       <div className="flex shrink-0 gap-1">
-                        <Button size="sm" variant="secondary" onClick={() => editarExamen(e, realIdx)} title="Editar">
+                        <Button size="sm" variant="secondary" onClick={() => editarExamen(e, realIdx)} disabled={!ui.admin} title={ui.admin ? "Editar" : "Solo lectura — requiere examenes:write"}>
                           <Pencil className="h-3.5 w-3.5" />
                         </Button>
-                        <Button size="sm" variant="destructive" onClick={() => eliminarExamen(e.cod)} title="Eliminar">
+                        <Button size="sm" variant="destructive" onClick={() => eliminarExamen(e.cod)} disabled={!ui.admin} title={ui.admin ? "Eliminar" : "Solo lectura — requiere examenes:write"}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </div>
@@ -1245,7 +1254,7 @@ export function ExamenesPage({
               Esto reemplaza todos los exámenes actuales con la lista original de {default_examenes.length} exámenes.
               Use solo si borró algo por error.
             </p>
-            <Button size="sm" variant="destructive" onClick={restaurarDefaults}>
+            <Button size="sm" variant="destructive" onClick={restaurarDefaults} disabled={!ui.admin} title={!ui.admin ? "Solo lectura — requiere examenes:write" : undefined}>
               <RefreshCcw className="h-3.5 w-3.5" />
               Restaurar base original
             </Button>
