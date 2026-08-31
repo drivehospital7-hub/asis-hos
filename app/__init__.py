@@ -162,6 +162,7 @@ def create_app(config=None):
     from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
     from app.routes.examenes import examenes_bp
     from app.routes.integration import integration_bp
+    from app.routes.busqueda_pdf import busqueda_pdf_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
@@ -181,6 +182,7 @@ def create_app(config=None):
     app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
     app.register_blueprint(examenes_bp)  # sin prefix: /examenes, /api/examenes, /api/listado
     app.register_blueprint(integration_bp)
+    app.register_blueprint(busqueda_pdf_bp)
 
     # Prerrequisito de seguridad: HTTPS en la LAN para la integración.
     if not app.config.get("TESTING"):
