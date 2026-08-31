@@ -1,17 +1,23 @@
-"""Integration tests for /api/examenes and /api/listado (EX-2/EX-3/EX-19).
+"""Integration tests for /api/examenes, /api/listado and /api/examenes/export
+(EX-2/EX-3/EX-19/EX-34).
 
-Covers: 401 anonymous JSON, 403 read-only POST with file unchanged, envelope
-shape (data.examenes / data.listado nesting), 400 non-array bodies, and
-POST→GET round-trips with fields+order intact.
+Covers: 401 anonymous JSON, read-only save/edit POST → 200 (flipped gate),
+403 read-only DELETE/export writes with file unchanged, envelope shape
+(data.examenes / data.listado nesting), 400 non-array bodies, POST→GET
+round-trips, CAS (409 on stale base_hash) for POST and DELETE, and the xlsx
+export route (401 / read-200 / 400 empty / filename labels).
 """
 
 from __future__ import annotations
 
 import json
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from openpyxl import load_workbook
 
+from app.constants.examenes import CSV_HEADERS
 from app.utils import examenes_store
 
 CATALOG = [
@@ -125,22 +131,17 @@ class TestReadOnlyGating:
         assert body["status"] == "success"
         assert body["data"]["listado"] == PREFACTURAS
 
-    def test_read_only_post_listado_403_file_unchanged(
-        self, app_client, tmp_path: Path
-    ) -> None:
-        """POST /api/listado by read-only → 403 envelope, file unchanged (EX-2)."""
+    def test_read_only_post_listado_200_persists(self, app_client, tmp_path: Path) -> None:
+        """POST /api/listado by read-only → 200 + persisted (save/edit read-allowed, EX-2)."""
         _write_listado(tmp_path, PREFACTURAS)
         _authenticate(app_client, ["examenes"])
 
         response = app_client.post("/api/listado", json=[{"id": "pf-evil"}])
 
-        assert response.status_code == 403
-        body = response.get_json()
-        assert body["status"] == "error"
-        assert body["data"] == {}
-        assert body["errors"] == ["Permiso denegado"]
+        assert response.status_code == 200
+        assert response.get_json() == {"status": "success", "data": {}, "errors": []}
         on_disk = json.loads((tmp_path / "listado.json").read_text(encoding="utf-8"))
-        assert on_disk == PREFACTURAS
+        assert on_disk == [{"id": "pf-evil"}]
 
     def test_read_only_post_catalog_403(self, app_client) -> None:
         """POST /api/examenes by read-only → 403 envelope."""
@@ -327,3 +328,182 @@ class TestOptimisticConcurrency:
         assert res.status_code == 200
         assert res.get_json()["status"] == "success"
         assert json.loads((tmp_path / "listado.json").read_text(encoding="utf-8")) == [EXTRA]
+
+
+class TestDeleteListado:
+    """NEW DELETE /api/listado/<prefactura_id> (EX-2): write-gated, CAS, 404/409."""
+
+    FIRST_ID = "pf-1720000000000-abc"
+    SECOND_ID = "pf-1720000000001-xyz"
+
+    def test_anonymous_delete_401(self, app_client, tmp_path: Path) -> None:
+        """DELETE without session → 401 error envelope."""
+        _write_listado(tmp_path, PREFACTURAS)
+
+        response = app_client.delete(f"/api/listado/{self.FIRST_ID}", json={"base_hash": "x"})
+
+        assert response.status_code == 401
+        body = response.get_json()
+        assert body["status"] == "error"
+        assert body["data"] == {}
+        assert body["errors"] == ["No autenticado"]
+
+    def test_read_only_delete_403_file_unchanged(self, app_client, tmp_path: Path) -> None:
+        """Whole-record delete by read-only → 403 AND the file is untouched (EX-2)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes"])
+
+        response = app_client.delete(
+            f"/api/listado/{self.FIRST_ID}",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+
+        assert response.status_code == 403
+        assert response.get_json()["status"] == "error"
+        assert json.loads((tmp_path / "listado.json").read_text(encoding="utf-8")) == PREFACTURAS
+
+    def test_write_delete_200_record_removed(self, app_client, tmp_path: Path) -> None:
+        """Write user deletes one prefactura → 200, record gone, rest persisted."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes:write"])
+        base = examenes_store.file_hash("listado.json")
+
+        response = app_client.delete(
+            f"/api/listado/{self.FIRST_ID}", json={"base_hash": base}
+        )
+
+        assert response.status_code == 200
+        assert response.get_json() == {"status": "success", "data": {}, "errors": []}
+        on_disk = json.loads((tmp_path / "listado.json").read_text(encoding="utf-8"))
+        assert [p["id"] for p in on_disk] == [self.SECOND_ID]
+
+    def test_write_delete_unknown_id_404_file_unchanged(self, app_client, tmp_path: Path) -> None:
+        """Unknown prefactura id → 404 envelope, file untouched."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes:write"])
+
+        response = app_client.delete("/api/listado/pf-unknown")
+
+        assert response.status_code == 404
+        body = response.get_json()
+        assert body["status"] == "error"
+        assert body["errors"] == ["Prefactura no encontrada"]
+        assert json.loads((tmp_path / "listado.json").read_text(encoding="utf-8")) == PREFACTURAS
+
+    def test_write_delete_stale_base_hash_409_file_unchanged(self, app_client, tmp_path: Path) -> None:
+        """Stale base_hash → 409 sin escribir (CAS, R4-001)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes:write"])
+
+        response = app_client.delete(
+            f"/api/listado/{self.FIRST_ID}", json={"base_hash": "0" * 64}
+        )
+
+        assert response.status_code == 409
+        assert response.get_json()["status"] == "error"
+        assert json.loads((tmp_path / "listado.json").read_text(encoding="utf-8")) == PREFACTURAS
+
+    def test_write_delete_absent_base_hash_legacy_200(self, app_client, tmp_path: Path) -> None:
+        """Sin base_hash → reemplazo legacy (misma semántica que POST)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes:write"])
+
+        response = app_client.delete(f"/api/listado/{self.FIRST_ID}")
+
+        assert response.status_code == 200
+        assert [p["id"] for p in json.loads((tmp_path / "listado.json").read_text(encoding="utf-8"))] == [
+            self.SECOND_ID
+        ]
+
+
+class TestExportRoute:
+    """NEW GET /api/examenes/export (EX-34): read-gated, styled xlsx, 400 empty."""
+
+    def test_anonymous_export_401(self, app_client, tmp_path: Path) -> None:
+        """Export without session → 401 error envelope."""
+        _write_listado(tmp_path, PREFACTURAS)
+
+        response = app_client.get(
+            "/api/examenes/export",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+
+        assert response.status_code == 401
+        body = response.get_json()
+        assert body["status"] == "error"
+        assert body["data"] == {}
+        assert body["errors"] == ["No autenticado"]
+
+    def test_read_only_export_200_styled_xlsx(self, app_client, tmp_path: Path) -> None:
+        """Read-only export → 200 xlsx with control-novedades styling (EX-34)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes"])
+
+        response = app_client.get("/api/examenes/export")
+
+        assert response.status_code == 200
+        assert response.content_type.startswith("application/vnd.openxmlformats")
+        wb = load_workbook(BytesIO(response.data))
+        ws = wb.active
+        assert ws.title == "Listado"
+        assert [c.value for c in ws[1]] == CSV_HEADERS
+        assert ws["A1"].fill.fgColor.rgb == "001B5E20"
+        assert ws["A1"].font.bold is True
+        assert ws.freeze_panes == "A2"
+        pacientes = [ws.cell(row=r, column=2).value for r in range(2, ws.max_row + 1)]
+        # EX-33: date-desc → Paciente Dos (02/01) antes que Paciente Uno (01/01).
+        assert pacientes == ["Paciente Dos", "Paciente Uno"]
+        # Exports never mutate listado.json.
+        assert json.loads((tmp_path / "listado.json").read_text(encoding="utf-8")) == PREFACTURAS
+
+    def test_export_filename_labels(self, app_client, tmp_path: Path) -> None:
+        """Download name: {from}_{to}, {from}_hasta o Todos_los_meses (EX-34)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes"])
+
+        ranged = app_client.get("/api/examenes/export?from=2026-01-01&to=2026-01-31")
+        assert "Listado_Lab_HospitalOrito_2026-01-01_2026-01-31.xlsx" in ranged.headers["Content-Disposition"]
+
+        from_only = app_client.get("/api/examenes/export?from=2026-01-01")
+        assert "Listado_Lab_HospitalOrito_2026-01-01_hasta.xlsx" in from_only.headers["Content-Disposition"]
+
+        all_meses = app_client.get("/api/examenes/export")
+        assert "Listado_Lab_HospitalOrito_Todos_los_meses.xlsx" in all_meses.headers["Content-Disposition"]
+
+    def test_export_empty_filtered_set_400(self, app_client, tmp_path: Path) -> None:
+        """Rango sin registros → 400 envelope, sin archivo (EX-34)."""
+        _write_listado(tmp_path, PREFACTURAS)
+        _authenticate(app_client, ["examenes"])
+
+        response = app_client.get("/api/examenes/export?from=2025-01-01&to=2025-01-31")
+
+        assert response.status_code == 400
+        body = response.get_json()
+        assert body["status"] == "error"
+        assert body["data"] == {}
+        assert body["errors"] == ["No hay datos para exportar"]
+
+    def test_export_q_ignores_range(self, app_client, tmp_path: Path) -> None:
+        """Búsqueda global fuera del rango activo incluye el registro (D1)."""
+        listado = PREFACTURAS + [
+            {
+                "id": "pf-out",
+                "paciente": "Beto",
+                "cedula": "1003",
+                "facturador": "ANGIE ARIAS",
+                "hora": "20/08/2026 08:00",
+                "items": [{"cod": "903810", "nom": "Calcio", "neps": "", "mall": "", "emss": ""}],
+            }
+        ]
+        _write_listado(tmp_path, listado)
+        _authenticate(app_client, ["examenes"])
+
+        response = app_client.get(
+            "/api/examenes/export?from=2026-01-01&to=2026-01-31&q=beto"
+        )
+
+        assert response.status_code == 200
+        wb = load_workbook(BytesIO(response.data))
+        ws = wb.active
+        pacientes = [ws.cell(row=r, column=2).value for r in range(2, ws.max_row + 1)]
+        assert pacientes == ["Beto"]

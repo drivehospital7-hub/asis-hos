@@ -11,7 +11,7 @@
  */
 
 import type { Prefactura, PrefacturaItem } from "./examenes";
-import { normalizeItem, tcDisplay } from "./examenes";
+import { normalizeItem } from "./examenes";
 
 /** Escapa texto de usuario para interpolar en HTML sin ejecutar (R1-001). */
 export function escapeHtml(value: string | null | undefined): string {
@@ -99,52 +99,6 @@ export function buildPrefacturaDoc(pf: Prefactura, fechaStr: string): string {
       <div class="pfirma">Facturador(a): ${escapeHtml(pf.facturador)}</div>
       <div class="pfooter">
         <span>Hora: ${escapeHtml(pf.hora)}</span>
-        <span>Laboratorio Clínico — E.S.E. Hospital Orito</span>
-      </div>
-    </div>`;
-}
-
-/**
- * Full listado print doc: ALL prefacturas as sections (never month-filtered),
- * each with `page-break-inside:avoid` (source `verListadoPrint`).
- */
-export function buildListadoDoc(listado: Prefactura[], fechaStr: string): string {
-  const sections = listado
-    .map((pf) => {
-      const itemsHtml = pf.items
-        .map(
-          (item, j) => `
-          <tr>
-            <td style="color:#aaa;text-align:center;">${j + 1}</td>
-            <td style="font-weight:700;color:#1a4731;">${escapeHtml(item.cod)}</td>
-            <td style="font-size:10px;">${escapeHtml(item.nom)}</td>
-            <td style="text-align:center;">${normalizeItem(item).cantidad}</td>
-            <td style="text-align:center;">${tcDisplay(item.neps)}</td>
-            <td style="text-align:center;">${tcDisplay(item.mall)}</td>
-            <td style="text-align:center;">${tcDisplay(item.emss)}</td>
-          </tr>`,
-        )
-        .join("");
-      return `
-      <div style="margin-bottom:18px;border:1px solid #ddd;border-radius:7px;padding:12px;page-break-inside:avoid;">
-        <div style="font-size:12px;font-weight:700;color:#1a4731;margin-bottom:4px;">${escapeHtml(pf.paciente)}</div>
-        <div style="font-size:10px;color:#666;margin-bottom:8px;">Cédula: ${escapeHtml(pf.cedula)} &nbsp;|&nbsp; Facturador: ${escapeHtml(pf.facturador)} &nbsp;|&nbsp; Hora: ${escapeHtml(pf.hora)}</div>
-        <table class="ptbl" style="min-width:460px;">
-          <thead><tr><th style="width:30px;">#</th><th style="width:80px;">Código</th><th>Examen</th><th style="width:40px;">Cant</th><th style="width:50px;">NEPS</th><th style="width:55px;">MALL</th><th style="width:55px;">EMSS</th></tr></thead>
-          <tbody>${itemsHtml}</tbody>
-        </table>
-      </div>`;
-    })
-    .join("");
-  return `
-    <div class="pdoc-hdr">
-      <h2>E.S.E. Hospital Orito — Listado Diario de Prefacturas</h2>
-      <p>${escapeHtml(fechaStr)} &nbsp;·&nbsp; Total: ${listado.length} prefacturas &nbsp;·&nbsp; NIT: 846000474-7</p>
-    </div>
-    <div class="pdoc-body">
-      ${sections}
-      <div class="pfooter" style="margin-top:12px;">
-        <span>Impreso: ${escapeHtml(new Date().toLocaleString("es-CO"))}</span>
         <span>Laboratorio Clínico — E.S.E. Hospital Orito</span>
       </div>
     </div>`;

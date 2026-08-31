@@ -42,13 +42,6 @@
       "_globals-IEYCF5gg.js"
     ]
   },
-  "_file-down-CxlYU9tI.js": {
-    "file": "assets/file-down-CxlYU9tI.js",
-    "name": "file-down",
-    "imports": [
-      "_globals-IEYCF5gg.js"
-    ]
-  },
   "_globals-IEYCF5gg.js": {
     "file": "assets/globals-IEYCF5gg.js",
     "name": "globals"
@@ -144,7 +137,7 @@
     ]
   },
   "src/pages/examenes/index.html": {
-    "file": "assets/index-ymB2aall.js",
+    "file": "assets/index-BMyJ6wuX.js",
     "name": "index",
     "src": "src/pages/examenes/index.html",
     "isEntry": true,
@@ -156,7 +149,6 @@
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
       "_eye-Cy85FeWW.js",
-      "_file-down-CxlYU9tI.js",
       "_pencil-DccyUFYy.js"
     ]
   },
@@ -198,7 +190,7 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-QCpXHb33.js",
+    "file": "assets/index-Djj1Yh3q.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
@@ -211,7 +203,6 @@
       "_plus-BLq7eTNT.js",
       "_trash-2-CHuTzTk0.js",
       "_play-CUidqCOP.js",
-      "_file-down-CxlYU9tI.js",
       "_circle-check-D7L-pulr.js",
       "_eye-Cy85FeWW.js"
     ]

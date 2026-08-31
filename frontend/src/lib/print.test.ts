@@ -1,7 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
   buildPrefacturaDoc,
-  buildListadoDoc,
   renderTagsPrint,
   escapeHtml,
   PRINT_STYLES,
@@ -77,47 +76,6 @@ describe("buildPrefacturaDoc (EX-13)", () => {
   });
 });
 
-describe("buildListadoDoc (EX-13)", () => {
-  const other: Prefactura = {
-    id: "pf-2",
-    paciente: "Maria Lopez",
-    cedula: "222",
-    facturador: "Cataleya Tapia",
-    hora: "28/08/2026 09:00",
-    items: [{ cod: "903810", nom: "Calcio", neps: "X", mall: "", emss: "" }],
-  };
-  const doc = buildListadoDoc([PF, other], "28 de agosto de 2026");
-
-  it("renders ALL prefacturas as sections (not month-filtered)", () => {
-    expect(doc).toContain("Juan Perez");
-    expect(doc).toContain("Maria Lopez");
-  });
-
-  it("keeps page-break-inside:avoid per section", () => {
-    const sections = doc.match(/page-break-inside:avoid/g);
-    expect(sections).not.toBeNull();
-    expect(sections!.length).toBeGreaterThanOrEqual(2);
-  });
-
-  it("includes the listado header, NIT and total count", () => {
-    expect(doc).toContain("Listado Diario de Prefacturas");
-    expect(doc).toContain("NIT: 846000474-7");
-    expect(doc).toContain("Total: 2 prefacturas");
-  });
-
-  it("maps payer flags to SI/AUTH/— inside sections", () => {
-    expect(doc).toContain("SI");
-    expect(doc).toContain("AUTH");
-    expect(doc).toContain("—");
-  });
-
-  it("shows a Cant column with the normalized quantity per section (EX-13)", () => {
-    expect(doc).toContain(">Cant<");
-    expect(doc).toContain(">2<"); // Potasio carries cantidad 2
-    expect(doc).toContain(">1<"); // Calcio legacy → 1
-  });
-});
-
 describe("XSS escaping (R1-001)", () => {
   const payload = '<img src=x onerror="alert(1)"><script>alert("xss")</script>';
   const evil: Prefactura = {
@@ -135,12 +93,11 @@ describe("XSS escaping (R1-001)", () => {
   });
 
   it("builders render stored payloads as inert literal text", () => {
-    for (const doc of [buildPrefacturaDoc(evil, payload), buildListadoDoc([evil], payload)]) {
-      expect(doc).not.toContain("<img");
-      expect(doc).not.toContain("<script");
-      expect(doc).toContain("&lt;img");
-      expect(doc).toContain("&lt;script");
-      expect(doc).toContain("&quot;");
-    }
+    const doc = buildPrefacturaDoc(evil, payload);
+    expect(doc).not.toContain("<img");
+    expect(doc).not.toContain("<script");
+    expect(doc).toContain("&lt;img");
+    expect(doc).toContain("&lt;script");
+    expect(doc).toContain("&quot;");
   });
 });

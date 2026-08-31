@@ -25,6 +25,7 @@ import {
   canonicalJson,
   baseHash,
   postArray,
+  deletePrefactura,
   type Examen,
   type Prefactura,
 } from "./examenes";
@@ -333,14 +334,14 @@ describe("genPrefacturaId", () => {
 // ─── resolveUiActions (EX-17 / EX-20) ─────────────────────────────────────
 
 describe("resolveUiActions", () => {
-  it("grants all write actions when can_write is true", () => {
+  it("grants admin and whole-record delete only to writers (D6)", () => {
     const actions = resolveUiActions(true);
     expect(actions).toEqual({ admin: true, save: true, edit: true, delete: true, clear: true });
   });
 
-  it("hides admin tab and all write controls for read-only users", () => {
+  it("keeps save/edit/clear (cart Vaciar) for read-only, hiding admin+delete (D6)", () => {
     const actions = resolveUiActions(false);
-    expect(actions).toEqual({ admin: false, save: false, edit: false, delete: false, clear: false });
+    expect(actions).toEqual({ admin: false, save: true, edit: true, delete: false, clear: true });
   });
 });
 
@@ -356,6 +357,38 @@ describe("canonicalJson / baseHash", () => {
 
   it("differs for different arrays (detects stale copies)", async () => {
     expect(await baseHash([{ cod: "1" }])).not.toBe(await baseHash([{ cod: "2" }]));
+  });
+});
+
+describe("baseHash fallback (non-secure HTTP, CRITICAL 2)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fallback produces identical hex as server file_hash when crypto.subtle is unavailable", async () => {
+    const fixture = [{ b: 1, a: "x" }];
+    // server: json.dumps(sort_keys, separators (',',':'), ensure_ascii False) -> '[{"a":"x","b":1}]' -> sha256
+    const serverHex = "5db75c3ddd6b56a95a0bd2ea2de48edfa99de53ea5a721091d77f901578eb973";
+    // normal path (subtle) matches server
+    expect(await baseHash(fixture)).toBe(serverHex);
+    // fallback path: mock crypto.subtle undefined
+    const origCrypto = globalThis.crypto;
+    vi.stubGlobal("crypto", undefined as unknown as Crypto);
+    const fallbackHex = await baseHash(fixture);
+    expect(fallbackHex).toBe(serverHex);
+    // also identical to the normal subtle result
+    vi.unstubAllGlobals();
+    // restore subtle for next check
+    if (origCrypto) vi.stubGlobal("crypto", origCrypto);
+    expect(fallbackHex).toBe(await baseHash(fixture));
+  });
+
+  it("fallback is used when window.isSecureContext is false (plain HTTP LAN)", async () => {
+    const fixture = [{ id: "pf-1" }, { id: "pf-2" }];
+    const expected = await baseHash(fixture);
+    // simulate non-secure context (production HTTP)
+    vi.stubGlobal("window", { isSecureContext: false } as unknown as Window & typeof globalThis);
+    const fallbackHex = await baseHash(fixture);
+    expect(fallbackHex).toBe(expected);
+    expect(fallbackHex).toMatch(/^[0-9a-f]{64}$/);
   });
 });
 
@@ -411,6 +444,73 @@ describe("postArray conflict handling", () => {
     await postArray("/api/listado", [{ id: "x" }]);
 
     expect(JSON.parse(sentBody)).toEqual([{ id: "x" }]);
+  });
+});
+
+describe("deletePrefactura (whole-record DELETE)", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("sends DELETE with {base_hash} to the record URL and maps 409 to conflict", async () => {
+    const capture: { url: string; method: string; body: unknown } = { url: "", method: "", body: null };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+        capture.url = String(url);
+        capture.method = init?.method ?? "";
+        capture.body = JSON.parse(String(init?.body));
+        return new Response(JSON.stringify({ status: "error", data: {}, errors: ["Conflicto"] }), { status: 409 });
+      }),
+    );
+
+    const result = await deletePrefactura("pf-1", [{ id: "pf-1" }, { id: "pf-2" }]);
+
+    expect(result).toBe("conflict");
+    expect(capture.url).toBe("/api/listado/pf-1");
+    expect(capture.method).toBe("DELETE");
+    expect(typeof (capture.body as Record<string, unknown>).base_hash).toBe("string");
+  });
+
+  it("maps 404 to conflict (record already gone = stale client copy)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        new Response(JSON.stringify({ status: "error", data: {}, errors: ["Prefactura no encontrada"] }), { status: 404 }),
+      ),
+    );
+
+    expect(await deletePrefactura("pf-unknown", [{ id: "pf-1" }])).toBe("conflict");
+  });
+
+  it("returns ok on 200, error on non-409/404 and on network failure", async () => {
+    const stub = (status: number, fail = false) =>
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () => {
+          if (fail) throw new Error("offline");
+          return new Response(JSON.stringify({ status: "success", data: {}, errors: [] }), { status });
+        }),
+      );
+    stub(200);
+    expect(await deletePrefactura("pf-1", [{ id: "pf-1" }])).toBe("ok");
+    stub(500);
+    expect(await deletePrefactura("pf-1", [{ id: "pf-1" }])).toBe("error");
+    stub(500, true);
+    expect(await deletePrefactura("pf-1", [{ id: "pf-1" }])).toBe("error");
+  });
+
+  it("sends no body when no base listado is provided (legacy)", async () => {
+    let sentBody: string | undefined = "sentinel";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: RequestInfo | URL, init?: RequestInit) => {
+        sentBody = init?.body === undefined ? "" : String(init.body);
+        return new Response(JSON.stringify({ status: "success", data: {}, errors: [] }));
+      }),
+    );
+
+    await deletePrefactura("pf-1");
+
+    expect(sentBody).toBe("");
   });
 });
 
@@ -644,10 +744,8 @@ describe("paginate", () => {
 
 // ─── Numbering / totals / tooltip (EX-11) ───────────────────────────────
 
-import { buildCsv } from "./csv";
-
 describe("listadoRowNumbers", () => {
-  it("assigns continuous 1-based numbers = first-item CSV index (multi-item parity #1682)", () => {
+  it("assigns continuous 1-based numbers = first-item index (multi-item parity #1682)", () => {
     const listado: Prefactura[] = [
       mkPf("A", "Ana", "01/08/2026", [
         { cod: "903859", nom: "Potasio" },
@@ -666,16 +764,16 @@ describe("listadoRowNumbers", () => {
     expect(rowNumbers.get("C")).toBe(5);
     expect(rowNumbers.size).toBe(3);
 
-    // Cross-check against the REAL buildCsv output (one row per item).
-    const { csv } = buildCsv(listado, null);
-    const lines = csv.replace("\uFEFF", "").trim().split("\n");
-    expect(lines).toHaveLength(7); // header + 3 + 1 + 2 item rows
-    const nums = lines.slice(1).map((line) => Number(line.split(",")[0]));
-    expect(nums).toEqual([1, 2, 3, 4, 5, 6]);
-    // First-item CSV N° per prefactura (offsets 0, 3, 4) == screen N°.
-    expect(nums[0]).toBe(rowNumbers.get("A"));
-    expect(nums[3]).toBe(rowNumbers.get("B"));
-    expect(nums[4]).toBe(rowNumbers.get("C"));
+    // Inline N° oracle (server-export parity #1682): one row per item, so the
+    // screen N° of a prefactura = its FIRST item N° = 1 + Σ items of all
+    // preceding prefacturas. Mirrors the backend export row numbering.
+    let n = 0;
+    const expectedFirstItem = listado.map((p) => {
+      const first = n + 1;
+      n += p.items.length;
+      return first;
+    });
+    expect([...rowNumbers.values()]).toEqual(expectedFirstItem);
   });
 
   it("is stable across pagination (same map for the full filtered set)", () => {

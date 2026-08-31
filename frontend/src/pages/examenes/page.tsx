@@ -5,7 +5,7 @@ import {
   ClipboardList,
   Settings2,
   Printer,
-  FileDown,
+  FileSpreadsheet,
   Trash2,
   Pencil,
   Plus,
@@ -31,6 +31,7 @@ import {
   formatFechaEsCo,
   resolveUiActions,
   postArray,
+  deletePrefactura,
   currentMonthRange,
   composeListadoView,
   paginate,
@@ -46,10 +47,9 @@ import {
   type FechaInfo,
   type DateRange,
 } from "@/lib/examenes";
-import { buildCsv, downloadCsv } from "@/lib/csv";
+import { downloadBlob, filenameFromDisposition } from "@/lib/download";
 import {
   buildPrefacturaDoc,
-  buildListadoDoc,
   printContenido,
   PREVIEW_STYLES,
 } from "@/lib/print";
@@ -408,14 +408,23 @@ export function ExamenesPage({
   };
 
   // ─── Listado: row actions ──────────────────────────────────────────
+  // EX-2: whole-record delete goes through the write-gated DELETE endpoint
+  // (never the read-gated full-array POST). base_hash del arreglo actual →
+  // 409/404 = copia stale → recargar; otro error → rollback.
   const delReg = async (id: string) => {
     const pf = listado.find((p) => p.id === id);
     if (!pf) return;
     if (!(await askConfirm(`¿Eliminar toda la prefactura de ${pf.paciente}?`))) return;
     const next = listado.filter((p) => p.id !== id);
     setListado(next);
-    if ((await postArray("/api/listado", next, listado)) === "conflict") {
+    const result = await deletePrefactura(id, listado);
+    if (result === "conflict") {
       await handleConflict("El listado");
+    } else if (result === "error") {
+      setListado(listado); // rollback — la UI nunca queda sin el registro
+      window.alert("No se pudo eliminar la prefactura. Reintente.");
+    } else {
+      showToast(`✓ Prefactura de ${pf.paciente} eliminada`);
     }
   };
 
@@ -425,41 +434,34 @@ export function ExamenesPage({
     printContenido(buildPrefacturaDoc(pf, fechaStr));
   };
 
-  const verListadoPrint = () => {
-    if (!listado.length) {
-      window.alert("El listado está vacío.");
-      return;
-    }
-    // EX-13: renders ALL prefacturas as sections, not month-filtered
-    setPreview({ title: "Listado diario — Vista previa", html: buildListadoDoc(listado, fechaStr) });
-  };
-
-  const exportarCSV = () => {
-    if (!listado.length) {
-      window.alert("El listado está vacío.");
-      return;
-    }
+  // EX-14/EX-34: exporta el conjunto exhibido (rango | búsqueda global) a
+  // .xlsx server-side. El server devuelve 400 con envelope cuando el filtro
+  // queda vacío; acá se avisa antes para no gastar el round-trip.
+  const exportarExcel = async () => {
     if (!sorted.length) {
       window.alert("No hay registros en el filtro seleccionado.");
       return;
     }
-    // EX-14: exports the FULL displayed set (range | global search), NOT the
-    // current page — CSV N° matches the on-screen continuous N°.
-    // D6: range active → `${from}_${to}` (missing bound → "hasta"); cleared
-    // (both empty) → null → "Todos_los_meses"; a non-blank search keeps the
-    // range label. Sanitized by csvLabelFor.
-    const label =
-      range.from || range.to ? `${range.from || ""}_${range.to || "hasta"}` : null;
-    const { csv, filename } = buildCsv(sorted, label);
-    downloadCsv(csv, filename);
-  };
-
-  const limpiarListado = async () => {
-    if (!listado.length) return;
-    if (!(await askConfirm("¿Limpiar todo el listado del día? Esta acción no se puede deshacer."))) return;
-    setListado([]);
-    if ((await postArray("/api/listado", [], listado)) === "conflict") {
-      await handleConflict("El listado");
+    const params = new URLSearchParams();
+    if (range.from) params.set("from", range.from);
+    if (range.to) params.set("to", range.to);
+    if (listadoQuery.trim()) params.set("q", listadoQuery.trim());
+    try {
+      const res = await fetch(`/api/examenes/export?${params.toString()}`);
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        window.alert(body?.errors?.[0] ?? "No se pudo exportar el listado.");
+        return;
+      }
+      const blob = await res.blob();
+      // D9: el nombre viene del Content-Disposition (fuente única de verdad).
+      downloadBlob(
+        blob,
+        filenameFromDisposition(res.headers.get("Content-Disposition")) ??
+          "Listado_Lab_HospitalOrito.xlsx",
+      );
+    } catch {
+      window.alert("No se pudo exportar el listado. Reintente.");
     }
   };
 
@@ -949,9 +951,16 @@ export function ExamenesPage({
                 Fecha: {fechaStr}
               </span>
             </div>
-            <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "#1a4731" }}>
-              {sorted.length} registro{sorted.length !== 1 ? "s" : ""}
-            </span>
+            {/* EX-17: Exportar Excel ABOVE the filters toolbar, right-aligned (D8). */}
+            <div className="flex items-center gap-2">
+              <span className="rounded-full px-3 py-1 text-xs font-bold text-white" style={{ background: "#1a4731" }}>
+                {sorted.length} registro{sorted.length !== 1 ? "s" : ""}
+              </span>
+              <Button size="sm" variant="secondary" onClick={exportarExcel}>
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Exportar Excel
+              </Button>
+            </div>
           </div>
 
           {/* Toolbar: search (EX-29, global — ignores the range) + always-visible from/to range (EX-30) */}
@@ -988,23 +997,6 @@ export function ExamenesPage({
                 style={{ borderColor: "oklch(0.55 0.04 160 / 0.25)", background: "#f7faf8" }}
               />
             </label>
-          </div>
-
-          <div className="mb-4 flex flex-wrap gap-2">
-            <Button size="sm" variant="secondary" onClick={verListadoPrint}>
-              <Eye className="h-3.5 w-3.5" />
-              Ver e imprimir
-            </Button>
-            <Button size="sm" variant="secondary" onClick={exportarCSV}>
-              <FileDown className="h-3.5 w-3.5" />
-              Guardar CSV
-            </Button>
-            {ui.clear && (
-              <Button size="sm" variant="destructive" onClick={limpiarListado}>
-                <Trash2 className="h-3.5 w-3.5" />
-                Limpiar
-              </Button>
-            )}
           </div>
 
           {listadoStatus === "loading" ? (
