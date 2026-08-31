@@ -606,6 +606,9 @@ export function ExamenesPage({
       emssAuth: ex.emss === "AUTH",
     });
     setAdmEditIdx(idx);
+    requestAnimationFrame(() => {
+      document.getElementById("examen-form-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   };
 
   const cancelarEdicion = () => {
@@ -1105,7 +1108,7 @@ export function ExamenesPage({
 
       {activeTab === "admin" && (
         <div className="space-y-5">
-          <Card className="p-5">
+          <Card id="examen-form-card" className="p-5 scroll-mt-4">
             <h2 className="mb-3 font-heading text-sm font-semibold" style={{ color: "#1a4731" }}>
               Agregar / Editar Examen
             </h2>
