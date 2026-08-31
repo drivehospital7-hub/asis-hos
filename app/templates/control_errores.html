@@ -1158,6 +1158,7 @@
       } else {
         cellContent = td.textContent.trim();
       }
+      if ((field === 'refactura' || field === 'factura') && cellContent === '-') cellContent = '';
       const upperFields = ['factura', 'observacion', 'refactura'];
       const forceUpper = upperFields.includes(field) ? 'text-transform:uppercase;' : '';
       editor.innerHTML = `<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;${forceUpper}">${escapeHtml(cellContent)}</textarea>`;
@@ -1199,6 +1200,8 @@
 
   // Guardar al presionar Enter
   document.addEventListener('keydown', (e) => {
+    if (document.querySelector('.confirm-overlay')) return;
+    if (e.target.closest && e.target.closest('.confirm-overlay, .confirm-modal')) return;
     if (e.key === 'Escape' && currentEditId) {
       e.preventDefault();
       e.stopPropagation();
@@ -1215,6 +1218,8 @@
 
   // Guardar al hacer click fuera del editor
   document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.confirm-overlay, .confirm-modal')) return;
+    if (document.querySelector('.confirm-overlay')) return;
     const btnAdd = document.querySelector('.page-header .btn--primary');
     
     // Click en el editor o en el botón agregar: no cerrar
@@ -1236,18 +1241,20 @@
   // Field-aware text write-back. Preserves non-text children (e.g. .obs-img-btn).
   // Selector contract: .obs-cell-wrapper is shared with the openEditor read path - do not rename.
   function updateObservationCellText(td, newText) {
-    const text = newText || '-';
     if (td.dataset.field === 'observacion') {
+      const text = newText || '-';
       const wrapper = td.querySelector('.obs-cell-wrapper');
       if (wrapper) { wrapper.textContent = text; return; }
     } else if (td.dataset.field === 'factura') {
+      const t = newText || '';
       const span = td.querySelector('span');
-      if (span) { span.textContent = text; return; }
+      if (span) { span.textContent = t; return; }
     } else if (td.dataset.field === 'refactura') {
+      const t = newText || '';
       const span = td.querySelector('span');
-      if (span) { span.textContent = text; return; }
+      if (span) { span.textContent = t; return; }
     }
-    td.textContent = text; // legacy rows / other text fields
+    td.textContent = newText || '-'; // legacy rows / other text fields
   }
 
   async function saveFromEditor() {
@@ -1274,6 +1281,7 @@
     if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
     }
+    if (field === 'refactura' && newValue === '-') newValue = '';
 
     // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
     if (field === 'estado') {
@@ -1317,6 +1325,7 @@
     }
 
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
+    var _didPropagateRefactura = false;
     if (currentEditId === 'new') {
       var factura = field === 'factura' ? newValue : '';
       var refactura = field === 'refactura' ? newValue : '';
@@ -1343,9 +1352,28 @@
           }
         }
       }
+      if (field === 'refactura' && newValue !== '' && newValue !== '-') {
+        var origen = cachedErrores.find(function(e){return e.id===currentEditId});
+        if (origen && origen.factura) {
+          var origenRefacturaNorm = (origen.refactura || '').trim().toUpperCase();
+          if (origenRefacturaNorm === newValue) {
+          } else {
+            var dups = buscarDuplicados(origen.factura).filter(function(e){return e.id!==currentEditId});
+            if (dups.length > 0) {
+              var msg = 'La factura ' + origen.factura + ' está reportada en ' + (dups.length+1) + ' novedades. ¿Deseas cargar la ReFactura "' + newValue + '" en todas?';
+              if (await Modal.confirm(msg)) {
+                for (var i = 0; i < dups.length; i++) { await updateBackend(dups[i].id, 'refactura', newValue); }
+                if (typeof Modal !== 'undefined' && typeof Modal.toast === 'function') Modal.toast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 3500); else showToast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 'success');
+                _didPropagateRefactura = true;
+              }
+            }
+          }
+        }
+      }
       updateBackend(currentEditId, field, newValue);
     }
     closeEditor();
+    if (_didPropagateRefactura) renderFilteredByMonth();
   }
   
   // Obtener datos de la fila nueva
@@ -1404,6 +1432,7 @@
     if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
     }
+    if (field === 'refactura' && newValue === '-') newValue = '';
 
     // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
     if (field === 'estado') {
@@ -1424,6 +1453,25 @@
           if (dupExisting.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
             currentCell.textContent = errActual.factura || '-';
             closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
+          }
+        }
+      }
+    }
+    var _didPropagateRefacturaCb = false;
+    if (field === 'refactura' && newValue !== '' && newValue !== '-') {
+      var origen = cachedErrores.find(function(e){return e.id===prevId});
+      if (origen && origen.factura) {
+        var origenRefacturaNorm = (origen.refactura || '').trim().toUpperCase();
+        if (origenRefacturaNorm === newValue) {
+        } else {
+          var dups = buscarDuplicados(origen.factura).filter(function(e){return e.id!==prevId});
+          if (dups.length > 0) {
+            var msg = 'La factura ' + origen.factura + ' está reportada en ' + (dups.length+1) + ' novedades. ¿Deseas cargar la ReFactura "' + newValue + '" en todas?';
+            if (await Modal.confirm(msg)) {
+              for (var i = 0; i < dups.length; i++) { await updateBackend(dups[i].id, 'refactura', newValue); }
+              if (typeof Modal !== 'undefined' && typeof Modal.toast === 'function') Modal.toast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 3500); else showToast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 'success');
+              _didPropagateRefacturaCb = true;
+            }
           }
         }
       }
@@ -1459,6 +1507,7 @@
     // Guardar y luego ejecutar callback
     updateBackend(prevId, field, newValue);
     closeEditor();
+    if (_didPropagateRefacturaCb) renderFilteredByMonth();
     
     // Pequeño delay para evitar conflictos
     setTimeout(callback, 10);
