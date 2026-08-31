@@ -1245,7 +1245,7 @@ export function ExamenesPage({
               Esto reemplaza todos los exámenes actuales con la lista original de {default_examenes.length} exámenes.
               Use solo si borró algo por error.
             </p>
-            <Button size="sm" variant="destructive" onClick={restaurarDefaults}>
+            <Button size="sm" variant="destructive" onClick={restaurarDefaults} disabled={!ui.admin} title={!ui.admin ? "Requiere permiso examenes:write" : undefined}>
               <RefreshCcw className="h-3.5 w-3.5" />
               Restaurar base original
             </Button>
