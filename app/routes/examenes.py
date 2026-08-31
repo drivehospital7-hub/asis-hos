@@ -125,7 +125,7 @@ def get_examenes():
 
 
 @examenes_bp.route("/api/examenes", methods=["POST"])
-@permiso_requerido("examenes:write")
+@permiso_requerido("examenes")
 def save_examenes():
     """POST catálogo (arreglo completo). No-arreglo → 400 (EX-3 deviation).
 
