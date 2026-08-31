@@ -11,7 +11,7 @@ const __dirname = path.dirname(__filename);
 export default defineConfig({
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.{ts,tsx}"],
   },
   plugins: [react(), tailwindcss()],
   base: "/static/react-dist/",
@@ -35,6 +35,7 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/abiertas-urgencias/index.html"),
         path.resolve(__dirname, "src/pages/monitoreo-carpetas/index.html"),
         path.resolve(__dirname, "src/pages/examenes/index.html"),
+        path.resolve(__dirname, "src/pages/busqueda-pdf/index.html"),
       ],
     },
   },

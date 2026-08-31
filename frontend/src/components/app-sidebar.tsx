@@ -11,6 +11,7 @@ import {
   Upload,
   LogOut,
   FlaskConical,
+  Search,
 } from "lucide-react";
 
 interface NavItem {
@@ -28,6 +29,7 @@ const ALL_NAV: NavItem[] = [
   { label: "Equipos Básicos", href: "/odontologia-equipos-basicos", icon: FileText, permiso: "odontologia_equipos_basicos" },
   { label: "Control de Novedades", href: "/control-novedades", icon: ClipboardCheck, permiso: "control_urgencias" },
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
+  { label: "Búsqueda PDF", href: "/busqueda-pdf", icon: Search, permiso: "busqueda_pdf" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
   { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },

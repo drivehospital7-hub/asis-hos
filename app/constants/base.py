@@ -126,6 +126,7 @@ ALLOWED_PERMISOS = frozenset({
     "monitoreo_carpetas:write",
     "examenes",
     "examenes:write",
+    "busqueda_pdf",
     PERMISO_RESPONSABLE_FACTURACION,
 })
 
@@ -314,6 +315,15 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "",
         "description": "Laboratorio: consulta de exámenes, listado y prefacturación.",
+    },
+    {
+        "title": "Búsqueda PDF",
+        "slug": "busqueda_pdf",
+        "permiso": "busqueda_pdf",
+        "href": "/busqueda-pdf",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Búsqueda de términos Condición y Transporte en PDFs de accidentes.",
     },
     {
         "title": "Usuarios",
