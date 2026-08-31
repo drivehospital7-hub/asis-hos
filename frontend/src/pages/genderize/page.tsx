@@ -8,7 +8,9 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { CacheNombresTab } from "./components/cache-nombres-tab";
 
 interface StatsData {
   total_excel: number;
@@ -179,6 +181,14 @@ export function GenderizePage() {
             Sube el Excel de facturas para verificar el sexo
           </p>
         </div>
+
+        <Tabs defaultValue="verificar" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="verificar">Verificar</TabsTrigger>
+            <TabsTrigger value="cache">Nombres Cacheados</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="verificar">
 
         {/* Upload card */}
         <Card className="p-6 border mb-6 shadow-none"
@@ -415,6 +425,12 @@ export function GenderizePage() {
           )
         )}
 
+          </TabsContent>
+
+          <TabsContent value="cache">
+            <CacheNombresTab />
+          </TabsContent>
+        </Tabs>
 
     </div>
   );
