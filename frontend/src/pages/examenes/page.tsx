@@ -607,7 +607,7 @@ export function ExamenesPage({
     });
     setAdmEditIdx(idx);
     requestAnimationFrame(() => {
-      document.getElementById("examen-form-card")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
     });
   };
 
