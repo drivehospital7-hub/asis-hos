@@ -1773,11 +1773,14 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function applyFilters() { currentPage = 1; loadErrores(); }
   
   function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    searchQuery = '';
     document.getElementById('filterTipo').value = '';
     document.getElementById('filterEstado').value = '';
     document.getElementById('filterResponsable').value = '';
     document.getElementById('filterArea').value = '';
     document.getElementById('filterValidador').value = '';
+    currentPage = 1;
     loadErrores();
   }
   
