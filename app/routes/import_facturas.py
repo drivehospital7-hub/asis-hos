@@ -229,6 +229,51 @@ def corregir_genero():
 
 
 # ============================================================================
+# CACHE BROWSE — Nombres Cacheados (PR1)
+# ============================================================================
+
+@import_facturas_bp.route("/api/import/cache-list", methods=["GET"])
+@admin_requerido
+def cache_list():
+    """Lista nombres cacheados con search/gender/paginación."""
+    search = request.args.get("search", default=None, type=str)
+    if search is not None and not search.strip():
+        search = None
+    gender = request.args.get("gender", default="All", type=str) or "All"
+
+    try:
+        page = int(request.args.get("page", "1"))
+        page_size = int(request.args.get("page_size", "50"))
+    except (ValueError, TypeError):
+        return jsonify({"status": "error", "data": {}, "errors": ["page/page_size debe ser entero"]}), 400
+
+    try:
+        data = genderize_service.list_cache(
+            search=search, gender=gender, page=page, page_size=page_size
+        )
+    except ValueError as exc:
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 400
+    except Exception:
+        logger.exception("[BACK][ERROR] Error en cache-list")
+        return jsonify({"status": "error", "data": {}, "errors": ["Error interno"]}), 500
+
+    return jsonify({"status": "success", "data": data, "errors": []})
+
+
+@import_facturas_bp.route("/api/import/cache-alerts", methods=["GET"])
+@admin_requerido
+def cache_alerts():
+    """Alertas de colisiones/invalid/recovered del cache."""
+    try:
+        data = genderize_service.get_cache_alerts()
+    except Exception:
+        logger.exception("[BACK][ERROR] Error en cache-alerts")
+        return jsonify({"status": "error", "data": {}, "errors": ["Error interno"]}), 500
+
+    return jsonify({"status": "success", "data": data, "errors": []})
+
+
+# ============================================================================
 # VERIFICAR Y COMPARAR - CON USO DE TOKENS
 # ============================================================================
 
