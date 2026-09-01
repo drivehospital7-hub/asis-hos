@@ -200,11 +200,28 @@ def _clean_key(key: str) -> str:
     return key.replace("\ufeff", "").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "").strip()
 
 
-def _load_raw_cache() -> dict | None:
-    """Lee raw JSON sin limpiar; None si falta/corrupto."""
+def _load_raw_cache() -> list[tuple[str, dict]] | None:
+    """Lee raw JSON preservando duplicados literales (object_pairs_hook).
+
+    Usa hook inteligente: inner gender objects → dict, outer cache → list
+    para no perder keys duplicadas idénticas (ej: dos \"angela\" con distinto gender).
+    None si falta/corrupto.
+    """
+    def _hook(pairs: list[tuple[str, object]]) -> object:
+        # Inner gender entry contiene key "gender" → dict
+        if any(k == "gender" for k, _ in pairs):
+            return dict(pairs)
+        # Outer cache (keys son nombres, valores son dicts) → list para preservar duplicados
+        return pairs
+
     try:
         text = CACHE_FILE.read_text(encoding="utf-8-sig")
-        return json.loads(text)
+        pairs: list[tuple[str, dict]] = json.loads(text, object_pairs_hook=_hook)  # type: ignore[assignment]
+        # json.loads con hook puede devolver [] para {} o list para cache
+        if isinstance(pairs, dict):
+            # Fallback: si por alguna razón devuelve dict (ej: cache vacía no list), convertir
+            return list(pairs.items())  # type: ignore[return-value]
+        return pairs  # type: ignore[return-value]
     except (FileNotFoundError, json.JSONDecodeError, OSError):
         return None
     except Exception:
@@ -212,13 +229,18 @@ def _load_raw_cache() -> dict | None:
         return None
 
 
-def _collect_alerts(raw: dict) -> tuple[list[str], list[dict], int, dict[str, list[str]]]:
-    """Analiza raw: cleaned, invalid, nulls, grupos normalizados."""
+def _collect_alerts(raw_pairs: list[tuple[str, dict]]) -> tuple[list[str], list[dict], int, dict[str, list[str]], dict[str, list]]:
+    """Analiza raw_pairs: cleaned, invalid, nulls, grupos normalizados.
+
+    raw_pairs preserva duplicados literales (mismo \"angela\" dos veces).
+    Retorna también group_genders para no perder el segundo valor de keys duplicadas.
+    """
     cleaned_keys: list[str] = []
     invalid_genders: list[dict] = []
     recovered_nulls = 0
     group_norm: dict[str, list[str]] = {}
-    for raw_key, val in raw.items():
+    group_genders: dict[str, list] = {}
+    for raw_key, val in raw_pairs:
         g = val.get("gender") if isinstance(val, dict) else None
         if g is None:
             recovered_nulls += 1
@@ -227,8 +249,10 @@ def _collect_alerts(raw: dict) -> tuple[list[str], list[dict], int, dict[str, li
         clean = _clean_key(raw_key)
         if clean != raw_key:
             cleaned_keys.append(raw_key)
-        group_norm.setdefault(_normalize(clean), []).append(raw_key)
-    return cleaned_keys, invalid_genders, recovered_nulls, group_norm
+        norm = _normalize(clean)
+        group_norm.setdefault(norm, []).append(raw_key)
+        group_genders.setdefault(norm, []).append(g)
+    return cleaned_keys, invalid_genders, recovered_nulls, group_norm, group_genders
 
 
 def list_cache(
@@ -265,8 +289,8 @@ def list_cache(
 
 def get_cache_alerts() -> dict:
     """Escanea raw JSON antes de limpiar: BOM/ZW, colisiones, invalid, nulls."""
-    raw = _load_raw_cache()
-    if raw is None:
+    raw_pairs = _load_raw_cache()
+    if raw_pairs is None:
         return {
             "collisions": [],
             "cleaned_keys": [],
@@ -274,11 +298,11 @@ def get_cache_alerts() -> dict:
             "recovered_nulls": 0,
             "total_collisions": 0,
         }
-    cleaned_keys, invalid_genders, recovered_nulls, group_norm = _collect_alerts(raw)
+    cleaned_keys, invalid_genders, recovered_nulls, group_norm, group_genders = _collect_alerts(raw_pairs)
     collisions: list[dict] = []
     for norm_key, raws in group_norm.items():
         if len(raws) > 1:
-            genders = [raw[r].get("gender") if isinstance(raw[r], dict) else None for r in raws]
+            genders = group_genders.get(norm_key, [])
             collisions.append(
                 {
                     "normalized_key": norm_key,
