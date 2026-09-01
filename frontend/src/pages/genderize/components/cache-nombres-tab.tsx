@@ -14,7 +14,7 @@ interface Props {
   className?: string;
 }
 
-const GENDER_OPTIONS = ["All", "F", "M", "L", "U", "lastname", "undefined"] as const;
+const GENDER_OPTIONS = ["All", "F", "M", "L", "U"] as const;
 const EDIT_GENDERS = ["F", "M", "L", "U"] as const;
 
 function genderBadgeVariant(short: string): "default" | "secondary" | "outline" | "destructive" {
@@ -109,7 +109,7 @@ export function CacheNombresTab({ className }: Props) {
               <SelectContent>
                 {GENDER_OPTIONS.map((opt) => (
                   <SelectItem key={opt} value={opt}>
-                    {opt}
+                    {opt === "All" ? "All" : `${opt} — ${longLabel(opt)}`}
                   </SelectItem>
                 ))}
               </SelectContent>
