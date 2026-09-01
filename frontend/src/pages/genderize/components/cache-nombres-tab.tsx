@@ -81,11 +81,35 @@ export function CacheNombresTab({ className }: Props) {
           <AlertTriangle className="h-4 w-4 text-warning" />
           <AlertTitle className="text-warning-foreground">Alertas de cache</AlertTitle>
           <AlertDescription className="text-sm text-warning-foreground/90">
-            {alerts.total_collisions} colisiones ({alerts.collisions.filter((c) => c.same_value).length} same_value /{" "}
-            {alerts.collisions.filter((c) => !c.same_value).length} different_value)
-            {alerts.cleaned_keys.length > 0 && ` — ${alerts.cleaned_keys.length} claves limpiadas (BOM/ZW)`}
-            {alerts.invalid_genders.length > 0 && ` — ${alerts.invalid_genders.length} géneros inválidos`}
-            {alerts.recovered_nulls > 0 && ` — ${alerts.recovered_nulls} nulls recuperados`}
+            <div>
+              {alerts.total_collisions} colisiones ({alerts.collisions.filter((c) => c.same_value).length} same_value /{" "}
+              {alerts.collisions.filter((c) => !c.same_value).length} different_value)
+              {alerts.cleaned_keys.length > 0 && ` — ${alerts.cleaned_keys.length} claves limpiadas (BOM/ZW)`}
+              {alerts.invalid_genders.length > 0 && ` — ${alerts.invalid_genders.length} géneros inválidos`}
+              {alerts.recovered_nulls > 0 && ` — ${alerts.recovered_nulls} nulls recuperados`}
+            </div>
+            {alerts.collisions.length > 0 && (
+              <ul className="mt-2 space-y-1 list-disc list-inside">
+                {alerts.collisions.map((c) => (
+                  <li key={c.normalized_key} className="text-xs">
+                    <span className="font-mono font-medium">{c.normalized_key}</span> → raw: [{c.raw_keys.join(", ")}] — genders: [
+                    {c.genders.join(", ")}] — {c.same_value ? "same_value" : "different_value"}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {alerts.invalid_genders.length > 0 && (
+              <ul className="mt-2 space-y-1 list-disc list-inside">
+                {alerts.invalid_genders.map((it) => (
+                  <li key={it.key} className="text-xs">
+                    <span className="font-mono">{it.key}</span> → gender inválido: {it.gender}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {alerts.cleaned_keys.length > 0 && (
+              <div className="mt-2 text-xs">Claves limpiadas (BOM/ZW): {alerts.cleaned_keys.join(", ")}</div>
+            )}
           </AlertDescription>
         </Alert>
       )}
