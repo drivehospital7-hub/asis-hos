@@ -32,13 +32,13 @@ function collectItems(children: React.ReactNode): SelectRegistryItem[] {
       if (type?.displayName === "SelectContent") {
         React.Children.forEach((child.props as { children: React.ReactNode }).children, (item) => {
           if (React.isValidElement(item) && (item.type as unknown as { displayName?: string })?.displayName === "SelectItem") {
-            const p = item.props as SelectRegistryItem;
-            items.push({ value: p.value, label: p.label, disabled: p.disabled });
+            const p = item.props as unknown as { value: string; children: React.ReactNode; disabled?: boolean; label?: React.ReactNode };
+            items.push({ value: p.value, label: p.children ?? p.label, disabled: p.disabled });
           }
         });
       } else if (type?.displayName === "SelectItem") {
-        const p = child.props as SelectRegistryItem;
-        items.push({ value: p.value, label: p.label, disabled: p.disabled });
+        const p = child.props as unknown as { value: string; children: React.ReactNode; disabled?: boolean; label?: React.ReactNode };
+        items.push({ value: p.value, label: p.children ?? p.label, disabled: p.disabled });
       } else if ((child.props as { children?: React.ReactNode })?.children) {
         walk((child.props as { children: React.ReactNode }).children);
       }
