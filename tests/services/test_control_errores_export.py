@@ -22,14 +22,14 @@ _SERVIDOR_PRUEBA = "http://servidor-test:5001"
 
 
 def _error_fixture(error_id="err-1", factura="FAC-001", creado_en="2026-05-15T10:30:00",
-                   estado="S", validador="MARIA GOMEZ", refactura=""):
+                   estado="S", validador="MARIA GOMEZ", refactura="", tipo_error="Otros"):
     """Un error mínimo con los campos que el export lee."""
     return {
         "id": error_id,
         "factura": factura,
         "refactura": refactura,
         "creado_en": creado_en,
-        "tipo_error": "Otros",
+        "tipo_error": tipo_error,
         "observacion": "Descripción con acentos",
         "responsable": "JUAN PEREZ",
         "observacion_facturador": "Revisar",
@@ -502,3 +502,51 @@ class TestServirImagen:
                 assert data["status"] == "error"
             finally:
                 secret.unlink(missing_ok=True)
+
+
+# =============================================================================
+# R14 S6 — Export verbatim Factura and FURIPS (split)
+# =============================================================================
+
+class TestR14ExportFacturaYFurips:
+    """R14 S6: export tipo_error column is verbatim Factura and FURIPS (split)."""
+
+    def test_export_factura_y_furips_verbatim(self):
+        """build_errores_export_workbook writes tipo_error Factura and FURIPS verbatim."""
+        with patch(
+            "app.services.control_errores_export.listar_imagenes",
+            side_effect=_adjuntos_por_scope([], []),
+        ):
+            with _APP.app_context():
+                buffer = build_errores_export_workbook(
+                    [_error_fixture(tipo_error="Factura"), _error_fixture(error_id="err-2", tipo_error="FURIPS")],
+                    "http://testserver/",
+                )
+        wb = load_workbook(BytesIO(buffer.read()))
+        ws = wb.active
+        # Categoría is column 5 (E) = index 4 after ReFactura insertion
+        assert ws.cell(row=2, column=5).value == "Factura"
+        assert ws.cell(row=3, column=5).value == "FURIPS"
+        assert [c.value for c in ws[1]][4] == "Categoría"
+        # row list index 4 is also Categoría
+        assert [c.value for c in ws[2]][4] == "Factura"
+        assert [c.value for c in ws[3]][4] == "FURIPS"
+
+    def test_export_filter_factura_y_furips_via_route(self, app_client):
+        """GET /api/control-errores/export with Factura and FURIPS records exports verbatim."""
+        _login(app_client)
+        fixture = [
+            _error_fixture(error_id="factura-1", factura="FEV-001", tipo_error="Factura", creado_en="2026-05-15T10:30:00"),
+            _error_fixture(error_id="furips-1", factura="FEV-002", tipo_error="FURIPS", creado_en="2026-05-15T10:30:00"),
+            _error_fixture(error_id="otros-1", factura="FAC-002", tipo_error="Otros", creado_en="2026-05-16T10:30:00"),
+        ]
+        with ExitStack() as stack:
+            _patch_export_pipeline(fixture, stack)
+            resp = app_client.get("/api/control-errores/export?mes=2026-05")
+        assert resp.status_code == 200
+        wb = load_workbook(BytesIO(resp.data))
+        ws = wb.active
+        categorias = [ws.cell(row=r, column=5).value for r in range(2, ws.max_row + 1)]
+        assert "Factura" in categorias
+        assert "FURIPS" in categorias
+        assert "Factura y Furips" not in categorias

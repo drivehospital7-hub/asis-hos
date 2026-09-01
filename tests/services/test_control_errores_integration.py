@@ -627,3 +627,110 @@ class TestOpcionesDbOnlyIntegration:
         assert len(data["errors"]) > 0
         # Ningún responsable hardcodeado se filtra en el error
         assert "ALEJANDRA ESPAÑA" not in str(data["errors"])
+
+
+# =============================================================================
+# R14 — Factura + FURIPS integration (S1-S4 via route/storage mocked) — split
+# =============================================================================
+
+class TestR14FacturaYFuripsIntegration:
+    """R14 S1 opciones + S2 create + S3 update + S4 filter — split vocabulary."""
+
+    def test_opciones_route_includes_factura_y_furips(self, app_client):
+        """GET /api/control-errores/opciones tipos_error contains Factura and FURIPS separate."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "validador"
+            sess["username"] = "val1"
+            sess["permisos"] = ["control_urgencias", "control_urgencias:write"]
+        with patch("app.services.control_errores_service.users_store.get_facturadores", return_value=[]):
+            resp = app_client.get("/api/control-errores/opciones")
+        assert resp.status_code == 200
+        tipos = resp.get_json()["data"]["tipos_error"]
+        assert "Factura" in tipos
+        assert "FURIPS" in tipos
+        assert "Factura y Furips" not in tipos
+        assert tipos == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+
+    def test_post_create_factura_y_furips_persists_verbatim(self, app_client):
+        """POST with tipo_error=Factura and FURIPS → persisted verbatim."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["control_urgencias:write"]
+            sess["username"] = "val1"
+            sess["primer_nombre"] = "Juan"
+            sess["apellido_1"] = "Perez"
+        with patch("app.services.control_errores_service.crear_error") as mock_crear:
+            mock_crear.return_value = {"id": "new-factura", "tipo_error": "Factura", "factura": "FEV-001"}
+            resp = app_client.post("/api/control-errores", json={
+                "tipo_error": "Factura",
+                "factura": "FEV-001",
+                "responsable": "LORENY ESPAÑA",
+                "observacion": "Factura SOAT",
+            })
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["error"]["tipo_error"] == "Factura"
+        assert mock_crear.call_args.args[0] == "Factura"
+        # second: FURIPS upper-case verbatim
+        with patch("app.services.control_errores_service.crear_error") as mock_crear2:
+            mock_crear2.return_value = {"id": "new-furips", "tipo_error": "FURIPS", "factura": "FEV-002"}
+            resp2 = app_client.post("/api/control-errores", json={
+                "tipo_error": "FURIPS",
+                "factura": "FEV-002",
+                "responsable": "LORENY ESPAÑA",
+                "observacion": "FURIPS SOAT",
+            })
+        assert resp2.status_code == 200
+        assert resp2.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
+        assert mock_crear2.call_args.args[0] == "FURIPS"
+
+    def test_put_update_to_factura_y_furips(self, app_client):
+        """PUT with tipo_error=Factura / FURIPS → 200 and verbatim."""
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["permisos"] = ["control_urgencias:write"]
+            sess["username"] = "val1"
+        with (
+            patch("app.services.control_errores_service.obtener_error", return_value=_fake_error()),
+            patch("app.services.control_errores_service.actualizar_error", return_value={"id": "test-i1", "tipo_error": "Factura"}) as mock_upd,
+        ):
+            resp = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "Factura"})
+        assert resp.status_code == 200
+        assert resp.get_json()["data"]["error"]["tipo_error"] == "Factura"
+        assert mock_upd.call_args.kwargs["tipo_error"] == "Factura"
+        with (
+            patch("app.services.control_errores_service.obtener_error", return_value=_fake_error()),
+            patch("app.services.control_errores_service.actualizar_error", return_value={"id": "test-i1", "tipo_error": "FURIPS"}) as mock_upd2,
+        ):
+            resp2 = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "FURIPS"})
+        assert resp2.status_code == 200
+        assert resp2.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
+        assert mock_upd2.call_args.kwargs["tipo_error"] == "FURIPS"
+
+    def test_filter_route_factura_y_furips_exact_match(self, app_client):
+        """GET ?tipo_error=Factura / FURIPS exact; combined and lowercase zero."""
+        fixture = [
+            {"id": "factura-1", "tipo_error": "Factura", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "furips-1", "tipo_error": "FURIPS", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "o1", "tipo_error": "Otros", "estado": "S", "responsable": "A", "creado_en": "2026-08-09T10:00:00"},
+        ]
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "validador"
+            sess["username"] = "val1"
+            sess["permisos"] = ["control_urgencias", "control_urgencias:write"]
+        with (
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            resp = app_client.get("/api/control-errores?tipo_error=Factura")
+            assert resp.status_code == 200
+            assert [e["id"] for e in resp.get_json()["data"]["errores"]] == ["factura-1"]
+            resp2 = app_client.get("/api/control-errores?tipo_error=FURIPS")
+            assert [e["id"] for e in resp2.get_json()["data"]["errores"]] == ["furips-1"]
+            resp_combined = app_client.get("/api/control-errores?tipo_error=Factura y Furips")
+            assert resp_combined.get_json()["data"]["errores"] == []
+            resp_lower = app_client.get("/api/control-errores?tipo_error=factura y furips")
+            assert resp_lower.get_json()["data"]["errores"] == []
+            resp_lower2 = app_client.get("/api/control-errores?tipo_error=factura")
+            assert resp_lower2.get_json()["data"]["errores"] == []

@@ -1461,3 +1461,61 @@ class TestReFacturaColumnStorage:
             result = actualizar_error(error_id="test-1", estado="N")
 
             assert result["refactura"] == "OLD"
+
+
+# =============================================================================
+# R14 — Factura + FURIPS split (fix-split-factura-furips)
+# =============================================================================
+
+class TestR14FacturaYFuripsOpciones:
+    """R14 S1: GET /api/control-errores/opciones includes Factura and FURIPS separate."""
+
+    def test_opciones_includes_factura_y_furips(self):
+        """tipos_error MUST contain Factura Title Case + FURIPS upper + 4 existing."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=[]),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        tipos = opciones["data"]["tipos_error"]
+        assert "Factura" in tipos
+        assert "FURIPS" in tipos
+        assert "Factura y Furips" not in tipos
+        assert {"Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada"}.issubset(set(tipos))
+        assert len(tipos) == 6
+        assert tipos == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+
+
+class TestR14FacturaYFuripsFilter:
+    """R14 S4: filter exact-match case-sensitive via get_errores/listar_errores — split."""
+
+    def test_filter_factura_y_furips_exact_match(self):
+        """GET ?tipo_error=Factura / FURIPS returns only those; lowercase and combined zero."""
+        fixture = [
+            {"id": "factura-1", "tipo_error": "Factura", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "furips-1", "tipo_error": "FURIPS", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "o1", "tipo_error": "Otros", "estado": "S", "responsable": "A", "creado_en": "2026-08-09T10:00:00"},
+            {"id": "fa1", "tipo_error": "Factura Abierta", "estado": "S", "responsable": "A", "creado_en": "2026-08-08T10:00:00"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(tipo_error="Factura", session={"rol": "validador"})
+            assert [e["id"] for e in result["data"]["errores"]] == ["factura-1"]
+
+            result_furips = get_errores(tipo_error="FURIPS", session={"rol": "validador"})
+            assert [e["id"] for e in result_furips["data"]["errores"]] == ["furips-1"]
+
+            result_lower = get_errores(tipo_error="factura y furips", session={"rol": "validador"})
+            assert result_lower["data"]["errores"] == []
+
+            result_combined = get_errores(tipo_error="Factura y Furips", session={"rol": "validador"})
+            assert result_combined["data"]["errores"] == []
+
+            result_other = get_errores(tipo_error="Otros", session={"rol": "validador"})
+            assert [e["id"] for e in result_other["data"]["errores"]] == ["o1"]

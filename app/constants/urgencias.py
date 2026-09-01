@@ -440,6 +440,8 @@ ERROR_TIPO_URGENCIAS = [
     "Soportes de Carpeta",
     "Factura Abierta",
     "Carpeta no entregada",
+    "Factura",
+    "FURIPS",
 ]
 
 ERROR_ESTADO_URGENCIAS = [
