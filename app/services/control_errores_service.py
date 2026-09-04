@@ -328,8 +328,25 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
         observacion = (data.get("observacion", "").strip() or "").upper()
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
-        responsable = data.get("responsable", "").strip() or ""
-        responsable = (_resolve_responsable_identity(responsable) or responsable).upper()
+        responsable_raw = data.get("responsable", "").strip() or ""
+        if tipo_error == "Factura Abierta" and responsable_raw.strip().upper() == "SIN HORARIO":
+            logger.error("[BACK][ERROR] Rechazo Factura Abierta sin horario: factura=%s", factura)
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["No se puede enviar Factura Abierta sin horario: cargue el horario del mes de egreso"],
+                "success": False,
+            }
+        responsable = (_resolve_responsable_identity(responsable_raw) or responsable_raw).upper()
+
+        if tipo_error == "Factura Abierta" and responsable == "SIN HORARIO":
+            logger.error("[BACK][ERROR] Rechazo Factura Abierta sin horario: factura=%s", factura)
+            return {
+                "status": "error",
+                "data": {},
+                "errors": ["No se puede enviar Factura Abierta sin horario: cargue el horario del mes de egreso"],
+                "success": False,
+            }
 
         validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
         created_by = sess.get("username", "")

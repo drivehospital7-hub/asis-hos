@@ -487,13 +487,13 @@ describe("calcularResponsable", () => {
     expect(result).toBe("CARLOS OMAR"); // day 5 tarde = CARLOS → CARLOS OMAR
   });
 
-  it("returns Sin cronograma when cronograma is empty", () => {
+  it("returns Sin horario when cronograma is empty", () => {
     const result = calcularResponsable(
       "05/05/2026  08:00:00",
       "05/05/2026  10:15:00",
       [],
     );
-    expect(result).toBe("Sin cronograma");
+    expect(result).toBe("Sin horario");
   });
 
   it("returns — when fechaCrea is empty", () => {
@@ -838,6 +838,192 @@ describe("masDeDosTurnosMismoResponsable", () => {
       "CARLOS OMAR",
       schedule,
       jun(2, 5, 0), // day 2 at 05:00 → still in day 1's noche shift
+    );
+    expect(result).toBe(false);
+  });
+});
+
+// ─── T4 strict TDD: Sin horario + per-month resolution ─────────────────
+
+describe("T4 calcularResponsable Sin horario + per-month", () => {
+  it("returns Sin horario when horarioForMonth is null", () => {
+    const result = calcularResponsable(
+      "10/09/2026  08:00:00",
+      "10/09/2026  14:00:00",
+      null,
+    );
+    expect(result).toBe("Sin horario");
+  });
+
+  it("returns Sin horario when horarioForMonth is empty array", () => {
+    const result = calcularResponsable(
+      "10/09/2026  08:00:00",
+      "10/09/2026  14:00:00",
+      [],
+    );
+    expect(result).toBe("Sin horario");
+  });
+
+  it("returns Sin horario for malformed egreso (not-a-date)", () => {
+    const cronograma: ScheduleDay[] = [
+      { dia: 10, manana: "CARLOS", tarde: "ALEJANDRA", noche: "YULIETH" },
+    ];
+    const result = calcularResponsable(
+      "10/09/2026  08:00:00",
+      "not-a-date",
+      cronograma,
+    );
+    expect(result).toBe("Sin horario");
+  });
+
+  it("returns Sin horario for malformed egreso with wrong separator", () => {
+    const cronograma: ScheduleDay[] = [
+      { dia: 10, manana: "CARLOS", tarde: "ALEJANDRA", noche: "YULIETH" },
+    ];
+    const result = calcularResponsable(
+      "10/09/2026  08:00:00",
+      "10-09-2026 10:00:00",
+      cronograma,
+    );
+    expect(result).toBe("Sin horario");
+  });
+
+  it("month-coincident: egreso Sep picks Sep map not Aug (same day different responsable)", () => {
+    const horariosMap: Record<string, ScheduleDay[]> = {
+      "2026-08": [{ dia: 15, manana: "CARLOS", tarde: "ALEJANDRA", noche: "YULIETH" }],
+      "2026-09": [{ dia: 15, manana: "ALEJANDRA", tarde: "CARLOS", noche: "CAROLINA" }],
+    };
+    // Same day 15, different shifts: Aug manana CARLOS->CARLOS OMAR, Sep manana ALEJANDRA->ALEJANDRA ESPAÑA
+    // Egreso 15/09/2026 10:00 in mañana should use Sep map
+    const keySep = "2026-09";
+    const resultSep = calcularResponsable(
+      "15/09/2026  08:00:00",
+      "15/09/2026  10:00:00",
+      horariosMap[keySep],
+    );
+    expect(resultSep).toBe("ALEJANDRA ESPAÑA");
+    const keyAug = "2026-08";
+    const resultAug = calcularResponsable(
+      "15/08/2026  08:00:00",
+      "15/08/2026  10:00:00",
+      horariosMap[keyAug],
+    );
+    expect(resultAug).toBe("CARLOS OMAR");
+    expect(resultSep).not.toBe(resultAug);
+  });
+
+  it("night correction dia-1 across month uses horarioForMonth of egreso (05/09 03:00 -> dia 4 noche Sep)", () => {
+    const scheduleSep: ScheduleDay[] = [
+      { dia: 4, manana: "CARLOS", tarde: "ALEJANDRA", noche: "YULIETH" },
+      { dia: 5, manana: "CAROLINA", tarde: "CARLOS", noche: "ALEJANDRA" },
+    ];
+    // 05/09 03:00 is before 06:30 -> belongs to dia 4 noche (YULIETH -> DANIELA PAEZ)
+    const result = calcularResponsable(
+      "04/09/2026  08:00:00",
+      "05/09/2026  03:00:00",
+      scheduleSep,
+    );
+    expect(result).toBe("DANIELA PAEZ");
+  });
+
+  it("Sin horario distinct from Sin Egreso / Sin cronograma / Dia N", () => {
+    expect(
+      calcularResponsable("10/09/2026  08:00:00", "", [
+        { dia: 10, manana: "CARLOS", tarde: "", noche: "" },
+      ]),
+    ).toBe("Sin Egreso");
+    expect(calcularResponsable("10/09/2026  08:00:00", "10/09/2026  14:00:00", null)).toBe(
+      "Sin horario",
+    );
+    expect(
+      calcularResponsable("10/09/2026  08:00:00", "11/09/2026  10:00:00", [
+        { dia: 10, manana: "CARLOS", tarde: "", noche: "" },
+      ]),
+    ).toBe("Día 11 sin asignación");
+  });
+});
+
+describe("T4 getSinEgresoButtonConfig isSinHorario precedence", () => {
+  it("disables with isSinHorario true (precedence over isSinEgreso false)", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Abierta", true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("Sin horario: cargue horario de ese mes");
+  });
+
+  it("disables with isSinHorario true even when estado Cerrada", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Cerrada", true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("Sin horario: cargue horario de ese mes");
+  });
+
+  it("disables with isSinHorario true even when isSinEgreso true (precedence)", () => {
+    const cfg = getSinEgresoButtonConfig(true, "Abierta", true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("Sin horario: cargue horario de ese mes");
+  });
+});
+
+describe("T4 filter includes Sin horario", () => {
+  it("getUniqueResponsables includes Sin horario", () => {
+    const results: FacturaResult[] = [
+      { responsable: "Sin horario" },
+      { responsable: "CARLOS OMAR" },
+      { responsable: "Sin horario" },
+    ] as FacturaResult[];
+    const uniq = getUniqueResponsables(results);
+    expect(uniq).toContain("Sin horario");
+  });
+
+  it("filterResultsByResponsable returns Sin horario rows", () => {
+    const results: FacturaResult[] = [
+      { responsable: "Sin horario", factura: "F1" },
+      { responsable: "CARLOS OMAR", factura: "F2" },
+      { responsable: "Sin horario", factura: "F3" },
+    ] as FacturaResult[];
+    const filtered = filterResultsByResponsable(results, "Sin horario");
+    expect(filtered).toHaveLength(2);
+    expect(filtered!.every((r) => r.responsable === "Sin horario")).toBe(true);
+  });
+
+  it("copiarResultados path generic: getUniqueResponsables + filter cover Sin horario together", () => {
+    const results: FacturaResult[] = [
+      { responsable: "Sin horario" },
+      { responsable: "Sin Egreso" },
+      { responsable: "CARLOS OMAR" },
+    ] as FacturaResult[];
+    const uniq = getUniqueResponsables(results);
+    expect(uniq).toContain("Sin horario");
+    expect(uniq).toContain("Sin Egreso");
+    expect(uniq).toContain("CARLOS OMAR");
+  });
+});
+
+describe("T4 masDeDosTurnos historical month guard false", () => {
+  const jun = (day: number, hour: number, min = 0) => new Date(2026, 5, day, hour, min, 0);
+
+  it("returns false for historical month (egreso May, now June) — intentional guard", () => {
+    const schedule: ScheduleDay[] = [
+      { dia: 15, manana: "CARLOS", tarde: "CARLOS", noche: "CARLOS" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "15/05/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      jun(16, 14, 0),
+    );
+    expect(result).toBe(false);
+  });
+
+  it("returns false when egreso month != now month even if schedule has many slots", () => {
+    const schedule: ScheduleDay[] = [
+      { dia: 10, manana: "CARLOS", tarde: "CARLOS", noche: "CARLOS" },
+      { dia: 11, manana: "CARLOS", tarde: "CARLOS", noche: "CARLOS" },
+    ];
+    const result = masDeDosTurnosMismoResponsable(
+      "10/05/2026  10:00:00",
+      "CARLOS OMAR",
+      schedule,
+      new Date(2026, 8, 10, 14, 0, 0), // September
     );
     expect(result).toBe(false);
   });

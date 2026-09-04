@@ -42,7 +42,14 @@ export interface ColumnIndexes {
  * Returns null if parsing fails.
  */
 export function parseScheduleText(text: string): ScheduleDay[] | null {
-  const rawLines = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  // Pre-normalize: join hyphenated line breaks inside time cells (e.g. "01:00 PM-\n07:00")
+  // and normalize Windows line endings before the main split.
+  const normalized = text
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/-\s*\n\s*/g, "-")
+    .replace(/\n\s*\n/g, "\n");
+  const rawLines = normalized.split("\n");
 
   // Join multi-line quoted fields
   const mergedLines: string[] = [];
@@ -88,14 +95,43 @@ export function parseScheduleText(text: string): ScheduleDay[] | null {
     }
   }
 
+  // If no DIA header but first lines look like time headers (contain "AM"/"PM" or "07:00"),
+  // treat them as header rows to skip. This handles pastes where the DIA column header
+  // is empty and the first row is "07:00 AM-01:00 PM ..." split across quoted lines.
+  const isFallback = headerIndex === -1;
+  const timeHeaderPattern = /(?:0?7:00|01:00|0?1:00)\s*(?:AM|PM)/i;
+
   // Parse data rows
   const dataRows: ScheduleDay[] = [];
   const startIdx = headerIndex !== -1 ? headerIndex + 1 : 0;
-  const isFallback = headerIndex === -1;
 
   for (let i = startIdx; i < cleanLines.length; i++) {
-    const parts = cleanLines[i].split("\t");
-    if (parts.length < 4) continue;
+    const line = cleanLines[i];
+    // Skip any line that looks like a time header (contains time patterns) and is not a day row
+    if (isFallback && timeHeaderPattern.test(line) && !/^\s*\d+\s*\t/.test(line)) {
+      continue;
+    }
+    const parts = line.split("\t");
+    if (parts.length < 4) {
+      // Also try splitting by 2+ spaces if tabs were collapsed during copy (Excel sometimes uses spaces)
+      const altParts = line.split(/\s{2,}/);
+      if (altParts.length >= 4) {
+        // Check if altParts looks like day row
+        const altDay = parseInt(altParts[0], 10);
+        if (!isNaN(altDay) && altDay >= 1 && altDay <= 31) {
+          const altNameCols = [altParts[1], altParts[2], altParts[3]];
+          if (isFallback && altNameCols.some((c) => /\d/.test(c))) continue;
+          dataRows.push({
+            dia: altDay,
+            manana: (altParts[1] || "").trim(),
+            tarde: (altParts[2] || "").trim(),
+            noche: (altParts[3] || "").trim(),
+          });
+          continue;
+        }
+      }
+      continue;
+    }
     const dayNum = parseInt(parts[0], 10);
     if (isNaN(dayNum) || dayNum < 1 || dayNum > 31) continue;
     // In fallback mode (no DIA header), skip rows where any data column
@@ -319,12 +355,13 @@ function parseDate(str: string): Date | null {
  * - 30-min reception rule: mañana 06:30–12:29, tarde 12:30–18:29, noche 18:30–06:29
  * - Night crosses midnight: egreso < 06:30 → lookup `noche` of previous day
  * - Returns "Sin Egreso" if no egreso or egreso <= creación
+ * - Returns "Sin horario" when no schedule for egreso month
  * - Maps short name via NOMBRE_MAP
  */
 export function calcularResponsable(
   fechaCreaStr: string,
   fechaEgresoStr: string,
-  cronograma: ScheduleDay[],
+  cronograma: ScheduleDay[] | null,
 ): string {
   // 1. Parse dates
   if (!fechaCreaStr || !fechaCreaStr.trim()) return "—";
@@ -336,7 +373,10 @@ export function calcularResponsable(
   if (!fechaEgresoStr || !fechaEgresoStr.trim()) return "Sin Egreso";
 
   const fechaEgreso = parseDate(fechaEgresoStr);
-  if (!fechaEgreso) return "Sin Egreso";
+  if (!fechaEgreso) {
+    console.error("[FRONT][ERROR] Parse fecha egreso fallo:", fechaEgresoStr);
+    return "Sin horario";
+  }
 
   // 3. If egreso <= crea → patient still in room
   if (fechaEgreso <= fechaCrea) return "Sin Egreso";
@@ -360,14 +400,20 @@ export function calcularResponsable(
     // Night crosses midnight: egreso before 06:30 → previous day's night
     if (horaMinutos < 6.5) {
       diaBuscar = dia - 1;
+      // Month-boundary: 01/09 00:01 → diaBuscar 0 → should be last day of previous month
+      if (diaBuscar < 1) {
+        // Last day of previous month (e.g. 31/08 for 01/09)
+        const prevMonthLastDay = new Date(fechaEgreso.getFullYear(), fechaEgreso.getMonth(), 0).getDate();
+        diaBuscar = prevMonthLastDay;
+      }
     }
   }
 
   // 5. Lookup in cronograma
-  if (!cronograma || cronograma.length === 0) return "Sin cronograma";
+  if (!cronograma || cronograma.length === 0) return "Sin horario";
 
   const diaData = cronograma.find((d) => d.dia === diaBuscar);
-  if (!diaData) return "Día " + dia + " sin asignación";
+  if (!diaData) return "Día " + diaBuscar + " sin asignación";
 
   const nombreCorto = diaData[turno];
   if (!nombreCorto) return "Sin turno";
@@ -480,13 +526,20 @@ export interface SinEgresoButtonConfig {
 /**
  * Returns the button configuration for the "Enviar a Control" action.
  * The button must be disabled (with an explanatory tooltip) when the
- * factura has no responsable asignado ("Sin Egreso") or when its estado
- * is "Cerrada" — a closed invoice cannot be sent to Control.
+ * factura has no responsable asignado ("Sin Egreso"), when its estado
+ * is "Cerrada", or when no horario exists for the egreso month ("Sin horario").
  */
 export function getSinEgresoButtonConfig(
   isSinEgreso: boolean,
   estado?: string,
+  isSinHorario?: boolean,
 ): SinEgresoButtonConfig {
+  if (isSinHorario) {
+    return {
+      disabled: true,
+      title: "Sin horario: cargue horario de ese mes",
+    };
+  }
   if (isSinEgreso) {
     return {
       disabled: true,

@@ -337,6 +337,10 @@ Esto aplica a los tres turnos:
 Ejemplo: si el turno de tarde es de 1:00 PM a 7:00 PM, a las 6:30 PM el responsable
 ya es el del turno de noche (no el de las 7:00 PM).
 
+#### Almacenamiento por mes y gating `Sin horario`
+
+Horarios en `app/data/horarios/abiertas_urgencias_YYYY-MM.json` (un archivo por mes, escritura atómica temp+rename, migración idempotente desde `app/data/horario_abiertas_urgencias.json` legacy). `GET /api/schedules` lista `YYYY-MM` ordenados, `GET/POST/DELETE /api/schedule?mes=&anio=` operan por mes (sin params = compat legacy `mes_actual`). Frontend resuelve `calcularResponsable(fechaCrea, fechaEgreso, horarioForMonth)` por `YYYY-MM(egreso)`: si `horarioForMonth` es `null`/vacío o `fechaEgreso` malformada → `"Sin horario"` (sentinel distinto de `Sin Egreso`/`Sin cronograma`/`Sin turno`), bloquea `Envío` con `getSinEgresoButtonConfig(..., isSinHorario=true)` → `Sin horario: cargue horario de ese mes` y `POST /api/control-errores` rechaza `Factura Abierta + Sin horario` con `[BACK][ERROR]`.
+
 ---
 
 ## Formato Condicional (Colores Excel)

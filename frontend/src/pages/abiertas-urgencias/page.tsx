@@ -38,6 +38,19 @@ interface AbiertasUrgenciasPageProps {
   can_write?: boolean;
 }
 
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+function currentMonthKey(): string {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function parseMonthKey(key: string): { mes: number; anio: number } | null {
+  const m = key.match(/^(\d{4})-(\d{2})$/);
+  if (!m) return null;
+  return { anio: parseInt(m[1], 10), mes: parseInt(m[2], 10) };
+}
+
 // ─── Toast ────────────────────────────────────────────────────────────
 
 function Toast({
@@ -103,8 +116,10 @@ function esVencida(
 export function AbiertasUrgenciasPage({
   can_write = false,
 }: AbiertasUrgenciasPageProps) {
-  // ── Schedule state ──
-  const [schedule, setSchedule] = useState<ScheduleDay[] | null>(null);
+  // ── Schedule state (multi-month) ──
+  const [horariosMap, setHorariosMap] = useState<Record<string, ScheduleDay[]>>({});
+  const [selectedKey, setSelectedKey] = useState<string>(() => currentMonthKey());
+  const schedule = horariosMap[selectedKey] ?? null;
   const [scheduleStatus, setScheduleStatus] = useState<
     "loading" | "loaded" | "empty"
   >("loading");
@@ -147,31 +162,96 @@ export function AbiertasUrgenciasPage({
   // ── Schedule card toggle ──
   const [openHorario, setOpenHorario] = useState(true);
 
-  // ── Load schedule on mount ──
-  const loadSchedule = useCallback(async () => {
+  // ── Derived month options ──
+  const monthOptions = useMemo(() => {
+    const curr = currentMonthKey();
+    return Array.from(new Set([...Object.keys(horariosMap), curr, selectedKey])).sort();
+  }, [horariosMap, selectedKey]);
+
+  // ── Load schedules on mount ──
+  const loadSchedules = useCallback(async () => {
     setScheduleStatus("loading");
     try {
-      const res = await fetch("/abiertas-urgencias/api/schedule");
+      console.log("[FRONT] Cargando horarios por mes");
+      const curr = currentMonthKey();
+      const res = await fetch("/abiertas-urgencias/api/schedules");
       const result = await res.json();
-      if (result.status === "success" && result.data?.horario) {
-        const dias = result.data.horario.dias || [];
-        setSchedule(dias);
-        setScheduleStatus(dias.length > 0 ? "loaded" : "empty");
+      const meses: string[] =
+        result.status === "success" ? (result.data?.meses ?? []) : [];
+      if (meses.length > 0) {
+        const entries = await Promise.all(
+          meses.map(async (key: string) => {
+            const parsed = parseMonthKey(key);
+            if (!parsed) return [key, [] as ScheduleDay[]] as [string, ScheduleDay[]];
+            const r = await (
+              await fetch(
+                `/abiertas-urgencias/api/schedule?mes=${String(parsed.mes).padStart(2, "0")}&anio=${parsed.anio}`,
+              )
+            ).json();
+            const dias: ScheduleDay[] =
+              r.status === "success" && r.data?.horario
+                ? ((r.data.horario.dias ?? []) as ScheduleDay[])
+                : ([] as ScheduleDay[]);
+            return [key, dias] as [string, ScheduleDay[]];
+          }),
+        );
+        const map: Record<string, ScheduleDay[]> = {};
+        for (const [k, v] of entries) map[k] = v;
+        setHorariosMap(map);
+        setSelectedKey(curr);
+        const curDias = map[curr];
+        console.log("[FRONT] Seleccionado mes", curr, curDias ? curDias.length : "vacío");
+        setScheduleStatus(curDias && curDias.length > 0 ? "loaded" : "empty");
       } else {
-        setSchedule(null);
-        setScheduleStatus("empty");
+        const legacyRes = await fetch("/abiertas-urgencias/api/schedule");
+        const legacy = await legacyRes.json();
+        if (legacy.status === "success" && legacy.data?.horario) {
+          const dias: ScheduleDay[] = legacy.data.horario.dias ?? [];
+          const cur = currentMonthKey();
+          setHorariosMap({ [cur]: dias });
+          setSelectedKey(cur);
+          setScheduleStatus(dias.length > 0 ? "loaded" : "empty");
+          console.log("[FRONT] Fallback legacy horario cargado", cur);
+        } else {
+          setHorariosMap({});
+          setSelectedKey(curr);
+          setScheduleStatus("empty");
+        }
       }
     } catch {
-      setSchedule(null);
+      setHorariosMap({});
+      setSelectedKey(currentMonthKey());
       setScheduleStatus("empty");
     }
   }, []);
 
   useEffect(() => {
-    loadSchedule();
-  }, [loadSchedule]);
+    loadSchedules();
+  }, [loadSchedules]);
+
+  // Keep status in sync when selectedKey or map changes (e.g. after delete/save or month switch)
+  useEffect(() => {
+    const cur = horariosMap[selectedKey];
+    if (cur && cur.length > 0) {
+      setScheduleStatus("loaded");
+    } else if (Object.keys(horariosMap).length === 0) {
+      // still loading? Keep as is if loading already, otherwise empty
+      // only force empty when not loading already? simple: if empty map, set empty unless still loading initial
+      setScheduleStatus((prev) => (prev === "loading" ? prev : "empty"));
+      if (scheduleStatus !== "loading") setScheduleStatus("empty");
+    } else {
+      // map has entries but selected month empty
+      setScheduleStatus("empty");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedKey, horariosMap]);
 
   // ── Schedule handlers ──
+  const handleSelectMonth = (key: string) => {
+    console.log("[FRONT] Seleccionado mes", key);
+    setSelectedKey(key);
+  };
+
   const handleToggleParseCard = () => {
     if (!can_write) {
       showToast("Iniciá sesión para modificar");
@@ -196,16 +276,23 @@ export function AbiertasUrgenciasPage({
       return;
     }
 
+    const parsed = parseMonthKey(selectedKey);
+    if (!parsed) {
+      showToast("Mes seleccionado inválido.");
+      return;
+    }
+
+    console.log("[FRONT] Guardando horario", selectedKey, dias.length);
     try {
       const res = await fetch("/abiertas-urgencias/api/schedule", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dias }),
+        body: JSON.stringify({ mes: parsed.mes, anio: parsed.anio, dias }),
       });
       const result = await res.json();
       if (result.status === "success") {
-        showToast("✅ Horario guardado — " + dias.length + " días");
-        setSchedule(dias);
+        showToast("✅ Horario guardado — " + dias.length + " días para " + selectedKey);
+        setHorariosMap((prev) => ({ ...prev, [selectedKey]: dias }));
         setScheduleStatus("loaded");
         setShowParseCard(false);
         setScheduleText("");
@@ -225,18 +312,30 @@ export function AbiertasUrgenciasPage({
     }
     if (!await window.__showConfirm!("¿Eliminar el horario cargado?")) return;
 
-    try {
-      const res = await fetch("/abiertas-urgencias/api/schedule", {
-        method: "DELETE",
-      });
-      const result = await res.json();
-      if (result.status === "success") {
-        showToast("Horario eliminado");
-        setSchedule(null);
-        setScheduleStatus("empty");
+    const parsed = parseMonthKey(selectedKey);
+    if (parsed) {
+      console.log("[FRONT] Eliminando horario", selectedKey);
+      try {
+        const res = await fetch(
+          `/abiertas-urgencias/api/schedule?mes=${String(parsed.mes).padStart(2, "0")}&anio=${parsed.anio}`,
+          {
+            method: "DELETE",
+          },
+        );
+        const result = await res.json();
+        if (result.status === "success") {
+          showToast("Horario eliminado");
+          const deletedKey = selectedKey;
+          setHorariosMap((prev) => {
+            const next = { ...prev };
+            delete next[deletedKey];
+            return next;
+          });
+          setSelectedKey(currentMonthKey());
+        }
+      } catch {
+        showToast("Error al eliminar");
       }
-    } catch {
-      showToast("Error al eliminar");
     }
   };
 
@@ -248,13 +347,6 @@ export function AbiertasUrgenciasPage({
   const handleProcesarFacturas = () => {
     if (!facturasText.trim()) {
       showToast("Pegá los datos de facturación primero.");
-      return;
-    }
-
-    if (!schedule || schedule.length === 0) {
-      showToast(
-        "⚠️ No hay horario cargado. Primero cargá el cronograma en la sección de arriba.",
-      );
       return;
     }
 
@@ -316,7 +408,7 @@ export function AbiertasUrgenciasPage({
           envioExistentes.current = new Set();
         });
 
-      // Process each row
+      // Process each row with per-factura month lookup + cross-month night
       const newResults: FacturaResult[] = [];
       for (const line of dataLines) {
         const cells = line.split("\t").map((c) => c.trim());
@@ -344,10 +436,44 @@ export function AbiertasUrgenciasPage({
         const hcPendiente =
           cols.hcPendienteIdx >= 0 ? cells[cols.hcPendienteIdx] || "" : "";
 
+        // Per-factura lookup: derive YYYY-MM from fechaEgreso, with cross-month night correction
+        let horarioForMonth: ScheduleDay[] | null = null;
+        if (fechaEgreso && fechaEgreso.trim()) {
+          const m = fechaEgreso.trim().match(/^(\d{2})\/(\d{2})\/(\d{4})\s+(\d{2}):(\d{2}):(\d{2})$/);
+          if (m) {
+            const dia = parseInt(m[1], 10);
+            const mes = parseInt(m[2], 10);
+            const anio = parseInt(m[3], 10);
+            const hour = parseInt(m[4], 10);
+            const min = parseInt(m[5], 10);
+            const hourMin = hour + min / 60;
+            let lookupKey = `${String(anio).padStart(4, "0")}-${String(mes).padStart(2, "0")}`;
+            // Cross-month night: 01/09 00:01 -> previous month 2026-08
+            if (hourMin < 6.5 && dia === 1) {
+              let prevMes = mes - 1;
+              let prevAnio = anio;
+              if (prevMes < 1) {
+                prevMes = 12;
+                prevAnio -= 1;
+              }
+              lookupKey = `${String(prevAnio).padStart(4, "0")}-${String(prevMes).padStart(2, "0")}`;
+            }
+            horarioForMonth = horariosMap[lookupKey] ?? null;
+            if (!horarioForMonth) {
+              console.error("[FRONT][ERROR] Sin horario para mes", lookupKey);
+            }
+          } else {
+            console.error("[FRONT][ERROR] Parse fecha egreso fallo:", fechaEgreso);
+            horarioForMonth = null;
+          }
+        } else {
+          horarioForMonth = null;
+        }
+
         const responsable = calcularResponsable(
           fechaCrea,
           fechaEgreso,
-          schedule,
+          horarioForMonth,
         );
 
         newResults.push({
@@ -481,6 +607,13 @@ export function AbiertasUrgenciasPage({
     }
   };
 
+  const formatMonthTitleCase = (key: string): string => {
+    const [anio, mes] = key.split("-");
+    const d = new Date(parseInt(anio, 10), parseInt(mes, 10) - 1, 1);
+    const raw = d.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
+    return raw.replace(" de ", " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+
   // ── Render helpers ──
 
   const statusIcon = () => {
@@ -496,7 +629,7 @@ export function AbiertasUrgenciasPage({
     if (scheduleStatus === "loaded")
       return (
         <>
-          Horario cargado — <strong>{schedule?.length ?? 0} días</strong>
+          Horario cargado — <strong>{schedule?.length ?? 0} días</strong> para {formatMonthTitleCase(selectedKey)}
         </>
       );
     return "Falta cargar horario";
@@ -510,7 +643,7 @@ export function AbiertasUrgenciasPage({
         (schedule?.length ?? 0) +
         " turnos cargados para el mes."
       );
-    return 'No hay horario para el mes actual. Usá "Cargar" para agregar los turnos del mes.';
+    return 'No hay horario para el mes seleccionado. Usá "Cargar" para agregar los turnos del mes.';
   };
 
   return (
@@ -664,6 +797,7 @@ export function AbiertasUrgenciasPage({
                   const yaEnviada =
                     r._enviada || envioEnviadas.current.has(r.factura);
                   const isSinEgreso = r.responsable === "Sin Egreso";
+                  const isSinHorario = r.responsable === "Sin horario";
 
                   let actionHtml: React.ReactNode;
                   if (yaEnviada) {
@@ -700,6 +834,7 @@ export function AbiertasUrgenciasPage({
                     const sinEgresoConfig = getSinEgresoButtonConfig(
                       isSinEgreso,
                       r.estado,
+                      isSinHorario,
                     );
                     const isDisabled = sinEgresoConfig.disabled;
                     actionHtml = (
@@ -748,7 +883,7 @@ export function AbiertasUrgenciasPage({
                         {escapeHtml(r.estado || "—")}
                       </td>
                       <td className="px-2 py-1.5 text-xs truncate">
-                        <span className={cn(isSinEgreso && "text-warning-foreground")}>
+                        <span className={cn(isSinEgreso && "text-warning-foreground", isSinHorario && "text-warning-foreground")}>
                           {escapeHtml(r.responsable || "—")}
                         </span>
                       </td>
@@ -771,123 +906,47 @@ export function AbiertasUrgenciasPage({
         </Card>
       )}
 
-      {/* ═══════════════════ Status Bar ═══════════════════ */}
-      <Card
-        className={cn(
-          "border-border bg-card shadow-none mb-4 overflow-hidden",
-        )}
-      >
+      {/* ═══════════════════ Ver Horario (with select) ABOVE Status ═══════════════════ */}
+      <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
         <div className="flex items-center gap-4 p-5">
-          <div
-            className={cn(
-              "flex h-11 w-11 shrink-0 items-center justify-center rounded-md",
-              scheduleStatus === "loading" && "bg-muted text-muted-foreground",
-              scheduleStatus === "loaded" && "bg-success/10 text-success",
-              scheduleStatus === "empty" && "bg-warning/10 text-warning-foreground",
-            )}
+          <button
+            onClick={() => setOpenHorario(!openHorario)}
+            className="flex-1 flex items-center gap-4 text-left hover:bg-muted/30 transition-colors min-w-0"
           >
-            {statusIcon()}
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground">{statusTitle()}</h3>
-            {statusMeta() && (
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-secondary/15 text-secondary">
+              <CalendarDays className="h-5 w-5" />
+            </div>
+            <div className="flex-1 min-w-0 text-left">
+              <h3 className="font-semibold text-foreground">Ver horario — {formatMonthTitleCase(selectedKey)}</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                {statusMeta()}
+                {schedule && schedule.length > 0
+                  ? schedule.length + " días cargados — clic para ver"
+                  : "Turnos cargados del mes seleccionado"}
               </p>
+            </div>
+            {openHorario ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={!can_write}
-              title={
-                !can_write ? "Iniciá sesión para modificar" : undefined
-              }
-              onClick={handleToggleParseCard}
+          </button>
+          <div className="flex items-center gap-2 shrink-0" onClick={(e) => e.stopPropagation()}>
+            <select
+              value={selectedKey}
+              onChange={(e) => handleSelectMonth(e.target.value)}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
             >
-              <FileEdit className="h-4 w-4" />
-              {scheduleStatus === "loaded" ? "Editar" : "Cargar"}
-            </Button>
-            {scheduleStatus === "loaded" && (
-              <Button
-                size="sm"
-                variant="destructive"
-                disabled={!can_write}
-                title={
-                  !can_write ? "Iniciá sesión para modificar" : undefined
-                }
-                onClick={handleDeleteSchedule}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+              {monthOptions.map((k) => {
+                const hasData = horariosMap[k] && horariosMap[k].length > 0;
+                return (
+                  <option key={k} value={k}>
+                    {formatMonthTitleCase(k)}{hasData ? "" : " (Vacío)"}
+                  </option>
+                );
+              })}
+            </select>
           </div>
         </div>
-      </Card>
-
-      {/* ═══════════════════ Parse Card (collapsible) ═══════════════════ */}
-      {showParseCard && (
-        <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
-          <div className="border-t border-border p-5 bg-muted/20">
-            <textarea
-              value={scheduleText}
-              onChange={(e) => setScheduleText(e.target.value)}
-              placeholder="Pegá acá el texto del horario..."
-              rows={12}
-              className="w-full rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-            />
-            <div className="mt-3 flex justify-end gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setShowParseCard(false);
-                  setScheduleText("");
-                }}
-              >
-                Cancelar
-              </Button>
-              <Button
-                size="sm"
-                className="bg-primary hover:bg-primary/90"
-                disabled={!can_write}
-                title={
-                  !can_write ? "Iniciá sesión para modificar" : undefined
-                }
-                onClick={handleParseAndSave}
-              >
-                <Upload className="h-4 w-4" />
-                Parsear y Guardar
-              </Button>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      {/* ═══════════════════ Ver Horario ═══════════════════ */}
-      <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
-        <button
-          onClick={() => setOpenHorario(!openHorario)}
-          className="w-full flex items-center gap-4 p-5 text-left hover:bg-muted/30 transition-colors"
-        >
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-secondary/15 text-secondary">
-            <CalendarDays className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <h3 className="font-semibold text-foreground">Ver horario</h3>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {schedule && schedule.length > 0
-                ? schedule.length + " días cargados — clic para ver"
-                : "Turnos cargados del mes en curso"}
-            </p>
-          </div>
-          {openHorario ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
-        </button>
         {openHorario && (
           <div className="border-t border-border">
             <div className="overflow-x-auto">
@@ -962,6 +1021,110 @@ export function AbiertasUrgenciasPage({
           </div>
         )}
       </Card>
+
+      {/* ═══════════════════ Status Bar (with input month) ═══════════════════ */}
+      <Card
+        className={cn(
+          "border-border bg-card shadow-none mb-4 overflow-hidden",
+        )}
+      >
+        <div className="flex items-center gap-4 p-5">
+          <div
+            className={cn(
+              "flex h-11 w-11 shrink-0 items-center justify-center rounded-md",
+              scheduleStatus === "loading" && "bg-muted text-muted-foreground",
+              scheduleStatus === "loaded" && "bg-success/10 text-success",
+              scheduleStatus === "empty" && "bg-warning/10 text-warning-foreground",
+            )}
+          >
+            {statusIcon()}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold text-foreground">{statusTitle()}</h3>
+            {statusMeta() && (
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {statusMeta()}
+              </p>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="month"
+              value={selectedKey}
+              onChange={(e) => {
+                if (e.target.value) handleSelectMonth(e.target.value);
+              }}
+              className="h-9 rounded-md border border-input bg-background px-2 text-sm"
+              title="Ir A Cualquier Mes (Ej. 2026-07) — Aunque No Esté En La Lista"
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={!can_write}
+              title={
+                !can_write ? "Iniciá sesión para modificar" : undefined
+              }
+              onClick={handleToggleParseCard}
+            >
+              <FileEdit className="h-4 w-4" />
+              {scheduleStatus === "loaded" ? "Editar" : "Cargar"}
+            </Button>
+            {scheduleStatus === "loaded" && (
+              <Button
+                size="sm"
+                variant="destructive"
+                disabled={!can_write}
+                title={
+                  !can_write ? "Iniciá sesión para modificar" : undefined
+                }
+                onClick={handleDeleteSchedule}
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+          </div>
+        </div>
+      </Card>
+
+      {/* ═══════════════════ Parse Card (collapsible) ═══════════════════ */}
+      {showParseCard && (
+        <Card className="border-border bg-card shadow-none mb-4 overflow-hidden">
+          <div className="border-t border-border p-5 bg-muted/20">
+            <textarea
+              value={scheduleText}
+              onChange={(e) => setScheduleText(e.target.value)}
+              placeholder="Pegá acá el texto del horario..."
+              rows={12}
+              className="w-full rounded-md border border-input bg-background p-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+            />
+            <div className="mt-3 flex justify-end gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  setShowParseCard(false);
+                  setScheduleText("");
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className="bg-primary hover:bg-primary/90"
+                disabled={!can_write}
+                title={
+                  !can_write ? "Iniciá sesión para modificar" : undefined
+                }
+                onClick={handleParseAndSave}
+              >
+                <Upload className="h-4 w-4" />
+                Parsear y Guardar
+              </Button>
+            </div>
+          </div>
+        </Card>
+      )}
+
     </div>
   );
 }
