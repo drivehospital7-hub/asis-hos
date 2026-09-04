@@ -12,6 +12,7 @@ from openpyxl.utils import get_column_letter
 
 from app.constants import IMAGENES_FACTURADOR_SCOPE
 from app.utils.errores_storage import listar_imagenes
+from app.utils.formatting import to_title_case
 
 logger = logging.getLogger(__name__)
 
@@ -124,13 +125,13 @@ def build_errores_export_workbook(errores: list[dict], base_url: str) -> BytesIO
     for row_index, error in enumerate(errores):
         error_id = error.get("id", "")
         ws.append([
-            error.get("validador", ""),
+            to_title_case(error.get("validador", "")),
             _formatear_fecha(error.get("creado_en", "")),
             error.get("factura", ""),
             error.get("refactura", ""),
             error.get("tipo_error", ""),
             error.get("observacion", ""),
-            error.get("responsable", ""),
+            to_title_case(error.get("responsable", "")),
             _label_estado(error.get("estado", "")),
         ])
 

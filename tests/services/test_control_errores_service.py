@@ -727,16 +727,16 @@ class TestNormalizarIdentidad:
     @pytest.mark.parametrize(
         "raw,expected",
         [
-            ("LORENY ESPAÑA", "loreny espana"),
-            (" lorenY   españa ", "loreny espana"),
-            ("LORENY  ESPAÑA", "loreny espana"),  # doble espacio
-            ("LORENY DEL CARMEN ESPAÑA RIVERA", "loreny del carmen espana rivera"),
+            ("LORENY ESPAÑA", "loreny españa"),
+            (" lorenY   españa ", "loreny españa"),
+            ("LORENY  ESPAÑA", "loreny españa"),  # doble espacio
+            ("LORENY DEL CARMEN ESPAÑA RIVERA", "loreny del carmen españa rivera"),
             ("", ""),
             (None, ""),
         ],
     )
     def test_normaliza_case_y_espacios(self, raw, expected):
-        """Caso y espacios colapsados; None/empty → vacío."""
+        """Caso y espacios colapsados; None/empty → vacío. Preserva ñ."""
         assert normalizar_identidad(raw) == expected
 
     def test_normalizar_identidad_exists(self):
@@ -1207,7 +1207,7 @@ class TestValidadorColumn:
     # ── Service: add_error composition ────────────────────────────────
 
     def test_add_error_composes_validador_from_session(self):
-        """add_error() MUST compose validador from session['primer_nombre'] + session['apellido_1']."""
+        """add_error() MUST compose validador from session['primer_nombre'] + session['apellido_1'] (UPPER canónico)."""
         with (
             _APP.test_request_context(),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
@@ -1224,10 +1224,10 @@ class TestValidadorColumn:
 
             mock_crear.assert_called_once()
             _call_kwargs = mock_crear.call_args.kwargs
-            assert _call_kwargs.get("validador") == "Juan Pérez"
+            assert _call_kwargs.get("validador") == "JUAN PÉREZ"
 
     def test_add_error_validador_ignores_client_payload(self):
-        """add_error() MUST NOT use validador from client payload — session always wins."""
+        """add_error() MUST NOT use validador from client payload — session always wins (UPPER)."""
         with (
             _APP.test_request_context(),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
@@ -1244,7 +1244,7 @@ class TestValidadorColumn:
 
             mock_crear.assert_called_once()
             _call_kwargs = mock_crear.call_args.kwargs
-            assert _call_kwargs.get("validador") == "Maria Gomez"
+            assert _call_kwargs.get("validador") == "MARIA GOMEZ"
 
     def test_add_error_validador_session_keys_missing(self):
         """add_error() MUST handle missing session keys gracefully (empty string fallback)."""

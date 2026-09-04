@@ -348,7 +348,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
                 "success": False,
             }
 
-        validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip()
+        validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip().upper()
         created_by = sess.get("username", "")
 
         nuevo = crear_error(

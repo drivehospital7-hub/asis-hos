@@ -76,12 +76,12 @@ class TestBuildWorkbook:
         assert ws["L1"].font.bold is True
 
         row = [c.value for c in ws[2]]
-        assert row[0] == "MARIA GOMEZ"       # Validador
+        assert row[0] == "Maria Gomez"       # Validador (Title Case)
         assert row[1] == "15/05/2026"        # Creado dd/mm/yyyy
         assert row[2] == "FAC-001"           # Factura
         assert row[3] in (None, "")         # ReFactura (opcional, vacío)
         assert row[4] == "Otros"             # Categoría
-        assert row[6] == "JUAN PEREZ"        # Responsables
+        assert row[6] == "Juan Perez"        # Responsables (Title Case)
         assert row[7] == "Pendiente"         # Estado
         assert row[8] == "Abrir PDF"         # Adjunto 1
         assert row[9] == "Abrir imagen"      # Adjunto 2
@@ -371,7 +371,7 @@ class TestExportRoute:
         wb = load_workbook(BytesIO(resp.data))
         ws = wb.active
         assert [c.value for c in ws[1]] == HEADERS
-        assert ws["A2"].value == "MARIA GOMEZ"
+        assert ws["A2"].value == "Maria Gomez"
         assert ws["B2"].value == "15/05/2026"
         assert ws["C2"].value == "FAC-001"
         target = ws["I2"].hyperlink.target

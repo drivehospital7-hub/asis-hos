@@ -55,14 +55,20 @@ _HORA_RE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{4})\s+(\d{1,2}):(\d{1,2})")
 
 
 def _fold(value: str | None) -> str:
-    """Normaliza búsqueda: NFD + quita marcas combinantes + trim + UPPER.
+    """Normaliza búsqueda: NFD + quita marcas combinantes (preservando Ñ/ñ) + trim + UPPER.
 
-    Espeja ``normalizeListadoQuery``: "Álvaro Ñúñez" ≈ "alvaro nunez".
+    Espeja ``normalizeListadoQuery``: "Álvaro" ≈ "alvaro", pero "MUÑOZ" sigue
+    distinguible de "MUNOZ" (Ñ preservada).
     """
+    raw = str(value or "")
+    _PH_U = "\uE000"
+    _PH_L = "\uE001"
+    raw = raw.replace("Ñ", _PH_U).replace("ñ", _PH_L)
     folded = "".join(
-        ch for ch in unicodedata.normalize("NFD", str(value or ""))
+        ch for ch in unicodedata.normalize("NFD", raw)
         if not unicodedata.combining(ch)
     )
+    folded = folded.replace(_PH_U, "Ñ").replace(_PH_L, "ñ")
     return folded.strip().upper()
 
 

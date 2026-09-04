@@ -37,12 +37,19 @@ _write_lock = threading.Lock()
 
 
 def normalizar_identidad(s: str | None) -> str:
-    """Normaliza una identidad: casefold, sin acentos y espacios colapsados.
+    """Normaliza una identidad: casefold, sin acentos (preservando Ñ/ñ) y espacios colapsados.
 
-    Ej: "LORENY  ESPAÑA " → "loreny espana". None/empty → "".
+    Ej: "LORENY  ESPAÑA " → "loreny españa". None/empty → "".
+    Preserva Ñ/ñ (N + virgulilla U+0303) mientras elimina otros diacríticos (á→a, é→e).
     """
-    value = unicodedata.normalize("NFKD", s or "")
+    raw = s or ""
+    # Preservar Ñ/ñ con placeholders fuera del rango de combining
+    _PH_U = "\uE000"  # para Ñ
+    _PH_L = "\uE001"  # para ñ
+    raw = raw.replace("Ñ", _PH_U).replace("ñ", _PH_L)
+    value = unicodedata.normalize("NFKD", raw)
     value = "".join(char for char in value if not unicodedata.combining(char))
+    value = value.replace(_PH_U, "Ñ").replace(_PH_L, "ñ")
     return " ".join(value.casefold().split())
 
 
