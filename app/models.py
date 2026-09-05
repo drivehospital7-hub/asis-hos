@@ -194,7 +194,7 @@ class Condicion(Base):
     regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
     padre_id = Column(Integer, ForeignKey("condiciones.id"), nullable=True)
     tipo = Column(String(10), nullable=False)
-    operador = Column(String(20), nullable=True)
+    operador = Column(String(50), nullable=True)
     fuente_datos = Column(String(100), nullable=True)
     valor_esperado = Column(JSONB, nullable=True)
     orden = Column(Integer, nullable=False, default=0)
@@ -329,6 +329,56 @@ class Evidencia(Base):
             "snapshot_referencia": self.snapshot_referencia,
             "error_mensaje": self.error_mensaje,
             "creado_en": str(self.creado_en) if self.creado_en else None,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BRE Catalogs + Migration Versioning — additive only (Slice 1)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Catalogo(Base):
+    """JSONB catalog store for cat_in operator seeds.
+
+    Additive mirror of the catalogos table managed by
+    app/services/reglas/catalogos_service.py. Seeds use
+    WHERE NOT EXISTS / ON CONFLICT DO NOTHING; reruns never overwrite values.
+    """
+    __tablename__ = "catalogos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(200), unique=True, nullable=False)
+    value = Column(JSONB, nullable=False, server_default="[]")
+    dominio = Column(Text, nullable=True)
+    descripcion = Column(Text, nullable=True)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "key": self.key,
+            "value": self.value,
+            "dominio": self.dominio,
+            "descripcion": self.descripcion,
+            "updated_at": str(self.updated_at) if self.updated_at else None,
+        }
+
+
+class SchemaMigration(Base):
+    """Applied migration version record for run_migrations.py.
+
+    Mirrors migrations/000_schema_migrations.sql. INSERT-only via
+    ON CONFLICT DO NOTHING; reruns report zero diff.
+    """
+    __tablename__ = "schema_migrations"
+
+    version = Column(Text, primary_key=True)
+    applied_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "version": self.version,
+            "applied_at": str(self.applied_at) if self.applied_at else None,
         }
 
 
