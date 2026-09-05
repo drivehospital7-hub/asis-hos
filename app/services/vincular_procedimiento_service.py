@@ -20,7 +20,7 @@ def ejecutar(
     eps_id: int,
     id_nota_hoja: int,
     id_procedimiento: int,
-    tarifa: float,
+    tariff: float,
 ) -> Tuple[EpsNota, NotasTecnicas]:
     """Vincula un procedimiento a una EPS en una transacción atómica.
 
@@ -32,25 +32,25 @@ def ejecutar(
         eps_id: ID de EpsContratado.
         id_nota_hoja: ID de NotaHoja.
         id_procedimiento: ID de Procedimiento.
-        tarifa: Valor de la tarifa (se mapea a tariff en DB).
+        tariff: Valor de la tarifa (columna NotasTecnicas.tariff en DB).
 
     Returns:
         Tupla (EpsNota, NotasTecnicas) creados.
 
     Raises:
-        ValueError: Si alguna entidad no existe, hay duplicado, o tarifa inválida.
+        ValueError: Si alguna entidad no existe, hay duplicado, o el valor es inválido.
     """
     # ─── Validaciones ─────────────────────────────────────────────────
 
-    if tarifa is None:
+    if tariff is None:
         raise ValueError("Tarifa es requerida")
 
     try:
-        tarifa_val = float(tarifa)
+        tariff_val = float(tariff)
     except (TypeError, ValueError):
         raise ValueError("Tarifa inválida")
 
-    if tarifa_val <= 0:
+    if tariff_val <= 0:
         raise ValueError("Tarifa inválida")
 
     eps = db.query(EpsContratado).filter(EpsContratado.id == eps_id).first()
@@ -90,7 +90,7 @@ def ejecutar(
         nt = NotasTecnicas(
             id_procedimiento=id_procedimiento,
             id_nota_hoja=id_nota_hoja,
-            tariff=tarifa_val,
+            tariff=tariff_val,
         )
         db.add(nt)
         db.flush()
@@ -100,8 +100,8 @@ def ejecutar(
         db.refresh(nt)
 
         logger.info(
-            "Vinculado procedimiento %s a EPS %s mediante NotaHoja %s (tarifa=%s)",
-            id_procedimiento, eps_id, id_nota_hoja, tarifa_val,
+            "Vinculado procedimiento %s a EPS %s mediante NotaHoja %s (tariff=%s)",
+            id_procedimiento, eps_id, id_nota_hoja, tariff_val,
         )
         return eps_nota, nt
 

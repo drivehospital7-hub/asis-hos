@@ -269,7 +269,7 @@ def import_notas_tecnicas():
                     db,
                     id_procedimiento=int(row["id_procedimiento"]),
                     id_nota_hoja=int(row["id_nota_hoja"]),
-                    tarifa=float(row["tarifa"])
+                    tariff=float(row["tarifa"])
                 )
                 imported += 1
             except ValueError as e:

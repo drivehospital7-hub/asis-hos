@@ -228,7 +228,7 @@ def vincular_procedimiento(eps_id):
             eps_id=eps_id,
             id_nota_hoja=data["id_nota_hoja"],
             id_procedimiento=data["id_procedimiento"],
-            tarifa=data["tarifa"],
+            tariff=data["tarifa"],
         )
 
         nt_dict = nt.to_dict()
@@ -629,7 +629,7 @@ def vincular_procedimiento_a_nota(id):
             }), 400
 
         id_procedimiento = data.get("id_procedimiento")
-        tarifa = data.get("tarifa")
+        tariff_val = data.get("tarifa")
 
         if not id_procedimiento:
             return jsonify({
@@ -637,7 +637,7 @@ def vincular_procedimiento_a_nota(id):
                 "errors": ["id_procedimiento es requerido"]
             }), 400
 
-        if tarifa is not None and (not isinstance(tarifa, (int, float)) or tarifa <= 0):
+        if tariff_val is not None and (not isinstance(tariff_val, (int, float)) or tariff_val <= 0):
             return jsonify({
                 "status": "error", "data": {},
                 "errors": ["tarifa debe ser un número positivo"]
@@ -662,7 +662,7 @@ def vincular_procedimiento_a_nota(id):
         nt = NotasTecnicas(
             id_procedimiento=id_procedimiento,
             id_nota_hoja=id,
-            tariff=tarifa if tarifa is not None else 0,
+            tariff=tariff_val if tariff_val is not None else 0,
         )
         db.add(nt)
         db.commit()
@@ -815,7 +815,7 @@ def create_nota_tecnica():
             db,
             id_procedimiento=data["id_procedimiento"],
             id_nota_hoja=data["id_nota_hoja"],
-            tarifa=data["tarifa"]
+            tariff=data["tarifa"]
         )
         
         return jsonify({
