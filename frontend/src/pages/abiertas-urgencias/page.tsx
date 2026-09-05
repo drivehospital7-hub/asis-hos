@@ -5,6 +5,8 @@ import {
   Users,
   CalendarDays,
   Upload,
+  FileEdit,
+  Trash2,
   Check,
   ClipboardCopy,
   Plus,
@@ -18,6 +20,7 @@ import { PageTitle } from "@/components/page-title";
 import { cn } from "@/lib/utils";
 import { TOAST_DURATION } from "./constants";
 import {
+  parseScheduleText,
   autoDetectColumns,
   calcularResponsable,
   copiarHorario,
@@ -120,6 +123,8 @@ export function AbiertasUrgenciasPage({
   const [scheduleStatus, setScheduleStatus] = useState<
     "loading" | "loaded" | "empty"
   >("loading");
+  const [scheduleText, setScheduleText] = useState("");
+  const [showParseCard, setShowParseCard] = useState(false);
 
   // ── Responsible assignment state ──
   const [facturasText, setFacturasText] = useState("");
