@@ -63,7 +63,9 @@ class TestRoutingThreat:
         indices = _indices(wb)
         with (
             patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
+            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
             patch("app.database.get_session", _forbidden_session),
+            patch("app.services.engine.session_manager.get_session", _forbidden_session),
         ):
             with caplog.at_level("WARNING"):
                 resultado, _ = process_unified(wb.active, indices)
@@ -80,7 +82,9 @@ class TestRoutingThreat:
         indices = _indices(wb)
         with (
             patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
+            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
             patch("app.database.get_session", _forbidden_session),
+            patch("app.services.engine.session_manager.get_session", _forbidden_session),
         ):
             resultado, _ = process_unified(wb.active, indices)
         assert resultado["area"] == AREA_UNIFICADA
@@ -103,7 +107,9 @@ class TestRoutingThreat:
         with (
             patch.object(unified_processor, "_get_orquestador", side_effect=_boom),
             patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
+            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
             patch("app.database.get_session", _forbidden_session),
+            patch("app.services.engine.session_manager.get_session", _forbidden_session),
         ):
             resultado, _ = process_unified(wb.active, indices)
         assert resultado["area"] == AREA_UNIFICADA
@@ -117,7 +123,9 @@ class TestRoutingThreat:
         indices = _indices(wb)
         with (
             patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
+            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
             patch("app.database.get_session", _forbidden_session),
+            patch("app.services.engine.session_manager.get_session", _forbidden_session),
         ):
             resultado, responsables = process_unified(wb.active, indices)
         assert resultado["area"] == AREA_UNIFICADA
