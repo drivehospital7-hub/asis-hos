@@ -23,6 +23,7 @@ def build_odontologia_normalized_rows(
     entidad_afiliacion_comparison: list[dict] | None = None,
     tipo_usuario: list[dict] | None = None,
     fec_factura_map: dict[str, str] | None = None,
+    cups_sin_contrato: list[dict] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
@@ -64,45 +65,73 @@ def build_odontologia_normalized_rows(
         if isinstance(item, dict):
             factura = item.get("factura", "")
             valores = item.get("valores", "")
+            # Engine output uses vlr_subsidiado/vlr_procedimiento
+            vlr_sub = item.get("vlr_subsidiado", "")
+            vlr_proc = item.get("vlr_procedimiento", "")
+            if not valores and (vlr_sub or vlr_proc):
+                valores = f"Sub: {vlr_sub}, Proc: {vlr_proc}"
+            codigo = item.get("codigo", "")
+            proc_nombre = item.get("procedimiento", "")
+            problema = item.get("problema", "")
         else:
             factura = str(item) if item else ""
             valores = ""
+            codigo = ""
+            proc_nombre = ""
+            problema = ""
+        descripcion = problema or (f"Valores con decimales: {valores}" if valores else "Valores con decimales")
+        procedimiento = _build_procedimiento(codigo, proc_nombre) or valores
+        detalle = f"Vlr.Sub: {vlr_sub}" if isinstance(item, dict) and item.get("vlr_subsidiado") else ""
         rows.append({
             "tipo_error": "Decimales",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Valores con decimales: {valores}" if valores else "Valores con decimales",
-            "procedimiento": valores,
-            "detalle": "",
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- Doble tipo procedimiento ---
     for item in doble_tipo:
         factura = item.get("factura", "")
         tipos = item.get("tipos", "")
+        problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        detalle = item.get("tipo_procedimiento", "") or tipos
+        procedimiento = _build_procedimiento(codigo, proc_nombre)
+        descripcion = problema or "Múltiples tipos de procedimiento"
         rows.append({
             "tipo_error": "Doble tipo procedimiento",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": "Múltiples tipos de procedimiento",
-            "procedimiento": "",
-            "detalle": tipos,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- Ruta Duplicada ---
     for item in ruta_dup:
         identificacion = item.get("identificacion", "")
-        facturas_list = item.get("facturas", "")
-        cantidad = item.get("cantidad", 0)
+        facturas_str = item.get("facturas", "")
+        cantidad = item.get("cantidad", 0) or item.get("cantidad_repeticiones", 0)
+        # P0: engine may not provide facturas string — fallback to identificacion
+        if facturas_str:
+            primera_factura = facturas_str.split(",")[0].strip()
+        else:
+            primera_factura = identificacion
+        procedimiento = facturas_str or identificacion
+        problema = item.get("problema", "")
+        descripcion = problema or f"Paciente con {cantidad} facturas en PyP"
         rows.append({
             "tipo_error": "Ruta Duplicada",
-            "factura": identificacion,
-            "fec_factura": _get_fec_factura(identificacion),
+            "factura": primera_factura,
+            "fec_factura": _get_fec_factura(primera_factura),
             "responsable_cierra": _get_responsable(identificacion),
-            "descripcion": f"Paciente con {cantidad} facturas en PyP",
-            "procedimiento": facturas_list,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
             "detalle": identificacion,
         })
 
@@ -129,35 +158,68 @@ def build_odontologia_normalized_rows(
         tipo_proc = item.get("tipo_procedimiento", "")
         cantidad_val = item.get("cantidad", "")
         problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        descripcion = problema or f"Cantidad anómala: {cantidad_val}"
+        procedimiento = _build_procedimiento(codigo, proc_nombre) or tipo_proc
         rows.append({
             "tipo_error": "Cantidades",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": problema or f"Cantidad anómala: {cantidad_val}",
-            "procedimiento": tipo_proc,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
             "detalle": str(cantidad_val),
         })
 
     # --- Tipo Identificación vs Edad ---
     for item in tipo_id_edad:
         factura = item.get("factura", "")
-        tipo_actual = item.get("tipo_actual", "")
+        tipo_actual = item.get("tipo_actual", "") or item.get("tipo_identificacion", "")
         tipo_deberia = item.get("tipo_deberia", "")
-        num_id = item.get("numero_identificacion", "")
-        edad_anios = item.get("edad_anios", "")
-        edad_meses = item.get("edad_meses", "")
-        edad_str = f"{edad_anios} años"
-        if edad_meses:
-            edad_str += f", {edad_meses} meses"
+        num_id = item.get("numero_identificacion", "") or item.get("identificacion", "")
+
+        # Compatibilidad: Python detector ↔ rule engine
+        # Python detector: edad_anios (años), edad_meses (residual %12)
+        # Rule engine:     date.edad (años), date.edad_meses (total, no residual)
+        edad_anios_raw = item.get("edad_anios") if "edad_anios" in item else item.get("date.edad", item.get("edad"))
+        edad_meses_raw = item.get("edad_meses") if "edad_meses" in item else item.get("date.edad_meses")
+        try:
+            anios = int(edad_anios_raw) if edad_anios_raw is not None else 0
+        except (ValueError, TypeError):
+            anios = 0
+        try:
+            meses_residuales = int(edad_meses_raw) if edad_meses_raw is not None else 0
+            # date.edad_meses es total (ej: 89), necesitamos residual %12
+            meses_residuales %= 12
+        except (ValueError, TypeError):
+            meses_residuales = 0
+
+        if anios > 0 and meses_residuales > 0:
+            detalle = f"{anios} años {meses_residuales} meses"
+        elif anios > 0:
+            detalle = f"{anios} años"
+        elif meses_residuales > 0:
+            detalle = f"{meses_residuales} meses"
+        else:
+            detalle = ""
+
+        # Map rule name to expected document type
+        regla = item.get("regla", "")
+        if not tipo_deberia:
+            if "menor_7" in regla:
+                tipo_deberia = "RC"
+            elif "mayor_18" in regla:
+                tipo_deberia = "CC"
+        desc = item.get("problema", "") or f"Tipo ID {tipo_actual} debería ser {tipo_deberia}" if tipo_deberia else f"Tipo ID incorrecto: {tipo_actual}"
         rows.append({
-            "tipo_error": "Tipo Identificación",
+            "tipo_error": "Tipo Identificación / Edad",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"{tipo_actual} debería ser {tipo_deberia}",
-            "procedimiento": num_id,
-            "detalle": edad_str,
+            "descripcion": desc,
+            "procedimiento": num_id or "",
+            "detalle": detalle,
         })
 
     # --- Tipo Identificación vs Cód Entidad Cobrar ---
@@ -187,14 +249,20 @@ def build_odontologia_normalized_rows(
         factura = item.get("factura", "")
         centro_actual = item.get("centro_actual", "")
         centro_deberia = item.get("centro_deberia", "")
+        problema = item.get("problema", "")
+        codigo = item.get("codigo", "")
+        proc_nombre = item.get("procedimiento", "")
+        descripcion = problema or f"Centro de costo debería ser {centro_deberia}"
+        procedimiento = _build_procedimiento(codigo, proc_nombre)
+        detalle = centro_actual or item.get("centro_costo", "")
         rows.append({
             "tipo_error": "Centro Costo",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"Centro de costo debería ser {centro_deberia}",
-            "procedimiento": "",
-            "detalle": centro_actual,
+            "descripcion": descripcion,
+            "procedimiento": procedimiento,
+            "detalle": detalle,
         })
 
     # --- IDE Contrato ---
@@ -204,12 +272,16 @@ def build_odontologia_normalized_rows(
         ide_actual = item.get("ide_actual", "")
         ide_deberia = item.get("ide_deberia", "")
         nota = item.get("nota", "")
+        problema = item.get("problema", "")
+        descripcion = problema or (
+            f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}"
+        )
         rows.append({
             "tipo_error": "IDE Contrato",
             "factura": factura,
             "fec_factura": _get_fec_factura(factura),
             "responsable_cierra": _get_responsable(factura),
-            "descripcion": f"IDE Contrato debería ser {ide_deberia} ({nota})" if nota else f"IDE Contrato debería ser {ide_deberia}",
+            "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, ""),
             "detalle": ide_actual,
         })
@@ -218,32 +290,161 @@ def build_odontologia_normalized_rows(
     if entidad_afiliacion_comparison:
         for item in entidad_afiliacion_comparison:
             factura = item.get("factura", "")
-            cod = item.get("codigo_entidad_cobrar", "")
-            nombre = item.get("entidad_cobrar_nombre", "")
-            proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
-            rows.append({
-                "tipo_error": "Código Entidad vs Afiliación",
-                "factura": factura,
-                "fec_factura": _get_fec_factura(factura),
-                "responsable_cierra": _get_responsable(factura),
-                "descripcion": item.get("problema", ""),
-                "procedimiento": proc_entidad,
-                "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
-            })
+            # Detectar si es del detector nuevo (tipo_identificacion_entidad) o viejo
+            if "tipo_identificacion" in item:
+                tipo_id = item.get("tipo_identificacion", "")
+                cod_actual = item.get("cod_entidad_actual", "")
+                cod_esperado = item.get("cod_entidad_esperado", "")
+                problema_key = item.get("problema", "")
+                if problema_key == "as_ms_requiere_86000":
+                    desc = f"Tipo ID {tipo_id} requiere Cód Entidad Cobrar = {cod_esperado}"
+                    detalle = f"Actual: {cod_actual}"
+                elif problema_key == "86000_solo_para_as_ms":
+                    desc = f"Cód Entidad Cobrar = {cod_actual} solo válido para AS/MS"
+                    detalle = f"Tipo ID actual: {tipo_id}"
+                else:
+                    desc = item.get("problema", "")
+                    detalle = f"Tipo ID: {tipo_id}, Cód: {cod_actual}"
+                rows.append({
+                    "tipo_error": "Código Entidad vs Afiliación",
+                    "factura": factura,
+                    "fec_factura": _get_fec_factura(factura),
+                    "responsable_cierra": _get_responsable(factura),
+                    "descripcion": desc,
+                    "procedimiento": cod_actual,
+                    "detalle": detalle,
+                })
+            else:
+                cod = item.get("codigo_entidad_cobrar", "")
+                nombre = item.get("entidad_cobrar_nombre", "")
+                proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
+                rows.append({
+                    "tipo_error": "Código Entidad vs Afiliación",
+                    "factura": factura,
+                    "fec_factura": _get_fec_factura(factura),
+                    "responsable_cierra": _get_responsable(factura),
+                    "descripcion": item.get("problema", ""),
+                    "procedimiento": proc_entidad,
+                    "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                })
 
     # --- Tipo Usuario ---
     if tipo_usuario:
         for item in tipo_usuario:
             factura = item.get("factura", "")
             tipo_actual = item.get("tipo_actual", "")
+            problema = item.get("problema", "")
+            codigo = item.get("codigo", "")
+            proc_nombre = item.get("procedimiento", "")
+            descripcion = problema or "Revisar tipo usuario en Targetero"
+            procedimiento = _build_procedimiento(codigo, proc_nombre)
             rows.append({
                 "tipo_error": "Tipo Usuario",
                 "factura": factura,
                 "fec_factura": _get_fec_factura(factura),
                 "responsable_cierra": _get_responsable(factura),
-                "descripcion": "Revisar tipo usuario en Targetero",
-                "procedimiento": "",
+                "descripcion": descripcion,
+                "procedimiento": procedimiento,
                 "detalle": tipo_actual,
             })
+
+    # --- Cups Sin Contrato ---
+    if cups_sin_contrato:
+        for item in cups_sin_contrato:
+            factura = item.get("factura", "")
+            codigo = item.get("codigo", "")
+            proc = item.get("procedimiento", "")
+            entidad = item.get("entidad", "")
+            cod_ent = item.get("codigo_entidad_cobrar", "")
+            rows.append({
+                "tipo_error": "Cups Sin Contrato",
+                "factura": factura,
+                "fec_factura": _get_fec_factura(factura),
+                "responsable_cierra": _get_responsable(factura),
+                "descripcion": item.get("problema", ""),
+                "procedimiento": _build_procedimiento(codigo, proc),
+                "detalle": f"Entidad: {cod_ent}, {entidad}",
+            })
+
+    # Generic fallback: if procedimiento AND detalle are both empty,
+    # find the original item by factura and use its first non-factura key:value.
+    # This handles group-by rules (sparse dicts with only factura + problema).
+    if rows:
+        all_items: list[dict] = []
+        for collection in (decimales, doble_tipo, ruta_dup, profesionales, cantidades,
+                           tipo_id_edad, centro_costo, ide_contrato,
+                           tipo_id_entidad or [], entidad_afiliacion_comparison or [],
+                           tipo_usuario or [], cups_sin_contrato or []):
+            if isinstance(collection, list):
+                for item in collection:
+                    if isinstance(item, dict):
+                        all_items.append(item)
+        factura_to_item = {}
+        for item in all_items:
+            f = item.get("factura", "")
+            if f:
+                factura_to_item[f] = item
+        for row in rows:
+            if not row.get("procedimiento") and not row.get("detalle"):
+                item = factura_to_item.get(row.get("factura", ""))
+                if item:
+                    for key in ("codigo", "vlr_subsidiado", "tipo_identificacion",
+                                "cantidad", "centro_costo", "codigo_entidad_cobrar",
+                                "observacion", "accion", "identificacion"):
+                        val = item.get(key, "")
+                        if val:
+                            row["procedimiento"] = str(val)
+                            break
+
+    # ── Enrich rows with regla from original items ────────────────────────
+    # Build a list of (factura, tipo_error, regla) tuples from source collections
+    _item_reglas: dict[tuple[str, str], str] = {}
+    _COLLECTION_TIPO = {
+        "Decimales": "Decimales",
+        "Doble tipo": "Doble tipo procedimiento",
+        "Ruta Duplicada": "Ruta Duplicada",
+        "Profesionales": "Convenio de procedimiento",
+        "Cantidades": "Cantidades",
+        "Tipo ID/Edad": "Tipo Identificación / Edad",
+        "Tipo ID/Entidad": "Tipo Identificación / Entidad",
+        "Centro Costo": "Centro Costo",
+        "IDE Contrato": "IDE Contrato",
+        "Entidad vs Afiliación": "Código Entidad vs Afiliación",
+        "Tipo Usuario": "Tipo Usuario",
+        "Cups Sin Contrato": "Cups Sin Contrato",
+    }
+    _iter_data = [
+        (decimales, "Decimales"),
+        (doble_tipo, "Doble tipo"),
+        (ruta_dup, "Ruta Duplicada"),
+        (profesionales, "Profesionales"),
+        (cantidades, "Cantidades"),
+        (tipo_id_edad, "Tipo ID/Edad"),
+        (centro_costo, "Centro Costo"),
+        (ide_contrato, "IDE Contrato"),
+        (tipo_id_entidad or [], "Tipo ID/Entidad"),
+        (entidad_afiliacion_comparison or [], "Entidad vs Afiliación"),
+        (tipo_usuario or [], "Tipo Usuario"),
+        (cups_sin_contrato or [], "Cups Sin Contrato"),
+    ]
+    for collection, cname in _iter_data:
+        tipo = _COLLECTION_TIPO.get(cname, cname)
+        if isinstance(collection, list):
+            for item in collection:
+                if isinstance(item, dict):
+                    r = item.get("regla", "")
+                    f = item.get("factura", "")
+                    if r and f:
+                        key = (f, tipo)
+                        if key not in _item_reglas:
+                            _item_reglas[key] = r
+    for row in rows:
+        f = row.get("factura", "")
+        t = row.get("tipo_error", "")
+        r = _item_reglas.get((f, t))
+        if r:
+            row["regla"] = r
+        else:
+            row["regla"] = ""
 
     return rows

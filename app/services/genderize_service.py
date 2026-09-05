@@ -14,7 +14,7 @@ from app.constants.base import GENDER_CACHE_MAP, GENDER_DISPLAY_MAP, GENDER_VALI
 # Cache local — configurable via GENDERIZE_CACHE_FILE env var
 # NOTA: NO crear archivo vacío al importar — si no existe, _load_cache devuelve {}.
 # El archivo se crea SOLO cuando se guarda algo explícitamente (_save_cache).
-_CACHE_FILE_DEFAULT = Path("D:/CODE/genderize_cache.json")
+_CACHE_FILE_DEFAULT = Path(__file__).parent.parent / "data" / "genderize_cache.json"
 CACHE_FILE = Path(os.getenv("GENDERIZE_CACHE_FILE") or _CACHE_FILE_DEFAULT)
 
 # Patrones para "Hijo de" / "Hija de"

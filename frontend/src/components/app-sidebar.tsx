@@ -1,7 +1,6 @@
 import {
   LayoutDashboard,
   FileText,
-  Ambulance,
   ClipboardCheck,
   CalendarClock,
   FileSpreadsheet,
@@ -9,6 +8,7 @@ import {
   FolderSearch,
   Users,
   Upload,
+  BookType,
   LogOut,
   FlaskConical,
   Search,
@@ -24,18 +24,19 @@ interface NavItem {
 
 const ALL_NAV: NavItem[] = [
   { label: "Panel principal", href: "/dashboard", icon: LayoutDashboard, exact: true },
-  { label: "Urgencias", href: "/urgencias", icon: Ambulance, permiso: "urgencias" },
-  { label: "Odontología", href: "/odontologia", icon: FileText, permiso: "odontologia" },
-  { label: "Equipos Básicos", href: "/odontologia-equipos-basicos", icon: FileText, permiso: "odontologia_equipos_basicos" },
-  { label: "Control de Novedades", href: "/control-novedades", icon: ClipboardCheck, permiso: "control_urgencias" },
+  { label: "Procesar", href: "/procesar", icon: FileText, permiso: "procesar" },
+  { label: "Control de Novedades", href: "/control-errores", icon: ClipboardCheck, permiso: "control_urgencias" },
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
   { label: "Búsqueda PDF", href: "/busqueda-pdf", icon: Search, permiso: "busqueda_pdf" },
+  { label: "Cronograma Urgencias", href: "/cronograma-urgencias", icon: CalendarClock, permiso: "cronograma_urgencias" },
+  { label: "Cronograma Bacteriólogas", href: "/cronograma-bacteriologas", icon: CalendarClock, permiso: "cronograma_bacteriologas" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
   { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },
   { label: "Exámenes", href: "/examenes", icon: FlaskConical, permiso: "examenes" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
   { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
+  { label: "Catálogos", href: "/catalogo", icon: BookType, permiso: "*" },
 ];
 
 interface AppSidebarProps {

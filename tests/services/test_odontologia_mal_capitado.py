@@ -1,11 +1,11 @@
-"""Tests para app/services/odontologia/mal_capitado.py."""
+"""Tests para app/services/urgencias/mal_capitado.py."""
 
 from __future__ import annotations
 
 import pytest
 from openpyxl import Workbook
 
-from app.services.odontologia.mal_capitado import detect_mal_capitado
+from app.services.urgencias.mal_capitado import detect_mal_capitado
 
 
 @pytest.fixture

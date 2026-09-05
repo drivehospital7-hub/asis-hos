@@ -1,9 +1,22 @@
-"""Modelos SQLAlchemy para notas técnicas."""
+"""Modelos SQLAlchemy para notas técnicas y motor de reglas de auditoría."""
 
-from sqlalchemy import JSON, Column, Integer, String, Numeric, ForeignKey, UniqueConstraint, Table, DateTime
+from sqlalchemy import (
+    JSON, Column, Integer, String, Numeric, Text, Boolean, DateTime,
+    ForeignKey, Index, UniqueConstraint, Table,
+)
+from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func
 
 from app.database import Base
+
+
+# JSONB en PostgreSQL, JSON genérico en SQLite.
+# Merge-integration: el fixture global de tests (`tests/conftest.py::_db_users_store`)
+# crea todo el schema en SQLite en memoria; sin esta variante, cualquier
+# columna JSONB rompe la suite con `can't render element of type JSONB`.
+# En prod (PostgreSQL) el tipo sigue siendo JSONB — sin cambios.
+JSONB_COMPAT = JSONB().with_variant(JSON(), "sqlite")
 
 
 # Roles asignables a un usuario. La DB es la única fuente de verdad
@@ -146,6 +159,7 @@ class Procedimiento(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     cups = Column(String, unique=True, nullable=False)
     procedimiento = Column(String, nullable=False)
+    ide = Column(Integer, nullable=True)  # ID externo para vinculación
     
     # Relationships
     notas_tecnicas = relationship("NotasTecnicas", back_populates="procedimiento")
@@ -154,7 +168,8 @@ class Procedimiento(Base):
         return {
             "id": self.id,
             "cups": self.cups,
-            "procedimiento": self.procedimiento
+            "procedimiento": self.procedimiento,
+            "ide": self.ide,
         }
 
 
@@ -183,7 +198,7 @@ class NotasTecnicas(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     id_procedimiento = Column(Integer, ForeignKey("procedimiento.id", ondelete="NO ACTION", onupdate="NO ACTION"), nullable=False)
     id_nota_hoja = Column(Integer, ForeignKey("nota_hoja.id", ondelete="NO ACTION", onupdate="NO ACTION"), nullable=False)
-    tarifa = Column(Numeric(12, 2), nullable=False)
+    tariff = Column("tariff", Numeric(12, 2), nullable=False)
     
     # Relationships
     procedimiento = relationship("Procedimiento", back_populates="notas_tecnicas")
@@ -194,7 +209,7 @@ class NotasTecnicas(Base):
             "id": self.id,
             "id_procedimiento": self.id_procedimiento,
             "id_nota_hoja": self.id_nota_hoja,
-            "tarifa": float(self.tarifa)
+            "tariff": float(self.tariff)
         }
 
 
@@ -216,3 +231,289 @@ class EpsNota(Base):
             "id_nota_hoja": self.id_nota_hoja,
             "id_eps_contratado": self.id_eps_contratado
         }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Motor de Reglas de Auditoría — DB-Backed Rule Engine
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Regla(Base):
+    """Regla de auditoría versionada, parametric y domain-scoped.
+
+    States: draft → active → deprecated → retired.
+    Version grouping via rule_base_id: updates create a new version row
+    sharing the same rule_base_id, linked by (nombre, version) uniqueness.
+    """
+    __tablename__ = "reglas"
+
+    __table_args__ = (
+        UniqueConstraint('nombre', 'version', name='uq_regla_nombre_version'),
+        Index('ix_reglas_dominio_estado_activo_prioridad', 'dominio', 'estado', 'activo', 'prioridad'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    rule_base_id = Column(Integer, nullable=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(Text, nullable=True)
+    dominio = Column(String(50), nullable=False)
+    estado = Column(String(20), nullable=False, default="draft")
+    version = Column(Integer, nullable=False, default=1)
+    prioridad = Column(Integer, nullable=False, default=100)
+    parametros = Column(JSONB_COMPAT, nullable=True)
+    parametros_default = Column(JSONB_COMPAT, nullable=True)
+    severidad = Column(String(20), nullable=False, default="error")
+    activo = Column(Boolean, nullable=False, default=True)
+    creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+    actualizado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+    cambio_que = Column(Text, nullable=True)
+    cambio_por_que = Column(Text, nullable=True)
+    cambio_responsable = Column(String(100), nullable=True)
+
+    # Relationships
+    condiciones = relationship("Condicion", back_populates="regla")
+    excepciones = relationship("Excepcion", back_populates="regla")
+    evidencias = relationship("Evidencia", back_populates="regla")
+    resultados = relationship("ResultadoAuditoria", back_populates="regla")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "rule_base_id": self.rule_base_id,
+            "nombre": self.nombre,
+            "descripcion": self.descripcion,
+            "dominio": self.dominio,
+            "estado": self.estado,
+            "version": self.version,
+            "prioridad": self.prioridad,
+            "parametros": self.parametros,
+            "parametros_default": self.parametros_default,
+            "severidad": self.severidad,
+            "activo": self.activo,
+            "creado_en": str(self.creado_en) if self.creado_en else None,
+            "actualizado_en": str(self.actualizado_en) if self.actualizado_en else None,
+            "cambio_que": self.cambio_que,
+            "cambio_por_que": self.cambio_por_que,
+            "cambio_responsable": self.cambio_responsable,
+        }
+
+
+class Condicion(Base):
+    """Condición atómica o compuesta en un árbol de evaluación.
+
+    Self-referencing tree: padre_id → NULL for root, FK to another condition.
+    tipo: 'composite' (AND/OR/NOT) or 'atomic' (eq, gt, lt, etc.)
+    """
+    __tablename__ = "condiciones"
+
+    __table_args__ = (
+        Index('ix_condiciones_regla_id', 'regla_id'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
+    padre_id = Column(Integer, ForeignKey("condiciones.id"), nullable=True)
+    tipo = Column(String(10), nullable=False)
+    operador = Column(String(50), nullable=True)
+    fuente_datos = Column(String(100), nullable=True)
+    valor_esperado = Column(JSONB_COMPAT, nullable=True)
+    orden = Column(Integer, nullable=False, default=0)
+
+    # Relationships
+    regla = relationship("Regla", back_populates="condiciones")
+    padre = relationship("Condicion", remote_side=[id], backref="hijos")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "regla_id": self.regla_id,
+            "padre_id": self.padre_id,
+            "tipo": self.tipo,
+            "operador": self.operador,
+            "fuente_datos": self.fuente_datos,
+            "valor_esperado": self.valor_esperado,
+            "orden": self.orden,
+        }
+
+
+class Excepcion(Base):
+    """Excepción que suspende o modifica una regla para un scope específico.
+
+    tipo_efecto: 'skip' (suspende), 'downgrade' (baja severidad), 'override' (modifica params).
+    """
+    __tablename__ = "excepciones"
+
+    __table_args__ = (
+        Index('ix_excepciones_regla_id_activo', 'regla_id', 'activo'),
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
+    tipo_efecto = Column(String(20), nullable=False)
+    condicion_json = Column(JSONB_COMPAT, nullable=False)
+    parametros_override = Column(JSONB_COMPAT, nullable=True)
+    activo = Column(Boolean, nullable=False, default=True)
+    creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+    expira_en = Column(TIMESTAMP(timezone=False), nullable=True)
+
+    # Relationships
+    regla = relationship("Regla", back_populates="excepciones")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "regla_id": self.regla_id,
+            "tipo_efecto": self.tipo_efecto,
+            "condicion_json": self.condicion_json,
+            "parametros_override": self.parametros_override,
+            "activo": self.activo,
+            "creado_en": str(self.creado_en) if self.creado_en else None,
+            "expira_en": str(self.expira_en) if self.expira_en else None,
+        }
+
+
+class ResultadoAuditoria(Base):
+    """Resultado individual de la evaluación de una regla sobre una factura.
+
+    Links to evidence snapshot via evidencia_id.
+    """
+    __tablename__ = "resultados_auditoria"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    evidencia_id = Column(Integer, ForeignKey("evidencias.id"), nullable=False)
+    regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
+    regla_version = Column(Integer, nullable=False)
+    factura = Column(String(50), nullable=False)
+    param_config_id = Column(Integer, nullable=True)
+    resultado = Column(String(10), nullable=False)
+    severidad = Column(String(20), nullable=False)
+    mensaje = Column(Text, nullable=True)
+    detalles = Column(JSONB_COMPAT, nullable=True)
+    creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+
+    # Relationships
+    evidencia = relationship("Evidencia", back_populates="resultados")
+    regla = relationship("Regla", back_populates="resultados")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "evidencia_id": self.evidencia_id,
+            "regla_id": self.regla_id,
+            "regla_version": self.regla_version,
+            "factura": self.factura,
+            "param_config_id": self.param_config_id,
+            "resultado": self.resultado,
+            "severidad": self.severidad,
+            "mensaje": self.mensaje,
+            "detalles": self.detalles,
+            "creado_en": str(self.creado_en) if self.creado_en else None,
+        }
+
+
+class Evidencia(Base):
+    """Evidencia inmutable de la evaluación de una regla sobre una fila.
+
+    INSERT-ONLY: application-level guard against UPDATE/DELETE.
+    """
+    __tablename__ = "evidencias"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
+    regla_version = Column(Integer, nullable=False)
+    dominio = Column(String(50), nullable=False)
+    factura = Column(String(50), nullable=False)
+    param_config_id = Column(Integer, nullable=True)
+    outcome = Column(String(10), nullable=False)
+    arbol_evaluado = Column(JSONB_COMPAT, nullable=False)
+    snapshot_fila = Column(JSONB_COMPAT, nullable=False)
+    snapshot_referencia = Column(JSONB_COMPAT, nullable=True)
+    error_mensaje = Column(Text, nullable=True)
+    creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
+
+    # Relationships
+    regla = relationship("Regla", back_populates="evidencias")
+    resultados = relationship("ResultadoAuditoria", back_populates="evidencia")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "regla_id": self.regla_id,
+            "regla_version": self.regla_version,
+            "dominio": self.dominio,
+            "factura": self.factura,
+            "param_config_id": self.param_config_id,
+            "outcome": self.outcome,
+            "arbol_evaluado": self.arbol_evaluado,
+            "snapshot_fila": self.snapshot_fila,
+            "snapshot_referencia": self.snapshot_referencia,
+            "error_mensaje": self.error_mensaje,
+            "creado_en": str(self.creado_en) if self.creado_en else None,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# BRE Catalogs + Migration Versioning — additive only (Slice 1)
+# ═══════════════════════════════════════════════════════════════════════════
+
+
+class Catalogo(Base):
+    """JSONB catalog store for cat_in operator seeds.
+
+    Additive mirror of the catalogos table managed by
+    app/services/reglas/catalogos_service.py. Seeds use
+    WHERE NOT EXISTS / ON CONFLICT DO NOTHING; reruns never overwrite values.
+    """
+    __tablename__ = "catalogos"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    key = Column(String(200), unique=True, nullable=False)
+    value = Column(JSONB_COMPAT, nullable=False, server_default="[]")
+    dominio = Column(Text, nullable=True)
+    descripcion = Column(Text, nullable=True)
+    updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "key": self.key,
+            "value": self.value,
+            "dominio": self.dominio,
+            "descripcion": self.descripcion,
+            "updated_at": str(self.updated_at) if self.updated_at else None,
+        }
+
+
+class SchemaMigration(Base):
+    """Applied migration version record for run_migrations.py.
+
+    Mirrors migrations/000_schema_migrations.sql. INSERT-only via
+    ON CONFLICT DO NOTHING; reruns report zero diff.
+    """
+    __tablename__ = "schema_migrations"
+
+    version = Column(Text, primary_key=True)
+    applied_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+    def to_dict(self):
+        return {
+            "version": self.version,
+            "applied_at": str(self.applied_at) if self.applied_at else None,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Immutability Guards — Evidencia records are INSERT-ONLY
+# ═══════════════════════════════════════════════════════════════════════════
+
+from sqlalchemy import event
+
+
+@event.listens_for(Evidencia, "before_update")
+def _block_evidencia_update(mapper, connection, target):
+    raise RuntimeError("Evidencia records are immutable. UPDATE is forbidden.")
+
+
+@event.listens_for(Evidencia, "before_delete")
+def _block_evidencia_delete(mapper, connection, target):
+    raise RuntimeError("Evidencia records are immutable. DELETE is forbidden.")

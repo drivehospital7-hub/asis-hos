@@ -1,11 +1,11 @@
-"""Tests para app/services/urgencias/detect_copago_entidad.py."""
+"""Tests para app/services/transversales/detect_copago_entidad.py."""
 
 from __future__ import annotations
 
 import pytest
 from openpyxl import Workbook
 
-from app.services.urgencias.detect_copago_entidad import (
+from app.services.transversales.detect_copago_entidad import (
     detect_copago_entidad_urgencias,
 )
 

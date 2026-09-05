@@ -46,7 +46,7 @@ def get_procedimiento(eps: str, codigo_cups: str) -> Optional[Procedimiento]:
     
     cursor.execute("""
         SELECT id, eps, codigo_cups, descripcion, tarifa, created_at, updated_at
-        FROM procedimientos
+        FROM v_procedimientos
         WHERE eps = %s AND codigo_cups = %s
     """, (eps, codigo_cups))
     
@@ -83,7 +83,7 @@ def get_all_by_codigo(codigo_cups: str) -> List[Procedimiento]:
     
     cursor.execute("""
         SELECT id, eps, codigo_cups, descripcion, tarifa, created_at, updated_at
-        FROM procedimientos
+        FROM v_procedimientos
         WHERE codigo_cups = %s
     """, (codigo_cups,))
     
@@ -119,7 +119,7 @@ def get_all_by_eps(eps: str) -> List[Procedimiento]:
     
     cursor.execute("""
         SELECT id, eps, codigo_cups, descripcion, tarifa, created_at, updated_at
-        FROM procedimientos
+        FROM v_procedimientos
         WHERE eps = %s
         ORDER BY codigo_cups
     """, (eps,))
@@ -147,7 +147,7 @@ def get_eps_disponibles() -> List[str]:
     conn = _get_connection()
     cursor = conn.cursor()
     
-    cursor.execute("SELECT DISTINCT eps FROM procedimientos ORDER BY eps")
+    cursor.execute("SELECT DISTINCT eps FROM v_procedimientos ORDER BY eps")
     eps_list = [row[0] for row in cursor.fetchall()]
     cursor.close()
     conn.close()

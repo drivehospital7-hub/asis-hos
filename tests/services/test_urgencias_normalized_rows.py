@@ -5,7 +5,7 @@ Strict TDD: tests written BEFORE implementation.
 
 from __future__ import annotations
 
-from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
+from app.services.normalized_rows import build_urgencias_normalized_rows
 
 
 class TestFecFacturaInUrgenciasNormalizedRows:

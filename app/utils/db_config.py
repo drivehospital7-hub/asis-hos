@@ -7,6 +7,10 @@ import os
 from dataclasses import dataclass
 from typing import Optional
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 
 @dataclass
 class DatabaseConfig:
@@ -36,12 +40,23 @@ class DatabaseConfig:
         }
 
 
-def get_database_config() -> DatabaseConfig:
-    """Lee configuración de variables de entorno."""
+def get_database_config(testing: bool = False) -> DatabaseConfig:
+    """Lee configuración de variables de entorno.
+
+    Si testing=True o TEST_DB_NAME está definida, usa la base de datos
+    de testing para no contaminar la base de producción.
+    """
+    db_name = os.getenv("DB_NAME", "asis_hos")
+    
+    if testing:
+        db_name = os.getenv("TEST_DB_NAME", "asis_hos_test")
+    elif os.getenv("TEST_DB_NAME"):
+        db_name = os.getenv("TEST_DB_NAME")
+    
     return DatabaseConfig(
         host=os.getenv("DB_HOST", "localhost"),
-        port=int(os.getenv("DB_PORT", "5432")),
-        name=os.getenv("DB_NAME", "asis_hos"),
+        port=int(os.getenv("DB_PORT", "5433")),
+        name=db_name,
         user=os.getenv("DB_USER", "postgres"),
         password=os.getenv("DB_PASSWORD")  # None si no está definido
     )

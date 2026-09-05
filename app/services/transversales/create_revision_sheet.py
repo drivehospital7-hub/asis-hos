@@ -29,9 +29,8 @@ from app.services.transversales import (
     normalize_invoice,
 )
 from app.services.transversales.column_indices import get_column_indices
+from app.services.normalized_rows import build_urgencias_normalized_rows
 from app.services.transversales.normalize import normalize_text
-from app.services.urgencias.codigos_sin_db import get_codigos_no_en_db_ess118
-from app.services.urgencias.normalized_rows import build_urgencias_normalized_rows
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.utils.formatting import (
@@ -171,18 +170,6 @@ def create_revision_sheet(
                     responsable_cierra[factura] = resp
 
         # --- Detectar todos los problemas ---
-        logger.warning("=== VERIFICANDO CÓDIGOS ESS118 CONTRA DB ===")
-        problemas_codigos_no_en_db = get_codigos_no_en_db_ess118(data_sheet, indices)
-        codigos_no_en_db_set = {item["codigo"] for item in problemas_codigos_no_en_db}
-
-        if problemas_codigos_no_en_db:
-            logger.warning(
-                "Procedimientos NO encontrados en DB para ESS118 (%d errores): %s",
-                len(problemas_codigos_no_en_db), sorted(codigos_no_en_db_set),
-            )
-        else:
-            logger.warning("Todos los códigos de ESS118 están en DB")
-
         from app.services.urgencias import (
             detect_centro_costo_urgencias,
             detect_cups_equivalentes,
@@ -202,9 +189,9 @@ def create_revision_sheet(
             logger.exception("Error detectando problemas de urgencias: %s", exc)
             problemas_centros, problemas_ide_contrato, problemas_cups_equivalentes = [], [], []
 
-        from app.services.odontologia.mal_capitado import detect_mal_capitado
+        from app.services.urgencias.mal_capitado import detect_mal_capitado
         from app.services.urgencias.cantidades_urgencias import detect_cantidades_urgencias
-        from app.services.urgencias.hospitalizacion import detect_cantidades_hospitalizacion
+        from app.services.hospitalizacion.cantidades_hospitalizacion import detect_cantidades_hospitalizacion
 
         mal_capitado = detect_mal_capitado(data_sheet, indices)
         cantidades_urgencias = detect_cantidades_urgencias(data_sheet, indices)

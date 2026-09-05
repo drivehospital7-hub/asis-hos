@@ -1,0 +1,369 @@
+"""Procesador unificado — detecta problemas para todos los tipos de factura presentes.
+
+Lee el Excel una vez, identifica los valores únicos de "Tipo Factura Descripción",
+y despacha a cada orquestador por tipo. Los resultados se fusionan en una sola
+respuesta con filas normalizadas y totales consolidados.
+"""
+
+from __future__ import annotations
+
+import inspect
+import logging
+from typing import Any
+
+from openpyxl.worksheet.worksheet import Worksheet
+
+from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
+from app.services.transversales import (
+    normalize_invoice,
+)
+from app.services.normalized_rows import build_normalized_rows
+
+# Module-level flag: skip evidence/audit DB writes when testing
+_PERSIST = is_evidence_audit_enabled()
+logger = logging.getLogger(__name__)
+
+
+def _get_unique_tipo_factura(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> list[str]:
+    """Extrae los valores únicos de Tipo Factura Descripción del Excel.
+
+    Solo retorna los tipos para los que existe un orquestador.
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    if tipo_factura_idx is None:
+        logger.warning("Columna 'Tipo Factura Descripción' no encontrada")
+        return []
+
+    tipos: set[str] = set()
+    for row in range(2, data_sheet.max_row + 1):
+        val = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo = str(val).strip() if val else ""
+        if tipo:
+            tipos.add(tipo)
+
+    # Solo procesar tipos que tienen orquestador implementado
+    tipos_con_orquestador = {
+        "Urgencias", "Hospitalización", "Intramural", "Ambulatoria",
+        "Extramural", "Farmacia",
+        "Odontología",
+    }
+    tipos_presentes = sorted(tipos & tipos_con_orquestador)
+
+    # "Urgencias" primero — es el orquestador base con transversales
+    if "Urgencias" in tipos_presentes:
+        tipos_presentes.remove("Urgencias")
+        tipos_presentes.insert(0, "Urgencias")
+
+    logger.info("Tipos de factura detectados: %s", tipos_presentes)
+    return tipos_presentes
+
+
+def _build_factura_por_tipo(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+    tipos_presentes: list[str],
+) -> dict[str, set[str]]:
+    """Construye un mapping tipo_factura → conjunto de facturas.
+
+    Cada factura se asigna al tipo que aparece en su fila. Si una factura
+    aparece con múltiples tipos (inconsistencia de datos), se asigna a TODOS.
+    """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
+    num_fact_idx = indices.get("numero_factura")
+
+    if tipo_factura_idx is None or num_fact_idx is None:
+        logger.warning("No se puede filtrar por tipo factura: columnas faltantes")
+        return {}
+
+    factura_por_tipo: dict[str, set[str]] = {t: set() for t in tipos_presentes}
+
+    for row in range(2, data_sheet.max_row + 1):
+        tipo_val = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo = str(tipo_val).strip() if tipo_val else ""
+        if tipo not in factura_por_tipo:
+            continue
+        factura_val = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+        factura = normalize_invoice(factura_val)
+        if factura:
+            factura_por_tipo[tipo].add(factura)
+
+    return factura_por_tipo
+
+
+def _get_orquestador(tipo_factura: str):
+    """Devuelve la función detect_all para un tipo de factura."""
+    if tipo_factura == "Urgencias":
+        from app.services.urgencias.detect_all import (
+            detect_all_problems_urgencias,
+        )
+        return detect_all_problems_urgencias
+    elif tipo_factura == "Hospitalización":
+        from app.services.hospitalizacion.detect_all import (
+            detect_all_problems_hospitalizacion,
+        )
+        return detect_all_problems_hospitalizacion
+    elif tipo_factura == "Intramural":
+        from app.services.intramural.detect_all import (
+            detect_all_problems_intramural,
+        )
+        return detect_all_problems_intramural
+    elif tipo_factura == "Ambulatoria":
+        from app.services.ambulatoria.detect_all import (
+            detect_all_problems_ambulatoria,
+        )
+        return detect_all_problems_ambulatoria
+    elif tipo_factura == "Extramural":
+        from app.services.extramural.detect_all import (
+            detect_all_problems_extramural,
+        )
+        return detect_all_problems_extramural
+    elif tipo_factura == "Farmacia":
+        from app.services.farmacia.detect_all import (
+            detect_all_problems_farmacia,
+        )
+        return detect_all_problems_farmacia
+    elif tipo_factura == "Odontología":
+        from app.services.odontologia.detect_por_responsable import (
+            detect_all_problems_odontologia_por_responsable,
+        )
+        return detect_all_problems_odontologia_por_responsable
+    return None
+
+
+def _merge_normalized_rows(
+    base_rows: list[dict[str, Any]],
+    new_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Fusiona filas normalizadas deduplicando por (tipo_error, factura, descripcion, procedimiento)."""
+    seen: set[tuple[str, str, str, str]] = set()
+    merged: list[dict[str, Any]] = []
+
+    for row in base_rows:
+        key = (
+            row.get("tipo_error", ""),
+            row.get("factura", ""),
+            row.get("descripcion", ""),
+            row.get("procedimiento", ""),
+        )
+        if key not in seen:
+            seen.add(key)
+            merged.append(row)
+
+    for row in new_rows:
+        key = (
+            row.get("tipo_error", ""),
+            row.get("factura", ""),
+            row.get("descripcion", ""),
+            row.get("procedimiento", ""),
+        )
+        if key not in seen:
+            seen.add(key)
+            merged.append(row)
+
+    return merged
+
+
+def _merge_problem_lists(
+    base: dict[str, Any],
+    extra: dict[str, Any],
+) -> dict[str, Any]:
+    """Fusiona los diccionarios de problemas por tipo."""
+    merged: dict[str, Any] = dict(base)
+
+    for key, value in extra.items():
+        if key in ("normalizados", "missing_columns", "totales", "totales_por_tipo"):
+            continue
+        if isinstance(value, list) and key in merged:
+            merged[key] = merged[key] + value
+        elif key not in merged:
+            merged[key] = value
+
+    return merged
+
+
+def process_unified(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Procesa el Excel aplicando reglas según Tipo Factura Descripción de cada fila.
+
+    Itera sobre los tipos de factura presentes, ejecuta el orquestador
+    correspondiente para cada uno, y fusiona los resultados.
+
+    Args:
+        data_sheet: Hoja de Excel con los datos
+        indices: Índices de columnas
+        rows: RowStore precargado para facts-first evaluation (opcional)
+
+    Returns:
+        (resultado_unificado, responsables_map_unificado)
+    """
+    tipos_presentes = _get_unique_tipo_factura(data_sheet, indices)
+
+    if not tipos_presentes:
+        logger.warning("No se encontraron tipos de factura conocidos en el Excel")
+        return {
+            "area": "unificada",
+            "problemas": {
+                "normalizados": [],
+                "missing_columns": [],
+            },
+            "totales": {},
+            "totales_por_tipo": {},
+            "tipos_procesados": [],
+            "missing_columns": [],
+        }, {}
+
+    all_normalized: list[dict[str, Any]] = []
+    all_problemas: dict[str, Any] = {}
+    all_totales: dict[str, int] = {}
+    all_totales_por_tipo: dict[str, dict[str, int]] = {}
+    all_responsables: dict[str, str] = {}
+
+    # Construir mapa factura → tipo para filtrar falsos positivos cruzados
+    factura_por_tipo = _build_factura_por_tipo(data_sheet, indices, tipos_presentes)
+
+    for tipo in tipos_presentes:
+        try:
+            orquestador = _get_orquestador(tipo)
+        except Exception:
+            logger.exception("Error en orquestador de %s", tipo)
+            continue
+        if orquestador is None:
+            logger.debug("Sin orquestador para tipo: %s", tipo)
+            continue
+
+        logger.info("Ejecutando orquestador para: %s", tipo)
+        try:
+            # Solo pasar rows si el orquestador lo acepta
+            kwargs = {}
+            if rows is not None and "rows" in inspect.signature(  # type: ignore[operator]
+                orquestador
+            ).parameters:
+                kwargs["rows"] = rows
+            resultado, responsables = orquestador(data_sheet, indices, **kwargs)
+        except Exception:
+            logger.exception("Error en orquestador de %s", tipo)
+            continue
+
+        problemas = resultado.get("problemas", {})
+
+        # Fusionar filas normalizadas (filtradas por tipo factura)
+        norm = problemas.get("normalizados", [])
+        facturas_matching = factura_por_tipo.get(tipo)
+        if facturas_matching:
+            norm = [r for r in norm if r.get("factura", "") in facturas_matching]
+        # Agregar tipo_factura a cada fila para agrupar en la respuesta
+        for r in norm:
+            r["tipo_factura"] = tipo
+        all_normalized = _merge_normalized_rows(all_normalized, norm)
+
+        # Fusionar listas de problemas específicos (no normalizados)
+        all_problemas = _merge_problem_lists(all_problemas, problemas)
+
+        # Consolidar totales
+        totales = resultado.get("totales", {})
+        for k, v in totales.items():
+            if isinstance(v, (int, float)):
+                all_totales[k] = all_totales.get(k, 0) + int(v)
+
+        # Consolidar totales por tipo
+        totales_por_tipo = problemas.get("totales_por_tipo", {})
+        if totales_por_tipo:
+            all_totales_por_tipo[tipo] = totales_por_tipo
+
+        # Fusionar responsables
+        all_responsables.update(responsables)
+
+    # ── Detectores transversales (se ejecutan UNA vez sobre todo el Excel) ──
+    from app.services.transversales.cups_equivalentes import (
+        detect_cups_equivalentes_transversal,
+    )
+    cups_equiv = detect_cups_equivalentes_transversal(data_sheet, indices)
+    if is_rule_engine_enabled():
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.database import get_session
+        session = get_session()
+        try:
+            cups_equiv = RuleBasedDetector("cups_equivalentes_transversal", session).detect(data_sheet, indices, persist=_PERSIST)
+            if _PERSIST:
+                session.commit()
+            else:
+                session.rollback()
+        finally:
+            session.close()
+    if cups_equiv:
+        if "cups_equivalentes" in all_problemas:
+            all_problemas["cups_equivalentes"].extend(cups_equiv)
+        else:
+            all_problemas["cups_equivalentes"] = cups_equiv
+        all_totales["cups_equivalentes"] = (
+            all_totales.get("cups_equivalentes", 0) + len(cups_equiv)
+        )
+
+        # Construir fec_factura_map para lookup en filas normalizadas
+        fec_factura_map: dict[str, str] = {}
+        num_fact_idx = indices.get("numero_factura")
+        fec_factura_idx = indices.get("fec_factura")
+        if num_fact_idx is not None and fec_factura_idx is not None:
+            for row in range(2, data_sheet.max_row + 1):
+                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+                factura_norm = normalize_invoice(numero)
+                if not factura_norm:
+                    continue
+                if factura_norm in fec_factura_map:
+                    continue
+                raw = data_sheet.cell(row=row, column=fec_factura_idx + 1).value
+                fec_factura_map[factura_norm] = str(raw).strip() if raw else ""
+
+        # Agregar a filas normalizadas para que se vean en el frontend
+        for item in cups_equiv:
+            factura = item.get("factura", "")
+            codigo_raw = item.get("codigo", "")
+            proc_raw = item.get("procedimiento", "")
+            codigo_str = str(codigo_raw) if not isinstance(codigo_raw, str) else codigo_raw
+            proc_str = str(proc_raw).strip() if proc_raw else ""
+            proc_final = proc_str if proc_str else codigo_str
+            # Buscar tipo_factura de esta factura
+            tipo_factura = "Sin tipo"
+            for tf, facturas in factura_por_tipo.items():
+                if factura in facturas:
+                    tipo_factura = tf
+                    break
+            all_normalized.append({
+                "tipo_error": "Cups Equivalentes",
+                "tipo_factura": tipo_factura,
+                "factura": factura,
+                "fec_factura": fec_factura_map.get(factura, ""),
+                "responsable_cierra": all_responsables.get(factura, ""),
+                "descripcion": item.get("accion", ""),
+                "procedimiento": proc_final,
+                "detalle": codigo_str,
+                "fecha_cierre_vacia": False,
+            })
+
+    # Construir resultado unificado
+    unified: dict[str, Any] = {
+        "area": "unificada",
+        "problemas": {
+            "normalizados": all_normalized,
+            "totales_por_tipo": all_totales_por_tipo,
+            **all_problemas,
+        },
+        "totales": all_totales,
+        "tipos_procesados": tipos_presentes,
+        "missing_columns": all_problemas.get("missing_columns", []),
+    }
+
+    logger.info(
+        "Procesamiento unificado completado: %d tipos, %d filas normalizadas, %d responsables",
+        len(tipos_presentes),
+        len(all_normalized),
+        len(all_responsables),
+    )
+
+    return unified, all_responsables

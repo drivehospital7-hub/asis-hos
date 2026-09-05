@@ -44,6 +44,7 @@ def detect_revision_cantidad_urgencias(
         Lista de dicts con keys: 'factura', 'codigo', 'procedimiento',
         'cantidad', 'tipo_procedimiento', 'laboratorio'
     """
+    tipo_factura_idx = indices.get("tipo_factura_descripcion")
     num_fact_idx = indices.get("numero_factura")
     codigo_idx = indices.get("codigo")
     procedimiento_idx = indices.get("procedimiento")
@@ -52,12 +53,12 @@ def detect_revision_cantidad_urgencias(
     laboratorio_idx = indices.get("laboratorio")
     codigo_tipo_proc_idx = indices.get("codigo_tipo_procedimiento")
 
-    if None in (num_fact_idx, codigo_idx, cantidad_idx, tipo_proc_idx, laboratorio_idx):
+    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx, tipo_proc_idx, laboratorio_idx):
         logger.warning(
             "Revision Cantidad - Columnas necesarias no encontradas: "
-            "numero_factura=%s, codigo=%s, cantidad=%s, "
+            "tipo_factura=%s, numero_factura=%s, codigo=%s, cantidad=%s, "
             "tipo_procedimiento=%s, laboratorio=%s",
-            num_fact_idx, codigo_idx, cantidad_idx,
+            tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx,
             tipo_proc_idx, laboratorio_idx,
         )
         return []
@@ -65,6 +66,13 @@ def detect_revision_cantidad_urgencias(
     revision_items: list[dict[str, str]] = []
 
     for row in range(2, data_sheet.max_row + 1):
+        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+
+        # Solo procesar si Tipo Factura = "Urgencias"
+        if tipo_factura_str != "Urgencias":
+            continue
+
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
         if not factura_str:

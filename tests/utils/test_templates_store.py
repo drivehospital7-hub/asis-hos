@@ -23,14 +23,14 @@ from app.constants.base import DEFAULT_TEMPLATES
 
 SAMPLE_TEMPLATES = [
     {
-        "nombre": "odontologia",
-        "descripcion": "Solo módulo de odontología",
-        "permisos": ["odontologia"],
+        "nombre": "procesar",
+        "descripcion": "Solo módulo de procesamiento unificado",
+        "permisos": ["procesar"],
     },
     {
-        "nombre": "urgencias",
-        "descripcion": "Urgencias + control + facturas abiertas (solo lectura)",
-        "permisos": ["urgencias", "control_urgencias", "facturas_abiertas"],
+        "nombre": "procesar_control",
+        "descripcion": "Procesar + control + facturas abiertas",
+        "permisos": ["procesar", "control_urgencias", "facturas_abiertas"],
     },
     {
         "nombre": "auditor",
@@ -74,8 +74,8 @@ class TestListTemplates:
             result = templates_store.list_templates()
 
         assert len(result) == 3
-        assert result[0]["nombre"] == "odontologia"
-        assert result[1]["nombre"] == "urgencias"
+        assert result[0]["nombre"] == "procesar"
+        assert result[1]["nombre"] == "procesar_control"
         assert result[2]["nombre"] == "auditor"
 
     def test_list_templates_returns_copies(self, templates_store):
@@ -101,12 +101,12 @@ class TestGetTemplate:
     def test_get_template_exists(self, templates_store):
         """Existing template → returns full dict."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
-            result = templates_store.get_template("odontologia")
+            result = templates_store.get_template("procesar")
 
         assert result is not None
-        assert result["nombre"] == "odontologia"
+        assert result["nombre"] == "procesar"
         assert "descripcion" in result
-        assert result["permisos"] == ["odontologia"]
+        assert result["permisos"] == ["procesar"]
 
     def test_get_template_missing(self, templates_store):
         """Non-existent template → returns None."""
@@ -118,12 +118,12 @@ class TestGetTemplate:
     def test_get_template_returns_copy(self, templates_store):
         """Modifying returned dict does not affect internal state."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
-            result = templates_store.get_template("odontologia")
+            result = templates_store.get_template("procesar")
             result["nombre"] = "hacked"
 
             # Call again — should still be original
-            result2 = templates_store.get_template("odontologia")
-            assert result2["nombre"] == "odontologia"
+            result2 = templates_store.get_template("procesar")
+            assert result2["nombre"] == "procesar"
 
 
 # =============================================================================
@@ -139,7 +139,7 @@ class TestCreateTemplate:
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             with patch.object(templates_store, "_save_templates") as mock_save:
                 ok, msg = templates_store.create_template(
-                    "mi_perfil", "Mi perfil personalizado", ["odontologia"]
+                    "mi_perfil", "Mi perfil personalizado", ["procesar"]
                 )
 
         assert ok is True
@@ -151,7 +151,7 @@ class TestCreateTemplate:
         """Duplicate nombre → returns (False, msg)."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             ok, msg = templates_store.create_template(
-                "odontologia", "Duplicado", ["odontologia"]
+                "procesar", "Duplicado", ["procesar"]
             )
 
         assert ok is False
@@ -172,13 +172,13 @@ class TestCreateTemplate:
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             with patch.object(templates_store, "_save_templates") as mock_save:
                 ok, msg = templates_store.create_template(
-                    "solo_odonto", "Solo odontología", ["odontologia"]
+                    "solo_odonto", "Solo odontología", ["procesar"]
                 )
 
         assert ok is True
         saved = mock_save.call_args[0][0]
         entry = next(t for t in saved if t["nombre"] == "solo_odonto")
-        assert entry["permisos"] == ["odontologia"]
+        assert entry["permisos"] == ["procesar"]
 
 
 # =============================================================================
@@ -194,40 +194,40 @@ class TestUpdateTemplate:
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             with patch.object(templates_store, "_save_templates") as mock_save:
                 ok, msg = templates_store.update_template(
-                    "odontologia", {"nombre": "odonto_v2"}
+                    "procesar", {"nombre": "procesar_v2"}
                 )
 
         assert ok is True
-        assert "actualizada" in msg.lower() or "odonto_v2" in msg.lower()
+        assert "actualizada" in msg.lower() or "procesar_v2" in msg.lower()
         saved = mock_save.call_args[0][0]
-        renamed = next(t for t in saved if t["nombre"] == "odonto_v2")
+        renamed = next(t for t in saved if t["nombre"] == "procesar_v2")
         assert renamed is not None
-        assert all(t["nombre"] != "odontologia" for t in saved)
+        assert all(t["nombre"] != "procesar" for t in saved)
 
     def test_update_template_permisos(self, templates_store):
         """Update permisos → permisos replaced."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             with patch.object(templates_store, "_save_templates") as mock_save:
                 ok, msg = templates_store.update_template(
-                    "odontologia", {"permisos": ["odontologia", "equipos_basicos"]}
+                    "procesar", {"permisos": ["procesar", "equipos_basicos"]}
                 )
 
         assert ok is True
         saved = mock_save.call_args[0][0]
-        updated = next(t for t in saved if t["nombre"] == "odontologia")
-        assert updated["permisos"] == ["odontologia", "equipos_basicos"]
+        updated = next(t for t in saved if t["nombre"] == "procesar")
+        assert updated["permisos"] == ["procesar", "equipos_basicos"]
 
     def test_update_template_descripcion(self, templates_store):
         """Update descripcion → descripcion replaced."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             with patch.object(templates_store, "_save_templates") as mock_save:
                 ok, msg = templates_store.update_template(
-                    "odontologia", {"descripcion": "Nueva descripción"}
+                    "procesar", {"descripcion": "Nueva descripción"}
                 )
 
         assert ok is True
         saved = mock_save.call_args[0][0]
-        updated = next(t for t in saved if t["nombre"] == "odontologia")
+        updated = next(t for t in saved if t["nombre"] == "procesar")
         assert updated["descripcion"] == "Nueva descripción"
 
     def test_update_template_missing(self, templates_store):
@@ -244,7 +244,7 @@ class TestUpdateTemplate:
         """Update with invalid permiso → returns (False, msg)."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
             ok, msg = templates_store.update_template(
-                "odontologia", {"permisos": ["invalid_perm"]}
+                "procesar", {"permisos": ["invalid_perm"]}
             )
 
         assert ok is False
@@ -272,22 +272,22 @@ class TestDeleteTemplate:
         assert all(t["nombre"] != "mi_perfil" for t in saved)
 
     def test_delete_template_default_blocked(self, templates_store):
-        """Default template (odontologia) → blocked with error message."""
+        """Default template (procesar) → blocked with error message."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
-            ok, msg = templates_store.delete_template("odontologia")
+            ok, msg = templates_store.delete_template("procesar")
 
         assert ok is False
         assert "no se puede eliminar" in msg.lower()
-        assert "odontologia" in msg  # nombre should appear in message
+        assert "procesar" in msg  # nombre should appear in message
 
-    def test_delete_template_default_blocked_urgencias(self, templates_store):
-        """Default template (urgencias) → blocked."""
+    def test_delete_template_default_blocked_procesar_control(self, templates_store):
+        """Default template (procesar_control) → blocked."""
         with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
-            ok, msg = templates_store.delete_template("urgencias")
+            ok, msg = templates_store.delete_template("procesar_control")
 
         assert ok is False
         assert "no se puede eliminar" in msg.lower()
-        assert "urgencias" in msg
+        assert "procesar_control" in msg
 
     def test_delete_template_default_blocked_auditor(self, templates_store):
         """Default template (auditor) → blocked."""
@@ -297,6 +297,15 @@ class TestDeleteTemplate:
         assert ok is False
         assert "no se puede eliminar" in msg.lower()
         assert "auditor" in msg
+
+    def test_delete_template_default_blocked_procesar(self, templates_store):
+        """Default template (procesar) → blocked."""
+        with patch.object(templates_store, "_load_templates", return_value=SAMPLE_TEMPLATES.copy()):
+            ok, msg = templates_store.delete_template("procesar")
+
+        assert ok is False
+        assert "no se puede eliminar" in msg.lower()
+        assert "procesar" in msg
 
     def test_delete_template_missing(self, templates_store):
         """Non-existent template → returns (False, msg)."""
@@ -326,7 +335,7 @@ class TestDefaultSeeding:
 
             assert len(result) == 3
             nombres = {t["nombre"] for t in result}
-            assert nombres == {"odontologia", "urgencias", "auditor"}
+            assert nombres == {"procesar", "procesar_control", "auditor"}
             # File should now exist
             assert templates_path.exists()
 
@@ -406,7 +415,7 @@ class TestAtomicWrite:
             assert real_path.exists()
             data = json.loads(real_path.read_text(encoding="utf-8"))
             assert len(data) == 3
-            assert data[0]["nombre"] == "odontologia"
+            assert data[0]["nombre"] == "procesar"
 
 
 # =============================================================================

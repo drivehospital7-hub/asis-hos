@@ -1,4 +1,10 @@
-"""Validación de valores decimales en Vlr. Procedimiento y Vlr. Subsidiado."""
+"""Validación de valores decimales en Vlr. Procedimiento y Vlr. Subsidiado.
+
+Migration note (2026-06): This detector has been migrated to the DB-backed
+rule engine as rule 'valores_decimales'. When USE_RULE_ENGINE=true, the engine
+version is used instead via RuleBasedDetector in detect_all.py.
+This legacy Python implementation is preserved for rollback (USE_RULE_ENGINE=false).
+"""
 
 import logging
 

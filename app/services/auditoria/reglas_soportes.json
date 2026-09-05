@@ -1,0 +1,1318 @@
+{
+  "URGENCIAS": {
+    "871121": {
+      "concepto": "RADIOGRAFIA DE TORAX (P.A. O A.P. Y LATERAL, DECUBITO LATERAL, OBLICUAS O LATERAL)",
+      "tipos_soporte": ["PDX", "OPF"],
+      "palabras_clave": [
+        "{NUMERO_DOCUMENTO}",
+        "CLÍNICA AYNAN",
+        "INFORME DE IMAGENOLOGIA",
+        "RADIOGRAFIA DE TORAX",
+        "{CODIGO_SERVICIO}",
+        "RADIOLOGÍA E IMÁGENES DIAGNOSTICAS"
+      ],
+      "min_coincidencias": 4
+    },
+    "871040": {
+      "concepto": "RADIOGRAFIA DE COLUMNA LUMBOSACRA",
+      "tipos_soporte": ["PDX", "OPF"],
+      "palabras_clave": [
+        "{NUMERO_DOCUMENTO}",
+        "CLÍNICA AYNAN",
+        "INFORME DE IMAGENOLOGIA",
+        "RADIOGRAFIA DE COLUMNA LUMBAR",
+        "{CODIGO_SERVICIO}",
+        "RADIOLOGÍA E IMÁGENES DIAGNOSTICAS"
+      ],
+      "min_coincidencias": 4
+    },
+    "871010": {
+      "concepto": "RADIOGRAFIA DE COLUMNA CERVICAL",
+      "tipos_soporte": ["PDX"],
+      "palabras_clave": [
+        "INFORME DE IMAGENOLOGIA",
+        "RADIOGRAFIA DE COLUMNA CERVICAL",
+        "RADIOLOGÍA E IMÁGENES DIAGNOSTICAS"
+      ],
+      "min_coincidencias": 3
+    },
+    "890701": {
+      "concepto": "CONSULTA DE URGENCIAS. POR MEDICINA GENERAL",
+      "tipos_soporte": ["HAU", "HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLINICA - URGENCIAS",
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "ANALISIS DE LA EVOLUCION",
+        "ESCALA DEL DOLOR",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD"
+      ],
+      "min_coincidencias": 5
+    }
+  },
+  "ODONTOLOGIA": {
+    "890303REMISION": {
+      "concepto": "CONSULTA DE ODONTOLOGIA",
+      "tipos_soporte": ["HEV", "HAO"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 6
+    },
+    "997002": {
+      "concepto": "CONTROL DE PLACA BACTERIANA",
+      "tipos_soporte": ["HAO", "HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - PROMOCIÓN DE LA SALUD Y MANTENIMIENTO DE LA ENFERMEDAD",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "PROCEDIMIENTOS CONTROL PLACA",
+        "RECOMENDACIONES CONTROL DE PLACA",
+        "HALLAZGOS CLÍNICOS",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 8
+    },
+    "997301": {
+      "concepto": "DETARTRAJE SUPRAGINGIVAL",
+      "tipos_soporte": ["HAO", "HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - PROMOCIÓN DE LA SALUD Y MANTENIMIENTO DE LA ENFERMEDAD",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "HALLAZGOS CLÍNICOS",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "890203": {
+      "concepto": "CONSULTA DE PRIMERA VEZ POR ODONTOLOGIA GENERAL",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EXAMEN PULPAR",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 8
+    },
+    "890303": {
+      "concepto": "CONSULTA DE CONTROL O DE SEGUIMIENTO DE PROGRAMA POR ODONTOLOGIA GENERAL",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "230101": {
+      "concepto": "EXODONCIA DE DIENTE PERMANENTE UNIRRADICULAR",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "230102": {
+      "concepto": "EXODONCIA DE DIENTE PERMANENTE MULTIRRADICULAR",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "232201": {
+      "concepto": "OBTURACIÓN TEMPORAL POR DIENTE",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "232401": {
+      "concepto": "RECONSTRUCCION DE ANGULO INCISAL. CON RESINA DE FOTOCURADO",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "P0000011": {
+      "concepto": "DEMANDA INDUCIDA CANALIZADOS BUCAL",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - DEMANDA INDUCIDA - ODONTOLOGIA",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 6
+    },
+    "990203": {
+      "concepto": "SESION EDUCATIVA INDIVIDUAL. POR ODONTOLOGIA",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "EDUCACIÓN GENERAL EN SALUD ORAL",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 6
+    },
+    "990212": {
+      "concepto": "SESION EDUCATIVA INDIVIDUAL. POR HIGIENE ORAL",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "EDUCACIÓN GENERAL EN SALUD ORAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 6
+    },
+    "997107": {
+      "concepto": "APLICACIÓN DE SELLANTES",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - PROMOCIÓN DE LA SALUD Y MANTENIMIENTO DE LA ENFERMEDAD",
+        "PROCEDIMIENTOS DE APLICACIÓN DE SELLANTES",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "997106": {
+      "concepto": "TOPICACION DE FLUOR EN BARNIZ",
+      "tipos_soporte": ["HAO"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - PROMOCIÓN DE LA SALUD Y MANTENIMIENTO DE LA ENFERMEDAD",
+        "PROCEDIMIENTOS DE APLICACIÓN DE FLÚOR BARNIZ",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "232103": {
+      "concepto": "OBTURACION DENTAL CON IONOMERO DE VIDRIO",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "IONOMERO",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 8
+    },
+    "232102": {
+      "concepto": "OBTURACION DENTAL CON RESINA DE FOTOCURADO",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "RESINA",
+        "FOTOCURADO",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 9
+    },
+    "230202": {
+      "concepto": "EXODONCIA DE DIENTE TEMPORAL MULTIRRADICULAR",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    },
+    "230201": {
+      "concepto": "EXODONCIA DE DIENTE TEMPORAL UNIRRADICULAR",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA EVOLUCIÓN",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_obligatorias_caso_servicio_pyp": [
+        "HISTORIA CLÍNICA - ODONTOLÓGICA INICIAL",
+        "ODONTOGRAMA INICIAL"
+      ],
+      "palabras_opcionales": [
+        "MOTIVO DE LA CONSULTA",
+        "EVOLUCIÓN DE LA HISTORIA CLÍNICA ODONTOLÓGICA",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL"
+      ],
+      "min_coincidencias": 7
+    }
+  },
+  "CONSULTA EXTERNA": {
+    "895101": {
+      "concepto": "ELECTROCARDIOGRAMA DE RITMO O DE SUPERFICIE",
+      "revision_manual": true,
+      "motivo_revision_manual": "Verificar el resultado del procedimiento realizado"
+    },
+    "897011": {
+      "concepto": "MONITORIA FETAL ANTEPARTO",
+      "revision_manual": true,
+      "motivo_revision_manual": "Verificar el resultado del procedimiento realizado"
+    },
+    "890201": {
+      "concepto": "CONSULTA DE PRIMERA VEZ POR MEDICINA GENERAL",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "HISTORIA CLÍNICA - CONSULTA GENERAL",
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "EXÁMEN FÍSICO",
+        "SALUD MENTAL",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "MÉDICO GENERAL"
+      ],
+      "min_coincidencias": 9
+    },
+    "890301": {
+      "concepto": "CONSULTA DE CONTROL O SEGUIMIENTO DE PROGRAMA POR MEDICINA GENERAL",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "EXÁMEN FÍSICO"
+      ],
+      "palabras_opcionales": [
+        "HISTORIA CLÍNICA - CONSULTA GENERAL",
+        "HISTORIA CLÍNICA - CRÓNICOS",
+        "HISTORIA CLÍNICA - PRIMERA INFANCIA",
+        "HISTORIA CLÍNICA - CONTROL PRENATAL",
+        "MOTIVO DE LA CONSULTA",
+        "MOTIVO DE CONSULTA",
+        "MOTIVO CONSULTA",
+        "SALUD MENTAL",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "MÉDICO GENERAL"
+      ],
+      "min_coincidencias": 9
+    },
+    "890308": {
+      "concepto": "CONSULTA DE CONTROL O DE SEGUIMIENTO DE PROGRAMA POR PSICOLOGIA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "HISTORIA CLÍNICA - PSICOLOGÍA 0-15 AÑOS EVOLUCION",
+        "HISTORIA CLÍNICA - PSICOLOGÍA 16 AÑOS EVOLUCION",
+        "FACTORES DE RIESGO DE SALUD MENTAL",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "PSICÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "890208": {
+      "concepto": "CONSULTA DE PRIMERA VEZ POR PSICOLOGIA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "HISTORIA CLÍNICA - PSICOLÓGICA 0-15 AÑOS",
+        "HISTORIA CLÍNICA - PSICOLÓGICA 16 AÑOS",
+        "FACTORES DE RIESGO DE SALUD MENTAL",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "PSICÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "943102": {
+      "concepto": "PSICOTERAPIA INDIVIDUAL POR PSICOLOGIA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "HISTORIA CLÍNICA - PSICOLÓGICA 0-15 AÑOS EVOLUCIÓN",
+        "HISTORIA CLÍNICA - PSICOLOGÍA 16 EVOLUCIÓN",
+        "PLAN DE SEGUIMIENTO PARA PRÓXIMAS SESIONES",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "PSICÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "944102": {
+      "concepto": "PSICOTERAPIA FAMILIAR POR PSICOLOGIA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "HISTORIA CLÍNICA - PSICOLÓGICA 0-15 AÑOS",
+        "HISTORIA CLÍNICA - PSICOLÓGICA 0-15 EVOLUCIÓN",
+        "HISTORIA CLÍNICA - PSICOLOGÍA 16 EVOLUCIÓN",
+        "PLAN DE SEGUIMIENTO PARA PRÓXIMAS SESIONES",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "PSICÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "93100101": {
+      "concepto": "TERAPIA FÍSICA INTEGRAL SESION",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "{CODIGO_SERVICIO}",
+        "931001",
+        "HISTORIA CLÍNICA - EVOLUCIÓN DE FISIOTERAPIA",
+        "OBJETIVO DE LA SESIÓN",
+        "HALLAZGOS Y/O AVANCES LOGRADOS",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "FISIOTERAAPEUTA"
+      ],
+      "min_coincidencias": 8
+    },
+    "890311": {
+      "concepto": "CONSULTA DE CONTROL O DE SEGUIMIENTO POR FISIOTERAPIA",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}",
+        "MOTIVO DE LA CONSULTA"
+      ],
+      "palabras_opcionales": [
+        "{CODIGO_SERVICIO}",
+        "HISTORIA CLÍNICA - FISIOTERAPIA",
+        "VALORACIÓN FISIOTERAPEUTICA",
+        "OBJETIVOS ESPECIFICOS",
+        "PROCEDIMIENTOS DEL EXÁMEN FISÍCO",
+        "REGISTROS INDIVIDUALES DE PRESTACION DE SERVICIOS EN SALUD",
+        "PROFESIONAL",
+        "FISIOTERAAPEUTA"
+      ],
+      "min_coincidencias": 10
+    },
+    "939402": {
+      "concepto": "NEBULIZACION",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "ORDEN MEDICA"
+      ],
+      "palabras_opcionales": [
+        "{CODIGO_SERVICIO}",
+        "NEBULIZACION",
+        "N* Orden",
+        "Dx Principal"
+      ],
+      "min_coincidencias": 8
+    },
+    "965201": {
+      "concepto": "LAVADO E IRRIGACIÓN DE OÍDOS",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "{CODIGO_SERVICIO}",
+        "ORDEN MEDICA"
+      ],
+      "palabras_opcionales": [
+        "N* Orden",
+        "LAVADO E",
+        "Dx Principal"
+      ],
+      "min_coincidencias": 8
+    },
+    "991801": {
+      "concepto": "INFUSIÓN O ADMINISTRACIÓN DE SOLUCIONES DE LÍQUIDOS Y ELECTROLITOS",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "FACTURA INSTITUCIÓN"
+      ],
+      "palabras_opcionales": [
+        "Fórmula",
+        "Dx Principal",
+        "medicamentos"
+      ],
+      "min_coincidencias": 7
+    },
+    "869401": {
+      "concepto": "RETIRO DE SUTURA EN PIEL Y/O TEJIDO CELULAR SUBCUTANEO SOD",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "PROFESIONAL:"
+      ],
+      "palabras_opcionales": [
+        "{CODIGO_SERVICIO}",
+        "RETIRO DE SUTURA",
+        "DIAGNOSTICO",
+        "ESPECIALIDAD",
+        "Mosquera Vargas Dency Irminia"
+      ],
+      "min_coincidencias": 9
+    },
+    "869501": {
+      "concepto": "CURACION DE LESION EN PIEL O TEJIDO CELULAR SUBCUTANEO SOD",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "PROFESIONAL:"
+      ],
+      "palabras_opcionales": [
+        "CURACION",
+        "Mosquera Vargas Dency Irminia"
+      ],
+      "min_coincidencias": 7
+    },
+    "579501": {
+      "concepto": "REEMPLAZO DE DISPOSITIVO URINARIO (VESICAL)",
+      "tipos_soporte": ["HEV", "OPF"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NOMBRE_PACIENTE}",
+        "NOTAS DE CONSULTA PREVIA ATENCIÓN",
+        "FECHA NOTA",
+        "PROFESIONAL:"
+      ],
+      "palabras_opcionales": [
+        "{CODIGO_SERVICIO}",
+        "Mosquera Vargas Dency Irminia",
+        "Dx Principal",
+        "REEMPLAZO"
+      ],
+      "min_coincidencias": 9
+    }
+  },
+  "CONSULTA EXTERNA: LABORATORIOS": {
+    "906249PR": {
+      "concepto": "VIH -PRUEBA RAPIDA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "6249PR",
+        "PRUEBA RÁPIDA DE VIH 1/2",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "1906317": {
+      "concepto": "HEPATITIS B. ANTIGENO DE SUPERFICIE( RAPIDA)",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "PRUEBA RÁPIDA DE HEPATITIS B",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "906039": {
+      "concepto": "TREPONEMA PALLIDUM ANTICUERPOS (PRUEBA TREPONEMICA) MANUAL O SEMIAUTOMATIZADA O AUTOMATIZADA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "PRUEBA RÁPIDA DE SÍFILIS",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "911016": {
+      "concepto": "HEMOCLASIFICACION (GRUPO SANGUINEO Y FACTOR RH )",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "GRUPO SANGUINEO",
+        "FACTOR R.H.",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "904508": {
+      "concepto": "GONADOTROPINA CORIONICA. SUBUNIDAD BETA CUALITATIVA. [BHCG] PRUEBA DE EMBARAZO EN ORINA O SUERO",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "MUESTRA",
+        "GRAVINDEX DETECCION HCG",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "907106": {
+      "concepto": "UROANÁLISIS",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "UROANÁLISIS",
+        "UROBILINOGENO",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "907002": {
+      "concepto": "COPROLOGICO",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "COPROLOGICO",
+        "SANGRE MACROS",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "907008": {
+      "concepto": "SANGRE OCULTA EN MATERIA FECAL [GUAYACO O EQUIVALENTE]",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "COPROLOGICO",
+        "SANGRE OCULTA",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "901304": {
+      "concepto": "EXAMEN DIRECTO FRESCO DE CUALQUIER MUESTRA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "GRAM VAGINAL",
+        "FLORA PREDOMINANTE",
+        "TEST DE AMINAS",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "901107": {
+      "concepto": "COLORACION GRAM Y LECTURA PARA CUALQUIER MUESTRA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "GRAM VAGINAL",
+        "FLORA PREDOMINANTE",
+        "TEST DE AMINAS",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "902214": {
+      "concepto": "HEMOPARASITOS EXTENDIDO DE GOTA GRUESA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "HEMATOLOGÍA",
+        "GOTA GRUESA",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903815": {
+      "concepto": "COLESTEROL DE ALTA DENSIDAD [HDL]",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "COLESTEROL HDL",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903818": {
+      "concepto": "COLESTEROL TOTAL",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "COLESTEROL TOTAL",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903841": {
+      "concepto": "GLUCOSA EN SUERO. LCR U OTRO FLUIDO DIFERENTE A ORINA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "GLICEMIA BASAL",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903868": {
+      "concepto": "TRIGLICERIDOS",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "TRIGLICERIDOS",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903895": {
+      "concepto": "CREATININA EN SUERO U OTROS FLUIDOS",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "CREATININA",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903426": {
+      "concepto": "HEMOGLOBINA GLICOSILADA AUTOMATIZADA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "HEMOGLOBINA GLICOSILADA",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "903427": {
+      "concepto": "HEMOGLOBINA GLICOSILADA MANUAL O SEMIAUTOMATIZADA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "HEMOGLOBINA GLICOSILADA",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "904902": {
+      "concepto": "HORMONA ESTIMULANTE DEL TIROIDES [TSH]",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "QUÍMICA SANGUÍNEA",
+        "HORMONA ESTIMULANTE DEL TIROIDES",
+        "TSH",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "902206": {
+      "concepto": "EXTENDIDO DE SANGRE PERIFERICA. ESTUDIO DE MORFOLOGIA",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "HEMATOLOGÍA",
+        "EXTENDIDO DE SANGRE PERIFERICA",
+        "FSP",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "902207": {
+      "concepto": "HEMOGRAMA I [HEMOGLOBINA. HEMATOCRITO Y LEUCOGRAMA] METODO MANUAL",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "HEMATOLOGÍA",
+        "CUADRO ROJO",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "902209": {
+      "concepto": "HEMOGRAMA III [HEMOGLOBINA. HEMATOCRITO. RECUENTO DE ERITROCITOS. INDICES ERITROCITARIO",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "HEMATOLOGÍA",
+        "CUADRO ROJO",
+        "{CODIGO_SERVICIO}",
+        "{NUMERO_FACTURA}",
+        "{NOMBRE_PACIENTE}",
+        "INFORME DE LABORATORIOS",
+        "PROFESIONAL",
+        "ESPECIALIDAD: BACTERIÓLOGO(A)"
+      ],
+      "min_coincidencias": 9
+    },
+    "902210": {
+      "concepto": "HEMOGRAMA IV [HEMOGLOBINA. HEMATOCRITO. RECUENTO DE ERITROCITOS. INDICES ERITROCITARIOS",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "WBC",
+        "RBC",
+        "PLT",
+        "{CODIGO_SERVICIO}"
+      ],
+      "min_coincidencias": 5
+    },
+    "908873": {
+      "concepto": "MYCOBACTERIUM TUBERCULOSIS IDENTIFICACIÓN POR PRUEBAS MOLECULARES (ESPECÍFICO)",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "DETECCIÓN DEL MYCOBACTERIUM TBERCULOSIS",
+        "{CODIGO_SERVICIO}"
+      ],
+      "min_coincidencias": 3
+    },
+    "901230": {
+      "concepto": "MYCOBACTERIUM TUBERCULOSIS CULTIVO",
+      "tipos_soporte": ["OPF", "PDX"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}"
+      ],
+      "palabras_opcionales": [
+        "CULTIVO DE MYCOBACTERIAS EN MEDIO LÍQUIDO",
+        "{CODIGO_SERVICIO}"
+      ],
+      "min_coincidencias": 3
+    }
+  },
+  "CONSULTA EXTERNA: VACUNAS": {
+    "990204": {
+      "concepto": "SESION EDUCATIVA INDIVIDUAL. POR ENFERMERIA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "NOTA EDUCACIÓN INDIVIDUAL EN SALUD",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 6
+    },
+    "993104": {
+      "concepto": "VACUNACION CONTRA HAEMOPHILUS INFLUENZA TIPO B",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "INFLUENZA",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993130": {
+      "concepto": "VACUNACION COMBINADA CONTRA HAEMOPHILUS INFLUENZA TIPO B. DIFTERIA. TETANOS. TOS FERINA Y HEPATITIS B (PENTAVALENTE)",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "PENTAVALENTE (DPT)",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993501": {
+      "concepto": "VACUNACION CONTRA POLIOMIELITIS (VOP O IVP)",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "POLIO ORAL (VIP)",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993510": {
+      "concepto": "VACUNACION CONTRA INFLUENZA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "INFLUENZA-60 AÑOS",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993512": {
+      "concepto": "VACUNACION CONTRA ROTAVIRUS",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "ROTAVIRUS ORAL",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993513": {
+      "concepto": "VACUNA CONTRA EL VIRUS DEL PAPILOMA HUMANO VPH",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "VPH",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993522": {
+      "concepto": "VACUNACION COMBINADA CONTRA SARAMPION. PAROTIDITIS Y RUBEOLA (SRP) (TRIPLE VIRAL)",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "SARAMPIÓN-RUBEOLA",
+        "PAPERAS(SRP)",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 8
+    },
+    "993120": {
+      "concepto": "VACUNACION COMBINADA CONTRA TETANOS Y DIFTERIA [TD]",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "TD",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993106": {
+      "concepto": "VACUNACION CONTRA NEUMOCOCO",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "NEUMOCOCO",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993502": {
+      "concepto": "VACUNACION CONTRA HEPATITIS A",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "HEPATITIS A",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993509": {
+      "concepto": "VACUNACION CONTRA VARICELA",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "VARICELA",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    },
+    "993520": {
+      "concepto": "VACUNACION COMBINADA CONTRA SARAMPION Y RUBEOLA (SR) (DOBLE VIRAL)",
+      "tipos_soporte": ["HEV"],
+      "palabras_obligatorias": [
+        "{NUMERO_DOCUMENTO}",
+        "{NUMERO_FACTURA}"
+      ],
+      "palabras_opcionales": [
+        "CARNET DE VACUNACIÓN",
+        "SARAMPIÓN Y RUBEOLA",
+        "NOTA APLICACIÓN BIOLÓGICO",
+        "PROFESIONAL",
+        "ENFERMERO(A)"
+      ],
+      "min_coincidencias": 7
+    }
+  }
+}

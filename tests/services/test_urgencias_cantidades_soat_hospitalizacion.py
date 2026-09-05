@@ -1,11 +1,11 @@
-"""Tests para app/services/urgencias/cantidades_soat_hospitalizacion.py."""
+"""Tests para app/services/hospitalizacion/cantidades_soat_hospitalizacion.py."""
 
 from __future__ import annotations
 
 import pytest
 from openpyxl import Workbook
 
-from app.services.urgencias.cantidades_soat_hospitalizacion import (
+from app.services.hospitalizacion.cantidades_soat_hospitalizacion import (
     detect_cantidades_soat_hospitalizacion,
 )
 

@@ -19,6 +19,10 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.unauthorized_react",
     # Static — CSS, JS, imágenes
     "static",
+    # Procedimientos — write endpoints descontinuados (410 Gone)
+    "procedimientos.create_procedimiento_gone",
+    "procedimientos.update_procedimiento_gone",
+    "procedimientos.delete_procedimiento_gone",
     # Adjuntos de control de errores: público por diseño (links del Excel
     # exportado deben abrir indefinidamente); la URL lleva el UUID del registro
     # y la ruta valida que el archivo pertenezca a él.
@@ -147,8 +151,6 @@ def create_app(config=None):
         return render_template("unauthorized.html"), 401
 
     from app.routes.home import home_bp
-    from app.routes.excel_headers import excel_headers_bp
-    from app.routes.urgencias import urgencias_bp
     from app.routes.procedimientos import procedimientos_bp
     from app.routes.ordenado_facturado import ordenado_facturado_bp
     from app.routes.notas_api import api_bp
@@ -157,8 +159,13 @@ def create_app(config=None):
     from app.routes.auth import auth_bp
     from app.routes.import_facturas import import_facturas_bp
     from app.routes.control_errores import control_errores_bp
+    from app.routes.catalogo import catalogo_bp
     from app.routes.abiertas_urgencias import abiertas_urgencias_bp
-    from app.routes.odontologia_equipos_basicos import odontologia_equipos_basicos_bp
+    from app.routes.procesar import procesar_bp
+    from app.routes.cronograma_bacteriologas import cronograma_bp
+    from app.routes.cronograma_urgencias import cronograma_urgencias_bp
+    from app.routes.reglas_api import reglas_api_bp
+    from app.routes.reglas_admin import reglas_admin_bp
     from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
     from app.routes.examenes import examenes_bp
     from app.routes.integration import integration_bp
@@ -166,19 +173,22 @@ def create_app(config=None):
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
+    app.register_blueprint(catalogo_bp)
     app.register_blueprint(abiertas_urgencias_bp, url_prefix="/abiertas-urgencias")
     # Home ahora es /dashboard
     app.register_blueprint(home_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
-    app.register_blueprint(excel_headers_bp, url_prefix="/odontologia")
-    app.register_blueprint(urgencias_bp, url_prefix="/urgencias")
     app.register_blueprint(procedimientos_bp)
     app.register_blueprint(ordenado_facturado_bp, url_prefix="/ordenado-facturado")
     app.register_blueprint(api_bp)
     app.register_blueprint(import_csv_bp)
     app.register_blueprint(derechos_bp, url_prefix="/derechos")
     app.register_blueprint(import_facturas_bp)
-    app.register_blueprint(odontologia_equipos_basicos_bp, url_prefix="/odontologia-equipos-basicos")
+    app.register_blueprint(procesar_bp, url_prefix="/procesar")
+    app.register_blueprint(cronograma_bp, url_prefix="/cronograma-bacteriologas")
+    app.register_blueprint(cronograma_urgencias_bp, url_prefix="/cronograma-urgencias")
+    app.register_blueprint(reglas_api_bp)
+    app.register_blueprint(reglas_admin_bp)
     app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
     app.register_blueprint(examenes_bp)  # sin prefix: /examenes, /api/examenes, /api/listado
     app.register_blueprint(integration_bp)

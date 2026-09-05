@@ -4,13 +4,31 @@ import os
 import re
 from pathlib import Path
 
-from flask import Blueprint, current_app, render_template, request, jsonify, session
+from flask import Blueprint, current_app, render_template, request, Response, jsonify, session
 
 from app.utils.auth import permiso_requerido
+from app.services.processor_gate import rate_limit
+from app.constants.base import DERECHOS_PDF_BASE_PATH
 
 logger = logging.getLogger(__name__)
 
 derechos_bp = Blueprint("derechos", __name__)
+
+
+def _ruta_dentro_de_base(ruta: str) -> bool:
+    """True si la ruta resuelta está dentro de DERECHOS_PDF_BASE_PATH.
+
+    Usa realpath + commonpath para impedir escapes con '..' o symlinks.
+    Si no hay base configurada, no se permite ninguna lectura (fail closed).
+    """
+    base = os.path.realpath(DERECHOS_PDF_BASE_PATH) if DERECHOS_PDF_BASE_PATH else ""
+    if not base:
+        return False
+    try:
+        ruta_real = os.path.realpath(ruta)
+        return os.path.commonpath([ruta_real, base]) == base
+    except (ValueError, OSError):
+        return False
 
 
 def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
@@ -114,6 +132,7 @@ def derechos_react():
 
 
 @derechos_bp.get("/texto")
+@permiso_requerido("derechos")
 def derechos_texto():
     """
     Devuelve el texto RAW de un PDF para debugging.
@@ -122,17 +141,22 @@ def derechos_texto():
     URL:
     http://localhost:5000/derechos/texto
     """
-    # Ruta hardcodeada para debug
-    RUTA_DEBUG = "/home/papsivi/asis-hos/.0CAPITA EMSSANAR/CAP447195/PDE.pdf"
-    ruta_pdf = request.args.get("ruta", "").strip() or RUTA_DEBUG
-    
+    ruta_pdf = request.args.get("ruta", "").strip()
+
     if not ruta_pdf:
         return jsonify({
             "status": "error",
             "data": {},
             "errors": ["Falta el parámetro 'ruta'"]
         }), 400
-    
+
+    if not _ruta_dentro_de_base(ruta_pdf):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta está fuera del directorio permitido (DERECHOS_PDF_BASE_PATH)"]
+        }), 403
+
     # Convertir ruta WSL si es necesario
     ruta_normalizada = ruta_pdf.replace("\\", "/")
     
@@ -174,6 +198,7 @@ def derechos_texto():
 
 
 @derechos_bp.post("/procesar")
+@permiso_requerido("derechos")
 def procesar_derechos():
     """
     Procesa la ruta de carpeta y busca archivos .PDE de manera recursiva.
@@ -225,6 +250,13 @@ def procesar_derechos():
             "data": {},
             "errors": [msg]
         }), 400
+
+    if not _ruta_dentro_de_base(ruta_valida):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta está fuera del directorio permitido (DERECHOS_PDF_BASE_PATH)"]
+        }), 403
 
     # Buscar archivos .PDE recursivamente y extraer datos
     estructura = buscar_archivos_pde(ruta_valida, extraer_datos=EXTRACTOR_AVAILABLE)
@@ -291,3 +323,201 @@ def _resolver_ruta_valida(ruta_normalizada: str, ruta_original: str) -> str | No
             return ruta_windows
 
     return None
+
+
+# =============================================================================
+# Auditoría PDF endpoints
+# =============================================================================
+
+
+@derechos_bp.get("/auditoria")
+@permiso_requerido("derechos")
+def auditoria_react():
+    """React shell for Auditoría PDF."""
+    permisos = session.get("permisos", [])
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, "src/pages/auditoria/index.html", "file")
+    entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
+
+    return render_template(
+        "react_shell.html",
+        page_title="Auditoría PDF",
+        entry_js=entry_js,
+        entry_css=entry_css,
+        initial_data={
+            "username": session.get("username", ""),
+            "permisos": permisos,
+        },
+    )
+
+
+@derechos_bp.post("/auditoria/debug")
+@permiso_requerido("derechos")
+def auditoria_debug_pdf():
+    """Debug endpoint: muestra el texto extraído y cada paso del parseo de un PDF."""
+    from app.services.auditoria.extractor import extraer_texto_pdf
+    from app.services.auditoria.pde_parser import extraer_bloque_derechos, extraer_datos_derechos
+    from app.services.auditoria.fev_parser import parsear_fev
+
+    data = request.get_json()
+    ruta = data.get("ruta", "").strip() if data else ""
+
+    if not ruta:
+        return jsonify({"status": "error", "data": {}, "errors": ["Ruta de archivo no existe"]}), 400
+
+    if not _ruta_dentro_de_base(ruta):
+        return jsonify({"status": "error", "data": {}, "errors": ["La ruta está fuera del directorio permitido (DERECHOS_PDF_BASE_PATH)"]}), 403
+
+    if not os.path.isfile(ruta):
+        return jsonify({"status": "error", "data": {}, "errors": ["Ruta de archivo no existe"]}), 400
+
+    nombre = os.path.basename(ruta).upper()
+
+    debug = {"archivo": nombre, "pasos": []}
+
+    # Tipo
+    if nombre.startswith("PDE"):
+        debug["tipo"] = "PDE"
+        debug["pasos"].append({"paso": "1. extraer_texto_pdf", "estado": "..."})
+        texto = extraer_texto_pdf(ruta, "PDE")
+        debug["pasos"][-1]["estado"] = "OK" if texto else "VACÍO"
+        debug["texto_crudo"] = texto[:2000] if texto else ""
+
+        debug["pasos"].append({"paso": "2. extraer_bloque_derechos", "estado": "..."})
+        bloque = extraer_bloque_derechos(texto) if texto else ""
+        debug["pasos"][-1]["estado"] = "OK" if bloque else "NO ENCONTRADO"
+        debug["bloque_encontrado"] = bloque[:1000] if bloque else ""
+
+        debug["pasos"].append({"paso": "3. extraer_datos_derechos", "estado": "..."})
+        datos = extraer_datos_derechos(bloque or texto) if (bloque or texto) else {}
+        debug["pasos"][-1]["estado"] = "OK"
+        debug["datos_extraidos"] = datos
+
+    elif nombre.startswith("FEV"):
+        debug["tipo"] = "FEV"
+        try:
+            resultado = parsear_fev(ruta)
+            debug["datos_extraidos"] = resultado
+        except Exception as e:
+            debug["error"] = str(e)
+
+    else:
+        debug["tipo"] = "OTRO"
+        debug["pasos"].append({"paso": "1. extraer_texto_pdf", "estado": "..."})
+        texto = extraer_texto_pdf(ruta, "SOPORTE")
+        debug["pasos"][-1]["estado"] = "OK" if texto else "VACÍO"
+        debug["texto_crudo"] = texto[:2000] if texto else ""
+
+    return jsonify({"status": "success", "data": debug, "errors": []})
+
+
+@derechos_bp.post("/auditoria/procesar")
+@permiso_requerido("derechos")
+@rate_limit(1, 120, admin_exempt=True)
+def auditoria_procesar():
+    """
+    Procesa una carpeta de PDFs para auditoría.
+    Recibe {"ruta": "..."} y retorna el análisis completo.
+    """
+    data = request.get_json()
+    ruta = data.get("ruta", "").strip() if data else ""
+
+    if not ruta:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta no puede estar vacía"]
+        }), 400
+
+    # Normalizar separadores
+    ruta_normalizada = ruta.replace("\\", "/")
+
+    # Resolver ruta válida
+    ruta_valida = _resolver_ruta_valida(ruta_normalizada, ruta)
+    if ruta_valida is None:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta no existe o no es una carpeta."]
+        }), 400
+
+    if not _ruta_dentro_de_base(ruta_valida):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta está fuera del directorio permitido (DERECHOS_PDF_BASE_PATH)"]
+        }), 403
+
+    # Verificar que sea un directorio, no un archivo
+    if not os.path.isdir(ruta_valida):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["La ruta no es una carpeta."]
+        }), 400
+
+    logger.info("Auditando carpeta: %s", ruta_valida)
+
+    try:
+        from app.services.auditoria.auditor import auditar_carpeta
+        resultados = auditar_carpeta(ruta_valida)
+
+        if isinstance(resultados, dict) and "error" in resultados:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [resultados["error"]]
+            }), 400
+
+    except ImportError as e:
+        logger.exception("Error importando auditoria module")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [f"Error de configuración: {e}"]
+        }), 500
+    except Exception as e:
+        logger.exception("Error procesando auditoría")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [f"Error procesando: {e}"]
+        }), 500
+
+    metadata = resultados.get("_metadata", {})
+    expedientes = resultados.get("expedientes", resultados)
+
+    resumen = {
+        "total_pdfs_encontrados": metadata.get("total_pdfs_encontrados", 0),
+        "total_clasificados": metadata.get("total_clasificados", 0),
+        "total_ignorados": metadata.get("total_ignorados", 0),
+        "total_expedientes": len(expedientes) if isinstance(expedientes, dict) else 0,
+    }
+
+    response_data = {
+        "status": "success",
+        "data": {
+            "ruta": ruta_valida,
+            "resumen": resumen,
+            "estructura": expedientes,
+            "_metadata": {
+                "archivos_ignorados": metadata.get("archivos_ignorados", []),
+                "archivos_con_error": metadata.get("archivos_con_error", []),
+            },
+        },
+        "errors": [],
+    }
+
+    # ?descargar=1 → devuelve el JSON como archivo descargable
+    if request.args.get("descargar"):
+        nombre_base = os.path.basename(ruta_valida.rstrip("/\\").rstrip("/").rstrip("\\"))
+        json_str = json.dumps(response_data, indent=2, ensure_ascii=False)
+        return Response(
+            json_str,
+            mimetype="application/json",
+            headers={
+                "Content-Disposition": f'attachment; filename="auditoria_{nombre_base}.json"'
+            },
+        )
+
+    return jsonify(response_data)

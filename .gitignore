@@ -63,6 +63,22 @@ dist/
 *.swp
 
 # =========================
+# Archivos temporales de debug/exploración
+# =========================
+header_check.txt
+header_check2.txt
+
+# =========================
+# Data de importación (no versionar)
+# =========================
+data/import/
+
+# =========================
+# Exports generados (no versionar)
+# =========================
+data/export/notas_tecnicas_export.csv
+
+# =========================
 # DATA (CRÍTICO EN TU PROYECTO)
 # =========================
 
@@ -121,11 +137,21 @@ frontend/dist/
 # Agent / SDD artifacts
 # =========================
 .atl/
+.codegraph/
 
 # =========================
-# Índice CodeGraph (local)
+# Backups de BD (no versionar)
 # =========================
-.codegraph/
+backup_*.sql
+scripts/backup_*.sql
+
+# =========================
+# Scripts de debug/exploración manual
+# =========================
+/check_*.py
+/show_rule*.py
+/scripts/dump_rules.py
+/scripts/load_rules.py
 
 # =========================
 # Diseños locales (OpenPencil)

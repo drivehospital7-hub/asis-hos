@@ -11,7 +11,11 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import AREA_ODONTOLOGIA
+from app.constants import AREA_ODONTOLOGIA, CONVENIO_PYP
+from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
+
+# Module-level flag: skip evidence/audit DB writes when testing
+_PERSIST = is_evidence_audit_enabled()
 from app.services.transversales import (
     detect_decimales,
     detect_tipo_documento_edad,
@@ -26,7 +30,8 @@ from app.services.transversales import (
 from app.services.odontologia.profesionales import detect_profesionales_odontologia
 from app.services.odontologia.centro_costo import detect_centro_costo_odontologia
 from app.services.odontologia.ide_contrato import detect_ide_contrato_odontologia
-from app.services.odontologia.mal_capitado import detect_mal_capitado
+from app.services.urgencias.mal_capitado import detect_mal_capitado
+from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +39,10 @@ logger = logging.getLogger(__name__)
 def detect_all_problems_odontologia(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
     profesional_dias: dict[str, list[int]] | None = None,
-    permitir_todos_centros: bool = False,
+    permitir_todos_centros: bool = True,
+    centros_validos: list[str] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta TODOS los problemas en facturas de odontología.
@@ -47,13 +54,176 @@ def detect_all_problems_odontologia(
         indices: Índices de columnas
         profesional_dias: Dict {identificacion: [dias]} con días seleccionados
         permitir_todos_centros: Si True, solo permite ODONTOLOGIA y EXTRAMURAL
+        centros_validos: Lista personalizada de centros válidos (opcional)
 
     Returns:
         (resultado_dict, responsables_map)
     """
-    # Detectores transversales
-    decimales = detect_decimales(data_sheet, indices)
-    doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
+    # ── Consolidated engine rule evaluation (single session + single collector) ──
+    if is_rule_engine_enabled():
+        from app.services.engine.session_manager import SessionManager
+        from app.services.engine.evidence_collector import EvidenceCollector
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.models import Regla, ResultadoAuditoria
+
+        with SessionManager("odontologia") as session:
+            collector = EvidenceCollector(domain="odontologia")
+
+            decimales = RuleBasedDetector("valores_decimales", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            ruta_dup = RuleBasedDetector("ruta_duplicada", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # tipo_documento_edad rules
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            tipo_id_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
+
+            # tipo_identificacion_entidad rules
+            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            tipo_id_entidad = r1_ent + r2_ent
+
+            # Cantidades anomalas
+            c1 = RuleBasedDetector("cantidad_consultas_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            c2 = RuleBasedDetector("cantidad_general_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            c3 = RuleBasedDetector("cantidad_pyp_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            cantidades = c1 + c2 + c3
+
+            # codigo_entidad
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # tipo_usuario
+            tipo_usuario_od = RuleBasedDetector("tipo_usuario_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # IDE Contrato odontología
+            logger.info("detect_all_problems_odontologia - Llamando detect_ide_contrato_odontologia")
+            ide_contrato = RuleBasedDetector("ide_contrato_odontologia_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info("detect_all_problems_odontologia - IDE Contrato encontrados: %d", len(ide_contrato))
+
+            # Profesionales odontología
+            logger.info("detect_all_problems_odontologia - Llamando detect_profesionales_odontologia")
+            profesionales = RuleBasedDetector("profesional_odontologia_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info("detect_all_problems_odontologia - Profesionales encontrados: %d", len(profesionales))
+
+            # Centro Costo
+            centro_costo = RuleBasedDetector("centro_costo_odontologia_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # CUPS sin contrato
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # ── Flush all evidence + create ResultadoAuditoria rows ──
+            if _PERSIST:
+                evidencias = collector.flush_batch(session)
+                if evidencias:
+                    regla_ids = {e.regla_id for e in evidencias}
+                    reglas_map = {
+                        r.id: r
+                        for r in session.query(Regla).filter(Regla.id.in_(regla_ids))
+                    }
+                    for ev in evidencias:
+                        if ev.outcome == "MATCH":
+                            resultado_str = "FAIL"
+                        elif ev.outcome == "ERROR":
+                            resultado_str = "ERROR"
+                        else:
+                            resultado_str = "PASS"
+                        rule = reglas_map.get(ev.regla_id)
+                        ra = ResultadoAuditoria(
+                            evidencia_id=ev.id,
+                            regla_id=ev.regla_id,
+                            regla_version=ev.regla_version,
+                            factura=ev.factura,
+                            param_config_id=ev.param_config_id,
+                            resultado=resultado_str,
+                            severidad=rule.severidad if rule else "error",
+                            mensaje=ev.error_mensaje or (rule.descripcion if rule else ""),
+                            detalles={"outcome": ev.outcome},
+                        )
+                        session.add(ra)
+                    session.flush()
+    else:
+        decimales = []
+        doble_tipo = []
+        ruta_dup = []
+        tipo_id_edad = []
+        tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+        cantidades = detect_cantidades_anomalas(data_sheet, indices)
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
+        )
+        tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
+        ide_contrato = []
+        profesionales = []
+        centro_costo = []
+        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
     # Excepción odontología: código 990203 puede tener múltiples tipos de procedimiento
     codigo_idx = indices.get("codigo")
@@ -80,59 +250,50 @@ def detect_all_problems_odontologia(
                     antes - despues,
                 )
 
-    ruta_dup = detect_ruta_duplicada(data_sheet, indices)
-
-    # Excepción odontología: ignorar rutas duplicadas si el paciente tiene
-    # códigos 990203, P0000011 o 990212 (códigos de paquete/grupo que
-    # agrupan naturalmente varias facturas en una misma atención)
+    # Excepción odontología: si ruta duplicada es exactamente 3 facturas y
+    # alguna tiene código 990203, P0000011 o 990212, se excluye
+    RUTA_DUP_EXEMPT_CODES = frozenset({"990203", "P0000011", "990212"})
     codigo_idx = indices.get("codigo")
     ident_idx = indices.get("identificacion")
-    if codigo_idx is not None and ident_idx is not None:
-        EXEMPT_RUTA_CODES: set[str] = {"990203", "P0000011", "990212"}
-        pacientes_exentos: set[str] = set()
+    if ruta_dup and codigo_idx is not None and ident_idx is not None:
+        # Construir mapa de códigos por paciente (solo PyP)
+        codigos_por_paciente: dict[str, set[str]] = {}
+        contrato_idx = indices.get("convenio_facturado")
         for row in range(2, data_sheet.max_row + 1):
+            contrato_val = (
+                data_sheet.cell(row=row, column=contrato_idx + 1).value
+                if contrato_idx is not None else None
+            )
+            if contrato_idx is not None and contrato_val != CONVENIO_PYP:
+                continue
+            ident_val = data_sheet.cell(row=row, column=ident_idx + 1).value
             codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-            if codigo_val is not None and str(codigo_val).strip() in EXEMPT_RUTA_CODES:
-                ident_val = data_sheet.cell(row=row, column=ident_idx + 1).value
-                if ident_val is not None:
-                    ident_str = str(ident_val).strip()
-                    if ident_str:
-                        pacientes_exentos.add(ident_str)
-        if pacientes_exentos:
+            if ident_val is not None and codigo_val is not None:
+                ident_str = str(ident_val).strip()
+                codigo_str = str(codigo_val).strip()
+                if ident_str and codigo_str:
+                    if ident_str not in codigos_por_paciente:
+                        codigos_por_paciente[ident_str] = set()
+                    codigos_por_paciente[ident_str].add(codigo_str)
+
+        if codigos_por_paciente:
             antes = len(ruta_dup)
             ruta_dup = [
                 item for item in ruta_dup
-                if item.get("identificacion") not in pacientes_exentos
+                if not (
+                    item["cantidad"] == 3
+                    and RUTA_DUP_EXEMPT_CODES & codigos_por_paciente.get(item["identificacion"], set())
+                )
             ]
             despues = len(ruta_dup)
             if despues < antes:
                 logger.info(
-                    "Excepción rutas duplicadas: %d pacientes excluidos por códigos 990203/P0000011/990212",
+                    "Excepción códigos PyP (990203, P0000011, 990212): %d rutas duplicadas excluidas",
                     antes - despues,
                 )
-
-    tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
-    tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-    cantidades = detect_cantidades_anomalas(data_sheet, indices)
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
-    tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
-
-    # Detectores específicos de odontología
-    logger.info("detect_all_problems_odontologia - Llamando detect_ide_contrato_odontologia")
-    ide_contrato = detect_ide_contrato_odontologia(data_sheet, indices)
-    logger.info("detect_all_problems_odontologia - IDE Contrato encontrados: %d", len(ide_contrato))
-
-    logger.info("detect_all_problems_odontologia - Llamando detect_profesionales_odontologia")
-    profesionales = detect_profesionales_odontologia(data_sheet, indices)
-    logger.info("detect_all_problems_odontologia - Profesionales encontrados: %d", len(profesionales))
-
-    centro_costo = detect_centro_costo_odontologia(
-        data_sheet,
-        indices,
-        profesional_dias=profesional_dias,
-        permitir_todos_centros=permitir_todos_centros,
+    logger.info(
+        "detect_all_problems_odontologia - Cups Sin Contrato encontrados: %d",
+        len(cups_sin_contrato),
     )
 
     # Build responsable_cierra mapping
@@ -180,6 +341,7 @@ def detect_all_problems_odontologia(
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
         tipo_usuario=tipo_usuario_od,
         fec_factura_map=fec_factura_map,
+        cups_sin_contrato=cups_sin_contrato,
     )
 
     resultado: dict[str, Any] = {
@@ -197,6 +359,7 @@ def detect_all_problems_odontologia(
             "tipo_usuario": tipo_usuario_od,
             "centro_costo": centro_costo,
             "ide_contrato": ide_contrato,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "decimales": len(decimales),
@@ -210,6 +373,7 @@ def detect_all_problems_odontologia(
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario_od),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
     }

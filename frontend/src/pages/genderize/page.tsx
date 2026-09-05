@@ -130,7 +130,7 @@ export function GenderizePage() {
     }
   };
 
-  /** Exportar nombres no cacheados como .txt con formato nombre\tsexo */
+  /** Exportar nombres no cacheados como .txt con formato nombre	sexo */
   const exportNoCache = () => {
     const items = statsPreview?.nombres_no_cache ?? [];
     const text = "\uFEFF" + items.map(i => `${i.nombre}\t${i.sexo}`).join("\n");

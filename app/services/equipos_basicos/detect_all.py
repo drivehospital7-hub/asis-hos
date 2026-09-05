@@ -19,6 +19,10 @@ from app.constants import (
     EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
     EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD,
 )
+from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
+
+# Module-level flag: skip evidence/audit DB writes when testing
+_PERSIST = is_evidence_audit_enabled()
 from app.services.transversales import (
     detect_cantidades_anomalas,
     detect_codigo_entidad_vs_entidad_afiliacion,
@@ -39,6 +43,7 @@ from app.services.odontologia.centro_costo import (
 from app.services.odontologia.ide_contrato import (
     detect_ide_contrato_odontologia,
 )
+from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +51,9 @@ logger = logging.getLogger(__name__)
 def detect_all_problems_equipos_basicos(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
     profesional_dias: dict[str, list[int]] | None = None,
-    permitir_todos_centros: bool = False,
+    permitir_todos_centros: bool = True,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """
     Detecta TODOS los problemas en facturas de equipos básicos.
@@ -63,52 +69,173 @@ def detect_all_problems_equipos_basicos(
     Returns:
         (resultado_dict, responsables_map)
     """
-    # Detectores transversales
-    decimales = detect_decimales(data_sheet, indices)
-    doble_tipo = detect_doble_tipo_procedimiento(data_sheet, indices)
+    # ── Consolidated engine rule evaluation (single session + single collector) ──
+    if is_rule_engine_enabled():
+        from app.services.engine.session_manager import SessionManager
+        from app.services.engine.evidence_collector import EvidenceCollector
+        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.models import Regla, ResultadoAuditoria
 
-    # Ruta duplicada con threshold de Equipos Básicos
-    ruta_dup = detect_ruta_duplicada(
-        data_sheet, indices, threshold=EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
-    )
+        with SessionManager("equipos_basicos") as session:
+            collector = EvidenceCollector(domain="equipos_basicos")
 
-    tipo_id_edad = detect_tipo_documento_edad(data_sheet, indices)
-    tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+            decimales = RuleBasedDetector("valores_decimales", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            ruta_dup = RuleBasedDetector("ruta_duplicada", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
 
-    # Cantidades anómalas con thresholds de Equipos Básicos
-    # Equipos Básicos requiere columna procedimiento (más estricto)
-    if indices.get("procedimiento") is not None:
+            # tipo_documento_edad rules
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            tipo_id_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
+
+            # tipo_identificacion_entidad rules
+            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            tipo_id_entidad = r1_ent + r2_ent
+
+            # Cantidades anomalas
+            cantidades = RuleBasedDetector("cantidades_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # codigo_entidad
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # tipo_usuario
+            tipo_usuario_eb = RuleBasedDetector("tipo_usuario_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # IDE Contrato equipos básicos
+            logger.info("detect_all_problems_equipos_basicos - Llamando detect_ide_contrato_odontologia")
+            ide_contrato = RuleBasedDetector("ide_contrato_equipos_basicos_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info("detect_all_problems_equipos_basicos - IDE Contrato encontrados: %d", len(ide_contrato))
+
+            # Profesionales equipos básicos
+            logger.info("detect_all_problems_equipos_basicos - Llamando detect_profesionales_equipos_basicos")
+            profesionales = RuleBasedDetector("profesional_equipos_validos", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info("detect_all_problems_equipos_basicos - Profesionales encontrados: %d", len(profesionales))
+
+            # Centro Costo
+            centro_costo = RuleBasedDetector("centro_costo_equipos_basicos_valido", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+
+            # CUPS sin contrato
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info(
+                "detect_all_problems_equipos_basicos - Cups Sin Contrato encontrados: %d",
+                len(cups_sin_contrato),
+            )
+
+            # ── Flush all evidence + create ResultadoAuditoria rows ──
+            if _PERSIST:
+                evidencias = collector.flush_batch(session)
+                if evidencias:
+                    regla_ids = {e.regla_id for e in evidencias}
+                    reglas_map = {
+                        r.id: r
+                        for r in session.query(Regla).filter(Regla.id.in_(regla_ids))
+                    }
+                    for ev in evidencias:
+                        if ev.outcome == "MATCH":
+                            resultado_str = "FAIL"
+                        elif ev.outcome == "ERROR":
+                            resultado_str = "ERROR"
+                        else:
+                            resultado_str = "PASS"
+                        rule = reglas_map.get(ev.regla_id)
+                        ra = ResultadoAuditoria(
+                            evidencia_id=ev.id,
+                            regla_id=ev.regla_id,
+                            regla_version=ev.regla_version,
+                            factura=ev.factura,
+                            param_config_id=ev.param_config_id,
+                            resultado=resultado_str,
+                            severidad=rule.severidad if rule else "error",
+                            mensaje=ev.error_mensaje or (rule.descripcion if rule else ""),
+                            detalles={"outcome": ev.outcome},
+                        )
+                        session.add(ra)
+                    session.flush()
+    else:
+        decimales = detect_decimales(data_sheet, indices)
+        doble_tipo = []
+        ruta_dup = detect_ruta_duplicada(
+            data_sheet, indices, threshold=EQUIPOS_BASICOS_RUTA_DUPLICADA_THRESHOLD
+        )
+        tipo_id_edad = []
+        tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
         cantidades = detect_cantidades_anomalas(
-            data_sheet,
-            indices,
+            data_sheet, indices,
             cantidad_consultas_min=EQUIPOS_BASICOS_CANTIDAD_CONSULTAS_MIN,
             cantidad_max_general=EQUIPOS_BASICOS_CANTIDAD_MAX,
             cantidad_pyp_min=EQUIPOS_BASICOS_CANTIDAD_PYP_MIN,
+        ) if indices.get("procedimiento") is not None else []
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
         )
-    else:
-        cantidades = []
-
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
-    tipo_usuario_eb = detect_tipo_usuario(data_sheet, indices)
-
-    # Detectores específicos de equipos básicos
-    logger.info("detect_all_problems_equipos_basicos - Llamando detect_ide_contrato_odontologia")
-    ide_contrato = detect_ide_contrato_odontologia(data_sheet, indices)
-    logger.info("detect_all_problems_equipos_basicos - IDE Contrato encontrados: %d", len(ide_contrato))
-
-    logger.info("detect_all_problems_equipos_basicos - Llamando detect_profesionales_equipos_basicos")
-    profesionales = detect_profesionales_equipos_basicos(data_sheet, indices)
-    logger.info("detect_all_problems_equipos_basicos - Profesionales encontrados: %d", len(profesionales))
-
-    centro_costo = detect_centro_costo_odontologia(
-        data_sheet,
-        indices,
-        profesional_dias=profesional_dias,
-        permitir_todos_centros=permitir_todos_centros,
-        centros_validos=[CENTRO_COSTO_EQUIPOS_BASICOS],
-    )
+        tipo_usuario_eb = detect_tipo_usuario(data_sheet, indices)
+        ide_contrato = detect_ide_contrato_odontologia(data_sheet, indices)
+        profesionales = []
+        centro_costo = []
+        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
     # Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
@@ -156,6 +283,7 @@ def detect_all_problems_equipos_basicos(
         entidad_afiliacion_comparison=entidad_afiliacion_comparison,
         tipo_usuario=tipo_usuario_eb,
         fec_factura_map=fec_factura_map,
+        cups_sin_contrato=cups_sin_contrato,
     )
 
     resultado: dict[str, Any] = {
@@ -173,6 +301,7 @@ def detect_all_problems_equipos_basicos(
             "tipo_usuario": tipo_usuario_eb,
             "centro_costo": centro_costo,
             "ide_contrato": ide_contrato,
+            "cups_sin_contrato": cups_sin_contrato,
         },
         "totales": {
             "decimales": len(decimales),
@@ -186,6 +315,7 @@ def detect_all_problems_equipos_basicos(
             "ide_contrato": len(ide_contrato),
             "codigo_entidad_vs_afiliacion": len(entidad_afiliacion_comparison),
             "tipo_usuario": len(tipo_usuario_eb),
+            "cups_sin_contrato": len(cups_sin_contrato),
         },
         "es_equipos_basicos": True,
         "missing_columns": [],
@@ -197,6 +327,8 @@ def detect_all_problems_equipos_basicos(
             if not isinstance(problems, list):
                 continue
             for p in problems:
+                if not isinstance(p, dict):
+                    continue
                 factura = p.get("factura")
                 if factura and factura in responsable_cierra:
                     p["responsable"] = responsable_cierra[factura]
@@ -207,6 +339,8 @@ def detect_all_problems_equipos_basicos(
             if not isinstance(problems, list):
                 continue
             for p in problems:
+                if not isinstance(p, dict):
+                    continue
                 if "responsable" not in p:
                     p["responsable"] = ""
 

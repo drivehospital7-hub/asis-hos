@@ -23,32 +23,39 @@
 
 ### 1. Tipo de Identificación vs Edad
 
-| Edad del paciente | Tipo esperado | Si no coincide |
-|-------------------|---------------|----------------|
-| **< 7 años** | **RC** (Registro Civil) | 🔴 Error |
-| **7 - 17 años** | **TI** (Tarjeta de Identidad) | 🔴 Error |
-| **≥ 18 años** | **CC** (Cédula de Ciudadanía) | 🔴 Error |
-| **< 2 meses** | **CN** (Certificado de Nacimiento) | 🔴 Error |
+La validación solo marca error cuando el tipo de documento es **incompatible con la edad** del paciente. Tipos sin restricción de edad (PT, SC, PE, PAS, NIP, NIT) no se validan contra edad.
 
-Casos especiales (menores sin registro):
-- < 18 años sin RC/TI → **MS** (Menor sin Identificación)
-- ≥ 18 años sin CC → **AS** (Adulto sin Identificación)
+| Edad del paciente | Solo marcan error si el tipo es... |
+|-------------------|------------------------------------|
+| **< 7 años** | **TI**, **TE**, **CC**, **AS** (requieren 7+ o 18+) |
+| **7 - 17 años** | **CC**, **AS**, **CE** (requieren 18+), **RC** (es para < 7) |
+| **≥ 18 años** | **TI**, **TE**, **RC** (son para < 18), **MS** (es para < 18) |
 
-#### Tipos de Documento No Válidos
+#### Tipos con Validación Específica
 
-Los siguientes tipos de documento NO están permitidos y deben marcarse como error:
+| Tipo | Descripción | Condición de error |
+|------|-------------|--------------------|
+| **CN** | Certificado de Nacido Vivo | Solo válido si edad < 2 meses. Si ≥ 2 meses → 🔴 Error |
+| **CE** | Cédula de Extranjería | Como CC: solo válido si edad ≥ 18 años. Si < 18 → 🔴 Error |
+| **TE** | Tarjeta de Extranjería | Como TI: válido para 7-17 años. Si < 7 o ≥ 18 → 🔴 Error |
+| **MS** | Menor sin Identificación | Solo válido si edad < 18 años. Si ≥ 18 → 🔴 Error |
+| **AS** | Adulto sin Identificación | Solo válido si edad ≥ 18 años. Si < 18 → 🔴 Error |
+| **RC** | Registro Civil | Válido para < 7 años |
+| **TI** | Tarjeta de Identidad | Válido para 7-17 años |
+| **CC** | Cédula de Ciudadanía | Válido para ≥ 18 años |
+
+#### Tipos sin Restricción de Edad
+
+Los siguientes tipos son válidos para cualquier edad:
 
 | Tipo | Descripción |
 |------|-------------|
-| **CN** | Solo válido si edad < 2 meses (ver regla arriba) |
-| **CE** | Cédula de Extranjería — no válido para este sistema |
-| **NIP** | Número de Identificación Personal — no válido |
-| **NIT** | Número de Identificación Tributaria — no válido |
-| **PAS** | Pasaporte — no válido |
-| **PE** | Permiso Especial — no válido |
-| **SC** | Salvoconducto — no válido |
-
-> **Nota**: Esta validación está implementada en el formato condicional (color rojo en la hoja de datos) pero NO se escribe en la hoja Revision.
+| **PT** | Permiso de Protección Temporal |
+| **SC** | Salvoconducto |
+| **PE** | Permiso Especial |
+| **PAS** | Pasaporte |
+| **NIP** | Número de Identificación Personal |
+| **NIT** | Número de Identificación Tributaria |
 
 ### 2. Decimales
 

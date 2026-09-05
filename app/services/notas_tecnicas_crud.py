@@ -53,7 +53,7 @@ def create(
     db: Session, 
     id_procedimiento: int, 
     id_nota_hoja: int, 
-    tarifa: float
+    tariff: float
 ) -> NotasTecnicas:
     """Crea una nueva nota técnica."""
     existing = get_by_procedimiento_and_nota(db, id_procedimiento, id_nota_hoja)
@@ -66,13 +66,13 @@ def create(
     obj = NotasTecnicas(
         id_procedimiento=id_procedimiento,
         id_nota_hoja=id_nota_hoja,
-        tarifa=tarifa
+        tariff=tariff
     )
     db.add(obj)
     db.commit()
     db.refresh(obj)
     
-    logger.info(f"Creada nota técnica: proc={id_procedimiento}, hoja={id_nota_hoja}, tarifa={tarifa}")
+    logger.info(f"Creada nota técnica: proc={id_procedimiento}, hoja={id_nota_hoja}, tariff={tariff}")
     return obj
 
 

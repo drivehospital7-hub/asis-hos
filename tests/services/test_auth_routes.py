@@ -435,7 +435,7 @@ class TestEditarUsuario:
                 data={
                     "username": "test_user",
                     "rol": "usuario",
-                    "permisos": ["odontologia"],
+                    "permisos": ["procesar"],
                     "primer_nombre": "Ana",
                     "apellido_1": "López",
                 },
@@ -583,7 +583,7 @@ class TestUsuarioAreas:
                     "username": "nuevo_user",
                     "password": "pass123",
                     "rol": "facturador",
-                    "permisos": ["urgencias"],
+                    "permisos": ["procesar"],
                     "primer_nombre": "Ana",
                     "apellido_1": "López",
                     "areas": ["urgencias", "odontologia"],
@@ -606,7 +606,7 @@ class TestUsuarioAreas:
 
             # Precondición real: el usuario ya tiene un área persistida
             users_store.create_user(
-                "nuevo_user", "pass123", "facturador", ["urgencias"],
+                "nuevo_user", "pass123", "facturador", ["procesar"],
                 areas=["urgencias"],
             )
             # Editar a otro set
@@ -615,7 +615,7 @@ class TestUsuarioAreas:
                 data={
                     "username": "nuevo_user",
                     "rol": "facturador",
-                    "permisos": ["urgencias"],
+                    "permisos": ["procesar"],
                     "areas": ["extramural"],
                 },
                 follow_redirects=True,
@@ -635,7 +635,7 @@ class TestUsuarioAreas:
 
             # Precondición real: el usuario ya tiene áreas persistidas
             users_store.create_user(
-                "nuevo_user", "pass123", "facturador", ["urgencias"],
+                "nuevo_user", "pass123", "facturador", ["procesar"],
                 areas=["urgencias", "odontologia"],
             )
             resp = app_client.post(
@@ -643,7 +643,7 @@ class TestUsuarioAreas:
                 data={
                     "username": "nuevo_user",
                     "rol": "facturador",
-                    "permisos": ["urgencias"],
+                    "permisos": ["procesar"],
                 },
                 follow_redirects=True,
             )

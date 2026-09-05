@@ -23,9 +23,7 @@ export default defineConfig({
     rollupOptions: {
       input: [
         path.resolve(__dirname, "src/pages/index/index.html"),
-        path.resolve(__dirname, "src/pages/urgencias/index.html"),
-        path.resolve(__dirname, "src/pages/odontologia/index.html"),
-        path.resolve(__dirname, "src/pages/odontologia-equipos-basicos/index.html"),
+        path.resolve(__dirname, "src/pages/procesar/index.html"),
         path.resolve(__dirname, "src/pages/derechos/index.html"),
         path.resolve(__dirname, "src/pages/ordenado-facturado/index.html"),
         path.resolve(__dirname, "src/pages/usuarios/index.html"),
@@ -33,6 +31,11 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/login/index.html"),
         path.resolve(__dirname, "src/pages/unauthorized/index.html"),
         path.resolve(__dirname, "src/pages/abiertas-urgencias/index.html"),
+        path.resolve(__dirname, "src/pages/catalogo/index.html"),
+        path.resolve(__dirname, "src/pages/admin-reglas/index.html"),
+        path.resolve(__dirname, "src/pages/cronograma-bacteriologas/index.html"),
+        path.resolve(__dirname, "src/pages/cronograma-urgencias/index.html"),
+        path.resolve(__dirname, "src/pages/auditoria/index.html"),
         path.resolve(__dirname, "src/pages/monitoreo-carpetas/index.html"),
         path.resolve(__dirname, "src/pages/examenes/index.html"),
         path.resolve(__dirname, "src/pages/busqueda-pdf/index.html"),
