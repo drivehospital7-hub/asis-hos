@@ -1,163 +1,57 @@
-"""Almacenamiento local de usuarios (JSON, sin DB).
+"""Almacenamiento de usuarios en la base de datos (SQLAlchemy facade).
 
-Provee persistencia entre sesiones via archivo instance/users.json.
-Si el archivo no existe, se crea con los usuarios por defecto al
-primer intento de lectura.
+La base de datos es la ÚNICA fuente de verdad para usuarios, roles,
+nombres y responsables. No hay fallback a JSON ni a constantes
+hardcodeadas: si la DB no está disponible, las operaciones fallan
+con error.
+
+Mantiene la API pública del antiguo store JSON
+(check_credentials/get_user/list_users/create_user/update_user/
+delete_user) y agrega get_facturadores()/get_validadores(). El esquema y los datos deben
+provisionarse explícitamente antes de usar esta fachada.
 """
 
-import json
 import logging
-import os
-from pathlib import Path
 from typing import Optional
 
-from werkzeug.security import generate_password_hash, check_password_hash
+from sqlalchemy.exc import SQLAlchemyError
+from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.constants.base import ALLOWED_PERMISOS, PERMISO_MUTUAL_EXCLUSION
+from app.constants.base import (
+    ALLOWED_PERMISOS,
+    PERMISO_MUTUAL_EXCLUSION,
+    PERMISO_RESPONSABLE_FACTURACION,
+    VALID_AREA_SLUGS,
+)
+from app.database import Base, SessionLocal
+from app.models import User, UserArea, VALID_ROLES
 
 logger = logging.getLogger(__name__)
 
-USERS_FILE = Path("instance") / "users.json"
-
-# Usuarios por defecto (se crean si el archivo no existe)
-DEFAULT_USERS = [
-    {
-        "username": "admin",
-        "password": "admin123",
-        "rol": "admin",
-        "permisos": ["*"],
-        "descripcion": "Acceso a todas las áreas",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "procesar",
-        "password": "procesar123",
-        "rol": "usuario",
-        "permisos": ["procesar"],
-        "descripcion": "Solo módulo de procesamiento unificado",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "procesar_full",
-        "password": "full123",
-        "rol": "usuario",
-        "permisos": ["procesar", "control_urgencias", "facturas_abiertas"],
-        "descripcion": "Procesar + control urgencias (solo lectura) + facturas abiertas",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-    {
-        "username": "auditor",
-        "password": "auditor123",
-        "rol": "usuario",
-        "permisos": [
-            "control_urgencias",
-            "control_urgencias:write",
-            "facturas_abiertas",
-            "facturas_abiertas:write",
-            "equipos_basicos",
-        ],
-        "descripcion": "Control urgencias + facturas abiertas + cruce reportes (con modificación)",
-        "primer_nombre": "",
-        "segundo_nombre": "",
-        "apellido_1": "",
-        "apellido_2": "",
-    },
-]
+def _new_session():
+    """Abre una sesión nueva (cerrada por cada función)."""
+    return SessionLocal()
 
 
-def _load_users() -> list:
-    """Carga usuarios desde el archivo JSON."""
-    if not USERS_FILE.exists():
-        _create_default_users()
-    try:
-        with open(USERS_FILE, "r", encoding="utf-8") as f:
-            users = json.load(f)
-    except (json.JSONDecodeError, OSError) as e:
-        logger.error("Error leyendo %s: %s", USERS_FILE, e)
-        return []
-
-    # Backfill: ensure all person fields exist for legacy users
-    person_fields = ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2")
-    changed = False
-    for u in users:
-        for field in person_fields:
-            if field not in u:
-                u[field] = ""
-                changed = True
-
-    # Migration: auto-replace old perms (urgencias, odontologia, odontologia_equipos_basicos) with procesar
-    OLD_PERMS = {"urgencias", "odontologia", "odontologia_equipos_basicos"}
-    for u in users:
-        perms = u.get("permisos", [])
-        if any(p in OLD_PERMS for p in perms):
-            new_perms = [p for p in perms if p not in OLD_PERMS]
-            if "procesar" not in new_perms:
-                new_perms.append("procesar")
-            u["permisos"] = new_perms
-            changed = True
-
-    if changed:
-        _save_users(users)
-
-    return users
-
-
-def _save_users(users: list) -> None:
-    """Guarda usuarios al archivo JSON (escritura atómica).
-
-    Escribe a un archivo temporal y luego usa os.replace() para
-    reemplazar el archivo original. Esto previene corrupción
-    por crash durante la escritura.
-    """
-    USERS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    tmp = USERS_FILE.with_suffix(".json.tmp")
-    with open(tmp, "w", encoding="utf-8") as f:
-        json.dump(users, f, indent=2, ensure_ascii=False)
-    os.replace(tmp, USERS_FILE)
-
-
-def _create_default_users() -> None:
-    """Crea el archivo con usuarios por defecto (hashea passwords)."""
-    users = []
-    for u in DEFAULT_USERS:
-        users.append(
-            {
-                "username": u["username"],
-                "password_hash": generate_password_hash(u["password"]),
-                "rol": u["rol"],
-                "permisos": u["permisos"],
-                "primer_nombre": u.get("primer_nombre", ""),
-                "segundo_nombre": u.get("segundo_nombre", ""),
-                "apellido_1": u.get("apellido_1", ""),
-                "apellido_2": u.get("apellido_2", ""),
-            }
-        )
-    _save_users(users)
-    logger.info(
-        "Archivo %s creado con %d usuarios por defecto",
-        USERS_FILE,
-        len(users),
-    )
+def _to_dict(user: User, include_hash: bool = False) -> dict:
+    """Convierte un User ORM a dict (sin password_hash por defecto)."""
+    data = {
+        "username": user.username,
+        "rol": user.rol,
+        "permisos": user.permisos or [],
+        "primer_nombre": user.primer_nombre or "",
+        "segundo_nombre": user.segundo_nombre or "",
+        "apellido_1": user.apellido_1 or "",
+        "apellido_2": user.apellido_2 or "",
+        "areas": sorted(ua.area for ua in user.areas),
+    }
+    if include_hash:
+        data["password_hash"] = user.password_hash
+    return data
 
 
 def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
-    """Verifica que no haya permisos mutuamente excluyentes.
-
-    Por ejemplo, 'control_urgencias' y 'control_urgencias:write'
-    no pueden estar ambos en la misma lista.
-
-    Returns:
-        (True, "") si está ok, (False, mensaje) si hay conflicto.
-    """
+    """Verifica que no haya permisos mutuamente excluyentes."""
     for p in permisos:
         conflicto = PERMISO_MUTUAL_EXCLUSION.get(p)
         if conflicto and conflicto in permisos:
@@ -169,54 +63,151 @@ def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
     return True, ""
 
 
+def _validate_areas(areas: list | None) -> tuple[bool, str]:
+    """Valida que cada slug de área esté en VALID_AREA_SLUGS.
+
+    None o lista vacía son válidos (usuario sin área → grupo "Sin área").
+    """
+    if not areas:
+        return True, ""
+    if not isinstance(areas, list):
+        return False, "Áreas debe ser una lista"
+    for a in areas:
+        if a not in VALID_AREA_SLUGS:
+            return False, f"Área inválida: {a}"
+    return True, ""
+
+
+# =============================================================================
+# API pública
+# =============================================================================
+
+
 def check_credentials(username: str, password: str) -> Optional[dict]:
-    """Valida credenciales contra el store local.
+    """Valida credenciales contra la tabla users.
 
     Returns:
-        dict con username, rol, permisos si es válido.
+        dict con username, rol, permisos y campos de nombre si es válido.
         None si las credenciales son incorrectas.
     """
-    users = _load_users()
-    for u in users:
-        if u["username"] == username and check_password_hash(
-            u["password_hash"], password
-        ):
-            return {
-                "username": u["username"],
-                "rol": u["rol"],
-                "permisos": u["permisos"],
-                "primer_nombre": u.get("primer_nombre", ""),
-                "segundo_nombre": u.get("segundo_nombre", ""),
-                "apellido_1": u.get("apellido_1", ""),
-                "apellido_2": u.get("apellido_2", ""),
-            }
-    return None
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user and check_password_hash(user.password_hash, password):
+            return _to_dict(user)
+        return None
+    finally:
+        db.close()
 
 
 def get_user(username: str) -> Optional[dict]:
     """Retorna un usuario completo (con password_hash) o None."""
-    users = _load_users()
-    for u in users:
-        if u["username"] == username:
-            return u
-    return None
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        return _to_dict(user, include_hash=True) if user else None
+    finally:
+        db.close()
+
+
+def get_user_by_id(user_id: int) -> Optional[dict]:
+    """Retorna un usuario por su id (sin password_hash) o None."""
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.id == user_id).first()
+        return _to_dict(user) if user else None
+    finally:
+        db.close()
 
 
 def list_users() -> list:
     """Retorna todos los usuarios (sin password_hash)."""
-    users = _load_users()
-    return [
-        {
-            "username": u["username"],
-            "rol": u["rol"],
-            "permisos": u["permisos"],
-            "primer_nombre": u.get("primer_nombre", ""),
-            "segundo_nombre": u.get("segundo_nombre", ""),
-            "apellido_1": u.get("apellido_1", ""),
-            "apellido_2": u.get("apellido_2", ""),
-        }
-        for u in users
-    ]
+    db = _new_session()
+    try:
+        users = db.query(User).order_by(User.username).all()
+        return [_to_dict(u) for u in users]
+    finally:
+        db.close()
+
+
+def get_facturadores() -> list[dict]:
+    """Retorna usuarios elegibles como responsables con identidad compuesta.
+
+    Son elegibles los usuarios con rol ``facturador`` o con el permiso
+    ``responsable_facturacion``. Cada dict incluye username, campos de nombre y ``nombre_completo``
+    (primer_nombre + apellido_1 en mayúsculas, sin segundo_nombre/
+    apellido_2). Excluye usuarios sin primer_nombre. Se conserva el nombre
+    de la función por compatibilidad con sus consumidores actuales.
+    """
+    db = _new_session()
+    try:
+        users = db.query(User).order_by(User.username).all()
+        result = []
+        for u in users:
+            if u.rol != "facturador" and PERMISO_RESPONSABLE_FACTURACION not in (u.permisos or []):
+                continue
+            primer_nombre = (u.primer_nombre or "").strip()
+            if not primer_nombre:
+                continue
+            apellido_1 = (u.apellido_1 or "").strip()
+            result.append(
+                {
+                    "username": u.username,
+                    "primer_nombre": primer_nombre,
+                    "segundo_nombre": (u.segundo_nombre or "").strip(),
+                    "apellido_1": apellido_1,
+                    "apellido_2": (u.apellido_2 or "").strip(),
+                    "nombre_completo": " ".join(
+                        n for n in [primer_nombre, apellido_1] if n
+                    ).upper(),
+                    "rol": u.rol,
+                    "areas": sorted(ua.area for ua in u.areas),
+                }
+            )
+        return result
+    finally:
+        db.close()
+
+
+def get_validadores() -> list[dict]:
+    """Retorna usuarios con rol ``validador`` o ``admin``.
+
+    Los admins (p. ej. Alexis) también figuran en el select de validadores
+    para poder filtrar por ellos. La identidad visible se compone de primer
+    nombre y primer apellido para coincidir con el valor persistido en cada
+    novedad. Nunca expone hashes.
+    """
+    db = _new_session()
+    try:
+        users = (
+            db.query(User)
+            .filter(User.rol.in_(["validador", "admin"]))
+            .order_by(User.username)
+            .all()
+        )
+        result = []
+        for u in users:
+            primer_nombre = (u.primer_nombre or "").strip()
+            if not primer_nombre:
+                continue
+            apellido_1 = (u.apellido_1 or "").strip()
+            result.append(
+                {
+                    "username": u.username,
+                    "primer_nombre": primer_nombre,
+                    "segundo_nombre": (u.segundo_nombre or "").strip(),
+                    "apellido_1": apellido_1,
+                    "apellido_2": (u.apellido_2 or "").strip(),
+                    "nombre_completo": " ".join(
+                        n for n in [primer_nombre, apellido_1] if n
+                    ).upper(),
+                    "rol": u.rol,
+                    "areas": sorted(ua.area for ua in u.areas),
+                }
+            )
+        return result
+    finally:
+        db.close()
 
 
 def create_user(
@@ -228,35 +219,53 @@ def create_user(
     segundo_nombre: str = "",
     apellido_1: str = "",
     apellido_2: str = "",
+    areas: list | None = None,
 ) -> tuple:
     """Crea un nuevo usuario.
 
+    ``areas`` (opcional): slugs de área organizacional validados contra
+    VALID_AREA_SLUGS. Se persisten como filas en user_areas (sin migración).
+
     Returns:
-        (True, mensaje) si se creó, (False, mensaje) si ya existe.
+        (True, mensaje) si se creó, (False, mensaje) si ya existe o hay error.
     """
-    users = _load_users()
+    db = _new_session()
+    try:
+        if db.query(User).filter(User.username == username).first():
+            return False, f"El usuario '{username}' ya existe"
 
-    if any(u["username"] == username for u in users):
-        return False, f"El usuario '{username}' ya existe"
+        if rol not in VALID_ROLES:
+            return False, f"Rol inválido: {rol}"
 
-    ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
-    if not ok_exclusion:
-        return False, msg_exclusion
+        ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
+        if not ok_exclusion:
+            return False, msg_exclusion
 
-    users.append(
-        {
-            "username": username,
-            "password_hash": generate_password_hash(password),
-            "rol": rol,
-            "permisos": permisos,
-            "primer_nombre": primer_nombre,
-            "segundo_nombre": segundo_nombre,
-            "apellido_1": apellido_1,
-            "apellido_2": apellido_2,
-        }
-    )
-    _save_users(users)
-    return True, f"Usuario '{username}' creado"
+        ok_areas, msg_areas = _validate_areas(areas)
+        if not ok_areas:
+            return False, msg_areas
+
+        db.add(
+            User(
+                username=username,
+                password_hash=generate_password_hash(password),
+                rol=rol,
+                permisos=permisos,
+                primer_nombre=primer_nombre,
+                segundo_nombre=segundo_nombre,
+                apellido_1=apellido_1,
+                apellido_2=apellido_2,
+                areas=[UserArea(area=a) for a in (areas or [])],
+            )
+        )
+        db.commit()
+        logger.info("[BACK] Usuario '%s' creado (rol=%s)", username, rol)
+        return True, f"Usuario '{username}' creado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def update_user(username: str, updates: dict) -> tuple:
@@ -264,75 +273,83 @@ def update_user(username: str, updates: dict) -> tuple:
 
     Los campos en `updates` son opcionales:
       - password: str|None — Si es None o "", se omite (no cambia).
-      - rol: str — Debe ser "admin" o "usuario".
+      - rol: str — Debe estar en VALID_ROLES.
       - permisos: list — Cada elemento debe estar en ALLOWED_PERMISOS.
+      - areas: list — Slugs de área validados contra VALID_AREA_SLUGS;
+        replace-all (si la key está ausente, las áreas no se tocan).
+      - primer_nombre/segundo_nombre/apellido_1/apellido_2 — parciales.
 
     Returns:
         (True, mensaje) si se actualizó, (False, mensaje) si hay error.
     """
-    users = _load_users()
-    target = None
-    for u in users:
-        if u["username"] == username:
-            target = u
-            break
+    db = _new_session()
+    try:
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            return False, f"Usuario '{username}' no encontrado"
 
-    if target is None:
-        return False, f"Usuario '{username}' no encontrado"
+        # Password opcional
+        password = updates.get("password")
+        if password and isinstance(password, str) and password.strip():
+            user.password_hash = generate_password_hash(password)
 
-    # Construir dict actualizado
-    updated = dict(target)
+        # Rol con validación
+        if "rol" in updates:
+            rol = updates["rol"]
+            if rol not in VALID_ROLES:
+                return False, f"Rol inválido: {rol}"
+            user.rol = rol
 
-    # Password opcional
-    password = updates.get("password")
-    if password and isinstance(password, str) and password.strip():
-        updated["password_hash"] = generate_password_hash(password)
+        # Permisos con validación
+        if "permisos" in updates:
+            nuevos_permisos = updates["permisos"]
+            if not isinstance(nuevos_permisos, list):
+                return False, "Permisos debe ser una lista"
 
-    # Rol con validación
-    if "rol" in updates:
-        rol = updates["rol"]
-        if rol not in ("admin", "usuario"):
-            return False, "Rol inválido: debe ser admin o usuario"
-        updated["rol"] = rol
+            for p in nuevos_permisos:
+                if p not in ALLOWED_PERMISOS:
+                    return False, f"Permiso inválido: {p}"
 
-    # Permisos con validación
-    if "permisos" in updates:
-        nuevos_permisos = updates["permisos"]
-        if not isinstance(nuevos_permisos, list):
-            return False, "Permisos debe ser una lista"
+            ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
+            if not ok_exclusion:
+                return False, msg_exclusion
 
-        # Validar contra lista permitida
-        for p in nuevos_permisos:
-            if p not in ALLOWED_PERMISOS:
-                return False, f"Permiso inválido: {p}"
+            # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
+            if "*" in (user.permisos or []) and "*" not in nuevos_permisos:
+                return (
+                    False,
+                    "No puedes remover el permiso de administrador de este usuario",
+                )
 
-        # Validar exclusión mutua (read vs write del mismo módulo)
-        ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
-        if not ok_exclusion:
-            return False, msg_exclusion
+            user.permisos = nuevos_permisos
 
-        # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
-        if "*" in target.get("permisos", []) and "*" not in nuevos_permisos:
-            return (
-                False,
-                "No puedes remover el permiso de administrador de este usuario",
+        # Áreas con validación. Replace-all para slugs VÁLIDOS; las filas
+        # legacy ya persistidas (fuera de VALID_AREA_SLUGS) se conservan:
+        # no se borran datos históricos sin migración explícita.
+        if "areas" in updates:
+            ok_areas, msg_areas = _validate_areas(updates["areas"])
+            if not ok_areas:
+                return False, msg_areas
+            conservadas = sorted(
+                {ua.area for ua in user.areas} - set(VALID_AREA_SLUGS)
             )
+            user.areas = [
+                UserArea(area=a)
+                for a in (updates["areas"] or []) + conservadas
+            ]
 
-        updated["permisos"] = nuevos_permisos
+        # Person fields (partial update — solo si están presentes)
+        for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
+            if key in updates:
+                setattr(user, key, updates[key])
 
-    # Person fields (partial update — only if present in updates dict)
-    for key in ("primer_nombre", "segundo_nombre", "apellido_1", "apellido_2"):
-        if key in updates:
-            updated[key] = updates[key]
-
-    # Reemplazar en la lista
-    for i, u in enumerate(users):
-        if u["username"] == username:
-            users[i] = updated
-            break
-
-    _save_users(users)
-    return True, f"Usuario '{username}' actualizado"
+        db.commit()
+        return True, f"Usuario '{username}' actualizado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 def delete_user(username: str) -> tuple:
@@ -344,12 +361,21 @@ def delete_user(username: str) -> tuple:
         (True, mensaje) si se eliminó, (False, mensaje) si no existe
         o si es admin.
     """
-    if username == "admin":
-        return False, "No se puede eliminar el usuario admin"
+    db = _new_session()
+    try:
+        if username == "admin":
+            return False, "No se puede eliminar el usuario admin"
 
-    users = _load_users()
-    filtered = [u for u in users if u["username"] != username]
-    if len(filtered) == len(users):
-        return False, f"Usuario '{username}' no encontrado"
-    _save_users(filtered)
-    return True, f"Usuario '{username}' eliminado"
+        user = db.query(User).filter(User.username == username).first()
+        if user is None:
+            return False, f"Usuario '{username}' no encontrado"
+
+        db.delete(user)
+        db.commit()
+        logger.info("[BACK] Usuario '%s' eliminado", username)
+        return True, f"Usuario '{username}' eliminado"
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    finally:
+        db.close()

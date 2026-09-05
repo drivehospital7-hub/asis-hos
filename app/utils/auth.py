@@ -7,7 +7,7 @@ Usa session['permisos'] para verificar acceso.
 from functools import wraps
 
 from flask import flash, jsonify, redirect, render_template, request, url_for, session
-from app.utils.auth_session import is_authenticated
+from app.utils.auth_session import do_logout, is_authenticated
 
 
 def login_requerido(f):
@@ -71,7 +71,8 @@ def permiso_requerido(*permisos):
                 }), 403
 
             flash("No tiene permiso para acceder a esta sección", "error")
-            return redirect(url_for("home.home_react"))
+            do_logout()
+            return redirect(url_for("auth.login"))
         return decorated
     return decorator
 
@@ -91,6 +92,7 @@ def admin_requerido(f):
                     "errors": ["Permiso denegado"],
                 }), 403
             flash("Acceso denegado", "error")
-            return redirect(url_for("home.home_react"))
+            do_logout()
+            return redirect(url_for("auth.login"))
         return f(*args, **kwargs)
     return decorated

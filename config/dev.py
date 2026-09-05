@@ -10,6 +10,9 @@ class DevConfig:
     
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-change-in-prod")
     
+    # Base URL pública para los links de adjuntos del export (vacío = request.host_url)
+    EXPORT_BASE_URL = os.getenv("EXPORT_BASE_URL", "")
+    
     # Límite de 50MB para uploads (proteger contra archivos gigante)
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB
     

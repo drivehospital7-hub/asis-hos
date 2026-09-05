@@ -331,3 +331,126 @@ class TestVerificarYComparar4Valores:
         assert len(discrepancies) == 0
         assert stats.cache_hits == 0
         assert stats.api_calls_necesarias == 1  # 1 unique - 0 cache hits
+
+    # ── "Hijo de"/"Hija de" forced gender ──────────────────────────────
+
+    def test_hijo_de_matching_sexo_no_discrepancy(self):
+        """GIVEN 'Hijo de' with sexo_excel='M', WHEN verificar, THEN no discrepancy."""
+        mock_data = [
+            self._make_result("FAC-010", "Hijo de", sexo="M", segundo_nombre="Juan"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 0
+        assert stats.api_calls_necesarias == 0  # forced name excluded from API count
+
+    def test_hijo_de_mismatching_sexo_creates_discrepancy(self):
+        """GIVEN 'Hijo de' with sexo_excel='F', WHEN verificar, THEN discrepancy (expected M)."""
+        mock_data = [
+            self._make_result("FAC-011", "Hijo de", sexo="F", segundo_nombre="Juan"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 1
+        assert discrepancies[0].sexo_excel == "F"
+        assert discrepancies[0].sexo_api == "M"
+        assert "hijo de juan" in discrepancies[0].nombre_normalizado
+
+    def test_hija_de_matching_sexo_no_discrepancy(self):
+        """GIVEN 'Hija de' with sexo_excel='F', WHEN verificar, THEN no discrepancy."""
+        mock_data = [
+            self._make_result("FAC-012", "Hija de", sexo="F", segundo_nombre="Maria"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 0
+        assert stats.api_calls_necesarias == 0  # forced name excluded from API count
+
+    def test_hija_de_mismatching_sexo_creates_discrepancy(self):
+        """GIVEN 'Hija de' with sexo_excel='M', WHEN verificar, THEN discrepancy (expected F)."""
+        mock_data = [
+            self._make_result("FAC-013", "Hija de", sexo="M", segundo_nombre="Maria"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 1
+        assert discrepancies[0].sexo_excel == "M"
+        assert discrepancies[0].sexo_api == "F"
+        assert "hija de maria" in discrepancies[0].nombre_normalizado
+
+    def test_hijo_de_full_primer_nombre_matching(self):
+        """GIVEN 'HIJO DE DARIANA' in primer_nombre (no segundo_nombre), WHEN verificar, THEN no discrepancy."""
+        mock_data = [
+            self._make_result("FAC-014", "HIJO DE DARIANA", sexo="M"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 0
+        assert stats.api_calls_necesarias == 0
+
+    def test_hija_de_full_primer_nombre_matching(self):
+        """GIVEN 'HIJA DE MARIA' in primer_nombre (no segundo_nombre), WHEN verificar, THEN no discrepancy."""
+        mock_data = [
+            self._make_result("FAC-015", "HIJA DE MARIA", sexo="F"),
+        ]
+        mock_cache = {}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        assert len(discrepancies) == 0
+        assert stats.api_calls_necesarias == 0
+
+    def test_mixed_forced_cache_and_miss_stats(self):
+        """GIVEN forced + cache hit + cache miss, THEN only forced + cache hit checked, stats correct."""
+        mock_data = [
+            self._make_result("FAC-020", "Ana", sexo="M"),
+            self._make_result("FAC-021", "Pedro", sexo="M"),
+            self._make_result("FAC-022", "Hijo de", sexo="M", segundo_nombre="Luis"),
+            self._make_result("FAC-023", "Hija de", sexo="F", segundo_nombre="Laura"),
+        ]
+        mock_cache = {"ana": {"gender": "female", "probability": 0.95, "count": 50}}
+        with (
+            patch("app.services.genderize_verifier.extract_factura_nombre_sexo", return_value=mock_data),
+            patch("app.services.genderize_verifier._load_cache", return_value=mock_cache),
+        ):
+            stats, discrepancies = verificar_y_comparar("dummy.xlsx")
+
+        # Ana: cache hit, Excel=M, cache=female=F → discrepancia
+        # Pedro: cache miss, skipped
+        # Hijo de Luis: forced male, Excel=M → OK
+        # Hija de Laura: forced female, Excel=F → OK
+        assert len(discrepancies) == 1
+        assert discrepancies[0].numero_factura == "FAC-020"
+        assert discrepancies[0].sexo_excel == "M"
+        assert discrepancies[0].sexo_api == "F"
+        # Stats: 4 unique, 1 cache hit (ana), 1 miss (pedro), 2 forced
+        assert stats.api_calls_necesarias == 1  # solo pedro necesita API
+        assert stats.cache_hits == 1

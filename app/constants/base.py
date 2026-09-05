@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+
 # =============================================================================
 # EXCEL - Formatos soportados
 # =============================================================================
@@ -40,6 +42,32 @@ TIPO_USUARIO_VALORES = frozenset({
 
 
 # =============================================================================
+# GENDERIZE - Valores canónicos de género
+# =============================================================================
+
+GENDER_FEMALE = "female"
+GENDER_MALE = "male"
+GENDER_LASTNAME = "lastname"
+GENDER_UNDEFINED = "undefined"
+
+GENDER_DISPLAY_MAP: dict[str, str] = {
+    "F": "female",
+    "M": "male",
+    "L": "lastname",
+    "U": "undefined",
+}
+
+GENDER_CACHE_MAP: dict[str, str] = {
+    "female": "F",
+    "male": "M",
+    "lastname": "L",
+    "undefined": "U",
+}
+
+GENDER_VALID_SHORT = frozenset({"F", "M", "L", "U"})
+GENDER_VALID_LONG = frozenset({"female", "male", "lastname", "undefined"})
+
+# =============================================================================
 # AREAS - Áreas del sistema de facturación
 # =============================================================================
 
@@ -55,8 +83,39 @@ AREA_UNIFICADA = "unificada"
 AREA_AUDITORIA = "auditoria"
 
 # =============================================================================
+# ÁREAS ORGANIZACIONALES - Vocabulario canónico de áreas organizacionales
+# =============================================================================
+# Fuente única de verdad para el agrupamiento de responsables por área
+# (sdd Empieza). Los slugs se persisten en user_areas (string libre, sin
+# migración). AREAS_VALIDAS de app/models.py es el mismo vocabulario.
+# Las filas legacy ya persistidas (equipos_basicos / cruce_facturas /
+# derechos) se conservan en la DB pero ya NO son válidas ni selectables.
+
+# Slug canónico → label, en orden de presentación. SOLO estas 4 áreas son
+# válidas/selectables.
+ORGANIZATIONAL_AREAS = [
+    {"slug": "urgencias", "label": "Urgencias"},
+    {"slug": "ambulatoria", "label": "Ambulatoria"},
+    {"slug": "extramural", "label": "Extramural"},
+    {"slug": "odontologia", "label": "Odontología"},
+]
+
+# Todos los slugs válidos: exactamente los canónicos (sin legacy).
+VALID_AREA_SLUGS = frozenset({a["slug"] for a in ORGANIZATIONAL_AREAS})
+
+# Label por slug (solo los válidos).
+AREA_LABELS = {
+    "urgencias": "Urgencias",
+    "ambulatoria": "Ambulatoria",
+    "extramural": "Extramural",
+    "odontologia": "Odontología",
+}
+
+# =============================================================================
 # PERMISOS - Valores de permiso válidos
 # =============================================================================
+
+PERMISO_RESPONSABLE_FACTURACION = "responsable_facturacion"
 
 ALLOWED_PERMISOS = frozenset({
     "*",
@@ -73,6 +132,11 @@ ALLOWED_PERMISOS = frozenset({
     "busqueda_pdf",
     "cronograma_bacteriologas",
     "cronograma_urgencias",
+    "monitoreo_carpetas",
+    "monitoreo_carpetas:write",
+    "examenes",
+    "examenes:write",
+    PERMISO_RESPONSABLE_FACTURACION,
 })
 
 # =============================================================================
@@ -111,6 +175,10 @@ PERMISO_MUTUAL_EXCLUSION: dict[str, str] = {
     "control_urgencias:write": "control_urgencias",
     "facturas_abiertas": "facturas_abiertas:write",
     "facturas_abiertas:write": "facturas_abiertas",
+    "monitoreo_carpetas": "monitoreo_carpetas:write",
+    "monitoreo_carpetas:write": "monitoreo_carpetas",
+    "examenes": "examenes:write",
+    "examenes:write": "examenes",
 }
 
 # =============================================================================
@@ -174,6 +242,19 @@ def is_evidence_audit_enabled() -> bool:
     return _os.getenv("SKIP_EVIDENCE_AUDIT", "false").lower() != "true"
 
 # =============================================================================
+# INTEGRACIÓN LAN - Tokens de API y HTTPS
+# =============================================================================
+
+# TTL por defecto de los tokens de integración (días).
+API_TOKEN_TTL_DAYS = 90
+
+# HTTPS is recommended for LAN integration. HTTP is a temporary exception for
+# the current LAN deployment; set INTEGRATION_HTTPS_REQUIRED=true to enforce TLS.
+INTEGRATION_HTTPS_REQUIRED = (
+    os.getenv("INTEGRATION_HTTPS_REQUIRED", "false").strip().lower() == "true"
+)
+
+# =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
 # =============================================================================
 
@@ -191,8 +272,20 @@ CANTIDAD_PYP_MIN = 3            # PyP >= 3 es anómalo
 
 IMAGENES_DIR = "data/imagenes"
 IMAGENES_MAX_PER_OBSERVACION = 3
-IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"})
+IMAGENES_ALLOWED_TYPES = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf"}) | ALLOWED_EXCEL_SUFFIXES
 IMAGENES_MAX_SIZE_MB = 20
+
+# Scope de adjuntos del facturador: aisla los archivos del facturador en
+# data/imagenes/{id}/facturador/ con cupo max-3 propio (FA-1). El scope ""
+# (observación) conserva el comportamiento legacy.
+IMAGENES_FACTURADOR_SCOPE = "facturador"
+# Allowlist de scopes válidos: el scope alimenta un componente de ruta, así
+# que TODO valor fuera de este set se rechaza (R2/D2).
+IMAGENES_SCOPES = frozenset({"", IMAGENES_FACTURADOR_SCOPE})
+# Sidecar de ownership: mapeo {filename: username} por scope. Es un dotfile,
+# así que `listar_imagenes` lo excluye (no cuenta para cupo, no se exporta ni
+# se sirve) y ``_get_imagenes_dir`` lo crea junto al scope (FA-7/R3).
+IMAGENES_OWNER_SIDECAR = ".owner.json"
 
 # =============================================================================
 # FILE SIZE - Límite de tamaño para archivos Excel subidos
@@ -242,7 +335,7 @@ DASHBOARD_AREAS = [
         "title": "Control de Novedades",
         "slug": "control_errores",
         "permiso": "control_urgencias",
-        "href": "/control-errores",
+        "href": "/control-novedades",
         "tone": "warning",
         "pending_label": "pendientes",
         "description": "Registro y seguimiento de novedades en facturación.",
@@ -291,6 +384,24 @@ DASHBOARD_AREAS = [
         "tone": "info",
         "pending_label": "",
         "description": "Búsqueda de términos Condición y Transporte en PDFs de accidentes.",
+    },
+    {
+        "title": "Monitoreo de Carpetas",
+        "slug": "monitoreo_carpetas",
+        "permiso": "monitoreo_carpetas",
+        "href": "/monitoreo-carpetas",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Escaneo y monitoreo de carpetas de red de facturadores.",
+    },
+    {
+        "title": "Exámenes",
+        "slug": "examenes",
+        "permiso": "examenes",
+        "href": "/examenes",
+        "tone": "info",
+        "pending_label": "",
+        "description": "Laboratorio: consulta de exámenes, listado y prefacturación.",
     },
     {
         "title": "Usuarios",

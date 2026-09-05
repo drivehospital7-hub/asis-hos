@@ -3,7 +3,8 @@ export const NOMBRE_MAP: Record<string, string> = {
   CARLOS: "CARLOS OMAR",
   ALEJANDRA: "ALEJANDRA ESPAÑA",
   YULIETH: "DANIELA PAEZ",
-  CAROLINA: "ANGIE ARIAS",
+  MARINEY: "MARINEY DIAZ",
+  CAROLINA: "MARINEY DIAZ",
 };
 
 /** Toast auto-dismiss duration in milliseconds. */

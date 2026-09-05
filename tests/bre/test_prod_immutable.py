@@ -43,12 +43,13 @@ def test_sha256_is_stable_and_content_sensitive(tmp_path: Path) -> None:
 
 
 def test_baseline_capture_is_byte_identical_on_rerun() -> None:
+    # AUTH=DB by design: users.json is not a pinned prod ref (DB is source
+    # of truth). Only base.py is pinned; see tests/bre/prod_digests.json.
     refs = [
-        Path("instance/users.json"),
         Path("app/constants/base.py"),
     ]
     first = capture_baseline(refs)
     second = capture_baseline(refs)
     assert first == second
-    assert set(first) == {"instance/users.json", "app/constants/base.py"}
+    assert set(first) == {"app/constants/base.py"}
     assert all(len(digest) == 64 for digest in first.values())

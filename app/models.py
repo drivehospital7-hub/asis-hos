@@ -1,7 +1,7 @@
 """Modelos SQLAlchemy para notas técnicas y motor de reglas de auditoría."""
 
 from sqlalchemy import (
-    Column, Integer, String, Numeric, Text, Boolean,
+    JSON, Column, Integer, String, Numeric, Text, Boolean, DateTime,
     ForeignKey, Index, UniqueConstraint, Table,
 )
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP
@@ -9,6 +9,126 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 
 from app.database import Base
+
+
+# JSONB en PostgreSQL, JSON genérico en SQLite.
+# Merge-integration: el fixture global de tests (`tests/conftest.py::_db_users_store`)
+# crea todo el schema en SQLite en memoria; sin esta variante, cualquier
+# columna JSONB rompe la suite con `can't render element of type JSONB`.
+# En prod (PostgreSQL) el tipo sigue siendo JSONB — sin cambios.
+JSONB_COMPAT = JSONB().with_variant(JSON(), "sqlite")
+
+
+# Roles asignables a un usuario. La DB es la única fuente de verdad
+# para usuarios y roles (sdd: control-errores-role-visibility).
+VALID_ROLES = frozenset({"admin", "usuario", "facturador", "validador", "medico"})
+
+
+class User(Base):
+    """Usuarios del sistema."""
+    __tablename__ = "users"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(256), nullable=False)
+    rol = Column(String(20), nullable=False, default="usuario")
+    # Campos de nombre de la persona (para identidad de facturadores)
+    primer_nombre = Column(String(100), nullable=False, default="")
+    segundo_nombre = Column(String(100), nullable=False, default="")
+    apellido_1 = Column(String(100), nullable=False, default="")
+    apellido_2 = Column(String(100), nullable=False, default="")
+    # Permisos como lista JSON (ej: ["control_urgencias", "facturas_abiertas"])
+    permisos = Column(JSON, nullable=False, default=list)
+    
+    # Relationships
+    areas = relationship("UserArea", back_populates="user", cascade="all, delete-orphan")
+    
+    # Métodos requeridos por Flask-Login
+    @property
+    def is_authenticated(self):
+        return True
+    
+    @property
+    def is_active(self):
+        return True
+    
+    @property
+    def is_anonymous(self):
+        return False
+    
+    def get_id(self):
+        return str(self.id)
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "username": self.username,
+            "rol": self.rol,
+            "permisos": self.permisos or [],
+            "primer_nombre": self.primer_nombre or "",
+            "segundo_nombre": self.segundo_nombre or "",
+            "apellido_1": self.apellido_1 or "",
+            "apellido_2": self.apellido_2 or "",
+            "areas": [ua.area for ua in self.areas]
+        }
+
+
+class UserArea(Base):
+    """Relación muchos a muchos entre usuarios y áreas."""
+    __tablename__ = "user_areas"
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    area = Column(String(50), nullable=False)
+    
+    # Relationships
+    user = relationship("User", back_populates="areas")
+    
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "area": self.area
+        }
+
+
+class ApiToken(Base):
+    """Bearer token de integración LAN, vinculado a un usuario validador.
+
+    Solo se persiste el hash SHA-256 del token; el valor en claro se muestra
+    una única vez al emitirse. La rotación revoca el token anterior e invalida
+    el valor en uso. ``revoked_at``/``expires_at`` controlan el ciclo de vida.
+    """
+    __tablename__ = "api_tokens"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    token_hash = Column(String(64), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    created_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=True)
+    revoked_at = Column(DateTime, nullable=True)
+
+    user = relationship("User")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "user_id": self.user_id,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "expires_at": self.expires_at.isoformat() if self.expires_at else None,
+            "revoked_at": self.revoked_at.isoformat() if self.revoked_at else None,
+        }
+
+
+# Áreas válidas del sistema — exactamente las 4 canónicas (sdd Empieza).
+# Los slugs legacy (equipos_basicos / cruce_facturas / derechos) ya no son
+# válidos ni selectables; las filas históricas en user_areas se conservan.
+AREAS_VALIDAS = [
+    "urgencias",
+    "ambulatoria",
+    "extramural",
+    "odontologia",
+]
 
 
 class EpsContratado(Base):
@@ -140,8 +260,8 @@ class Regla(Base):
     estado = Column(String(20), nullable=False, default="draft")
     version = Column(Integer, nullable=False, default=1)
     prioridad = Column(Integer, nullable=False, default=100)
-    parametros = Column(JSONB, nullable=True)
-    parametros_default = Column(JSONB, nullable=True)
+    parametros = Column(JSONB_COMPAT, nullable=True)
+    parametros_default = Column(JSONB_COMPAT, nullable=True)
     severidad = Column(String(20), nullable=False, default="error")
     activo = Column(Boolean, nullable=False, default=True)
     creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
@@ -196,7 +316,7 @@ class Condicion(Base):
     tipo = Column(String(10), nullable=False)
     operador = Column(String(50), nullable=True)
     fuente_datos = Column(String(100), nullable=True)
-    valor_esperado = Column(JSONB, nullable=True)
+    valor_esperado = Column(JSONB_COMPAT, nullable=True)
     orden = Column(Integer, nullable=False, default=0)
 
     # Relationships
@@ -230,8 +350,8 @@ class Excepcion(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     regla_id = Column(Integer, ForeignKey("reglas.id"), nullable=False)
     tipo_efecto = Column(String(20), nullable=False)
-    condicion_json = Column(JSONB, nullable=False)
-    parametros_override = Column(JSONB, nullable=True)
+    condicion_json = Column(JSONB_COMPAT, nullable=False)
+    parametros_override = Column(JSONB_COMPAT, nullable=True)
     activo = Column(Boolean, nullable=False, default=True)
     creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
     expira_en = Column(TIMESTAMP(timezone=False), nullable=True)
@@ -268,7 +388,7 @@ class ResultadoAuditoria(Base):
     resultado = Column(String(10), nullable=False)
     severidad = Column(String(20), nullable=False)
     mensaje = Column(Text, nullable=True)
-    detalles = Column(JSONB, nullable=True)
+    detalles = Column(JSONB_COMPAT, nullable=True)
     creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
 
     # Relationships
@@ -305,9 +425,9 @@ class Evidencia(Base):
     factura = Column(String(50), nullable=False)
     param_config_id = Column(Integer, nullable=True)
     outcome = Column(String(10), nullable=False)
-    arbol_evaluado = Column(JSONB, nullable=False)
-    snapshot_fila = Column(JSONB, nullable=False)
-    snapshot_referencia = Column(JSONB, nullable=True)
+    arbol_evaluado = Column(JSONB_COMPAT, nullable=False)
+    snapshot_fila = Column(JSONB_COMPAT, nullable=False)
+    snapshot_referencia = Column(JSONB_COMPAT, nullable=True)
     error_mensaje = Column(Text, nullable=True)
     creado_en = Column(TIMESTAMP(timezone=False), nullable=False, server_default=func.now())
 
@@ -348,7 +468,7 @@ class Catalogo(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     key = Column(String(200), unique=True, nullable=False)
-    value = Column(JSONB, nullable=False, server_default="[]")
+    value = Column(JSONB_COMPAT, nullable=False, server_default="[]")
     dominio = Column(Text, nullable=True)
     descripcion = Column(Text, nullable=True)
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

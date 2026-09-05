@@ -54,6 +54,8 @@
           'abiertas_urgencias.abiertas_urgencias_react': {'label': 'Abiertas Urgencias', 'icon': 'CalendarClock'},
           'ordenado_facturado.ordenado_facturado_react': {'label': 'Ordenado y Facturado', 'icon': 'FileSpreadsheet'},
           'derechos.derechos_react':       {'label': 'Derechos',        'icon': 'Scale'},
+          'monitoreo_carpetas.index':      {'label': 'Monitoreo de Carpetas', 'icon': 'FolderSearch'},
+          'examenes.examenes_react':       {'label': 'Exámenes',        'icon': 'FlaskConical'},
           'auth.usuarios_react':           {'label': 'Usuarios',        'icon': 'Users'},
         } %}
 
@@ -93,9 +95,11 @@
                avoid duplicating nav items when user has both X and X:write. #}
             {% set _ep_map = {
               'control_urgencias':            'control_errores.control_errores_page',
-              'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
               'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
+              'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
               'derechos':                     'derechos.derechos_react',
+              'monitoreo_carpetas':           'monitoreo_carpetas.index',
+              'examenes':                     'examenes.examenes_react',
               '*':                            'auth.usuarios_react',
             } %}
             {% for key, ep in _ep_map.items() %}
@@ -198,8 +202,9 @@
       {% endwith %}
 
       {# ── MAIN CONTENT ── #}
-      <main class="flex-1 pb-8 pt-4">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6">
+      <main class="flex-1 pb-8" style="padding-top: calc(3.5rem + 25px);">
+        {% block content_wide %}{% endblock %}
+        <div class="max-w-8xl mx-auto px-4 sm:px-20">
           {% block content %}{% endblock %}
         </div>
       </main>

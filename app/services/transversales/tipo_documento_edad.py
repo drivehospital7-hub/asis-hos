@@ -91,6 +91,7 @@ def detect_tipo_documento_edad(
             
             # Calcular edad en meses para validaciones especiales (CN)
             edad_meses = (fecha_fact.year - fecha_nac.year) * 12 + (fecha_fact.month - fecha_nac.month)
+            # Si el día de factura es menor al día de nacimiento, el mes no se ha completado
             if fecha_fact.day < fecha_nac.day:
                 edad_meses -= 1
             

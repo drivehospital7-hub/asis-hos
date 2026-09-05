@@ -90,6 +90,13 @@ app/data/*
 !app/data/input/
 !app/data/output/
 
+# Seed no-PHI del catálogo de Exámenes (se commitea; listado.json NO — copia
+# manual de despliegue, nunca re-seed por código)
+!app/data/examenes.json
+!app/data/horarios/
+!app/data/horarios/*.json
+!app/data/horarios/.gitkeep
+
 # Mantener carpetas vacías
 app/data/input/*
 app/data/output/*
@@ -145,3 +152,13 @@ scripts/backup_*.sql
 /show_rule*.py
 /scripts/dump_rules.py
 /scripts/load_rules.py
+
+# =========================
+# Diseños locales (OpenPencil)
+# =========================
+*.op
+
+# =========================
+# Config local de OpenCode (no se comparte)
+# =========================
+opencode.json

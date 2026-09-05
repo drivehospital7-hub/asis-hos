@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import importlib
+
 import pytest
 from openpyxl import Workbook
 
@@ -20,7 +22,7 @@ from app.services.transversales.create_revision_sheet import (
 )
 from app.services.transversales.decimales import detect_decimales
 from app.services.transversales.doble_tipo_procedimiento import detect_doble_tipo_procedimiento
-from app.services.transversales.normalize import normalize_header, normalize_invoice
+from app.services.transversales.normalize import normalize_header, normalize_invoice, normalize_text
 from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
 from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
 from app.services.normalized_rows import build_urgencias_normalized_rows
@@ -111,6 +113,31 @@ class TestNormalizeInvoice:
     def test_string_vacio_retorna_none(self) -> None:
         """String vacío debe retornar None."""
         assert normalize_invoice("") is None
+
+
+class TestNormalizeText:
+    """Tests for text values crossing JSON and worksheet boundaries."""
+
+    def test_radiography_description_stays_one_logical_record(self) -> None:
+        description = (
+            "FALTA LECTURA DE RADIOGRAFIA. RADIOGRAFIA DE CADERA.\n"
+            "CODIGO DE RADIOGRAFIA INCONRRECTO, MAL FACTURADO, (873412) NO 873411"
+        )
+
+        serialized_description = normalize_text(description)
+
+        assert serialized_description == (
+            "FALTA LECTURA DE RADIOGRAFIA. RADIOGRAFIA DE CADERA. "
+            "CODIGO DE RADIOGRAFIA INCONRRECTO, MAL FACTURADO, (873412) NO 873411"
+        )
+        assert "\r" not in serialized_description
+        assert "\n" not in serialized_description
+        assert len(serialized_description.splitlines()) == 1
+
+    def test_preserves_non_string_values(self) -> None:
+        value = 123
+
+        assert normalize_text(value) is value
 
 
 class TestGetColumnIndices:
@@ -490,3 +517,56 @@ class TestCreateRevisionSheetOdontologia:
         result = create_revision_sheet(wb, ws)
 
         assert "problemas" in result
+
+    @pytest.mark.parametrize("line_break", ["\n", "\r\n"])
+    def test_normaliza_saltos_de_linea_en_filas_exportadas(
+        self,
+        workbook_with_invoice_data: Workbook,
+        monkeypatch: pytest.MonkeyPatch,
+        line_break: str,
+    ) -> None:
+        """Descriptions with line breaks stay in their original worksheet rows."""
+        revision_sheet_module = importlib.import_module(
+            "app.services.transversales.create_revision_sheet"
+        )
+        rows = [
+            {
+                "tipo_error": f"Type{line_break} error",
+                "factura": f"FAC{line_break}001",
+                "responsable_cierra": f"Ana{line_break}Perez",
+                "descripcion": f"Rights{line_break}{line_break}vs invoice",
+                "procedimiento": f"Procedure{line_break}one",
+                "detalle": f"Detail{line_break}one",
+            },
+            {
+                "tipo_error": "Second type",
+                "factura": "FAC-002",
+                "responsable_cierra": "Luis",
+                "descripcion": "Second description",
+                "procedimiento": "Procedure two",
+                "detalle": "Second detail",
+            },
+        ]
+        monkeypatch.setattr(
+            revision_sheet_module,
+            "build_odontologia_normalized_rows",
+            lambda **_: rows,
+        )
+
+        create_revision_sheet(workbook_with_invoice_data, workbook_with_invoice_data.active)
+
+        revision = workbook_with_invoice_data[REVISION_SHEET]
+        assert revision.max_row == 4
+        assert revision.cell(row=3, column=1).value == "Type error"
+        assert revision.cell(row=3, column=2).value == "FAC 001"
+        assert revision.cell(row=3, column=3).value == "Ana Perez"
+        assert revision.cell(row=3, column=4).value == "Rights vs invoice"
+        assert revision.cell(row=3, column=5).value == "Procedure one"
+        assert revision.cell(row=3, column=6).value == "Detail one"
+        assert revision.cell(row=4, column=4).value == "Second description"
+        assert all(
+            "\n" not in str(revision.cell(row=row, column=column).value)
+            and "\r" not in str(revision.cell(row=row, column=column).value)
+            for row in (3, 4)
+            for column in range(1, 7)
+        )

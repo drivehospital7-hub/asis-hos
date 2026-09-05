@@ -1,5 +1,8 @@
 import os
 import logging
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Agregar path de librerías linuxbrew para psycopg2
 linuxbrew_lib = "/home/linuxbrew/.linuxbrew/lib"

@@ -30,6 +30,7 @@ from app.services.transversales import (
 )
 from app.services.transversales.column_indices import get_column_indices
 from app.services.normalized_rows import build_urgencias_normalized_rows
+from app.services.transversales.normalize import normalize_text
 from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
 from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
 from app.utils.formatting import (
@@ -47,6 +48,25 @@ def _write_column(sheet: Worksheet, column: int, values: list[str], start_row: i
     """Escribe una lista de valores en una columna."""
     for i, value in enumerate(values, start=start_row):
         sheet.cell(row=i, column=column, value=value)
+
+
+def _write_revision_row(
+    sheet: Worksheet,
+    row: int,
+    row_data: dict[str, Any],
+    procedure_value: Any,
+) -> None:
+    """Write one normalized problem without embedded worksheet line breaks."""
+    values = (
+        row_data["tipo_error"],
+        row_data["factura"],
+        row_data["responsable_cierra"],
+        row_data["descripcion"],
+        procedure_value,
+        row_data["detalle"],
+    )
+    for column, value in enumerate(values, start=1):
+        sheet.cell(row=row, column=column, value=normalize_text(value))
 
 
 def create_revision_sheet(
@@ -217,13 +237,8 @@ def create_revision_sheet(
         # --- Escribir filas normalizadas en Excel ---
         has_header_override = any("_header_override" in row for row in normalized_rows)
         for i, row_data in enumerate(normalized_rows, start=3):
-            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
-            sheet.cell(row=i, column=2, value=row_data["factura"])
-            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
-            sheet.cell(row=i, column=4, value=row_data["descripcion"])
             col5_value = row_data.get("_header_override", row_data.get("procedimiento", ""))
-            sheet.cell(row=i, column=5, value=col5_value)
-            sheet.cell(row=i, column=6, value=row_data["detalle"])
+            _write_revision_row(sheet, i, row_data, col5_value)
 
         problemas_encontrados = {
             "normalizados": normalized_rows,
@@ -289,12 +304,7 @@ def create_revision_sheet(
 
         # Escribir filas normalizadas en Excel
         for i, row_data in enumerate(normalized_rows, start=3):
-            sheet.cell(row=i, column=1, value=row_data["tipo_error"])
-            sheet.cell(row=i, column=2, value=row_data["factura"])
-            sheet.cell(row=i, column=3, value=row_data["responsable_cierra"])
-            sheet.cell(row=i, column=4, value=row_data["descripcion"])
-            sheet.cell(row=i, column=5, value=row_data["procedimiento"])
-            sheet.cell(row=i, column=6, value=row_data["detalle"])
+            _write_revision_row(sheet, i, row_data, row_data["procedimiento"])
 
         problemas_encontrados = {
             "normalizados": normalized_rows,

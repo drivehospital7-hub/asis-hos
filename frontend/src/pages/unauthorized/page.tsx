@@ -1,6 +1,11 @@
+import { useEffect } from "react";
 import { ShieldAlert, ArrowLeft } from "lucide-react";
 
 export function UnauthorizedPage() {
+  useEffect(() => {
+    window.location.href = "/login";
+  }, []);
+
   return (
     <div className="min-h-screen flex items-center justify-center"
          style={{ background: "oklch(0.96 0.01 80)", fontFamily: "'Manrope', system-ui, sans-serif" }}>

@@ -126,13 +126,57 @@ def test_buscar_ruta_vacia(client, pdf_base, monkeypatch):
 
 
 def test_listar_directorios_ruta_fuera_base(client, pdf_base, monkeypatch):
-    """Path outside PDF_BASE_PATH returns 400."""
-    from app.constants.busqueda_pdf import PDF_BASE_PATH
+    """Path outside PDF_BASE_PATH returns 400 in restricted mode."""
+    # Restricted mode: bases explicitly set to pdf_base
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATHS", [str(pdf_base)])
     monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATH", str(pdf_base))
 
     outside = str(pdf_base.parent / "outside_dir")
     response = client.get(f"/busqueda-pdf/listar-directorios?ruta={outside}")
     assert response.status_code == 400
+
+
+def test_listar_directorios_modo_abierto_permite_cualquier_ruta_absoluta(client, pdf_base, tmp_path, monkeypatch):
+    """Open mode (empty bases) allows any absolute path that exists."""
+    # Open mode: no base restriction
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATHS", [])
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATH", "")
+
+    outside = tmp_path / "outside_open"
+    outside.mkdir()
+    (outside / "doc.pdf").write_text("dummy")
+
+    response = client.get(f"/busqueda-pdf/listar-directorios?ruta={outside}")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["status"] == "success"
+
+
+def test_listar_directorios_modo_abierto_bloquea_ruta_relativa(client, pdf_base, monkeypatch):
+    """Open mode still blocks relative paths."""
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATHS", [])
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATH", "")
+
+    response = client.get("/busqueda-pdf/listar-directorios?ruta=relativa/ruta")
+    assert response.status_code == 400
+    data = json.loads(response.data)
+    assert data["status"] == "error"
+
+
+def test_listar_directorios_modo_abierto_unc_mock(client, pdf_base, monkeypatch):
+    """Open mode allows UNC-like absolute paths when isdir mocked."""
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATHS", [])
+    monkeypatch.setattr("app.constants.busqueda_pdf.PDF_BASE_PATH", "")
+
+    unc_path = "\\\\192.168.0.124\\facturacion"
+    # Mock isdir to simulate reachable share
+    monkeypatch.setattr("os.path.isdir", lambda p: p == os.path.normpath(unc_path))
+    monkeypatch.setattr("os.listdir", lambda p: [])
+
+    response = client.get(f"/busqueda-pdf/listar-directorios?ruta={unc_path}")
+    assert response.status_code == 200
+    data = json.loads(response.data)
+    assert data["status"] == "success"
 
 
 def test_get_sinonimos_vacio(client, monkeypatch):

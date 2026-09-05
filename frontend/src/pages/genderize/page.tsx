@@ -8,7 +8,9 @@ import {
 
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
+import { CacheNombresTab } from "./components/cache-nombres-tab";
 
 interface StatsData {
   total_excel: number;
@@ -128,7 +130,7 @@ export function GenderizePage() {
     }
   };
 
-  /** Exportar nombres no cacheados como .txt con formato nombre\\tsexo */
+  /** Exportar nombres no cacheados como .txt con formato nombre	sexo */
   const exportNoCache = () => {
     const items = statsPreview?.nombres_no_cache ?? [];
     const text = "\uFEFF" + items.map(i => `${i.nombre}\t${i.sexo}`).join("\n");
@@ -179,6 +181,14 @@ export function GenderizePage() {
             Sube el Excel de facturas para verificar el sexo
           </p>
         </div>
+
+        <Tabs defaultValue="verificar" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="verificar">Verificar</TabsTrigger>
+            <TabsTrigger value="cache">Nombres Cacheados</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="verificar">
 
         {/* Upload card */}
         <Card className="p-6 border mb-6 shadow-none"
@@ -369,7 +379,7 @@ export function GenderizePage() {
                         <td className="py-3 px-4 text-xs">{d.sexo_api}</td>
                         <td className="py-3 px-4 flex gap-1.5 items-center">
                           <select
-                            value={selectedGenders[d.nombre_normalizado] ?? d.sexo_excel}
+                            value={selectedGenders[d.nombre_normalizado] ?? d.sexo_api}
                             onChange={(e) => handleGenderChange(d.nombre_normalizado, e.target.value)}
                             className="h-7 rounded border border-input bg-transparent px-2 text-xs font-medium transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50"
                             style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
@@ -379,7 +389,7 @@ export function GenderizePage() {
                             ))}
                           </select>
                           <Button size="sm" variant="outline"
-                                  onClick={() => corrigeGenero(d.nombre_normalizado, selectedGenders[d.nombre_normalizado] ?? d.sexo_excel)}
+                                  onClick={() => corrigeGenero(d.nombre_normalizado, selectedGenders[d.nombre_normalizado] ?? d.sexo_api)}
                                   className="h-7 text-xs px-2 shrink-0">
                             Aplicar
                           </Button>
@@ -415,6 +425,12 @@ export function GenderizePage() {
           )
         )}
 
+          </TabsContent>
+
+          <TabsContent value="cache">
+            <CacheNombresTab />
+          </TabsContent>
+        </Tabs>
 
     </div>
   );

@@ -16,7 +16,9 @@ from scripts.prod_baseline import (
 
 REPO = Path(__file__).resolve().parents[2]
 PINNED = Path(__file__).with_name("prod_digests.json")
-REFS = [Path("instance/users.json"), Path("app/constants/base.py")]
+# AUTH=DB by design: instance/users.json is no longer a pinned prod ref
+# (DB is the single source of truth for users). Only base.py is pinned.
+REFS = [Path("app/constants/base.py")]
 
 
 def _pinned() -> dict[str, str]:
@@ -30,10 +32,8 @@ def test_pinned_digests_match_live_files() -> None:
     assert set(live) == set(pinned)
     for key, digest in live.items():
         assert digest == pinned[key], f"digest drift (prod touched?): {key}"
-    assert live["instance/users.json"].startswith("f2bc4c48")
-    assert live["instance/users.json"].endswith("57756aa")
-    assert live["app/constants/base.py"].startswith("60743225")
-    assert live["app/constants/base.py"].endswith("34ab68")
+    assert live["app/constants/base.py"].startswith("00c9f068")
+    assert live["app/constants/base.py"].endswith("007bbe")
 
 
 def test_baseline_rerun_is_stable() -> None:

@@ -9,12 +9,11 @@
 {% block content %}
 <div class="page-header">
   <div class="page-header-left">
-    <p class="page-subtitle">Servicio de Urgencias</p>
     <h1 class="page-title">Control de Novedades</h1>
     <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
   </div>
   <div class="page-header-actions">
-    <button class="btn btn--secondary" onclick="exportToCSV()">
+    <button class="btn btn--secondary" onclick="exportarExcel()">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar
     </button>
@@ -29,58 +28,30 @@
 <!-- Month Tabs -->
 <div class="month-tabs" id="monthTabs"></div>
 
-<!-- Stats Cards -->
-<div class="stats-grid">
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Total registrados</h3>
-      <div class="stat-card-icon stat-card-icon--trending">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M9 2a1 1 0 0 0-1 1v2H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2V3a1 1 0 1 0-2 0v2H9V3a1 1 0 0 0-1-1zm-3 7h12v10H6V9z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-total">6</p>
-    <p class="stat-card-meta">+3 esta semana</p>
-  </div>
-  
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Pendientes</h3>
-      <div class="stat-card-icon stat-card-icon--pending">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm.5-13H11v6l5.2 3.2.8-1.3-4.5-2.7V7z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-pendientes">3</p>
-    <p class="stat-card-meta">Requieren acción</p>
-  </div>
-  
-  <div class="stat-card">
-    <div class="stat-card-header">
-      <h3 class="stat-card-title">Resueltos</h3>
-      <div class="stat-card-icon stat-card-icon--resolved">
-        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-      </div>
-    </div>
-    <p class="stat-card-value" id="stat-resueltos">3</p>
-    <p class="stat-card-meta">Cerrados este mes</p>
-  </div>
-</div>
-
 <div class="filters">
   <div class="search-wrapper">
     <svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-    <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción, responsable o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
+    <input type="text" id="searchInput" class="search-input" placeholder="Buscar por descripción o ID..." oninput="handleSearch()" onkeyup="if(event.key==='Enter') handleSearch()">
   </div>
   <div class="filters__group">
-    <label class="filters__label">Todas las categorías</label>
+    <label class="filters__label">Validador</label>
+    <select id="filterValidador" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
+  </div>
+  <div class="filters__group">
+    <label class="filters__label">Categoría</label>
     <select id="filterTipo" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
-    <label class="filters__label">Todos los estados</label>
+    <label class="filters__label">Estado</label>
     <select id="filterEstado" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
   </div>
   <div class="filters__group">
     <label class="filters__label">Responsable</label>
     <select id="filterResponsable" class="filters__select" onchange="applyFilters()"><option value="">Todos</option></select>
+  </div>
+  <div class="filters__group">
+    <label class="filters__label">Área</label>
+    <select id="filterArea" class="filters__select" onchange="applyFilters()"><option value="">Todas las áreas</option></select>
   </div>
   <button class="filter-icon" title="Limpiar filtros" onclick="clearFilters()">
     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
@@ -93,15 +64,16 @@
       <tr>
         <th>Validador</th>
         <th>Factura</th>
+        <th>ReFactura</th>
         <th>Creado</th>
         <th>Categoría</th>
         <th>Descripción</th>
         <th>Responsable</th>
-        <th>Pendiente</th>
+        <th>Estado</th>
         <th>Acciones</th>
       </tr>
     </thead>
-    <tbody id="erroresBody"><tr><td colspan="8" class="empty-state">Cargando...</td></tr></tbody>
+    <tbody id="erroresBody"><tr><td colspan="9" class="empty-state">Cargando...</td></tr></tbody>
   </table>
 </div>
 
@@ -123,8 +95,8 @@
     <div id="modal-images-list" class="modal-images"></div>
     <div id="modal-dropzone" class="dropzone">
       <div class="dropzone-text">Arrastra archivo o click para subir</div>
-      <div class="dropzone-hint">Máx 3 archivos (imagen o PDF)</div>
-      <input type="file" id="file-input" accept="image/*,.pdf" multiple style="display:none">
+      <div class="dropzone-hint">Máx 3 archivos (imagen, PDF o Excel)</div>
+      <input type="file" id="file-input" accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" multiple style="display:none">
     </div>
   </div>
 </div>
@@ -205,7 +177,7 @@
 
 {% block scripts %}
 <script>
-  let opciones = { tipos_error: [], estados: [], responsables: [] };
+  let opciones = { tipos_error: [], estados: [], responsables: [], validadores: [], areas: [], responsables_detalle: [] };
   let cachedErrores = [];
   let isAdding = false;
   let _cargaEnProgreso = false;
@@ -213,6 +185,7 @@
   let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
   const ITEMS_PER_PAGE = 20;
   let currentPage = 1;
+  let searchQuery = '';
 
   function parsearFacturas(f) {
     if (!f) return [];
@@ -229,6 +202,29 @@
     });
   }
 
+  // Display-only Title Case (control-novedades-title-case-ui). NFKD accent-safe:
+  // "MARÍA" → "María", particles NOT lowercased ("MARIA DEL PILAR" → "Maria Del Pilar").
+  // Applied BEFORE escapeHtml at every transformed site; never emits markup.
+  function toTitleCase(s) {
+    if (!s) return '';
+    return String(s).split(/\s+/).map(function (w) {
+      var d = w.normalize('NFKD');                     // NFKD (spec): decomposes accents + compatibility chars
+      // Agrupar cada letra base con sus marcas de acento para que el acento
+      // quede en la letra correcta: "PÉREZ" → "Pérez", "ÁNGELA" → "Ángela".
+      var grouped = [];
+      for (var i = 0; i < d.length; i++) {
+        if (/[\u0300-\u036f]/.test(d[i]) && grouped.length) {
+          grouped[grouped.length - 1] += d[i];
+        } else {
+          grouped.push(d[i]);
+        }
+      }
+      return grouped.map(function (g, idx) {
+        return idx === 0 ? g.charAt(0).toUpperCase() + g.slice(1).toLowerCase() : g.toLowerCase();
+      }).join('');
+    }).join(' ');
+  }
+
   let currentCell = null;
   let currentEditId = null;
   let currentEditType = null;
@@ -236,14 +232,116 @@
   const editor = document.getElementById('global-editor');
   const editorInput = document.getElementById('editor-input');
 
+  // ====== AGRUPAMIENTO POR ÁREA (sdd Empieza) ======
+  // Mapa nombre → áreas construido una sola vez desde responsables_detalle.
+  let _responsableAreas = null;
+  let _responsableDetails = null;
+
+  function _buildResponsableAreaMap() {
+    _responsableAreas = null;
+    _responsableDetails = null;
+    if (!opciones.responsables_detalle) return;
+    const map = {};
+    const details = {};
+    opciones.responsables_detalle.forEach(d => {
+      map[d.nombre_completo] = d.areas || [];
+      details[d.nombre_completo] = d;
+    });
+    _responsableAreas = map;
+    _responsableDetails = details;
+  }
+
+  function _activeArea() {
+    const el = document.getElementById('filterArea');
+    return el ? el.value : '';
+  }
+
+  // Lista plana de responsables acotada por el área activa ('' = todas).
+  function _currentResponsables() {
+    const area = _activeArea();
+    if (!area || !_responsableAreas) return opciones.responsables || [];
+    return (opciones.responsables || []).filter(r => (_responsableAreas[r] || []).includes(area));
+  }
+
+  function _currentResponsableCandidates() {
+    return _currentResponsables().map(function(value) {
+      var detail = _responsableDetails && _responsableDetails[value];
+      return { text: detail ? detail.identidad_completa : value, value: value };
+    });
+  }
+
+  function _areaLabel(slug) {
+    const a = (opciones.areas || []).find(x => x.slug === slug);
+    return a ? a.label : slug;
+  }
+
+  // Agrupa una lista de responsables por área. Un responsable multi-área
+  // aparece bajo cada grupo; sin área → grupo "Sin área". Respeta el orden
+  // de opciones.areas (canónicas primero) y salta grupos vacíos.
+  function _groupResponsablesByArea(list) {
+    const groups = {};
+    list.forEach(r => {
+      const areas = _responsableAreas ? (_responsableAreas[r] || []) : [];
+      if (!areas.length) {
+        (groups['Sin área'] = groups['Sin área'] || []).push(r);
+        return;
+      }
+      areas.forEach(a => {
+        const label = _areaLabel(a);
+        (groups[label] = groups[label] || []).push(r);
+      });
+    });
+    const ordered = (opciones.areas || []).map(a => a.label).filter(l => groups[l]);
+    Object.keys(groups).forEach(l => { if (ordered.indexOf(l) === -1) ordered.push(l); });
+    return ordered.map(label => ({ label: label, items: groups[label] }));
+  }
+
+  // HTML de <optgroup>s para selects nativos. Fallback plano sin detalle.
+  function _buildResponsableOptions(selectedValue) {
+    const list = _currentResponsables();
+    if (!_responsableAreas) {
+      return list.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(toTitleCase(r))}</option>`).join('');
+    }
+    return _groupResponsablesByArea(list).map(g =>
+      `<optgroup label="${escapeHtml(g.label)}">` +
+      g.items.map(r => `<option value="${escapeHtml(r)}"${r === selectedValue ? ' selected' : ''}>${escapeHtml(toTitleCase(r))}</option>`).join('') +
+      `</optgroup>`
+    ).join('');
+  }
+
+  // HTML del dropdown custom del cell-editor, con headers de grupo por área.
+  function _buildCustomResponsableOptions(list, currentValue) {
+    if (!_responsableAreas) {
+      return list.map(opt =>
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
+      ).join('');
+    }
+    return _groupResponsablesByArea(list).map(g =>
+      `<div class="custom-select-group" style="padding:6px 10px;font-size:11px;font-weight:700;letter-spacing:.04em;color:#64748b;background:#f8fafc;">${escapeHtml(g.label)}</div>` +
+      g.items.map(opt =>
+        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
+      ).join('')
+    ).join('');
+  }
+
   async function loadOpciones() {
     const res = await fetch('/api/control-errores/opciones');
     const result = await res.json();
     if (result.status === 'success') {
       opciones = result.data;
       opciones.tipos_error.forEach(t => document.getElementById('filterTipo').add(new Option(t, t)));
-      opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e, e)));
-      opciones.responsables.forEach(r => document.getElementById('filterResponsable').add(new Option(r, r)));
+      opciones.estados.forEach(e => document.getElementById('filterEstado').add(new Option(e === 'S' ? 'Pendiente' : 'Resuelto', e)));
+      document.getElementById('filterValidador').innerHTML = '<option value="">Todos</option>' +
+        (opciones.validadores || []).map(v => {
+          const display = ([v.primer_nombre, v.apellido_1].filter(Boolean).join(' ')).toUpperCase();
+          return `<option value="${escapeHtml(display)}">${escapeHtml(toTitleCase(display))}</option>`;
+        }).join('');
+      _buildResponsableAreaMap();
+      // Select de área (aditivo, sdd Empieza)
+      document.getElementById('filterArea').innerHTML = '<option value="">Todas las áreas</option>' +
+        (opciones.areas || []).map(a => `<option value="${escapeHtml(a.slug)}">${escapeHtml(a.label)}</option>`).join('');
+      // Select de responsable agrupado por área (optgroups)
+      document.getElementById('filterResponsable').innerHTML = '<option value="">Todos</option>' + _buildResponsableOptions();
     }
   }
 
@@ -307,7 +405,14 @@
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
       const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
-      return monthKey === currentMonth;
+      if (monthKey !== currentMonth) return false;
+      if (searchQuery) {
+        const factura = (e.factura || '').toLowerCase();
+        const observacion = (e.observacion || '').toLowerCase();
+        const refactura = (e.refactura || '').toLowerCase();
+        return factura.includes(searchQuery) || observacion.includes(searchQuery) || refactura.includes(searchQuery);
+      }
+      return true;
     });
     renderFilteredTable(filtered);
     updateStats();
@@ -318,11 +423,17 @@
     const url = '/api/control-errores?' + 
       'tipo_error=' + encodeURIComponent(document.getElementById('filterTipo').value) +
       '&estado=' + encodeURIComponent(document.getElementById('filterEstado').value) +
-      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value);
+      '&responsable=' + encodeURIComponent(document.getElementById('filterResponsable').value) +
+      '&area=' + encodeURIComponent(document.getElementById('filterArea').value) +
+      '&validador=' + encodeURIComponent(document.getElementById('filterValidador').value);
     const res = await fetch(url);
     const result = await res.json();
     if (result.status === 'success') {
       cachedErrores = result.data.errores;
+      // Editor abierto sobre una fila ya inexistente → cerrar (no bloquear polling).
+      if (currentEditId && currentEditId !== 'new' && !cachedErrores.some(e => e.id === currentEditId)) {
+        closeEditor();
+      }
       // Log de facturas actuales
       const facturasRaw = cachedErrores.map(e => e.factura).filter(Boolean);
       console.log('Facturas raw:', facturasRaw);
@@ -373,9 +484,10 @@
     // Nueva fila
     if (isAdding) {
       html += `<tr>
-        <td colspan="8" style="padding: 1.5rem; background: #f8fafc;">
+        <td colspan="9" style="padding: 1.5rem; background: #f8fafc;">
           <div style="display: flex; gap: 1rem; align-items: center;">
             <input type="text" id="newFactura" class="inline-input" placeholder="ID" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
+            <input type="text" id="newRefactura" class="inline-input" placeholder="ReFactura" style="width:100px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newTipo" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
               <option value="">Categoría...</option>
               ${opciones.tipos_error.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('')}
@@ -383,7 +495,7 @@
             <input type="text" id="newObservacion" class="inline-input" placeholder="Descripción" style="flex:1;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
             <select id="newResponsable" class="inline-select" style="width:150px;padding:0.5rem;border:1px solid #e2e8f0;border-radius:6px;">
               <option value="">Responsable...</option>
-              ${opciones.responsables.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('')}
+              ${_buildResponsableOptions()}
             </select>
             <button class="btn btn--small btn--primary" onclick="saveNewRow()">Guardar</button>
             <button class="btn btn--small" onclick="cancelNewRow()">Cancelar</button>
@@ -393,7 +505,7 @@
     }
 
     if (!cachedErrores || cachedErrores.length === 0) {
-      if (!isAdding) html += '<tr><td colspan="8" class="empty-state">No hay errores registrados</td></tr>';
+      if (!isAdding) html += '<tr><td colspan="9" class="empty-state">No hay errores registrados</td></tr>';
     } else {
       cachedErrores.forEach(e => {
         // Determinar clase de categoría
@@ -408,9 +520,12 @@
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
-          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
+          <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
+          </td>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+            <span>${escapeHtml(e.refactura || '')}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
@@ -420,20 +535,22 @@
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
-              <span>${escapeHtml(e.responsable)}</span>
+              <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
-            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>
           <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
             </button>
             <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
@@ -450,7 +567,7 @@
   }
   
   function updateStats() {
-    // Filtrar solo errores del mes seleccionado
+    // Estadísticas de novedades del mes seleccionado
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
@@ -462,9 +579,8 @@
     const pendientes = erroresDelMes.filter(e => e.estado === 'S').length;
     const resueltos = erroresDelMes.filter(e => e.estado === 'N').length;
     
-    document.getElementById('stat-total').textContent = total;
-    document.getElementById('stat-pendientes').textContent = pendientes;
-    document.getElementById('stat-resueltos').textContent = resueltos;
+    // Los contadores visuales se eliminaron; la función se mantiene por
+    // compatibilidad con los callers que la invocan tras renderizar.
   }
 
   // ====== EDITOR FACTURADOR (flotante al lado del botón +) ======
@@ -488,58 +604,96 @@
   // Mostrar contenido sin login (solo lectura)
   function openFacturadorEditorImpl(errorId, btn) {
     const btnRect = btn.getBoundingClientRect();
-    const rect = btn.closest('td').getBoundingClientRect();
     currentEditId = errorId;
     currentEditType = 'text';
     currentCell = null; // No hay celda específica, usaremos el editor de forma independiente
-    
-    // Posicionar editor al lado derecho del botón
+
+    // FE-3/D7: modo facturador → panel ancho fijo 540px (rango 520-560).
+    // Altura content-driven; closeEditor() limpia width/height/minHeight
+    // para que cell-edit conserve su sizing por rect de celda.
+    const FACTURADOR_EDITOR_WIDTH = 540;
+    // FE-5: auto-grow máx del textarea facturador (constante nombrada, sin magic number)
+    const FACTURADOR_TEXTAREA_MAX_HEIGHT = 300;
+    editor.classList.remove('select-mode');
+    // FE-6: marcar modo facturador → el contenedor adopta la superficie del
+    // modal (--facturador-surface) para que textarea + adjuntos se lean como
+    // una sola pieza. closeEditor() lo remueve para que cell-edit conserve su
+    // fondo blanco por defecto.
+    editor.classList.add('facturador-mode');
     editor.style.display = 'block';
     document.body.classList.add('editor-open');
     editor.style.top = btnRect.top + 'px';
-    editor.style.left = btnRect.left + btnRect.width + 8 + 'px';
-    editor.style.width = Math.max(260, rect.width) + 'px';
-    editor.style.height = Math.max(90, rect.height) + 'px';
-    editor.style.minHeight = '';
-    
+    editor.style.width = FACTURADOR_EDITOR_WIDTH + 'px';
+    editor.style.height = '';
+    // Altura 100% content-driven: textarea (auto-grow hasta MAX) + panel de
+    // adjuntos apilados, sin min-height forzado (FE-6). closeEditor() limpia.
+    // Si no cabe a la izquierda, volver al lado derecho (fallback)
+    const editorLeft = btnRect.left - FACTURADOR_EDITOR_WIDTH - 8;
+    editor.style.left = (editorLeft < 8 ? btnRect.left + btnRect.width + 8 : editorLeft) + 'px';
+
     // Obtener el valor actual de observacion_facturador
     const error = cachedErrores.find(e => e.id === errorId);
     const currentValue = error ? (error.observacion_facturador || '') : '';
-    
+    // D5: baseline del save idempotente (keep-open) = valor actual del textarea
+    _facturadorLastSavedText = currentValue;
+
+    // FE-1/MOD-1: shell del panel de adjuntos embebido (sin puente de ojo)
     editor.innerHTML = `<textarea id="editor-input" 
       style="width:100%;min-height:100%;padding:0.5rem;border:none;background:#fef9c3;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;" 
-      placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea>`;
-    
-    // Guardar cuando se hace click fuera
-    const handleClickOutside = (e) => {
-      if (!editor.contains(e.target) && !btn.contains(e.target)) {
-        document.removeEventListener('click', handleClickOutside);
-        saveFacturadorEditor(errorId);
-      }
-    };
-    
-    // Guardar con Enter (Shift+Enter para nueva línea)
+      placeholder="Observación del facturador...">${escapeHtml(currentValue)}</textarea><div id="facturador-attachments" class="facturador-attachments"></div>`;
+
+    // D2/FE-8: esqueleto del panel AL INSTANTE (mismo render async de thumbnails)
+    renderFacturadorAttachmentsShell(errorId);
+    renderFacturadorAttachments(errorId);
+
+    // Guardar con Enter (Shift+Enter para nueva línea); Escape cierra sin guardar
     const handleKeydown = (e) => {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
-        document.removeEventListener('keydown', handleKeydown);
-        document.removeEventListener('click', handleClickOutside);
+        _removeFacturadorKeydownListener();
         saveFacturadorEditor(errorId);
       }
       if (e.key === 'Escape') {
-        document.removeEventListener('keydown', handleKeydown);
-        document.removeEventListener('click', handleClickOutside);
+        _removeFacturadorKeydownListener();
         closeEditor();
       }
     };
-    
+    _facturadorKeydownHandler = handleKeydown;
+
     setTimeout(() => {
-      document.addEventListener('click', handleClickOutside);
+      if (currentEditId !== errorId) return; // editor cerrado antes del bind
       document.addEventListener('keydown', handleKeydown);
       const textarea = editor.querySelector('textarea');
+      // FE-5: auto-grow SOLO en modo facturador. Se liga al textarea de este
+      // impl (nunca al de cell-edit/openEditor): resetea height a auto y
+      // fija min(scrollHeight, MAX) para que el modal crezca con el texto.
+      const autoResize = (ta) => {
+        ta.style.height = 'auto';
+        ta.style.height = Math.min(ta.scrollHeight, FACTURADOR_TEXTAREA_MAX_HEIGHT) + 'px';
+      };
+      textarea.addEventListener('input', () => autoResize(textarea));
+      autoResize(textarea);
       textarea.focus();
     }, 10);
   }
+
+  // D5: UN solo listener doc-level (registrado una vez) para click-fuera del
+  // editor facturador. Reemplaza los per-open handleClickOutside que persistían
+  // tras un save keep-open (doble-fire). Actúa solo con editor facturador abierto.
+  document.addEventListener('click', function _facturadorEditorClick(e) {
+    if (!currentEditId || currentCell !== null) return;
+    // Click dentro del editor o en el botón disparador → no hacer nada (FE-4)
+    if (editor.contains(e.target)) return;
+    const triggerBtn = document.querySelector(`.action-icon--add-note[onclick*="${currentEditId}"]`);
+    if (triggerBtn && triggerBtn.contains(e.target)) return;
+    // FE-4/D5: click sobre el overlay de confirmación (fuera del editor) o con
+    // un confirm/alert en vuelo → save idempotente SIN cerrar el editor.
+    if ((e.target.closest && e.target.closest('.confirm-overlay')) || _facturadorModalBusy) {
+      saveFacturadorEditorKeepOpen(currentEditId);
+      return;
+    }
+    saveFacturadorEditor(currentEditId);
+  });
 
   function saveFacturadorEditor(errorId) {
     // Si currentEditId ya es null, el editor ya fue cerrado por otro save
@@ -552,47 +706,248 @@
     
     const newValue = input.value.trim();
     const error = cachedErrores.find(e => e.id === errorId);
-    if (!error) return;
+    // Fila eliminada mientras el editor estaba abierto → no hay a dónde guardar.
+    if (!error) { closeEditor(); return; }
     
     // Guardar valores ANTES de cerrar (el editor se reutiliza)
     const saveData = { observacion_facturador: newValue };
     const saveId = errorId;
-    
-    // Actualizar cache inmediatamente
-    error.observacion_facturador = newValue;
-    
-    // Actualizar lastUpdate INMEDIATAMENTE para bloquear el polling
-    lastUpdate = new Date().toISOString();
+    const originalValue = error.observacion_facturador || '';
     
     // Cerrar inmediatamente
     closeEditor();
     
-    // Actualizar UI del botón de nota directamente en el DOM
-    const btn = document.querySelector(`.action-icon--add-note[onclick*="${saveId}"]`);
-    if (btn) {
-      if (newValue) {
-        btn.classList.add('has-note');
-        btn.style.setProperty('color', '#f59e0b', 'important');
-      } else {
-        btn.classList.remove('has-note');
-        btn.style.setProperty('color', '#64748b', 'important');
-      }
-    }
-    
-    // Enviar SOLO el campo que cambió
+    // Enviar SOLO el campo que cambió; optimista/lastUpdate/UI SOLO en éxito.
     fetch(`/api/control-errores/${saveId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(saveData)
-    }).catch(err => console.error('[saveFacturador] error:', err));
+    }).then(res => {
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      error.observacion_facturador = newValue;
+      lastUpdate = new Date().toISOString();
+      _updateFacturadorNoteButton(saveId, newValue);
+    }).catch(err => {
+      console.error('[saveFacturador] error:', err);
+      error.observacion_facturador = originalValue;
+      _updateFacturadorNoteButton(saveId, originalValue);
+      showToast('No se guardó la observación del facturador', 'error');
+    });
+  }
+
+  // ====== PANEL DE ADJUNTOS FACTURADOR EMBEBIDO (FE-1/D2/D8/D9) ======
+  let _facturadorModalBusy = false; // D4/D5: confirm/alert en vuelo
+  let _facturadorLastSavedText = null; // D5: save keep-open idempotente
+  let _facturadorKeydownHandler = null; // R4: listener per-open, removido en closeEditor
+
+  // R4: remueve el listener per-open del editor facturador (TODOS los close paths)
+  function _removeFacturadorKeydownListener() {
+    if (_facturadorKeydownHandler) {
+      document.removeEventListener('keydown', _facturadorKeydownHandler);
+      _facturadorKeydownHandler = null;
+    }
+  }
+
+  // Actualiza el botón de nota (has-note + color) según el valor persistido.
+  function _updateFacturadorNoteButton(saveId, value) {
+    const btn = document.querySelector(`.action-icon--add-note[onclick*="${saveId}"]`);
+    if (!btn) return;
+    if (value) {
+      btn.classList.add('has-note');
+    } else {
+      btn.classList.remove('has-note');
+    }
+  }
+
+  /** FE-8: esqueleto instantáneo del panel (conteo + dropzone) para que se sienta
+      simultáneo con la observación; renderFacturadorAttachments lo reemplaza con
+      conteo/thumbnails reales cuando llega la respuesta. */
+  function renderFacturadorAttachmentsShell(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    const dropzone = window._canFacturadorAttach
+      ? `<button type="button" class="editor-dropzone" id="editor-dropzone">
+          <input type="file" id="editor-file-input" multiple accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" style="display:none">
+          <span class="editor-dropzone-text">Subir adjuntos (imagen / PDF / Excel)</span>
+        </button>`
+      : '';
+    container.innerHTML = `<div class="editor-count">Adjuntos facturador (…/3)</div>${dropzone}`;
+    _bindFacturadorDropzone(errorId);
+  }
+
+  /** D2: render (y re-render inline) del panel embebido en #facturador-attachments. */
+  async function renderFacturadorAttachments(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    const scopeQuery = '?scope=facturador';
+    try {
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`);
+      const result = await res.json();
+      if (result.status !== 'success') {
+        container.innerHTML = '<div class="editor-count">Error: ' + JSON.stringify(result) + '</div>';
+        return;
+      }
+      const count = result.data.count;
+      container.dataset.count = count; // para el cupo max-3 del paste (D6)
+      let html = `<div class="editor-count">Adjuntos facturador (${count}/3)</div>`;
+      if (result.data.imagenes.length > 0) {
+        html += '<div class="editor-thumbs">' + result.data.imagenes.map(item => {
+          const filename = item.filename;
+          const canDelete = item.can_delete;
+          const lower = filename.toLowerCase();
+          // D9: URL codificada (encodeURIComponent), labels escapados (escapeHtml)
+          const scopeUrl = `/api/control-errores/${errorId}/imagenes/${encodeURIComponent(filename)}${scopeQuery}`;
+          let body;
+          if (lower.endsWith('.pdf')) {
+            body = `<a href="${scopeUrl}" target="_blank" class="editor-thumb-link" title="${escapeHtml(filename)}">PDF</a>`;
+          } else if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) {
+            body = `<a href="${scopeUrl}" target="_blank" class="editor-thumb-link" title="${escapeHtml(filename)}">XLS</a>`;
+          } else {
+            body = `<img src="${scopeUrl}" class="editor-thumb-img" data-filename="${escapeHtml(filename)}" alt="${escapeHtml(filename)}">`;
+          }
+          // FA-9/D16: delete por can_delete (dueño/admin), no por el flag global
+          const deleteBtn = canDelete ? `<button type="button" class="editor-thumb-delete" data-filename="${escapeHtml(filename)}" data-remove-thumb="1" title="Eliminar ${escapeHtml(filename)}">&times;</button>` : '';
+          return `<div class="editor-thumb">${body}${deleteBtn}</div>`;
+        }).join('') + '</div>';
+      }
+      // D8/FE-1: dropzone SOLO con permiso y con cupo (max 3)
+      if (window._canFacturadorAttach && count < 3) {
+        html += `<button type="button" class="editor-dropzone" id="editor-dropzone">
+          <input type="file" id="editor-file-input" multiple accept="image/*,.pdf,.xlsx,.xls,.xlsm,.xlsb" style="display:none">
+          <span class="editor-dropzone-text">Subir adjuntos (imagen / PDF / Excel)</span>
+        </button>`;
+      }
+      container.innerHTML = html;
+      _bindFacturadorDropzone(errorId);
+    } catch (err) {
+      console.error('[FRONT][ERROR] renderFacturadorAttachments:', err);
+    }
+  }
+
+  /** D2/D9: eventos delegados del panel + binding del mini-dropzone. */
+  function _bindFacturadorDropzone(errorId) {
+    const container = document.getElementById('facturador-attachments');
+    if (!container) return;
+    // Delegación única en el contenedor (sobrevive a los re-renders del panel)
+    if (!container.dataset.listeners) {
+      container.dataset.listeners = '1';
+      container.addEventListener('click', (e) => {
+        const del = e.target.closest('.editor-thumb-delete');
+        if (del) {
+          e.stopPropagation();
+          deleteFacturadorImage(errorId, del.dataset.filename);
+          return;
+        }
+        const img = e.target.closest('.editor-thumb-img');
+        if (img) {
+          e.stopPropagation();
+          viewFullImage(errorId, img.dataset.filename, 'facturador');
+        }
+      });
+    }
+    // El dropzone se recrea en cada render → re-bindear sus eventos
+    const dropzone = container.querySelector('#editor-dropzone');
+    const fileInput = container.querySelector('#editor-file-input');
+    if (dropzone && fileInput) {
+      dropzone.onclick = (e) => {
+        e.stopPropagation();
+        fileInput.click();
+      };
+      fileInput.onchange = () => { uploadFacturadorImages(errorId, fileInput.files); fileInput.value = ''; };
+      dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
+      dropzone.ondragleave = () => dropzone.classList.remove('dragover');
+      dropzone.ondrop = (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+        if (e.dataTransfer && e.dataTransfer.files.length) uploadFacturadorImages(errorId, e.dataTransfer.files);
+      };
+    }
+  }
+
+  /** D3: upload scope facturador (picker/drag-drop) → refresh inline + tabla. */
+  async function uploadFacturadorImages(errorId, files) {
+    if (!window._canFacturadorAttach) return;
+    const scopeQuery = '?scope=facturador';
+    for (const file of files) {
+      const name = file.name.toLowerCase();
+      const isImage = file.type.startsWith('image/');
+      const isDoc = /\.(pdf|xlsx|xls|xlsm|xlsb)$/.test(name);
+      if (!isImage && !isDoc) continue;
+      const formData = new FormData();
+      formData.append('imagen', file);
+      try {
+        const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`, { method: 'POST', body: formData });
+        const result = await res.json();
+        if (result.status !== 'success') Modal.alert(result.errors.join(', '));
+      } catch (err) {
+        console.error('[FRONT][ERROR] uploadFacturadorImages:', err);
+      }
+    }
+    renderFacturadorAttachments(errorId);
+    loadErrores();
+  }
+
+  /** D4: delete scope facturador con confirm; overlay click → save keep-open (FE-4). */
+  async function deleteFacturadorImage(errorId, filename) {
+    if (!window._canFacturadorAttach) return;
+    _facturadorModalBusy = true;
+    try {
+      if (!await Modal.confirm('¿Eliminar imagen facturador?')) return;
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}&scope=facturador`, { method: 'DELETE' });
+      const result = await res.json();
+      if (result.status === 'success') {
+        renderFacturadorAttachments(errorId);
+        loadErrores();
+      } else {
+        Modal.alert(result.errors.join(', '));
+      }
+    } catch (err) {
+      console.error('[FRONT][ERROR] deleteFacturadorImage:', err);
+    } finally {
+      _facturadorModalBusy = false;
+    }
+  }
+
+  /** D5/FE-4: PUT del textarea SIN cerrar el editor (idempotente). */
+  async function saveFacturadorEditorKeepOpen(errorId) {
+    if (!currentEditId || errorId !== currentEditId) return;
+    const input = editor.querySelector('textarea');
+    if (!input) return;
+    const newValue = input.value.trim();
+    if (newValue === _facturadorLastSavedText) return; // PUT único (idempotente)
+    const error = cachedErrores.find(e => e.id === errorId);
+    // Fila eliminada mientras el editor estaba abierto → cerrar, no bloquear.
+    if (!error) { closeEditor(); return; }
+    const originalValue = error.observacion_facturador || '';
+    try {
+      const res = await fetch(`/api/control-errores/${errorId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ observacion_facturador: newValue })
+      });
+      if (!res.ok) {
+        // Fallo: revertir el optimista y avisar SIN cerrar el editor (retry posible)
+        error.observacion_facturador = originalValue;
+        showToast('No se guardó la observación del facturador', 'error');
+        return;
+      }
+      // Éxito: aplicar cache, bloquear polling y fijar el baseline idempotente
+      error.observacion_facturador = newValue;
+      lastUpdate = new Date().toISOString();
+      _facturadorLastSavedText = newValue;
+    } catch (err) {
+      console.error('[FRONT][ERROR] saveFacturadorEditorKeepOpen:', err);
+      error.observacion_facturador = originalValue;
+      showToast('Error de red: no se guardó la observación', 'error');
+    }
   }
 
   // ====== EDITOR GLOBAL ======
   function handleCellClick(td) {
     const field = td.dataset.field;
 
-    // Sin permiso de escritura: observacion/factura muestran tooltip readonly
-    if (!window._canWrite && (field === 'observacion' || field === 'factura')) {
+    // Sin permiso de escritura: observacion/factura/refactura muestran tooltip readonly
+    if (!window._canWrite && (field === 'observacion' || field === 'factura' || field === 'refactura')) {
       showObservacionReadOnly(td);
       return;
     }
@@ -697,6 +1052,10 @@
     _obsTooltipTd = td;
   }
 
+  // Mapeo de estado: valor interno 'S'/'N' ↔ etiqueta visible Pendiente/Resuelto
+  function _estadoLabel(v) { return v === 'S' ? 'Pendiente' : 'Resuelto'; }
+  function _estadoValue(v) { return v === 'Pendiente' ? 'S' : (v === 'Resuelto' ? 'N' : v); }
+
   function openEditor(td, isNew = false) {
     if (isAdding && !isNew) return;
 
@@ -736,20 +1095,30 @@
       if (field === 'tipo_error') {
         options = opciones.tipos_error;
       } else if (field === 'estado') {
-        options = ['S', 'N'];
+        options = [{ value: 'S', label: 'Pendiente' }, { value: 'N', label: 'Resuelto' }];
       } else if (field === 'responsable') {
-        options = opciones.responsables;
+        options = _currentResponsables();
       }
 
-      // Custom dropdown simple
+      // Custom dropdown simple (responsable: headers de grupo por área)
       const currentValue = td.dataset.value || td.textContent.trim();
-      let optionsHtml = options.map(opt => 
-        `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(opt)}</div>`
-      ).join('');
+      const displayValue = field === 'estado' ? _estadoLabel(currentValue) : currentValue;
+      let optionsHtml;
+      if (field === 'responsable') {
+        optionsHtml = _buildCustomResponsableOptions(options, currentValue);
+      } else if (field === 'estado') {
+        optionsHtml = options.map(opt => 
+          `<div class="custom-select-option ${opt.value === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt.value)}">${escapeHtml(opt.label)}</div>`
+        ).join('');
+      } else {
+        optionsHtml = options.map(opt => 
+          `<div class="custom-select-option ${opt === currentValue ? 'selected' : ''}" data-value="${escapeHtml(opt)}">${escapeHtml(toTitleCase(opt))}</div>`
+        ).join('');
+      }
 
       editor.innerHTML = `
         <div class="custom-select" id="customSelect" data-field="${field}">
-          <div class="custom-select-trigger">${escapeHtml(currentValue)}</div>
+          <div class="custom-select-trigger" data-value="${escapeHtml(currentValue)}">${escapeHtml(field === 'estado' ? displayValue : toTitleCase(displayValue))}</div>
           <div class="custom-select-dropdown">${optionsHtml}</div>
         </div>
       `;
@@ -768,7 +1137,8 @@
           opt.onclick = (e) => {
             e.stopPropagation();
             const value = opt.dataset.value;
-            trigger.textContent = value;
+            trigger.dataset.value = value;
+            trigger.textContent = field === 'estado' ? _estadoLabel(value) : toTitleCase(value);
             dropdown.classList.remove('show');
             // Guardar y cerrar inmediatamente
             saveFromEditor();
@@ -788,7 +1158,8 @@
       } else {
         cellContent = td.textContent.trim();
       }
-      const upperFields = ['factura', 'observacion'];
+      if ((field === 'refactura' || field === 'factura') && cellContent === '-') cellContent = '';
+      const upperFields = ['factura', 'observacion', 'refactura'];
       const forceUpper = upperFields.includes(field) ? 'text-transform:uppercase;' : '';
       editor.innerHTML = `<textarea id="editor-input" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:var(--font-size-sm);box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;${forceUpper}">${escapeHtml(cellContent)}</textarea>`;
       setTimeout(() => {
@@ -808,7 +1179,14 @@
   }
 
   function closeEditor() {
+    _removeFacturadorKeydownListener();
     editor.style.display = 'none';
+    // FE-6: quitar la marca de modo facturador (y su superficie amarilla)
+    // para que cell-edit conserve su fondo blanco por defecto.
+    editor.classList.remove('facturador-mode');
+    // FE-3/D7: resetear el tamaño ampliado del modo facturador (540px) para
+    // que cell-edit conserve su sizing por rect de celda
+    editor.style.width = '';
     editor.style.height = '';
     editor.style.minHeight = '';
     editor.style.alignItems = '';
@@ -822,6 +1200,8 @@
 
   // Guardar al presionar Enter
   document.addEventListener('keydown', (e) => {
+    if (document.querySelector('.confirm-overlay')) return;
+    if (e.target.closest && e.target.closest('.confirm-overlay, .confirm-modal')) return;
     if (e.key === 'Escape' && currentEditId) {
       e.preventDefault();
       e.stopPropagation();
@@ -838,6 +1218,8 @@
 
   // Guardar al hacer click fuera del editor
   document.addEventListener('click', (e) => {
+    if (e.target.closest && e.target.closest('.confirm-overlay, .confirm-modal')) return;
+    if (document.querySelector('.confirm-overlay')) return;
     const btnAdd = document.querySelector('.page-header .btn--primary');
     
     // Click en el editor o en el botón agregar: no cerrar
@@ -856,6 +1238,25 @@
     }
   });
 
+  // Field-aware text write-back. Preserves non-text children (e.g. .obs-img-btn).
+  // Selector contract: .obs-cell-wrapper is shared with the openEditor read path - do not rename.
+  function updateObservationCellText(td, newText) {
+    if (td.dataset.field === 'observacion') {
+      const text = newText || '-';
+      const wrapper = td.querySelector('.obs-cell-wrapper');
+      if (wrapper) { wrapper.textContent = text; return; }
+    } else if (td.dataset.field === 'factura') {
+      const t = newText || '';
+      const span = td.querySelector('span');
+      if (span) { span.textContent = t; return; }
+    } else if (td.dataset.field === 'refactura') {
+      const t = newText || '';
+      const span = td.querySelector('span');
+      if (span) { span.textContent = t; return; }
+    }
+    td.textContent = newText || '-'; // legacy rows / other text fields
+  }
+
   async function saveFromEditor() {
     if (!currentEditId) return;
     // Editor de facturador abierto → no hacer nada (el save lo maneja saveFacturadorEditor)
@@ -870,20 +1271,27 @@
     if (input) {
       newValue = input.value.trim();
     } else if (customSelect) {
-      newValue = customSelect.querySelector('.custom-select-trigger').textContent.trim();
+      newValue = customSelect.querySelector('.custom-select-trigger').dataset.value.trim();
     }
 
     // Determinar campo
     const field = currentCell.dataset.field;
 
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
+    }
+    if (field === 'refactura' && newValue === '-') newValue = '';
+
+    // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
+    if (field === 'estado') {
+      newValue = _estadoValue(newValue);
     }
 
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${newValue==='S'?'Pendiente':'Resuelto'}</span>`;
+      currentCell.dataset.value = newValue;
     } else if (currentEditType === 'select') {
       // Tipo error y responsable: actualizar el span existente sin reemplazar todo
       const badge = currentCell.querySelector('.category-badge');
@@ -902,23 +1310,25 @@
         // responsable: actualizar el texto del segundo span, las iniciales Y el data-value
         const spans = currentCell.querySelectorAll('span');
         if (spans.length > 1) {
-          spans[1].textContent = newValue;
+          spans[1].textContent = toTitleCase(newValue);
           // Recalcular iniciales del nuevo responsable
           const newInitials = newValue ? newValue.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
           spans[0].textContent = newInitials;
           // IMPORTANTE: también actualizar data-value para que al reabrir muestre el valor correcto
           currentCell.dataset.value = newValue;
         } else {
-          currentCell.textContent = newValue;
+          currentCell.textContent = toTitleCase(newValue);
         }
       }
     } else {
-      currentCell.textContent = newValue || '-';
+      updateObservationCellText(currentCell, newValue);
     }
 
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
+    var _didPropagateRefactura = false;
     if (currentEditId === 'new') {
       var factura = field === 'factura' ? newValue : '';
+      var refactura = field === 'refactura' ? newValue : '';
       if (factura) {
         var dup = buscarDuplicados(factura);
         if (dup.length) {
@@ -927,7 +1337,7 @@
           }
         }
       }
-    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       // Validar duplicados en factura para registros existentes
@@ -942,9 +1352,28 @@
           }
         }
       }
+      if (field === 'refactura' && newValue !== '' && newValue !== '-') {
+        var origen = cachedErrores.find(function(e){return e.id===currentEditId});
+        if (origen && origen.factura) {
+          var origenRefacturaNorm = (origen.refactura || '').trim().toUpperCase();
+          if (origenRefacturaNorm === newValue) {
+          } else {
+            var dups = buscarDuplicados(origen.factura).filter(function(e){return e.id!==currentEditId});
+            if (dups.length > 0) {
+              var msg = 'La factura ' + origen.factura + ' está reportada en ' + (dups.length+1) + ' novedades. ¿Deseas cargar la ReFactura "' + newValue + '" en todas?';
+              if (await Modal.confirm(msg)) {
+                for (var i = 0; i < dups.length; i++) { await updateBackend(dups[i].id, 'refactura', newValue); }
+                if (typeof Modal !== 'undefined' && typeof Modal.toast === 'function') Modal.toast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 3500); else showToast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 'success');
+                _didPropagateRefactura = true;
+              }
+            }
+          }
+        }
+      }
       updateBackend(currentEditId, field, newValue);
     }
     closeEditor();
+    if (_didPropagateRefactura) renderFilteredByMonth();
   }
   
   // Obtener datos de la fila nueva
@@ -993,15 +1422,21 @@
     if (input) {
       newValue = input.value.trim();
     } else if (customSelect) {
-      newValue = customSelect.querySelector('.custom-select-trigger').textContent.trim();
+      newValue = customSelect.querySelector('.custom-select-trigger').dataset.value.trim();
     }
     
     const field = currentCell.dataset.field;
     const prevId = currentEditId;
 
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       newValue = newValue.toUpperCase();
+    }
+    if (field === 'refactura' && newValue === '-') newValue = '';
+
+    // Mapear etiqueta visible → valor interno ('Pendiente' → 'S', 'Resuelto' → 'N')
+    if (field === 'estado') {
+      newValue = _estadoValue(newValue);
     }
 
     // Validar duplicados en factura
@@ -1022,12 +1457,32 @@
         }
       }
     }
+    var _didPropagateRefacturaCb = false;
+    if (field === 'refactura' && newValue !== '' && newValue !== '-') {
+      var origen = cachedErrores.find(function(e){return e.id===prevId});
+      if (origen && origen.factura) {
+        var origenRefacturaNorm = (origen.refactura || '').trim().toUpperCase();
+        if (origenRefacturaNorm === newValue) {
+        } else {
+          var dups = buscarDuplicados(origen.factura).filter(function(e){return e.id!==prevId});
+          if (dups.length > 0) {
+            var msg = 'La factura ' + origen.factura + ' está reportada en ' + (dups.length+1) + ' novedades. ¿Deseas cargar la ReFactura "' + newValue + '" en todas?';
+            if (await Modal.confirm(msg)) {
+              for (var i = 0; i < dups.length; i++) { await updateBackend(dups[i].id, 'refactura', newValue); }
+              if (typeof Modal !== 'undefined' && typeof Modal.toast === 'function') Modal.toast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 3500); else showToast('ReFactura "'+newValue+'" propagada a '+dups.length+' registro(s)', 'success');
+              _didPropagateRefacturaCb = true;
+            }
+          }
+        }
+      }
+    }
 
     // Si es nuevo registro, crear directamente
     if (prevId === 'new') {
       const data = {
         tipo_error: 'Otros',
         factura: field === 'factura' ? newValue : '',
+        refactura: field === 'refactura' ? newValue : '',
         observacion: '',
         observacion_facturador: '',
         estado: 'S',
@@ -1041,16 +1496,18 @@
 
     // Actualizar visualmente - solo estado muestra badge
     if (field === 'estado') {
-      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(newValue)}</span>`;
+      currentCell.innerHTML = `<span class="badge ${newValue==='S'?'badge--pending':'badge--resolved'}">${newValue==='S'?'Pendiente':'Resuelto'}</span>`;
+      currentCell.dataset.value = newValue;
     } else if (currentEditType === 'select') {
-      currentCell.innerHTML = newValue;
+      currentCell.innerHTML = toTitleCase(newValue);
     } else {
-      currentCell.textContent = newValue || '-';
+      updateObservationCellText(currentCell, newValue);
     }
 
     // Guardar y luego ejecutar callback
     updateBackend(prevId, field, newValue);
     closeEditor();
+    if (_didPropagateRefacturaCb) renderFilteredByMonth();
     
     // Pequeño delay para evitar conflictos
     setTimeout(callback, 10);
@@ -1072,8 +1529,8 @@
   }
 
   async function updateBackend(id, field, value) {
-    // Forzar mayúsculas en factura y observación
-    if (field === 'factura' || field === 'observacion') {
+    // Forzar mayúsculas en factura, observación y refactura
+    if (field === 'factura' || field === 'observacion' || field === 'refactura') {
       value = value.toUpperCase();
     }
     var error = cachedErrores.find(function(e){return e.id===id});
@@ -1145,11 +1602,12 @@
     newRow.innerHTML = `
       <td class="fecha-creado">${currentUserName || '-'}</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
+      <td class="new-row-cell" data-type="text" data-id="new" data-field="refactura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Otros</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" onclick="handleCellClick(this)"><span class="badge badge--pending">S</span></td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" data-value="S" onclick="handleCellClick(this)"><span class="badge badge--pending">Pendiente</span></td>
       <td class="table-actions"></td>
     `;
     tbody.insertBefore(newRow, tbody.firstChild);
@@ -1179,12 +1637,13 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
 
   async function saveNewRow() {
     var factura = (document.getElementById('newFactura')?.value?.trim() || '').toUpperCase();
+    var refactura = (document.getElementById('newRefactura')?.value?.trim() || '').toUpperCase();
     if (!factura) { isAdding = false; loadErrores(); return; }
     var dup = buscarDuplicados(factura);
     if (dup.length && !await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Otros', factura: factura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Otros', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
@@ -1216,12 +1675,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (!await Modal.confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
-    if (result.status === 'success') loadErrores(); 
+    if (result.status === 'success') {
+      // Si la fila eliminada tenía el editor de facturador abierto, cerrarlo
+      if (currentEditId === id) closeEditor();
+      loadErrores(); 
+    }
     else Modal.alert(result.errors.join(', ')); 
   }
   function handleSearch() {
     currentPage = 1; // Reset a primera página al buscar
     const query = document.getElementById('searchInput').value.toLowerCase().trim();
+    searchQuery = query;
     // Primero filtrar por mes
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
@@ -1233,7 +1697,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const filtered = erroresDelMes.filter(e => {
       const factura = (e.factura || '').toLowerCase();
       const observacion = (e.observacion || '').toLowerCase();
-      return factura.includes(query) || observacion.includes(query);
+      const refactura = (e.refactura || '').toLowerCase();
+      return factura.includes(query) || observacion.includes(query) || refactura.includes(query);
     });
     renderFilteredTable(filtered);
     updateDisabledState();
@@ -1253,7 +1718,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     const pageItems = errores.slice(startIndex, endIndex);
     
     if (!errores || errores.length === 0) {
-      html += '<tr><td colspan="8" class="empty-state">No se encontraron resultados</td></tr>';
+      html += '<tr><td colspan="9" class="empty-state">No se encontraron resultados</td></tr>';
     } else {
       pageItems.forEach(e => {
         let categoryClass = 'clinico';
@@ -1266,9 +1731,12 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
         html += `<tr>
-          <td class="fecha-creado">${escapeHtml(e.validador || '-')}</td>
+          <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
+          </td>
+          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+            <span>${escapeHtml(e.refactura || '')}</span>
           </td>
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
@@ -1278,20 +1746,22 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
           <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
-              <span>${escapeHtml(e.responsable)}</span>
+              <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" onclick="handleCellClick(this)">
-            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${escapeHtml(e.estado)}</span>
+          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+            <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>
           <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
             </button>
             <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
@@ -1352,13 +1822,18 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   function applyFilters() { currentPage = 1; loadErrores(); }
   
   function clearFilters() {
+    document.getElementById('searchInput').value = '';
+    searchQuery = '';
     document.getElementById('filterTipo').value = '';
     document.getElementById('filterEstado').value = '';
     document.getElementById('filterResponsable').value = '';
+    document.getElementById('filterArea').value = '';
+    document.getElementById('filterValidador').value = '';
+    currentPage = 1;
     loadErrores();
   }
   
-  function exportToCSV() {
+function exportarExcel() {
     if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       Modal.alert('No hay datos para exportar');
@@ -1378,69 +1853,60 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       return;
     }
     
-    // Nombre del mes para el archivo
-    const [year, month] = currentMonth.split('-');
-    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
-    const monthName = monthNames[parseInt(month) - 1];
-    const filename = `control-errores-${monthName}-${year}.csv`;
-    
-    const headers = ['Factura', 'Creado', 'Categoría', 'Descripción', 'Responsable', 'Estado'];
-    const rows = erroresDelMes.map(e => {
-      // Formatear fecha
-      let fecha = '-';
-      if (e.creado_en) {
-        const d = new Date(e.creado_en);
-        fecha = d.toLocaleDateString('es-CO');
-      }
-      return [
-        e.factura || 'ERR-' + e.id,
-        fecha,
-        e.tipo_error || '',
-        (e.observacion || '').replace(/"/g, '""'), // Escape comillas
-        e.responsable || '',
-        e.estado === 'S' ? 'Pendiente' : 'Resuelto'
-      ];
+    const params = new URLSearchParams({
+      mes: currentMonth,
+      tipo_error: document.getElementById('filterTipo').value,
+      estado: document.getElementById('filterEstado').value,
+      responsable: document.getElementById('filterResponsable').value,
+      area: document.getElementById('filterArea').value,
+      validador: document.getElementById('filterValidador').value,
     });
-    
-    // Construir CSV con BOM para UTF-8
-    const csvContent = [
-      headers.join(','),
-      ...rows.map(r => r.map(c => `"${c}"`).join(','))
-    ].join('\n');
-    
-    // Agregar BOM para que Excel detecte UTF-8 correctamente
-    const BOM = '\uFEFF';
-    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', filename);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    window.location.href = `/api/control-errores/export?${params.toString()}`;
   }
   function escapeHtml(t) { const d = document.createElement('div'); d.textContent = t || ''; return d.innerHTML; }
 
   // ====== MODAL IMÁGENES ======
   let currentImageErrorId = null;
+  // Scope del modal abierto: "" = observación (legacy) | "facturador" (FA-1)
+  let currentImageScope = '';
 
-  /** Devuelve HTML para un PDF dentro del modal (ícono + enlace) */
-  function _renderPdfThumb(errorId, filename, authed) {
+  /** Query string de scope para URLs del modal: '' → sin ?scope= (M-1/D4). */
+  function _scopeQuery(scope) { return scope ? `?scope=${encodeURIComponent(scope)}` : ''; }
+
+  /** Devuelve HTML para un PDF dentro del modal (ícono + enlace, scope-aware) */
+  function _renderPdfThumb(errorId, filename, authed, scope) {
+    const scopeQuery = _scopeQuery(scope);
     return `<div style="position:relative;width:120px;height:90px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border:1px solid #e2e8f0;border-radius:4px;">
-      <a href="/api/control-errores/${errorId}/imagenes/${filename}" target="_blank" style="text-decoration:none;color:#dc2626;display:flex;flex-direction:column;align-items:center;gap:4px;">
+      <a href="/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}" target="_blank" style="text-decoration:none;color:#dc2626;display:flex;flex-direction:column;align-items:center;gap:4px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
           <polyline points="14 2 14 8 20 8"/>
         </svg>
         <span style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${filename}</span>
       </a>
-      ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
+      ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
     </div>`;
   }
 
-  async function openImageModal(errorId) {
+  /** Devuelve HTML para un archivo Excel dentro del modal (ícono + enlace, scope-aware) */
+  function _renderExcelThumb(errorId, filename, authed, scope) {
+    const scopeQuery = _scopeQuery(scope);
+    return `<div style="position:relative;width:120px;height:90px;display:flex;align-items:center;justify-content:center;background:#f8f9fa;border:1px solid #e2e8f0;border-radius:4px;">
+      <a href="/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}" target="_blank" style="text-decoration:none;color:#16a34a;display:flex;flex-direction:column;align-items:center;gap:4px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/>
+          <path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+          <path d="M8 13h2"/><path d="M14 13h2"/><path d="M8 17h2"/><path d="M14 17h2"/>
+        </svg>
+        <span style="font-size:10px;color:#64748b;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${filename}</span>
+      </a>
+      ${authed ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
+    </div>`;
+  }
+
+  async function openImageModal(errorId, scope = '') {
     currentImageErrorId = errorId;
+    currentImageScope = scope;
     const modal = document.getElementById('image-modal');
     const listEl = document.getElementById('modal-images-list');
     const dropzone = document.getElementById('modal-dropzone');
@@ -1451,19 +1917,27 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       dropzone.style.display = 'none';
     }
 
-    // Cargar archivos
-    const res = await fetch(`/api/control-errores/${errorId}/imagenes`);
+    // Cargar archivos del scope (M-1): "" observación | "facturador"
+    // Cache-busting: el GET repite la misma URL en cada refresh (paste,
+    // dropzone, delete) y sin no-cache el navegador puede devolver la lista
+    // vieja — _ts fuerza datos frescos para que el modal se actualice en vivo.
+    const scopeQuery = _scopeQuery(scope);
+    const cacheBuster = (scopeQuery ? '&' : '?') + '_ts=' + Date.now();
+    const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}${cacheBuster}`);
     const result = await res.json();
     if (result.status === 'success') {
-      listEl.innerHTML = result.data.imagenes.map(filename => {
-        const isPdf = filename.toLowerCase().endsWith('.pdf');
-        if (isPdf) return _renderPdfThumb(errorId, filename, window._canWrite);
+      listEl.innerHTML = result.data.imagenes.map(item => {
+        const filename = item.filename;
+        const canDelete = item.can_delete;
+        const lower = filename.toLowerCase();
+        if (lower.endsWith('.pdf')) return _renderPdfThumb(errorId, filename, canDelete, scope);
+        if (/\.(xlsx|xls|xlsm|xlsb)$/.test(lower)) return _renderExcelThumb(errorId, filename, canDelete, scope);
         return `<div style="position:relative;width:120px;height:90px;">
-          <img src="/api/control-errores/${errorId}/imagenes/${filename}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}')" onerror="console.error('Error cargando imagen:', this.src)">
-          ${window._canWrite ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}')">&times;</button>` : ''}
+          <img src="/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}" class="modal-image" onclick="viewFullImage('${errorId}','${filename}','${scope}')" onerror="console.error('Error cargando imagen:', this.src)">
+          ${canDelete ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
         </div>`;
       }).join('');
-      // Solo mostrar dropzone si tiene permiso de escritura y hay espacio
+      // Solo mostrar dropzone si tiene permiso de escritura y hay espacio en el scope
       if (window._canWrite) {
         dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
       }
@@ -1476,16 +1950,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     // Event listeners (solo si tiene permiso de escritura)
     if (window._canWrite) {
       dropzone.onclick = () => fileInput.click();
-      fileInput.onchange = () => { uploadImages(errorId, fileInput.files); fileInput.value = ''; };
+      fileInput.onchange = () => { uploadImages(errorId, fileInput.files, scope); fileInput.value = ''; };
       dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
       dropzone.ondragleave = () => dropzone.classList.remove('dragover');
-      dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); uploadImages(errorId, e.dataTransfer.files); };
+      dropzone.ondrop = (e) => { e.preventDefault(); dropzone.classList.remove('dragover'); uploadImages(errorId, e.dataTransfer.files, scope); };
     }
   }
 
   function closeImageModal() {
     document.getElementById('image-modal').classList.remove('open');
     currentImageErrorId = null;
+    currentImageScope = '';
   }
 
   // Cerrar modal al hacer click afuera
@@ -1495,39 +1970,44 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     }
   });
 
-  async function uploadImages(errorId, files) {
+  async function uploadImages(errorId, files, scope = '') {
     if (!window._canWrite) return;
+    const scopeQuery = _scopeQuery(scope);
     for (const file of files) {
-      const isPdf = file.name.toLowerCase().endsWith('.pdf');
-      if (!file.type.startsWith('image/') && !isPdf) continue;
+      const name = file.name.toLowerCase();
+      const isImage = file.type.startsWith('image/');
+      const isDoc = /\.(pdf|xlsx|xls|xlsm|xlsb)$/.test(name);
+      if (!isImage && !isDoc) continue;
       const formData = new FormData();
       formData.append('imagen', file);
-      const res = await fetch(`/api/control-errores/${errorId}/imagenes`, { method: 'POST', body: formData });
+      const res = await fetch(`/api/control-errores/${errorId}/imagenes${scopeQuery}`, { method: 'POST', body: formData });
       const result = await res.json();
       if (result.status !== 'success') Modal.alert(result.errors.join(', '));
     }
-    openImageModal(errorId);
+    openImageModal(errorId, scope);
     loadErrores();
   }
 
-  async function deleteImage(errorId, filename) {
+  async function deleteImage(errorId, filename, scope = '') {
     if (!window._canWrite) return;
     if (!await Modal.confirm('¿Eliminar imagen?')) return;
-    const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}`, { method: 'DELETE' });
+    const scopeQuery = scope ? `&scope=${encodeURIComponent(scope)}` : '';
+    const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}${scopeQuery}`, { method: 'DELETE' });
     const result = await res.json();
-    if (result.status === 'success') { openImageModal(errorId); loadErrores(); }
+    if (result.status === 'success') { openImageModal(errorId, scope); loadErrores(); }
     else Modal.alert(result.errors.join(', '));
   }
 
-  function viewFullImage(errorId, filename) {
+  function viewFullImage(errorId, filename, scope = '') {
     const isPdf = filename.toLowerCase().endsWith('.pdf');
+    const scopeQuery = _scopeQuery(scope);
     if (isPdf) {
-      window.open(`/api/control-errores/${errorId}/imagenes/${filename}`, '_blank');
+      window.open(`/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}`, '_blank');
       return;
     }
     const lightbox = document.getElementById('lightbox');
     const img = document.getElementById('lightbox-img');
-    img.src = `/api/control-errores/${errorId}/imagenes/${filename}`;
+    img.src = `/api/control-errores/${errorId}/imagenes/${filename}${scopeQuery}`;
     lightbox.classList.add('open');
     lightbox.onclick = (e) => { if (e.target === lightbox) closeLightbox(); };
   }
@@ -1547,72 +2027,122 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     }
   });
 
-  // Pegar imagen del portapapeles al error activo
+  // Pegar imagen del portapapeles según el contexto activo.
+  // Excel copia las celdas como texto + un bitmap de preview: si este handler
+  // interceptara siempre el paste, pegar texto desde Excel subiría esa preview
+  // como adjunto y el texto jamás llegaría al textarea. Por eso la imagen se
+  // captura únicamente cuando:
+  //   - El modal de archivos (#image-modal) está abierto → su scope, O
+  //   - El editor de OBSERVACIÓN DEL FACTURADOR está activo (currentEditId
+  //     seteado y currentCell === null, sin celda específica) → el facturador,
+  //     pegando la imagen con el puntero dentro del textarea, sin modal.
+  // En cualquier otro contexto (celda de observación, carga masiva, textareas
+  // comunes) el paste es texto puro y nunca se hace preventDefault.
+  // Además: si el portapapeles trae texto (Excel copia texto + preview bitmap),
+  // NUNCA se intercepta — se deja pegar el texto (ni el modal ni el editor
+  // facturador suben el preview). El editor facturador además exige el foco
+  // dentro del editor (#global-editor) para no secuestrar pastes de otros
+  // campos mientras está abierto.
   document.addEventListener('paste', async (e) => {
-    // Si el modal de carga masiva está abierto
+    // Carga masiva abierta: el pegado de datos (texto de Excel) no se toca.
+    // Las imágenes se agregan desde el dropzone / selector del paso 2.
     if (document.getElementById('cargaModal').classList.contains('open')) {
-      // Si estamos en PASO 2 (previsualización): auto-agregar imagen sin preguntar
-      if (!document.getElementById('cargaStep2').classList.contains('hidden')) {
-        e.preventDefault();
-        var clipItems = e.clipboardData?.items;
-        if (clipItems) {
-          for (var idx = clipItems.length - 1; idx >= 0; idx--) {
-            if (clipItems[idx].type.startsWith('image/')) {
-              var file = clipItems[idx].getAsFile();
-              if (file) {
-                setTimeout(function() {
-                  if (cargaImages.length >= 3) return;
-                  addCargaImageFile(file);
-                  renderCargaThumbs();
-                }, 100);
-              }
-              break;
-            }
-          }
-        }
-      }
-      return; // No seguir al upload del error activo
-    }
-
-    // Si el usuario está escribiendo en un textarea/input común,
-    // dejar que el navegador pegue el texto sin interferir
-    const activeEl = document.activeElement;
-    if (activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT')) {
       return;
     }
 
     const items = e.clipboardData?.items;
     if (!items) return;
-    
+
     let imageFile = null;
+    let hasText = false;
     for (const item of items) {
       if (item.type.startsWith('image/')) {
         imageFile = item.getAsFile();
+      } else if (item.type === 'text/plain' && item.kind === 'string') {
+        hasText = true;
       }
     }
-    if (!imageFile) return;
-    
-    // Subir al error que tenga el modal de imágenes abierto, o al que se está editando
-    const errorId = currentImageErrorId || (currentEditId !== 'new' ? currentEditId : null);
-    if (!errorId) return;
-    
+    // Sin imagen, o con texto en el portapapeles (Excel/documentos) → texto puro.
+    if (!imageFile || hasText) return;
+
+    // Determinar el error destino según el contexto activo.
+    let target;
+    if (currentImageErrorId) {
+      // Modal de archivos abierto (scope: observación o facturador).
+      target = { id: currentImageErrorId, scope: currentImageScope };
+    } else if (currentEditId && currentEditId !== 'new' && currentCell === null) {
+      // Editor de observación del facturador activo (sin celda específica):
+      // se pega la imagen sin necesidad de abrir el modal. Exige que el foco
+      // esté dentro del editor (puntero en el textarea), como si se escribiera.
+      const activeEl = document.activeElement;
+      const editorEl = document.getElementById('global-editor');
+      const focusInEditor = editorEl && activeEl && (editorEl === activeEl || editorEl.contains(activeEl));
+      if (!focusInEditor) return;
+      target = { id: currentEditId, scope: 'facturador' };
+    } else {
+      // Celda de observación, carga masiva o sin editor → texto puro.
+      return;
+    }
+
+    // FE-2/D6: sin permiso por scope → no subir por paste.
+    // Facturador → _canFacturadorAttach; observación (modal) → _canWrite.
+    const allowed = target.scope === 'facturador'
+      ? window._canFacturadorAttach
+      : window._canWrite;
+    if (!allowed) return;
+
+    // FE-2/D6: cupo max-3 en scope facturador → alert y skip (sin upload)
+    if (target.scope === 'facturador') {
+      const panel = document.getElementById('facturador-attachments');
+      const currentCount = panel ? parseInt(panel.dataset.count || '0', 10) : 0;
+      if (currentCount >= 3) {
+        Modal.alert('Máximo 3 archivos por observación facturador');
+        return;
+      }
+    }
+
     e.preventDefault();
-    
+
     const formData = new FormData();
     formData.append('imagen', imageFile);
-    
+
+    const scopeQuery = _scopeQuery(target.scope);
     try {
-      const res = await fetch(`/api/control-errores/${errorId}/imagenes`, {
+      const res = await fetch(`/api/control-errores/${target.id}/imagenes${scopeQuery}`, {
         method: 'POST',
         body: formData
       });
-      if (res.ok) {
+      // El backend devuelve HTTP 200 con envelope status:"error" para los
+      // rechazos comunes (cupo server-side, archivo no permitido, tamaño):
+      // hay que validar AMBOS (res.ok y el envelope) antes de tratar el
+      // upload como éxito.
+      let result = null;
+      try { result = await res.json(); } catch { /* sin JSON */ }
+      if (res.ok && result && result.status === 'success') {
         loadErrores();
-        // Si el modal de imágenes está abierto, recargarlo
-        if (currentImageErrorId) openImageModal(currentImageErrorId);
+        lastUpdate = new Date().toISOString();
+        // Paste en el editor del facturador → refresh INLINE del panel embebido
+        // (nunca closeEditor, el textarea queda intacto), con o sin modal.
+        // Guard de identidad: solo si el editor sigue en el MISMO error.
+        if (target.scope === 'facturador' && currentEditId === target.id && currentCell === null) {
+          renderFacturadorAttachments(target.id);
+        }
+        // Si el modal de archivos sigue abierto PARA EL MISMO error/scope,
+        // recargarlo. Guard de identidad: si durante el await del POST el
+        // usuario abrió el modal de otro error, no pisarlo con target stale.
+        if (currentImageErrorId === target.id && currentImageScope === target.scope) {
+          openImageModal(target.id, target.scope);
+        }
+      } else {
+        // Fallo del POST (cupo superado en server, permiso, archivo inválido):
+        // avisar con los errores del backend en vez de fallar en silencio.
+        const errs = result && result.errors && result.errors.length
+          ? result.errors
+          : ['Error al subir imagen (HTTP ' + res.status + ')'];
+        Modal.alert(errs.join(', '));
       }
     } catch (err) {
-      console.error('Error al pegar imagen:', err);
+      console.error('[FRONT][ERROR] Error al pegar imagen:', err);
     }
   });
 
@@ -1620,10 +2150,12 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   let cargaParsedRows = [];
   let cargaImages = []; // { file: Blob, url: string, name: string }
 
-  /** Normaliza texto: minúsculas, sin tildes, sin espacios extra */
+  /** Normaliza texto: minúsculas, sin tildes (preservando ñ), sin espacios extra */
   function _norm(t) {
     return (t || '').toLowerCase().trim()
+      .replace(/ñ/g, '\uE000')
       .normalize("NFD").replace(/[\u0300-\u036f]/g, '')
+      .replace(/\uE000/g, 'ñ')
       .replace(/\s+/g, ' ');
   }
 
@@ -1642,16 +2174,26 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    *  Cada palabra cuenta si está contenida en el otro lado.
    */
   function _matchScore(rawWords, candidateWords) {
-    var score = 0;
+    var exact = 0;
+    var partial = 0;
     for (var i = 0; i < rawWords.length; i++) {
       for (var j = 0; j < candidateWords.length; j++) {
-        if (candidateWords[j].includes(rawWords[i]) || rawWords[i].includes(candidateWords[j])) {
-          score++;
+        if (candidateWords[j] === rawWords[i]) {
+          exact++;
           break; // una coincidencia por palabra del input
+        }
+        if (candidateWords[j].includes(rawWords[i]) || rawWords[i].includes(candidateWords[j])) {
+          partial++;
+          break;
         }
       }
     }
-    return score;
+    return { exact: exact, partial: partial };
+  }
+
+  function _compareMatchScores(left, right) {
+    if (left.exact !== right.exact) return left.exact - right.exact;
+    return left.partial - right.partial;
   }
 
   /** Elige el mejor candidato entre una lista de nombres.
@@ -1660,16 +2202,17 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
    */
   function _bestMatch(rawWords, candidates) {
     var best = '';
-    var bestScore = 0;
+    var bestScore = { exact: 0, partial: 0 };
     var tiedValue = null;
     for (var i = 0; i < candidates.length; i++) {
       var cWords = _norm(candidates[i].text).split(/\s+/).filter(function(w) { return w.length > 1; });
       var score = _matchScore(rawWords, cWords);
-      if (score > bestScore) {
+      var comparison = _compareMatchScores(score, bestScore);
+      if (comparison > 0) {
         bestScore = score;
         best = candidates[i].value;
         tiedValue = null;
-      } else if (score > 0 && score === bestScore && candidates[i].value !== best) {
+      } else if (comparison === 0 && (score.exact > 0 || score.partial > 0) && candidates[i].value !== best) {
         tiedValue = candidates[i].value;
       }
     }
@@ -1678,38 +2221,27 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     return best;
   }
 
-  /** Normaliza responsable contra la lista existente.
+  /** Normaliza responsable contra la lista de identidades DB.
    *  1) Match exacto (rápido)
-   *  2) Match contra nombre completo (exacto)
-   *  3) Best-match contra nombres cortos + completos (con scoring, evita empates)
-   *  4) Si no hay match → devuelve vacío
+   *  2) Best-match con scoring (evita empates)
+   *  3) Si no hay match → devuelve vacío
+   *
+   *  La lista proviene de opciones.responsables (facturadores DB);
+   *  ya no existe responsables_nombres_completos.
    */
-  function _matchResponsable(raw, lista) {
+  function _matchResponsable(raw, candidates) {
     if (!raw) return '';
     const rawNorm = _norm(raw);
 
-    // 1) Match exacto contra short
-    for (const r of lista) {
-      if (_norm(r) === rawNorm) return r;
-    }
-
-    // 2) Match exacto contra nombre completo
-    var nombresCompletos = opciones.responsables_nombres_completos || {};
-    for (var shortName in nombresCompletos) {
-      if (_norm(nombresCompletos[shortName]) === rawNorm) return shortName;
+    // 1) Match exacto contra la identidad canónica
+    for (const candidate of candidates) {
+      if (_norm(candidate.value) === rawNorm) return candidate.value;
     }
 
     const rawWords = rawNorm.split(/\s+/).filter(function(w) { return w.length > 1; });
     if (!rawWords.length) return '';
 
-    // 3) Best-match: arma lista de candidatos (short + full) y elige el mejor
-    var candidates = [];
-    for (var i = 0; i < lista.length; i++) {
-      candidates.push({ text: lista[i], value: lista[i] });
-    }
-    for (var shortName in nombresCompletos) {
-      candidates.push({ text: nombresCompletos[shortName], value: shortName });
-    }
+    // 2) Best-match contra la lista de identidades
     return _bestMatch(rawWords, candidates);
   }
 
@@ -1812,33 +2344,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     lightbox.onclick = function(e) { if (e.target === lightbox) closeLightbox(); };
   }
 
-  // Capturar imagen del portapapeles al pegar en el textarea de carga masiva
-  document.getElementById('cargaTextarea').addEventListener('paste', function(e) {
-    if (cargaImages.length >= 3) return;
-
-    // No usar preventDefault — el texto de Excel (con posible preview
-    // visual) debe pegarse igual. Solo extraemos la imagen al lado.
-    var items = e.clipboardData?.items;
-    if (items) {
-      for (var idx = items.length - 1; idx >= 0; idx--) {
-        if (items[idx].type.startsWith('image/')) {
-          var file = items[idx].getAsFile();
-          if (file) {
-            preguntarImagenCarga(file);
-          }
-          break;
-        }
-      }
-    }
-  });
-
-  function preguntarImagenCarga(file) {
-    setTimeout(function() {
-      if (cargaImages.length >= 3) return;
-      addCargaImageFile(file);
-      renderCargaThumbs();
-    }, 100);
-  }
+  // NOTA: pegar en el textarea de carga masiva es SOLO texto. Excel copia las
+  // celdas con un bitmap de preview; si capturáramos esa imagen, cada pegado
+  // de datos llenaría los adjuntos con imágenes basura. Los adjuntos de carga
+  // masiva se agregan desde el dropzone / selector de archivos del paso 2.
 
   // ====== FLUJO PRINCIPAL CARGA MASIVA ======
 
@@ -1926,7 +2435,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         return;
       }
 
-      const responsable = _matchResponsable(responsableRaw, opciones.responsables);
+      const responsable = _matchResponsable(responsableRaw, _currentResponsableCandidates());
       // Marcar duplicado contra cachedErrores (misma factura + misma categoría)
       const duplicate = _esDuplicadoCarga(factura);
       rows.push({ factura: factura, responsable: responsable, duplicate: duplicate });
@@ -1996,11 +2505,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         '</div></td>';
       html += '<td><input type="text" class="carga-preview-input' + dupClass + '" id="cp_desc_' + i + '" value="' + escapeHtml(descripcion) + '"' + disabledAttr + ' style="text-transform:uppercase;"></td>';
       // Siempre select: si hay match se pre-selecciona, si no → "-- Seleccionar --"
-      var optionsHtml = '<option value="">-- Seleccionar --</option>' +
-        opciones.responsables.map(function(r) {
-          var selected = r === row.responsable ? ' selected' : '';
-          return '<option value="' + escapeHtml(r) + '"' + selected + '>' + escapeHtml(r) + '</option>';
-        }).join('');
+      var optionsHtml = '<option value="">-- Seleccionar --</option>' + _buildResponsableOptions(row.responsable);
       html += '<td><select class="carga-preview-input' + dupClass + '" id="cp_resp_' + i + '"' + disabledAttr + '>' + optionsHtml + '</select></td>';
       html += '<td style="text-align:center;">' +
         (isDup ? '<span style="font-size:0.75rem;color:#d97706;">Duplicado</span>' : '<span style="font-size:0.75rem;color:#10b981;">Agregado</span>') +
@@ -2168,6 +2673,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   // ====== AUTH DISABLED STATE ======
   // Permiso de escritura desde el server (control_urgencias:write o admin *)
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+  // Permiso de adjuntos facturador: control_urgencias (con o sin :write) o admin *
+  window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {
@@ -2214,10 +2721,10 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         btn.setAttribute('disabled', '');
       });
 
-      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion y factura)
+      // Deshabilitar celdas editables (excepto estado, observacion_facturador, observacion, factura y refactura)
       document.querySelectorAll('.editable-cell[data-field]').forEach(cell => {
         const field = cell.dataset.field;
-        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura') {
+        if (field !== 'estado' && field !== 'observacion_facturador' && field !== 'observacion' && field !== 'factura' && field !== 'refactura') {
           const imgBtn = cell.querySelector('.obs-img-btn');
           if (imgBtn) {
             cell.classList.add('disabled-action--has-img');

@@ -20,7 +20,42 @@ from app.constants import (
     URGENCIA_DATA_ROW_BACKGROUND_COLOR,
 )
 
+import unicodedata
+
 logger = logging.getLogger(__name__)
+
+
+def to_title_case(value: str | None) -> str:
+    """Convierte a Title Case preservando acentos y Ñ (paridad JS toTitleCase).
+
+    Usa agrupación NFKD base+combining igual que el helper del frontend:
+    "MARIA DEL PILAR" → "Maria Del Pilar", "MUÑOZ" → "Muñoz", "PÉREZ" → "Pérez".
+    No usa ``str.title()`` porque rompe con apóstrofes.
+    """
+    if not value:
+        return ""
+    words = str(value).split()
+    out: list[str] = []
+    for w in words:
+        d = unicodedata.normalize("NFKD", w)
+        grouped: list[str] = []
+        for ch in d:
+            if unicodedata.combining(ch) and grouped:
+                grouped[-1] += ch
+            else:
+                grouped.append(ch)
+        transformed = []
+        for idx, g in enumerate(grouped):
+            if idx == 0:
+                # Primer grafema: mayúscula inicial + resto minúscula
+                if len(g) == 1:
+                    transformed.append(g.upper())
+                else:
+                    transformed.append(g[0].upper() + g[1:].lower())
+            else:
+                transformed.append(g.lower())
+        out.append(unicodedata.normalize("NFC", "".join(transformed)))
+    return " ".join(out)
 
 
 def create_header_style() -> dict:

@@ -40,6 +40,9 @@ class ProdConfig:
 
     SECRET_KEY = _prod_secret_key()
 
+    # Base URL pública para los links de adjuntos del export (vacío = request.host_url)
+    EXPORT_BASE_URL = os.getenv("EXPORT_BASE_URL", "")
+
     MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100 MB
 
     LOG_LEVEL = "INFO"

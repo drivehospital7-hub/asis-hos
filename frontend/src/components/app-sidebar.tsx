@@ -5,10 +5,12 @@ import {
   CalendarClock,
   FileSpreadsheet,
   Scale,
+  FolderSearch,
   Users,
   Upload,
   BookType,
   LogOut,
+  FlaskConical,
   Search,
 } from "lucide-react";
 
@@ -30,6 +32,8 @@ const ALL_NAV: NavItem[] = [
   { label: "Cronograma Bacteriólogas", href: "/cronograma-bacteriologas", icon: CalendarClock, permiso: "cronograma_bacteriologas" },
   { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
   { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
+  { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },
+  { label: "Exámenes", href: "/examenes", icon: FlaskConical, permiso: "examenes" },
   { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
   { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
   { label: "Catálogos", href: "/catalogo", icon: BookType, permiso: "*" },

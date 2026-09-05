@@ -49,6 +49,11 @@ AYUDAS_OPTIONAL_HEADERS: dict[str, str] = {
     "profesional_solicito": "Profesional Solicito",
 }
 
+# Columnas opcionales para REPORTE (no rompen si faltan)
+REPORTE_OPTIONAL_HEADERS: dict[str, str] = {
+    "fecha_cierre": "Fecha Cierre",
+}
+
 # Máximas filas a escanear para encontrar encabezados
 MAX_SCAN_ROWS = 20
 
@@ -78,15 +83,71 @@ CODIGOS_EXCEPCION: set[str] = {
     "S31301", "S31302", "S32301", "S32302", "S33301", "S33302",
 }
 
+# Códigos de parto procesados que NO se consideran no facturados
+PROCESADOS_PARTO: set[str] = {
+    "735301",
+    "735930",
+    "735950",
+    "P0000450",
+    "717110",
+    "717111",
+    "S21100",
+    "90DS02",
+    "933701",
+    "754101",
+    "750101",
+    "897011",
+    "897012",
+    "735980",
+    "721001",
+    "721002",
+    "732201",
+    "735300",
+    "S21200",
+    "906916",
+}
+
+# Códigos de interconsultas procesados que NO se consideran no facturados
+PROCESADOS_INTERCONSULTAS: set[str] = {
+    "890410",
+    "890402",
+    "890404",
+    "890403",
+    "890408",
+    "890411",
+    "890413",
+    "890412",
+    "890409",
+    "37602",
+    "39140",
+    "890405",
+    "890432",
+    "890401",
+    "890406",
+    "36101",
+    "37701",
+    "890610",
+}
+
+# Códigos de otros procesados que NO se consideran no facturados
+PROCESADOS_OTROS: set[str] = {
+    "37401",
+    "861101",
+    "865101",
+    "579401",
+    "965301",
+    "37206",
+    "935302",
+    "935301",
+    "939402",
+    "861801",
+    "963901",
+    "965101",
+    "982102",
+}
+
 # Códigos que también se matchean por número de documento (como CAP)
 CODIGOS_MATCH_POR_DOCUMENTO: set[str] = {"890405", "861801"}
-
-# Códigos a mostrar en el totalizado (solo estos)
-CODIGOS_TOTALIZADO: set[str] = {
-    "735301", "90DS02", "890409",
-    "890408", "890409", "890406",
-    "890405", "890412", "890411",
-}
 
 # Columnas requeridas para NOTAS ENFERMERÍA (opcional)
 NOTAS_REQUIRED_HEADERS: dict[str, str] = {
@@ -310,6 +371,7 @@ def procesar_cruce(
     path_reporte: Path,
     path_ayudas: Path,
     path_notas: Path | None = None,
+    cerradas: bool = False,
 ) -> dict[str, Any]:
     """Cruza los dos archivos y retorna lo no facturado.
 
@@ -361,6 +423,12 @@ def procesar_cruce(
                     f"Headers en fila {header_row_reporte}: {headers_reporte}"
                 ],
             }
+
+        # Columnas opcionales del reporte
+        indices_opt_reporte, _ = get_column_indices(
+            headers_reporte, REPORTE_OPTIONAL_HEADERS
+        )
+        idx_fecha_cierre_reporte = indices_opt_reporte.get("fecha_cierre")
 
         data_start_reporte = header_row_reporte + 1
         idx_fact_reporte = indices_reporte["numero_factura"]
@@ -422,23 +490,38 @@ def procesar_cruce(
         idx_procedimiento_solicitado = indices_ayudas["procedimiento_solicitado"]
         idx_paciente = indices_opt_ayudas.get("paciente")
         idx_profesional_solicito = indices_opt_ayudas.get("profesional_solicito")
-
         # ══════════════════════════════════════════════
         # Totalizado por código
         # ══════════════════════════════════════════════
-        # Contar ocurrencias de cada código en reporte y guardar nombre
+        # Contar pares únicos (factura, código) en reporte y guardar nombre
         conteo_reporte: dict[str, int] = {}
         nombre_reporte: dict[str, str] = {}
+        seen_reporte: set[tuple[str, str]] = set()
         for row in range(data_start_reporte, len(rows_reporte)):
+            factura = _normalizar_factura(rows_reporte[row][idx_fact_reporte + 1])
             codigo = _normalizar_codigo(rows_reporte[row][idx_codigo_reporte + 1])
-            if codigo:
-                conteo_reporte[codigo] = conteo_reporte.get(codigo, 0) + 1
-                if codigo not in nombre_reporte:
-                    nombre_reporte[codigo] = str(
-                        rows_reporte[row][idx_proc_reporte + 1] or ""
-                    ).strip().upper()
+            if factura and codigo:
+                clave = (factura, codigo)
+                if clave not in seen_reporte:
+                    seen_reporte.add(clave)
+                    conteo_reporte[codigo] = conteo_reporte.get(codigo, 0) + 1
+                    if codigo not in nombre_reporte:
+                        nombre_reporte[codigo] = str(
+                            rows_reporte[row][idx_proc_reporte + 1] or ""
+                        ).strip().upper()
 
         logger.info("Códigos detectados en Reporte: %s", dict(sorted(conteo_reporte.items())))
+
+        # Construir set de facturas con Fecha Cierre vacía en reporte
+        facturas_sin_cierre: set[str] = set()
+        if idx_fecha_cierre_reporte is not None:
+            for row in range(data_start_reporte, len(rows_reporte)):
+                factura = _normalizar_factura(rows_reporte[row][idx_fact_reporte + 1])
+                if not factura:
+                    continue
+                fc_val = rows_reporte[row][idx_fecha_cierre_reporte + 1]
+                if fc_val is None or str(fc_val).strip() in ("", "nan", "NaN", "NAN"):
+                    facturas_sin_cierre.add(factura)
 
         # Construir pares facturados en reporte (normal + emssanar por paciente)
         pares_normal: set[tuple[str, str]] = set()
@@ -459,6 +542,7 @@ def procesar_cruce(
         conteo_ayudas: dict[str, int] = {}
         conteo_ayudas_full: dict[str, int] = {}
         nombre_procedimiento: dict[str, str] = {}
+        seen_ayudas_full: set[tuple[str, str]] = set()
         seen_conteo_ayudas: set[tuple[str, str]] = set()
         data_start = header_row + 1
 
@@ -471,9 +555,13 @@ def procesar_cruce(
             if not cups:
                 continue
 
-            # Contar siempre (full) y solo si no está facturado
             factura = _normalizar_factura(rows_ayudas[row][idx_fact_ayudas + 1])
-            conteo_ayudas_full[cups] = conteo_ayudas_full.get(cups, 0) + 1
+
+            # Contar pares únicos (factura, cups) en ayudas
+            clave_full = (factura, cups)
+            if clave_full not in seen_ayudas_full:
+                seen_ayudas_full.add(clave_full)
+                conteo_ayudas_full[cups] = conteo_ayudas_full.get(cups, 0) + 1
 
             # Determinar si factura CAP → match por paciente
             es_cap = factura.startswith(CAP_PREFIX)
@@ -508,24 +596,49 @@ def procesar_cruce(
 
         logger.info("Códigos detectados en Ayudas: %s", dict(sorted(conteo_ayudas.items())))
 
-        # Armar totalizado combinado
-        codigos = sorted(set(list(conteo_ayudas.keys()) + list(conteo_reporte.keys())))
-        totalizado = []
-        total_excepciones_reporte = 0
-        for codigo in codigos:
-            if codigo in CODIGOS_EXCEPCION:
-                total_excepciones_reporte += conteo_reporte.get(codigo, 0)
-                continue
-            if codigo not in CODIGOS_TOTALIZADO:
-                continue
-            totalizado.append({
-                "codigo": codigo,
-                "procedimiento": nombre_procedimiento.get(codigo) or nombre_reporte.get(codigo, ""),
-                "total_reporte": conteo_reporte.get(codigo, 0),
-                "total_ordenadas": conteo_ayudas_full.get(codigo, 0),
-                "total_no_facturado": conteo_ayudas.get(codigo, 0),
-            })
+        # Armar totalizado combinado (4 categorías agregadas)
+        totalizado: list[dict[str, Any]] = []
+        total_excepciones_reporte = sum(
+            conteo_reporte.get(c, 0) for c in CODIGOS_EXCEPCION
+        )
 
+
+        def _agregar_si_no_vacio(
+            codigo: str, procedimiento: str,
+            r: int, o: int, nf: int,
+        ) -> None:
+            if r > 0 or o > 0 or nf > 0:
+                totalizado.append({
+                    "codigo": codigo,
+                    "procedimiento": procedimiento,
+                    "total_reporte": r,
+                    "total_ordenadas": o,
+                    "total_no_facturado": nf,
+                })
+
+        # PARTO
+        _agregar_si_no_vacio(
+            "PARTO", "Procesados Parto",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_PARTO),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_PARTO),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_PARTO),
+        )
+
+        # INTERCONSULTAS
+        _agregar_si_no_vacio(
+            "INTERCONSULTAS", "Procesados Interconsultas",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_INTERCONSULTAS),
+        )
+
+        # OTROS
+        _agregar_si_no_vacio(
+            "OTROS", "Procesados Otros",
+            sum(conteo_reporte.get(c, 0) for c in PROCESADOS_OTROS),
+            sum(conteo_ayudas_full.get(c, 0) for c in PROCESADOS_OTROS),
+            sum(conteo_ayudas.get(c, 0) for c in PROCESADOS_OTROS),
+        )
 
         # Construir set de facturas del reporte con códigos de excepción
         excepcion_facturas_reporte: set[str] = set()
@@ -607,6 +720,7 @@ def procesar_cruce(
         # ══════════════════════════════════════════════
         # No facturados: cruce ayudas (códigos normales)
         # ══════════════════════════════════════════════
+        VISIBLE_CODES = PROCESADOS_PARTO | PROCESADOS_INTERCONSULTAS | PROCESADOS_OTROS
         no_facturados: list[dict[str, Any]] = []
         seen_no_facturados: set[tuple[str, str]] = set()
         data_start = header_row + 1
@@ -622,8 +736,8 @@ def procesar_cruce(
             if tipo_factura not in ("URGENCIAS", "HOSPITALIZACIÓN"):
                 continue
 
-            # Solo códigos NO excepción: cruce ayudas vs reporte
-            if cups and cups not in CODIGOS_EXCEPCION:
+            # Solo códigos procesados: cruce ayudas vs reporte
+            if cups and cups in VISIBLE_CODES:
                 es_cap = factura.startswith(CAP_PREFIX)
                 if es_cap:
                     paciente = str(rows_ayudas[row][idx_identificacion + 1] or "").strip().upper()
@@ -714,6 +828,35 @@ def procesar_cruce(
                     no_facturados.append(entry)
 
         total_ayudas = max(0, len(rows_ayudas) - 1 - header_row)
+
+        # ══════════════════════════════════════════════
+        # Filtro Cerradas: excluir facturas sin Fecha Cierre en reporte
+        # ══════════════════════════════════════════════
+        if cerradas:
+            no_facturados = [
+                r for r in no_facturados
+                if r.get("factura") not in facturas_sin_cierre
+            ]
+            # Recontar total_no_facturado y totalizado desde lista filtrada
+            total_no_facturado = len(no_facturados)
+            nuevo_conteo: dict[str, int] = {}
+            for item in no_facturados:
+                cups = _normalizar_codigo(item["cups"])
+                if cups:
+                    nuevo_conteo[cups] = nuevo_conteo.get(cups, 0) + 1
+            CATEGORY_CODE_MAP: dict[str, set[str]] = {
+                "PARTO": PROCESADOS_PARTO,
+                "INTERCONSULTAS": PROCESADOS_INTERCONSULTAS,
+                "OTROS": PROCESADOS_OTROS,
+                "TRASLADOS": CODIGOS_EXCEPCION,
+            }
+            for trow in totalizado:
+                codeset = CATEGORY_CODE_MAP.get(trow["codigo"])
+                if codeset:
+                    trow["total_no_facturado"] = sum(
+                        nuevo_conteo.get(c, 0) for c in codeset
+                    )
+
         total_no_facturado = len(no_facturados)
 
         # ══════════════════════════════════════════════

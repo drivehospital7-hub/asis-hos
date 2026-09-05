@@ -9,6 +9,7 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, redirect, url_for, flash, request, session
 
+from app.constants.base import DASHBOARD_AREAS
 from app.utils import auth_session, users_store
 from app.utils import templates_store
 from app.utils.auth import admin_requerido
@@ -26,6 +27,22 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
     return manifest.get(entry_key, {}).get(field, "")
 
 
+def _get_login_redirect(permisos: list[str]) -> str:
+    """Return the permission-appropriate landing page after authentication."""
+    control_area = next(
+        (area for area in DASHBOARD_AREAS if area["href"] == "/control-novedades"),
+        None,
+    )
+    if control_area is None:
+        return url_for("home.home_react")
+    control_permission = control_area["permiso"]
+    has_control_access = "*" in permisos or control_permission in permisos
+    has_control_access = has_control_access or f"{control_permission}:write" in permisos
+    if has_control_access:
+        return url_for("control_errores.control_errores_page")
+    return url_for("home.home_react")
+
+
 # =============================================================================
 # React shell pages
 # =============================================================================
@@ -35,7 +52,7 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
 def login():
     """Página de login — React para GET, form legacy para POST."""
     if auth_session.is_authenticated():
-        return redirect(url_for("home.home_react"))
+        return redirect(_get_login_redirect(session.get("permisos", [])))
 
     if request.method == "POST":
         username = request.form.get("username", "").strip()
@@ -54,7 +71,7 @@ def login():
             if next_page:
                 return redirect(next_page)
 
-            return redirect(url_for("home.home_react"))
+            return redirect(_get_login_redirect(user_data.get("permisos", [])))
 
         flash("Usuario o contraseña incorrectos", "error")
         logger.warning("Intento de login fallido: %s", username)
@@ -145,6 +162,7 @@ def api_login():
                 "authenticated": True,
                 "username": user,
                 "rol": user_data["rol"],
+                "redirect_url": _get_login_redirect(user_data.get("permisos", [])),
             },
             "errors": [],
         })
@@ -275,6 +293,7 @@ def crear_usuario():
         return redirect(url_for("auth.usuarios_react"))
 
     permisos = ["*"] if rol == "admin" else permisos_raw
+    areas = request.form.getlist("areas")
 
     ok, msg = users_store.create_user(
         username, password, rol, permisos,
@@ -282,6 +301,7 @@ def crear_usuario():
         segundo_nombre=request.form.get("segundo_nombre", ""),
         apellido_1=request.form.get("apellido_1", ""),
         apellido_2=request.form.get("apellido_2", ""),
+        areas=areas,
     )
     flash(msg, "success" if ok else "error")
     return redirect(url_for("auth.usuarios_react"))
@@ -306,6 +326,8 @@ def editar_usuario(username):
         return redirect(url_for("auth.usuarios_react"))
 
     updates = {"rol": rol, "permisos": permisos_raw}
+    # Áreas: siempre se envían (0..n checkboxes) para que la edición pueda vaciar.
+    updates["areas"] = request.form.getlist("areas")
     if password:
         updates["password"] = password
 

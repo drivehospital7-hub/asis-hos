@@ -34,6 +34,7 @@ interface NoFacturadoItem {
   cups: string;
   procedimiento_solicitado: string;
   fecha_solicitud: string;
+  fecha_cierre?: string | null;
 }
 
 interface CruceResponse {
@@ -54,6 +55,7 @@ export function OrdenadoFacturadoPage() {
   const [result, setResult] = useState<CruceResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [cerradas, setCerradas] = useState(false);
 
   const handleSubmit = async () => {
     const fileInput1 = document.getElementById("archivo_reporte") as HTMLInputElement;
@@ -74,6 +76,9 @@ export function OrdenadoFacturadoPage() {
     formData.append("archivo_ayudas", fileInput2.files[0]);
     if (fileInput3?.files?.length) {
       formData.append("archivo_notas", fileInput3.files[0]);
+    }
+    if (cerradas) {
+      formData.append("cerradas", "true");
     }
 
     try {
@@ -289,6 +294,17 @@ export function OrdenadoFacturadoPage() {
             <p className="text-xs text-muted-foreground mt-1.5">
               Busca <strong>OCF066</strong> para filtrar traslados.
             </p>
+
+            <label className="flex items-center gap-2 cursor-pointer mt-4 pt-3 border-t border-border">
+              <input
+                id="cerradas"
+                type="checkbox"
+                className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                checked={cerradas}
+                onChange={(e) => setCerradas(e.target.checked)}
+              />
+              <span className="text-xs font-medium text-foreground">Cerradas</span>
+            </label>
           </div>
         </details>
 

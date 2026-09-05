@@ -17,6 +17,7 @@ The system MUST restrict PUT `/api/control-errores/<id>` to fields `estado` and 
 | Reject prohibited | `control_urgencias` | PUT `{"tipo_error":"X"}` | 403; no changes |
 | Reject mixed payload | `control_urgencias` | PUT `{"estado":"R","responsable":"Juan"}` | 403; no changes |
 | Reject observacion edit | `control_urgencias` | PUT `{"observacion":"text"}` | 403; no changes |
+| Reject refactura edit | `control_urgencias` | PUT `{"refactura":"X"}` | 403; no changes |
 
 ### R2: Full Write — Unchanged
 
@@ -27,16 +28,18 @@ Users with `control_urgencias:write` or `*` (admin) MUST retain full write acces
 | Auditor edits any field | `control_urgencias:write` | PUT any valid field | 200; field updated |
 | Admin edits any field | `*` | PUT any valid field | 200; field updated |
 
-### R3: Read-Only Tooltip for observacion and factura
+### R3: Read-Only Tooltip for observacion, factura, and refactura
 
-The system MUST show a read-only tooltip (via `showObservacionReadOnly()`) for `observacion` and `factura` cells when the user lacks write permission. Users with write permission SHALL continue to open the editor.
+The system MUST show a read-only tooltip (via `showObservacionReadOnly()`) for `observacion`, `factura`, and `refactura` cells when the user lacks write permission. Users with write permission SHALL continue to open the editor.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | Click observacion | `control_urgencias` | clicks observacion cell | `showObservacionReadOnly()` shown |
 | Click factura | `control_urgencias` | clicks factura cell | `showObservacionReadOnly()` shown |
+| Click refactura | `control_urgencias` | clicks refactura cell | `showObservacionReadOnly()` shown |
 | Click observacion (write) | `control_urgencias:write` | clicks observacion | editor opens (unchanged) |
 | Click factura (write) | `control_urgencias:write` | clicks factura | editor opens (unchanged) |
+| Click refactura (write) | `control_urgencias:write` | clicks refactura | editor opens |
 
 ### R4: Image Modal — Read-Only View
 
@@ -98,13 +101,13 @@ The system MUST auto-populate `validador` with `primer_nombre + " " + apellido_1
 
 ### R10: Validador — Read-Only Column in Template
 
-The Validador column MUST render as the FIRST `<th>` in the Jinja2 table (`control_errores.html`). Each validador `<td>` MUST be read-only — no `editable-cell` class, no click handler. Every `colspan` attribute in the template SHALL be `8`.
+The Validador column MUST render as the FIRST `<th>` in the Jinja2 table (`control_errores.html`). Each validador `<td>` MUST be read-only — no `editable-cell` class, no click handler. Every `colspan` attribute in the template SHALL be `9`.
 
 | Scenario | Given | When | Then |
 |----------|-------|------|------|
 | First column | page rendered | inspect `<th>` order | first `<th>` is Validador |
 | Read-only cell | any novedad row | inspect `<td>` | no `editable-cell` class, no click binding |
-| colspan updated | template rendered | check all `colspan` | every `colspan` = `8` |
+| colspan updated | template rendered | check all `colspan` | every `colspan` = `9` |
 
 ### R11: Validador — Backward Compatibility
 
@@ -114,6 +117,35 @@ Existing novedades (stored before this change) that lack a `validador` field, or
 |----------|-------|------|------|
 | Missing key | novedad dict has no `validador` key | row rendered | cell displays `-` |
 | Empty value | novedad has `validador: ""` | row rendered | cell displays `-` |
+
+### R12: ReFactura — Optional Column Rendering and Editing
+
+The system MUST render a `ReFactura` column immediately to the right of the `Factura` column in BOTH render paths (`renderTable` and `renderFilteredTable`), with `td.editable-cell` cells using `data-field="refactura"` and a span child. ReFactura SHALL be optional — no create or update SHALL require it; empty values SHALL be stored and displayed as blank `''`. The "Agregar Novedad" flow SHALL include an empty ReFactura cell. ReFactura values SHALL be uppercased like factura in the editor and in all service save paths (field key: `refactura`).
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Column placement | table rendered | inspect `<th>` order | `ReFactura` `<th>` immediately after `Factura` `<th>` |
+| Cell in renderTable | page rendered | inspect renderTable rows | `td.editable-cell` with `data-field="refactura"` and span child |
+| Cell in renderFilteredTable | filter applied | inspect renderFilteredTable rows | `td.editable-cell` with `data-field="refactura"` |
+| Create without refactura | valid POST payload without `refactura` | create novedad | success; stored `refactura` = `""`; no validation error |
+| Update to empty | novedad has `refactura: "ABC-1"` | write user PUT `{"refactura":""}` | 200; stored `""` |
+| New row cell | write user clicks "Agregar Novedad" | new row rendered | empty ReFactura cell present; save succeeds |
+| Legacy record | stored novedad lacks `refactura` key | row rendered | cell displays `''` |
+| Editor uppercases | write user types `abc-1` in editor | save | stored `"ABC-1"` |
+| Service uppercases | POST `{"refactura":"abc-1"}` | create | stored `"ABC-1"` |
+
+### R13: ReFactura — Export, Search, Integration, and Duplicates
+
+The Excel export MUST include a `ReFactura` column immediately after `Factura` in both HEADERS and data rows. ReFactura MUST be included in search/filter matching like factura. The LAN bearer-token endpoint SHALL accept an optional `refactura` field and persist it when present. ReFactura MUST NOT participate in (CAP|FEV) duplicate detection — factura-only detection SHALL remain unchanged.
+
+| Scenario | Given | When | Then |
+|----------|-------|------|------|
+| Export header | export workbook built | inspect ws[1] | `ReFactura` header immediately after `Factura` |
+| Export row value | novedad has `refactura: "R-42"` | export | row's ReFactura cell = `"R-42"` |
+| Search matches | query text matches a refactura value | search/filter | matching novedad returned |
+| LAN with refactura | integration payload includes `refactura` | valid bearer token | value persisted via crear_error |
+| LAN without refactura | integration payload omits `refactura` | valid bearer token | succeeds; stored `""`; no error |
+| Duplicate detection | two novedades share factura, differ in refactura | duplicate check runs | no duplicate flagged (factura-only) |
 
 ## Non-Functional Requirements
 

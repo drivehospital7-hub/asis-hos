@@ -121,18 +121,28 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
     # Deduplicar nombres únicos
     unique_names = list(set(r.nombre_normalizado for r in facturas.values()))
     logger.info("Nombres únicos: %d", len(unique_names))
-    
+
     # Cargar cache
     cache = _load_cache()
-    
-    # Solo cache hits — nombres sin cache no generan discrepancia
-    cache_hits = [n for n in unique_names if n in cache]
+
+    # Separar nombres con género forzado ("Hijo de"/"Hija de") de los que van a API
+    nombres_a_consultar: list[str] = []
+    nombres_forzados: dict[str, str] = {}  # nombre_normalizado -> "male"/"female"
+    for name in unique_names:
+        _, forced = _classify(name)
+        if forced:
+            nombres_forzados[name] = forced
+        else:
+            nombres_a_consultar.append(name)
+
+    # Cache hits: solo sobre nombres que irían a API
+    cache_hits = [n for n in nombres_a_consultar if n in cache]
     logger.info("Cache hits: %d", len(cache_hits))
-    
+
     discrepancies = []
     all_results = {}
-    
-    # Construir all_results desde cache
+
+    # 1) Construir all_results desde cache (nombres normales)
     for name in cache_hits:
         cached = cache[name]
         for f, r in facturas.items():
@@ -142,12 +152,23 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
                     "sexo_api": cached["gender"],
                 }
                 break
-    
+
+    # 2) Procesar nombres con género forzado ("Hijo de"/"Hija de")
+    #    Siempre tienen género fijo: "hijo de" -> male, "hija de" -> female
+    for name, forced_gender in nombres_forzados.items():
+        for f, r in facturas.items():
+            if r.nombre_normalizado == name:
+                all_results[f] = {
+                    "sexo_excel": r.sexo,
+                    "sexo_api": forced_gender,
+                }
+                break
+
     # Comparar y buscar discrepancias
     for factura, datos in all_results.items():
         sexo_excel = datos["sexo_excel"]
         sexo_api = datos["sexo_api"]
-        
+
         # Convertir: male->M, female->F, lastname->L, undefined->U
         # Cualquier otro valor -> ? (se muestra, no se salta)
         if sexo_api == "male":
@@ -160,7 +181,7 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
             sexo_api_code = "U"
         else:
             sexo_api_code = "?"
-        
+
         if sexo_excel != sexo_api_code:
             for f, r in facturas.items():
                 if f == factura:
@@ -179,12 +200,14 @@ def verificar_y_comparar(excel_path: str) -> tuple[Stats, list[Discrepancia]]:
                         tipo_identificacion=r.tipo_identificacion,
                     ))
                     break
-    
+
+    no_cache = len(nombres_a_consultar) - len(cache_hits)
+
     stats = Stats(
         total_excel=len(resultados),
         nombres_unicos=len(unique_names),
         cache_hits=len(cache_hits),
-        api_calls_necesarias=len(unique_names) - len(cache_hits),
+        api_calls_necesarias=no_cache,
         rate_limit=None,
     )
     

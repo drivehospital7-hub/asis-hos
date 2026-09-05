@@ -1,8 +1,12 @@
 import secrets
+import logging
 from datetime import timedelta
 from pathlib import Path
 
-from flask import Flask, jsonify, render_template, request, session
+from flask import Flask, g, jsonify, render_template, request, session
+
+
+logger = logging.getLogger(__name__)
 
 
 # Endpoints públicos que NO requieren sesión
@@ -19,7 +23,14 @@ PUBLIC_ENDPOINTS = frozenset({
     "procedimientos.create_procedimiento_gone",
     "procedimientos.update_procedimiento_gone",
     "procedimientos.delete_procedimiento_gone",
+    # Adjuntos de control de errores: público por diseño (links del Excel
+    # exportado deben abrir indefinidamente); la URL lleva el UUID del registro
+    # y la ruta valida que el archivo pertenezca a él.
+    "control_errores.servir_imagen",
 })
+
+# Endpoint de integración LAN que se autentica por bearer token (sin sesión).
+INTEGRATION_SUBMIT_ENDPOINT = "integration.control_novedades_submit"
 
 
 def _ensure_secret_key(app: Flask) -> None:
@@ -80,8 +91,47 @@ def create_app(config=None):
     # ──────────────────────────────────────────────
     # Middleware global: verifica auth en cada request
     # ──────────────────────────────────────────────
+    def _unauthorized_response():
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["No autenticado"],
+        }), 401
+
+    def _handle_bearer_auth():
+        """Autentica un request sin sesión vía bearer token de integración.
+
+        Resuelve el token a un usuario de la DB y expone su identidad en
+        ``flask.g`` (per-request, NUNCA persistida como cookie de sesión).
+        La ruta construye luego una sesión sintética (mismas claves que
+        do_login) que aporta username → ``created_by`` y la puerta auth/
+        permiso; el ``validador`` persistido se resuelve del payload
+        ``nombres``, nunca del token.
+        """
+        auth_header = request.headers.get("Authorization", "")
+        scheme, _, raw_token = auth_header.partition(" ")
+        if scheme.lower() != "bearer" or not raw_token.strip():
+            logger.info("[BACK] Token de integración ausente o malformado")
+            return _unauthorized_response()
+
+        from app.utils import token_store
+        user = token_store.get_user_for_token(raw_token.strip())
+        if user is None:
+            logger.warning("[BACK] Token de integración inválido, revocado o vencido")
+            return _unauthorized_response()
+
+        # Identidad del validador solo para esta request (flask.g). No se
+        # escribe en session: el endpoint es "sin sesión" y no debe acuñar
+        # una cookie de sesión reutilizable.
+        g.bearer_user = user
+        return
+
     @app.before_request
     def check_session_auth():
+        # Endpoint de integración: se autentica por bearer token (sin sesión).
+        if request.endpoint == INTEGRATION_SUBMIT_ENDPOINT:
+            return _handle_bearer_auth()
+
         # Rutas públicas (login, logout, status, estáticos)
         if request.endpoint in PUBLIC_ENDPOINTS:
             return
@@ -116,6 +166,9 @@ def create_app(config=None):
     from app.routes.cronograma_urgencias import cronograma_urgencias_bp
     from app.routes.reglas_api import reglas_api_bp
     from app.routes.reglas_admin import reglas_admin_bp
+    from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
+    from app.routes.examenes import examenes_bp
+    from app.routes.integration import integration_bp
     from app.routes.busqueda_pdf import busqueda_pdf_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
@@ -136,6 +189,14 @@ def create_app(config=None):
     app.register_blueprint(cronograma_urgencias_bp, url_prefix="/cronograma-urgencias")
     app.register_blueprint(reglas_api_bp)
     app.register_blueprint(reglas_admin_bp)
+    app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
+    app.register_blueprint(examenes_bp)  # sin prefix: /examenes, /api/examenes, /api/listado
+    app.register_blueprint(integration_bp)
     app.register_blueprint(busqueda_pdf_bp)
+
+    # Prerrequisito de seguridad: HTTPS en la LAN para la integración.
+    if not app.config.get("TESTING"):
+        from app.routes.integration import _maybe_warn_https
+        _maybe_warn_https()
 
     return app

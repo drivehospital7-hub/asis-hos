@@ -11,11 +11,946 @@ import pytest
 from flask import session
 
 from app import create_app
-from app.services.control_errores_service import update_error, add_error
-from app.utils.errores_storage import crear_error, actualizar_error
+from app.services.control_errores_service import update_error, add_error, get_errores, get_opciones
+from app.services.control_errores_service import (
+    _resolve_responsable_identities,
+    _match_identity,
+    _resolve_validador_identity,
+)
+from app.utils.errores_storage import (
+    listar_errores,
+    crear_error,
+    actualizar_error,
+    normalizar_identidad,
+)
 
 # Application fixture for test request context
 _APP = create_app({"TESTING": True, "SECRET_KEY": "test-secret-key"})
+
+
+def _fixture_errores():
+    """Errores de prueba con responsables variados (incl. legacy sin created_by)."""
+    return [
+        {
+            "id": "e1",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "LORENY ESPAÑA",
+            "created_by": "val1",
+            "creado_en": "2026-08-01T10:00:00",
+        },
+        {
+            "id": "e2",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": " lorenY   españa ",
+            "creado_en": "2026-08-02T10:00:00",
+        },
+        {
+            "id": "e3",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "DANIELA PAEZ",
+            "creado_en": "2026-08-03T10:00:00",
+        },
+        {
+            "id": "e4",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "UNKNOWN PERSON",
+            "creado_en": "2026-08-04T10:00:00",
+        },
+        {
+            "id": "e5",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "CARLOS OMAR",
+            "creado_en": "2026-08-05T10:00:00",
+        },
+        {
+            "id": "e6",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": " carlos   meza ",
+            "created_by": "val1",
+            "creado_en": "2026-08-06T10:00:00",
+        },
+        {
+            "id": "e7",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "CARLOS",
+            "creado_en": "2026-08-07T10:00:00",
+        },
+        {
+            "id": "e8",
+            "tipo_error": "Otros",
+            "estado": "S",
+            "responsable": "CARLOS OMAR",
+            "created_by": "val1",
+            "creado_en": "2026-08-08T10:00:00",
+        },
+    ]
+
+
+class TestGetErroresRoleVisibility:
+    """Spec R1/R2/R4: role×ownership matrix on get_errores()."""
+
+    def _call(self, sess_data, fixture):
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            return get_errores(session=sess_data)
+
+    # ── Facturador: own-only ──────────────────────────────────────────
+
+    def test_facturador_sees_own_only(self):
+        """Facturador con identidad LORENY ESPAÑA ve solo sus novedades."""
+        sess = {
+            "rol": "facturador",
+            "username": "LORENYA",
+            "primer_nombre": "LORENY ",
+            "apellido_1": "ESPAÑA ",
+            "permisos": ["control_urgencias"],
+        }
+        with patch(
+            "app.services.control_errores_service.users_store.get_user",
+            return_value={"primer_nombre": "LORENY ", "apellido_1": "ESPAÑA ", "rol": "facturador"},
+        ):
+            result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert ids == ["e2", "e1"]  # ambas normalizan a "loreny españa"
+        assert "e3" not in ids
+        assert "e4" not in ids
+
+    def test_facturador_matches_new_canonical_and_legacy_alias(self):
+        """New records need canonical equality; legacy records use aliases."""
+        sess = {
+            "rol": "facturador",
+            "username": "OMARMF",
+            "permisos": ["control_urgencias"],
+        }
+        with patch(
+            "app.services.control_errores_service.users_store.get_user",
+            return_value={
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+                "rol": "facturador",
+            },
+        ):
+            result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert ids == ["e6", "e5"]
+        assert "e8" not in ids
+
+    def test_facturador_does_not_match_single_responsible_token(self):
+        """A single common token must not expose a cross-user record."""
+        sess = {"rol": "facturador", "username": "OMARMF"}
+        with patch(
+            "app.services.control_errores_service.users_store.get_user",
+            return_value={
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+                "rol": "facturador",
+            },
+        ):
+            result = self._call(sess, _fixture_errores())
+
+        assert "e7" not in [e["id"] for e in result["data"]["errores"]]
+
+    def test_facturador_unmatched_hidden(self):
+        """Novedad cuyo responsable no matchea identidad DB → invisible al facturador."""
+        sess = {
+            "rol": "facturador",
+            "username": "YULIETHDP",
+            "primer_nombre": "DANIELA",
+            "apellido_1": "PAEZ",
+            "permisos": ["control_urgencias"],
+        }
+        with patch(
+            "app.services.control_errores_service.users_store.get_user",
+            return_value={"primer_nombre": "DANIELA", "apellido_1": "PAEZ", "rol": "facturador"},
+        ):
+            result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert ids == ["e3"]
+        assert "e4" not in ids  # UNKNOWN PERSON no matchea a nadie
+
+    def test_facturador_duplicate_identity_shared(self):
+        """Dos facturadores con igual primer_nombre+apellido_1 comparten novedades."""
+        fixture = _fixture_errores()
+        for username in ("ANGIEC", "ANGIE2"):
+            sess = {
+                "rol": "facturador",
+                "username": username,
+                "permisos": ["control_urgencias"],
+            }
+            with patch(
+                "app.services.control_errores_service.users_store.get_user",
+                return_value={"primer_nombre": "ANGIE ", "apellido_1": "ARIAS ", "rol": "facturador"},
+            ):
+                # Insertar novedad de ANGIE ARIAS para que ambos la vean
+                fixture_angie = fixture + [{
+                    "id": "e5",
+                    "tipo_error": "Otros",
+                    "estado": "S",
+                    "responsable": "ANGIE ARIAS",
+                    "creado_en": "2026-08-05T10:00:00",
+                }]
+                result = self._call(sess, fixture_angie)
+
+            ids = [e["id"] for e in result["data"]["errores"]]
+            assert "e5" in ids
+
+    def test_explicit_responsable_includes_legacy_db_identity_labels(self):
+        """Explicit filters apply canonical matching to new records and aliases to legacy."""
+        sess = {"rol": "validador", "username": "val1"}
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ), patch(
+            "app.services.control_errores_service.listar_errores",
+            wraps=listar_errores,
+        ) as mock_listar, patch(
+            "app.utils.errores_storage._leer_datos",
+            return_value={"errores": _fixture_errores()},
+        ), patch(
+            "app.utils.errores_storage.obtener_imagenes_count",
+            return_value=0,
+        ):
+            result = get_errores(responsable="CARLOS MEZA", session=sess)
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert ids == ["e6", "e5"]
+        assert "e8" not in ids
+        assert mock_listar.call_args.kwargs["responsable_identity"] == "carlos meza"
+        assert mock_listar.call_args.kwargs["responsable_full_identity"] == (
+            "carlos omar meza fernandez"
+        )
+
+    def test_explicit_responsable_does_not_match_single_token_or_other_user(self):
+        """Explicit identity matching cannot broaden to a single token or another user."""
+        sess = {"rol": "validador", "username": "val1"}
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ), patch(
+            "app.utils.errores_storage._leer_datos",
+            return_value={"errores": _fixture_errores()},
+        ), patch(
+            "app.utils.errores_storage.obtener_imagenes_count",
+            return_value=0,
+        ):
+            result = get_errores(responsable="CARLOS MEZA", session=sess)
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert ids == ["e6", "e5"]
+        assert "e7" not in ids
+        assert "e3" not in ids
+
+    def test_selected_permission_eligible_responsable_resolves(self):
+        """Selected responsible resolution accepts explicit permission users."""
+        eligible = [{
+            "username": "VAL1",
+            "primer_nombre": "Maria",
+            "segundo_nombre": "Luisa",
+            "apellido_1": "Gomez",
+            "apellido_2": "Diaz",
+            "nombre_completo": "MARIA GOMEZ",
+            "rol": "validador",
+            "permisos": ["responsable_facturacion"],
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=eligible,
+            ),
+            patch(
+                "app.services.control_errores_service.listar_errores",
+                return_value=[],
+            ) as mock_listar,
+        ):
+            result = get_errores(responsable="MARIA GOMEZ", session={"rol": "validador"})
+
+        assert result["status"] == "success"
+        assert mock_listar.call_args.kwargs["responsable_identity"] == "maria gomez"
+
+    def test_selected_validator_without_permission_is_not_resolved(self):
+        """A validator absent from the eligible lookup cannot resolve."""
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
+            patch(
+                "app.services.control_errores_service.listar_errores",
+                return_value=[],
+            ) as mock_listar,
+        ):
+            result = get_errores(responsable="MARIA GOMEZ", session={"rol": "validador"})
+
+        assert result["status"] == "success"
+        assert mock_listar.call_args.kwargs["responsable_identity"] is None
+
+    # ── Validador / admin: all ────────────────────────────────────────
+
+    def test_validador_sees_all(self):
+        """Validador ve todas las novedades, incl. las no asignadas a facturadores."""
+        sess = {"rol": "validador", "username": "val1", "permisos": ["control_urgencias:write"]}
+        result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert set(ids) == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+    def test_admin_sees_all(self):
+        """Admin ve todas las novedades."""
+        sess = {"rol": "admin", "username": "admin", "permisos": ["*"]}
+        result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert set(ids) == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+    def test_usuario_other_rol_sees_all(self):
+        """Rol sin restricción (usuario/otro) → ve todo (sin filtro)."""
+        sess = {"rol": "usuario", "username": "auditor", "permisos": ["control_urgencias"]}
+        result = self._call(sess, _fixture_errores())
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        assert set(ids) == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+    def test_validador_filter_matches_normalized_identity_and_preserves_other_filters(self):
+        fixture = [
+            {
+                "id": "v1", "tipo_error": "Otros", "estado": "S",
+                "validador": "MARIA GOMEZ", "responsable": "A",
+                "creado_en": "2026-08-02T10:00:00",
+            },
+            {
+                "id": "v2", "tipo_error": "Otros", "estado": "N",
+                "validador": " maría   gómez ", "responsable": "B",
+                "creado_en": "2026-08-03T10:00:00",
+            },
+            {
+                "id": "v3", "tipo_error": "Otros", "estado": "S",
+                "validador": "JUAN PEREZ", "responsable": "C",
+                "creado_en": "2026-08-04T10:00:00",
+            },
+        ]
+        result = self._call(
+            {"rol": "validador", "username": "val1"}, fixture,
+        )
+        assert {e["id"] for e in result["data"]["errores"]} == {"v1", "v2", "v3"}
+
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(
+                tipo_error="Otros", estado="S", validador="María Gómez",
+                session={"rol": "validador"},
+            )
+
+        assert [e["id"] for e in result["data"]["errores"]] == ["v1"]
+
+
+class TestGetOpcionesDbOnly:
+    """Spec R4: responsables solo desde DB facturadores, sin fallback."""
+
+    def test_opciones_responsables_from_facturadores(self):
+        """responsables = identidades de facturadores DB (primer_nombre + apellido_1)."""
+        facturadores = [
+            {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+             "segundo_nombre": "CAROLINA", "apellido_2": "CULCHA ", "nombre_completo": "ANGIE ARIAS",
+             "rol": "facturador"},
+            {"username": "LORENYA", "primer_nombre": "LORENY ", "apellido_1": "ESPAÑA ",
+             "segundo_nombre": "ALEJANDRA", "apellido_2": "DIAZ ", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        assert opciones["data"]["responsables"] == ["ANGIE ARIAS", "LORENY ESPAÑA"]
+        assert "responsables_nombres_completos" not in opciones["data"]
+
+    def test_opciones_includes_db_validadores(self):
+        validadores = [
+            {"username": "val", "primer_nombre": "MARIA", "apellido_1": "GOMEZ",
+             "nombre_completo": "MARIA GOMEZ", "rol": "validador"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores", return_value=[]),
+            patch("app.services.control_errores_service.users_store.get_validadores", return_value=validadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["validadores"] == validadores
+
+    def test_opciones_empty_when_no_facturadores(self):
+        """Sin facturadores DB → lista vacía (nunca hardcodeada)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=[]),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        assert opciones["data"]["responsables"] == []
+
+    def test_opciones_include_permission_eligible_users_only(self):
+        """Options use the shared store eligibility rule, not validator role."""
+        eligible = [{
+            "username": "VAL1",
+            "primer_nombre": "MARIA",
+            "apellido_1": "GOMEZ",
+            "nombre_completo": "MARIA GOMEZ",
+            "rol": "validador",
+            "permisos": ["responsable_facturacion"],
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=eligible,
+            ),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["responsables"] == ["MARIA GOMEZ"]
+
+
+class TestGetOpcionesAreas:
+    """sdd Empieza: opciones agrega areas + responsables_detalle; responsables plano."""
+
+    def test_opciones_adds_areas_and_responsables_detalle(self):
+        """Payload aditivo: areas (7) + responsables_detalle; responsables sigue plano."""
+        facturadores = [
+            {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "ANGIE ARIAS",
+             "rol": "facturador", "areas": ["urgencias", "odontologia"]},
+            {"username": "LORENYA", "primer_nombre": "LORENY ", "apellido_1": "ESPAÑA ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": []},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        data = opciones["data"]
+        # responsables sigue plano (contrato existente)
+        assert data["responsables"] == ["ANGIE ARIAS", "LORENY ESPAÑA"]
+        # areas: SOLO las 4 canónicas (sin legacy selectable)
+        assert [a["slug"] for a in data["areas"]] == [
+            "urgencias", "ambulatoria", "extramural", "odontologia",
+        ]
+        assert all(
+            a["slug"] not in {"equipos_basicos", "cruce_facturas", "derechos"}
+            for a in data["areas"]
+        )
+        assert data["areas"][0] == {"slug": "urgencias", "label": "Urgencias"}
+        # responsables_detalle: nombre → areas
+        detalle = {d["nombre_completo"]: d["areas"] for d in data["responsables_detalle"]}
+        assert detalle == {
+            "ANGIE ARIAS": ["urgencias", "odontologia"],
+            "LORENY ESPAÑA": [],
+        }
+
+    def test_opciones_flat_fallback_when_areas_missing(self):
+        """Facturadores sin key 'areas' → detalle con listas vacías (rollout-safe)."""
+        facturadores = [
+            {"username": "ANGIEC", "primer_nombre": "ANGIE ", "apellido_1": "ARIAS ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "ANGIE ARIAS",
+             "rol": "facturador"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=facturadores),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["data"]["responsables"] == ["ANGIE ARIAS"]
+        assert opciones["data"]["responsables_detalle"] == [
+            {
+                "nombre_completo": "ANGIE ARIAS",
+                "identidad_completa": "ANGIE ARIAS",
+                "areas": [],
+            }
+        ]
+
+
+class TestGetErroresAreaFilter:
+    """sdd Empieza: get_errores(area=) post-filtra por área (aditivo)."""
+
+    _SESS = {"rol": "validador", "username": "val1"}
+
+    def _call(self, area=None, responsable=None):
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": _fixture_errores()}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            return get_errores(area=area, responsable=responsable, session=self._SESS)
+
+    def _facturadores(self):
+        return [
+            {"username": "LORENYA", "primer_nombre": "LORENY", "apellido_1": "ESPAÑA",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "LORENY ESPAÑA",
+             "rol": "facturador", "areas": ["urgencias"]},
+            {"username": "DANIELA", "primer_nombre": "DANIELA", "apellido_1": "PAEZ",
+             "segundo_nombre": "", "apellido_2": "", "nombre_completo": "DANIELA PAEZ",
+             "rol": "facturador", "areas": ["ambulatoria"]},
+        ]
+
+    def test_area_filter_matches_only_area_users(self):
+        """area=urgencias → solo novedades de responsables con esa área."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="urgencias")
+
+        ids = [e["id"] for e in result["data"]["errores"]]
+        # creado_en descendente: e2 (08-02) antes que e1 (08-01)
+        assert ids == ["e2", "e1"]  # LORENY ESPAÑA + alias legacy
+        assert "e3" not in ids      # DANIELA PAEZ no es de urgencias
+
+    def test_area_filter_and_composes_with_responsable(self):
+        """area AND responsable: responsables de otra área quedan excluidos."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="urgencias", responsable="DANIELA PAEZ")
+
+        assert result["data"]["errores"] == []  # DANIELA no pertenece a urgencias
+
+    def test_area_invalid_slug_is_noop(self):
+        """Slug inválido → sin filtro (se devuelven todas las novedades)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="no_existe")
+
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+    def test_area_valid_slug_zero_users_empty(self):
+        """Área válida sin usuarios → resultado vacío (no-op NO es vacío)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call(area="extramural")
+
+        assert result["data"]["errores"] == []
+
+    def test_area_none_no_filter(self):
+        """Sin área → se devuelven todas las novedades."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=self._facturadores(),
+        ):
+            result = self._call()
+
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"e1", "e2", "e3", "e4", "e5", "e6", "e7", "e8"}
+
+
+class TestAddErrorAudit:
+    """Spec R5: created_by automático desde la sesión (auditoría)."""
+
+    def test_add_error_canonicalizes_cronograma_display_value(self):
+        """A unique display alias is persisted as the registered identity."""
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "CARLOS OMAR",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.args[4] == "CARLOS MEZA"
+
+    def test_canonicalized_responsable_matches_existing_filter(self):
+        """Canonical storage remains discoverable through the selector filter."""
+        facturadores = [{
+            "username": "OMARMF",
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+            "nombre_completo": "CARLOS MEZA",
+            "rol": "facturador",
+        }]
+        stored = [{
+            "id": "canonical-error",
+            "tipo_error": "OTROS",
+            "estado": "S",
+            "responsable": "CARLOS MEZA",
+            "created_by": "val1",
+            "creado_en": "2026-08-12T10:00:00",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch(
+                "app.utils.errores_storage._leer_datos",
+                return_value={"errores": stored},
+            ),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(
+                responsable="CARLOS MEZA",
+                session={"rol": "validador", "username": "val1"},
+            )
+
+        assert [error["id"] for error in result["data"]["errores"]] == [
+            "canonical-error"
+        ]
+
+    def test_add_error_sets_created_by_from_session(self):
+        """add_error() pasa created_by = username de sesión a crear_error()."""
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            sess = {"username": "val1", "rol": "validador",
+                    "permisos": ["control_urgencias:write"],
+                    "primer_nombre": "Maria", "apellido_1": "Gomez"}
+
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "LORENY ESPAÑA",
+                "observacion": "test",
+            }, session=sess)
+
+            mock_crear.assert_called_once()
+            assert mock_crear.call_args.kwargs.get("created_by") == "val1"
+
+    def test_add_error_ignores_client_created_by(self):
+        """created_by del payload del cliente se ignora; manda la sesión."""
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=[],
+            ),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            sess = {"username": "val1", "rol": "validador",
+                    "permisos": ["control_urgencias:write"]}
+
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "LORENY ESPAÑA",
+                "observacion": "test",
+                "created_by": "hacker",
+            }, session=sess)
+
+            assert mock_crear.call_args.kwargs.get("created_by") == "val1"
+
+
+class TestNormalizarIdentidad:
+    """Identity normalization is case-insensitive, accent-insensitive, and compact.
+
+    normalizar_identidad(s) = casefold + accent removal + whitespace collapse.
+    """
+
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("LORENY ESPAÑA", "loreny españa"),
+            (" lorenY   españa ", "loreny españa"),
+            ("LORENY  ESPAÑA", "loreny españa"),  # doble espacio
+            ("LORENY DEL CARMEN ESPAÑA RIVERA", "loreny del carmen españa rivera"),
+            ("", ""),
+            (None, ""),
+        ],
+    )
+    def test_normaliza_case_y_espacios(self, raw, expected):
+        """Caso y espacios colapsados; None/empty → vacío. Preserva ñ."""
+        assert normalizar_identidad(raw) == expected
+
+    def test_normalizar_identidad_exists(self):
+        """normalizar_identidad está disponible en errores_storage."""
+        assert callable(normalizar_identidad)
+
+
+class TestResponsibleIdentityResolution:
+    """Responsible aliases resolve safely against eligible users."""
+
+    def test_exact_canonical_precedes_ambiguous_full_name_alias(self):
+        """An exact selector identity wins over a competing full-name subset."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Meza",
+                "apellido_1": "Omar",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities("CARLOS MEZA")
+
+        assert result == ("carlos meza", "carlos omar meza fernandez")
+
+    def test_ambiguous_alias_returns_none(self):
+        """An alias shared by eligible users is not assigned arbitrarily."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Perez",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities("CARLOS OMAR")
+
+        assert result is None
+
+    def test_highest_full_identity_token_score_wins(self):
+        """The most coincident full DB identity resolves canonically."""
+        facturadores = [
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Meza",
+                "apellido_2": "Fernandez",
+            },
+            {
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "",
+                "apellido_1": "Meza",
+                "apellido_2": "Lopez",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_facturadores",
+            return_value=facturadores,
+        ):
+            result = _resolve_responsable_identities(" CÁRLOS   OMAR ")
+
+        assert result == ("carlos meza", "carlos omar meza fernandez")
+
+
+class TestMatchIdentity:
+    """_match_identity: shared coincidence matcher used by responsable and
+    validator resolution (exact canonical or token-coincidence, >=2 tokens).
+
+    Strict TDD RED: these tests reference _match_identity before it exists.
+    """
+
+    def test_exact_canonical_matches(self):
+        """A raw value equal to a canonical identity resolves to that identity."""
+        eligible = [
+            ("carlos perez", "carlos perez"),
+            ("ana valdez", "ana valdez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) == (
+            "carlos perez",
+            "carlos perez",
+        )
+
+    def test_token_coincidence_two_tokens_matches(self):
+        """>=2 tokens contained in a full DB identity resolve to that user."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) == (
+            "carlos perez",
+            "carlos omar perez lopez",
+        )
+
+    def test_ambiguous_returns_none(self):
+        """An identity shared by multiple eligible users is not assigned arbitrarily."""
+        eligible = [
+            ("carlos perez", "carlos omar perez"),
+            ("carlos perez", "carlos meza perez"),
+        ]
+        assert _match_identity("CARLOS PEREZ", eligible) is None
+
+    def test_single_token_returns_none(self):
+        """Fewer than 2 tokens never matches (common-token guard)."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("CARLOS", eligible) is None
+
+    def test_no_match_returns_none(self):
+        """A raw value with no coincidence in the eligible pool → None."""
+        eligible = [
+            ("carlos perez", "carlos omar perez lopez"),
+        ]
+        assert _match_identity("JUAN MARTINEZ", eligible) is None
+
+    def test_blank_returns_none(self):
+        """None/empty raw values never resolve."""
+        eligible = [("carlos perez", "carlos perez")]
+        assert _match_identity(None, eligible) is None
+        assert _match_identity("", eligible) is None
+
+
+class TestResolveValidadorIdentity:
+    """_resolve_validador_identity: payload ``nombres`` matched against the
+    validator population (users_store.get_validadores(), rol validador|admin).
+
+    Strict TDD RED: these tests reference _resolve_validador_identity before
+    it exists.
+    """
+
+    @staticmethod
+    def _validadores():
+        return [
+            {
+                "username": "cperez",
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "Omar",
+                "apellido_1": "Perez",
+                "apellido_2": "Lopez",
+                "nombre_completo": "CARLOS PEREZ",
+                "rol": "validador",
+            },
+            {
+                "username": "avaldez",
+                "primer_nombre": "Ana",
+                "segundo_nombre": "",
+                "apellido_1": "Valdez",
+                "apellido_2": "",
+                "nombre_completo": "ANA VALDEZ",
+                "rol": "admin",
+            },
+        ]
+
+    def test_matching_nombres_resolves_canonical(self):
+        """\"CARLOS PEREZ\" matching validator Carlos Perez → canonical identity."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity("CARLOS PEREZ") == "carlos perez"
+
+    def test_no_match_returns_none(self):
+        """nombres with no validator coincidence → None."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity("JUAN MARTINEZ") is None
+
+    def test_ambiguous_returns_none(self):
+        """nombres matching more than one validator identity → None."""
+        validadores = self._validadores() + [
+            {
+                "username": "cperez2",
+                "primer_nombre": "Carlos",
+                "segundo_nombre": "",
+                "apellido_1": "Perez",
+                "apellido_2": "",
+                "nombre_completo": "CARLOS PEREZ",
+                "rol": "validador",
+            },
+        ]
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=validadores,
+        ):
+            assert _resolve_validador_identity("CARLOS PEREZ") is None
+
+    def test_blank_returns_none(self):
+        """None/empty nombres → None (never resolves)."""
+        with patch(
+            "app.services.control_errores_service.users_store.get_validadores",
+            return_value=self._validadores(),
+        ):
+            assert _resolve_validador_identity(None) is None
+            assert _resolve_validador_identity("") is None
 
 
 def _fake_error() -> dict:
@@ -70,6 +1005,32 @@ class TestUpdateErrorPermissions:
         assert result["status"] == "success"
         assert result["data"]["error"]["id"] == "test-1"
         mock_upd.assert_called_once()
+
+    def test_update_error_canonicalizes_display_responsable(self):
+        """Update passes a unique display alias to storage as canonical identity."""
+        facturadores = [{
+            "primer_nombre": "Carlos",
+            "segundo_nombre": "Omar",
+            "apellido_1": "Meza",
+            "apellido_2": "Fernandez",
+        }]
+        with (
+            _APP.test_request_context(),
+            patch(
+                "app.services.control_errores_service.users_store.get_facturadores",
+                return_value=facturadores,
+            ),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "responsable": "CARLOS MEZA"}
+
+            result = update_error("test-1", {"responsable": "CARLOS OMAR"})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["responsable"] == "CARLOS MEZA"
 
     # ── Partial write (control_urgencias) — allowed fields ───────────
 
@@ -246,7 +1207,7 @@ class TestValidadorColumn:
     # ── Service: add_error composition ────────────────────────────────
 
     def test_add_error_composes_validador_from_session(self):
-        """add_error() MUST compose validador from session['primer_nombre'] + session['apellido_1']."""
+        """add_error() MUST compose validador from session['primer_nombre'] + session['apellido_1'] (UPPER canónico)."""
         with (
             _APP.test_request_context(),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
@@ -263,10 +1224,10 @@ class TestValidadorColumn:
 
             mock_crear.assert_called_once()
             _call_kwargs = mock_crear.call_args.kwargs
-            assert _call_kwargs.get("validador") == "Juan Pérez"
+            assert _call_kwargs.get("validador") == "JUAN PÉREZ"
 
     def test_add_error_validador_ignores_client_payload(self):
-        """add_error() MUST NOT use validador from client payload — session always wins."""
+        """add_error() MUST NOT use validador from client payload — session always wins (UPPER)."""
         with (
             _APP.test_request_context(),
             patch("app.services.control_errores_service.crear_error") as mock_crear,
@@ -283,7 +1244,7 @@ class TestValidadorColumn:
 
             mock_crear.assert_called_once()
             _call_kwargs = mock_crear.call_args.kwargs
-            assert _call_kwargs.get("validador") == "Maria Gomez"
+            assert _call_kwargs.get("validador") == "MARIA GOMEZ"
 
     def test_add_error_validador_session_keys_missing(self):
         """add_error() MUST handle missing session keys gracefully (empty string fallback)."""
@@ -323,3 +1284,238 @@ class TestValidadorColumn:
             import inspect
             sig = inspect.signature(actualizar_error)
             assert "validador" not in sig.parameters
+
+
+class TestReFacturaColumnService:
+    """R12: refactura opcional, uppercase forzado, permisos heredados (R1)."""
+
+    # ── add_error: uppercase + optional ──────────────────────────────
+
+    def test_add_error_uppercases_refactura(self):
+        """add_error() MUST uppercase refactura before crear_error."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "refactura": "abc-1",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == "ABC-1"
+
+    def test_add_error_refactura_optional_empty(self):
+        """add_error() without refactura → crear_error recibe '' (opcional)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == ""
+
+    def test_add_error_refactura_blank_stored_empty(self):
+        """add_error() with blank refactura → '' (never None)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            mock_crear.return_value = {"id": "new-error"}
+            add_error({
+                "tipo_error": "OTROS",
+                "factura": "FAC-001",
+                "responsable": "Admin",
+                "refactura": "   ",
+            }, session={"username": "val1"})
+
+        assert mock_crear.call_args.kwargs.get("refactura") == ""
+
+    # ── update_error: stores sent refactura, uppercased ──────────────
+
+    def test_update_error_stores_sent_refactura_uppercased(self):
+        """update_error() MUST forward refactura uppercased to actualizar_error."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "refactura": "ABC-1"}
+
+            result = update_error("test-1", {"refactura": "abc-1"})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["refactura"] == "ABC-1"
+
+    def test_update_error_accepts_empty_refactura(self):
+        """update_error() with refactura='' → forwarded as '' (clears value)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "refactura": ""}
+
+            result = update_error("test-1", {"refactura": ""})
+
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs["refactura"] == ""
+
+    def test_update_error_does_not_send_refactura_when_absent(self):
+        """update_error() without refactura key → actualizar_error NOT called with it."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias:write"]
+            mock_get.return_value = _fake_error()
+            mock_upd.return_value = {"id": "test-1", "estado": "R"}
+
+            update_error("test-1", {"estado": "R"})
+
+            assert "refactura" not in mock_upd.call_args.kwargs
+
+    # ── R1: non-write PUT refactura → 403 ────────────────────────────
+
+    def test_limited_rejects_refactura(self):
+        """User with 'control_urgencias' MUST get 403 for 'refactura' (R1)."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias"]
+            session["ce_authenticated"] = True
+            mock_get.return_value = _fake_error()
+
+            result = update_error("test-1", {"refactura": "X"})
+
+        assert isinstance(result, tuple)
+        assert result[1] == 403
+        assert "refactura" in result[0]["errors"][0]
+        mock_upd.assert_not_called()
+
+
+class TestReFacturaColumnStorage:
+    """R12: storage — crear_error stores refactura (default ''), actualizar_error branch."""
+
+    def test_crear_error_stores_refactura_key(self):
+        """crear_error() MUST store refactura when param is passed."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-001",
+                observacion="test obs",
+                estado="S",
+                responsable="Admin",
+                refactura="R-42",
+            )
+
+        assert error["refactura"] == "R-42"
+        mock_write.assert_called_once()
+
+    def test_crear_error_refactura_default_empty(self):
+        """crear_error() MUST default refactura to empty string (optional)."""
+        with patch("app.utils.errores_storage._escribir_datos") as mock_write:
+            error = crear_error(
+                tipo_error="OTROS",
+                factura="FAC-002",
+                observacion="no refactura",
+                estado="S",
+                responsable="Admin",
+            )
+
+        assert error["refactura"] == ""
+        mock_write.assert_called_once()
+
+    def test_actualizar_error_updates_refactura_only_when_sent(self):
+        """actualizar_error() MUST update refactura only when the param is provided."""
+        with patch("app.utils.errores_storage._leer_datos") as mock_read, \
+             patch("app.utils.errores_storage._escribir_datos") as mock_write:
+
+            mock_read.return_value = {"errores": [{"id": "test-1", "refactura": "OLD"}]}
+
+            result = actualizar_error(error_id="test-1", refactura="NEW-1")
+
+            assert result["refactura"] == "NEW-1"
+
+    def test_actualizar_error_leaves_refactura_when_absent(self):
+        """actualizar_error() MUST NOT touch refactura when not sent (legacy-safe)."""
+        with patch("app.utils.errores_storage._leer_datos") as mock_read, \
+             patch("app.utils.errores_storage._escribir_datos") as mock_write:
+
+            mock_read.return_value = {"errores": [{"id": "test-1", "refactura": "OLD"}]}
+
+            result = actualizar_error(error_id="test-1", estado="N")
+
+            assert result["refactura"] == "OLD"
+
+
+# =============================================================================
+# R14 — Factura + FURIPS split (fix-split-factura-furips)
+# =============================================================================
+
+class TestR14FacturaYFuripsOpciones:
+    """R14 S1: GET /api/control-errores/opciones includes Factura and FURIPS separate."""
+
+    def test_opciones_includes_factura_y_furips(self):
+        """tipos_error MUST contain Factura Title Case + FURIPS upper + 4 existing."""
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=[]),
+        ):
+            opciones = get_opciones()
+
+        assert opciones["status"] == "success"
+        tipos = opciones["data"]["tipos_error"]
+        assert "Factura" in tipos
+        assert "FURIPS" in tipos
+        assert "Factura y Furips" not in tipos
+        assert {"Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada"}.issubset(set(tipos))
+        assert len(tipos) == 6
+        assert tipos == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+
+
+class TestR14FacturaYFuripsFilter:
+    """R14 S4: filter exact-match case-sensitive via get_errores/listar_errores — split."""
+
+    def test_filter_factura_y_furips_exact_match(self):
+        """GET ?tipo_error=Factura / FURIPS returns only those; lowercase and combined zero."""
+        fixture = [
+            {"id": "factura-1", "tipo_error": "Factura", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "furips-1", "tipo_error": "FURIPS", "estado": "S", "responsable": "A", "creado_en": "2026-08-10T10:00:00"},
+            {"id": "o1", "tipo_error": "Otros", "estado": "S", "responsable": "A", "creado_en": "2026-08-09T10:00:00"},
+            {"id": "fa1", "tipo_error": "Factura Abierta", "estado": "S", "responsable": "A", "creado_en": "2026-08-08T10:00:00"},
+        ]
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos", return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            result = get_errores(tipo_error="Factura", session={"rol": "validador"})
+            assert [e["id"] for e in result["data"]["errores"]] == ["factura-1"]
+
+            result_furips = get_errores(tipo_error="FURIPS", session={"rol": "validador"})
+            assert [e["id"] for e in result_furips["data"]["errores"]] == ["furips-1"]
+
+            result_lower = get_errores(tipo_error="factura y furips", session={"rol": "validador"})
+            assert result_lower["data"]["errores"] == []
+
+            result_combined = get_errores(tipo_error="Factura y Furips", session={"rol": "validador"})
+            assert result_combined["data"]["errores"] == []
+
+            result_other = get_errores(tipo_error="Otros", session={"rol": "validador"})
+            assert [e["id"] for e in result_other["data"]["errores"]] == ["o1"]

@@ -1,0 +1,198 @@
+{
+  "mes": 7,
+  "anio": 2026,
+  "dias": [
+    {
+      "dia": 1,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 2,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 3,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 4,
+      "manana": "MARINEY",
+      "tarde": "CARLOS",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 5,
+      "manana": "MARINEY",
+      "tarde": "MARINEY",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 6,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 7,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 8,
+      "manana": "CARLOS",
+      "tarde": "MARINEY",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 9,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 10,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 11,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 12,
+      "manana": "CARLOS",
+      "tarde": "CARLOS",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 13,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 14,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 15,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 16,
+      "manana": "CARLOS",
+      "tarde": "MARINEY",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 17,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 18,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 19,
+      "manana": "YULIETH",
+      "tarde": "YULIETH",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 20,
+      "manana": "CARLOS",
+      "tarde": "MARINEY",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 21,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 22,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 23,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 24,
+      "manana": "CARLOS",
+      "tarde": "MARINEY",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 25,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 26,
+      "manana": "ALEJANDRA",
+      "tarde": "ALEJANDRA",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 27,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    },
+    {
+      "dia": 28,
+      "manana": "CARLOS",
+      "tarde": "MARINEY",
+      "noche": "YULIETH"
+    },
+    {
+      "dia": 29,
+      "manana": "MARINEY",
+      "tarde": "ALEJANDRA",
+      "noche": "CARLOS"
+    },
+    {
+      "dia": 30,
+      "manana": "ALEJANDRA",
+      "tarde": "YULIETH",
+      "noche": "MARINEY"
+    },
+    {
+      "dia": 31,
+      "manana": "YULIETH",
+      "tarde": "CARLOS",
+      "noche": "ALEJANDRA"
+    }
+  ],
+  "total_dias": 31,
+  "columnas": [
+    "07:00 AM - 01:00 PM",
+    "01:00 PM - 07:00 PM",
+    "07:00 PM - 07:00 AM"
+  ]
+}
