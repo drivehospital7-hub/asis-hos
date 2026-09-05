@@ -214,6 +214,7 @@ def process_unified(
             },
             "totales": {},
             "totales_por_tipo": {},
+            "tipos_procesados": [],
             "missing_columns": [],
         }, {}
 
@@ -227,7 +228,11 @@ def process_unified(
     factura_por_tipo = _build_factura_por_tipo(data_sheet, indices, tipos_presentes)
 
     for tipo in tipos_presentes:
-        orquestador = _get_orquestador(tipo)
+        try:
+            orquestador = _get_orquestador(tipo)
+        except Exception:
+            logger.exception("Error en orquestador de %s", tipo)
+            continue
         if orquestador is None:
             logger.debug("Sin orquestador para tipo: %s", tipo)
             continue
