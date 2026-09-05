@@ -327,6 +327,8 @@ def detect_all_problems_equipos_basicos(
             if not isinstance(problems, list):
                 continue
             for p in problems:
+                if not isinstance(p, dict):
+                    continue
                 factura = p.get("factura")
                 if factura and factura in responsable_cierra:
                     p["responsable"] = responsable_cierra[factura]
@@ -337,6 +339,8 @@ def detect_all_problems_equipos_basicos(
             if not isinstance(problems, list):
                 continue
             for p in problems:
+                if not isinstance(p, dict):
+                    continue
                 if "responsable" not in p:
                     p["responsable"] = ""
 
