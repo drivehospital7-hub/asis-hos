@@ -89,8 +89,11 @@ def apply_common_centro_costo_rules(
         })
 
     # --- Centro de costo inválido ---
+    # Legacy message kept verbatim: prod revision sheets show
+    # "Centro de costo no válido para Urgencias" (see
+    # app/services/urgencias/centro_costo_urgencias.py).
     if centro_costo_str not in centros_validos:
-        _error("Centro de costo no válido", prioridad=1, regla="CENTRO_INVALIDO")
+        _error("Centro de costo no válido para Urgencias", prioridad=1, regla="CENTRO_INVALIDO")
 
     # --- Regla 9: Tarifario farmacia → Centro debe ser FARMACIA ---
     if tarifario_str == VALOR_TARIFARIO_FARMACIA:
@@ -104,7 +107,9 @@ def apply_common_centro_costo_rules(
     )
     es_exceptuado = codigo_excluir in CODIGOS_EXCEPTUADOS
     if regla_1_activa and not es_exceptuado and centro_costo_str != CENTRO_COSTO_APOYO_DIAGNOSTICO:
-        _error(CENTRO_COSTO_APOYO_DIAGNOSTICO, regla="REGLA1")
+        # Legacy parity: REGLA1 carries no explicit regla key (see
+        # app/services/urgencias/centro_costo_urgencias.py).
+        _error(CENTRO_COSTO_APOYO_DIAGNOSTICO)
 
     # --- Regla 1 REVERSE: Centro=APOYO DIAGNÓSTICO → Código=02 + Lab=No ---
     if centro_costo_str == CENTRO_COSTO_APOYO_DIAGNOSTICO:
@@ -115,9 +120,10 @@ def apply_common_centro_costo_rules(
             )
 
     # --- Regla 2: Código=14 → Centro TRASLADOS ---
+    # Legacy parity: no explicit regla key.
     if codigo_str == CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS:
         if centro_costo_str != CENTRO_COSTO_TRASLADOS:
-            _error(CENTRO_COSTO_TRASLADOS, regla="REGLA2")
+            _error(CENTRO_COSTO_TRASLADOS)
 
     # --- Regla 2 REVERSE: Centro=TRASLADOS → Código debe ser 14 ---
     if centro_costo_str == CENTRO_COSTO_TRASLADOS:
@@ -125,9 +131,10 @@ def apply_common_centro_costo_rules(
             _error(f"Código={CODIGO_TIPO_PROCEDIMIENTO_TRASLADOS}", regla="REVERSE2")
 
     # --- Regla 3: Código en PYP → Centro PYP ---
+    # Legacy parity: no explicit regla key.
     if codigo_excluir in CODIGOS_PYP_URGENCIAS:
         if centro_costo_str != CENTRO_COSTO_PYP_URGENCIAS:
-            _error(CENTRO_COSTO_PYP_URGENCIAS, regla="REGLA3")
+            _error(CENTRO_COSTO_PYP_URGENCIAS)
 
     # --- Regla 3 REVERSE: Centro=PYP → Código debe ser PYP ---
     if centro_costo_str == CENTRO_COSTO_PYP_URGENCIAS:
@@ -135,9 +142,10 @@ def apply_common_centro_costo_rules(
             _error("Procedimiento con mal uso de centro de costo PYP", regla="REVERSE3")
 
     # --- Regla 4: Código en QUIRÓFANOS → Centro QUIRÓFANOS ---
+    # Legacy parity: no explicit regla key.
     if codigo_excluir in CODIGOS_QUIROFANO_URGENCIAS:
         if centro_costo_str != CENTRO_COSTO_QUIROFANO_URGENCIAS:
-            _error(CENTRO_COSTO_QUIROFANO_URGENCIAS, regla="REGLA4")
+            _error(CENTRO_COSTO_QUIROFANO_URGENCIAS)
 
     # --- Regla 4 REVERSE: Centro=QUIRÓFANOS → Código QUIRÓFANOS ---
     if centro_costo_str == CENTRO_COSTO_QUIROFANO_URGENCIAS:
@@ -150,8 +158,9 @@ def apply_common_centro_costo_rules(
             _error(f"Tarifario debe ser {VALOR_TARIFARIO_FARMACIA}", regla="REVERSE9")
 
     # --- Regla 8: Código 890601H/39133 → Centro HOSPITALIZACIÓN ESTANCIA ---
+    # Legacy parity: no explicit regla key.
     if codigo_excluir in CODIGOS_HOSPITALIZACION_ESTANCIA:
         if centro_costo_str != CENTRO_COSTO_HOSPITALIZACION_ESTANCIA:
-            _error(CENTRO_COSTO_HOSPITALIZACION_ESTANCIA, regla="REGLA8")
+            _error(CENTRO_COSTO_HOSPITALIZACION_ESTANCIA)
 
     return errors

@@ -146,6 +146,15 @@ def detect_all_problems_hospitalizacion(
                 session.rollback()
         finally:
             session.close()
+        # Legacy detector stays authoritative in engine path: no engine rule
+        # covers the computed estancia filter, so the engine path must still
+        # call detect_hospitalizacion_codes (T-F3.3).
+        try:
+            problemas_cups_equivalentes.extend(
+                detect_hospitalizacion_codes(data_sheet, indices)
+            )
+        except Exception:
+            logger.exception("Error en detect_hospitalizacion_codes (engine path)")
     else:
         problemas_cups_equivalentes.extend(detect_hospitalizacion_codes(data_sheet, indices))
 
@@ -425,10 +434,12 @@ def detect_all_problems_hospitalizacion(
             ],
             "cups_equivalentes": [
                 {
-                    "factura": item["factura"],
-                    "codigo": item["codigo"],
-                    "codigo_equiv": item["codigo_equiv"],
-                    "accion": item["accion"],
+                    "factura": item.get("factura", ""),
+                    # Engine group rules emit problema/collect_set_codigo instead
+                    # of the legacy accion/codigo keys — map both shapes.
+                    "codigo": item.get("codigo", item.get("collect_set_codigo", "")),
+                    "codigo_equiv": item.get("codigo_equiv", ""),
+                    "accion": item.get("accion", item.get("problema", "")),
                 }
                 for item in problemas_cups_equivalentes
             ],

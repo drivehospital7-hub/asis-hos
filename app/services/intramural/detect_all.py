@@ -306,6 +306,18 @@ def detect_all_problems_intramural(
                 session.rollback()
         finally:
             session.close()
+        # Legacy detector stays authoritative in engine path: it owns the
+        # laboratorio-envío pre-scan (sheet-level, not row-by-row) and the
+        # engine rules silently yield [] when missing from the DB.
+        from app.services.intramural.ide_contrato_intramural import (
+            detect_ide_contrato_intramural,
+        )
+        try:
+            problemas_ide_contrato.extend(
+                detect_ide_contrato_intramural(data_sheet, indices)
+            )
+        except Exception:
+            logger.exception("Error en detect_ide_contrato_intramural (engine path)")
     else:
         from app.services.intramural.ide_contrato_intramural import (
             detect_ide_contrato_intramural,

@@ -83,13 +83,14 @@ class TestMalCapitadoTipoFacturaFilter:
         result = detect_mal_capitado(ws, _INDICES_FULL)
         assert result == []
 
-    def test_missing_tipo_factura_col_returns_empty(
+    def test_missing_tipo_factura_col_processes_all_rows(
         self, wb_with_tipo_factura: Workbook
     ) -> None:
-        """Missing tipo_factura_descripcion column → return [].
+        """Missing tipo_factura_descripcion column → process all rows (legacy fallback).
 
-        Since tipo_factura_descripcion is now REQUIRED for filtering,
-        the detector should return empty when it's missing.
+        The column is optional: legacy sheets without it are evaluated
+        unfiltered (same convention as detect_ide_contrato_intramural).
+        When present, only "Urgencias" rows are evaluated.
         """
         ws = wb_with_tipo_factura.active
         bad_code = next(iter(CODIGOS_MAL_CAPITADO))
@@ -102,7 +103,8 @@ class TestMalCapitadoTipoFacturaFilter:
             "codigo": 1,
         }
         result = detect_mal_capitado(ws, indices_no_tipo)
-        assert result == []
+        assert len(result) == 1
+        assert result[0]["factura"] == "FAC-004"
 
     def test_urgencias_con_fev_prefix_no_error(
         self, wb_with_tipo_factura: Workbook

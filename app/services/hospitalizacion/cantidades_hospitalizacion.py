@@ -39,18 +39,22 @@ def detect_cantidades_hospitalizacion(
     fecha_cierre_idx = indices.get("fecha_cierre")
     tarifario_idx = indices.get("tarifario")
 
-    if None in (tipo_factura_idx, num_fact_idx, codigo_idx, cantidad_idx):
+    # tipo_factura_descripcion is optional: legacy sheets without the column
+    # are processed unfiltered (pre-chain behavior). When present, only
+    # "Hospitalización" rows are evaluated.
+    if None in (num_fact_idx, codigo_idx, cantidad_idx):
         logger.warning("Cantidades Hospitalización - Columnas necesarias no encontradas")
         return []
 
     problemas = []
 
     for row in range(2, data_sheet.max_row + 1):
-        tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
-        tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
+        if tipo_factura_idx is not None:
+            tipo_factura = data_sheet.cell(row=row, column=tipo_factura_idx + 1).value
+            tipo_factura_str = str(tipo_factura).strip() if tipo_factura else ""
 
-        if tipo_factura_str != "Hospitalización":
-            continue
+            if tipo_factura_str != "Hospitalización":
+                continue
 
         numero_factura = data_sheet.cell(row=row, column=num_fact_idx + 1).value
         factura_str = normalize_invoice(numero_factura)
