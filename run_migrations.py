@@ -94,6 +94,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--apply", action="store_true", help="Apply migrations")
     parser.add_argument("--dry-run", action="store_true", help="Plan only, zero writes (default)")
     parser.add_argument("--confirm", action="store_true", help="Manual confirm gate")
+    parser.add_argument(
+        "--force-prod",
+        action="store_true",
+        help="Bypass prod guard ONLY with --apply --confirm (all three required)",
+    )
     parser.add_argument("--with-evidence", action="store_true", help="Backfill evidence seeds")
     parser.add_argument("--migrations-dir", default="migrations", help="Migrations directory")
     return parser.parse_args(argv)
@@ -134,7 +139,15 @@ def run_migrations(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     config = get_database_config()
     if is_prod_database(config.name):
-        return _abort(f"refusing prod database '{config.name}'")
+        if args.force_prod and args.apply and args.confirm:
+            logger.warning(
+                "[BACK][ERROR] FORCE-PROD bypass active on database '%s' "
+                "-- explicit --apply --confirm --force-prod trio accepted",
+                config.name,
+            )
+            print(f"ADVERTENCIA: FORCE-PROD bypass activo en '{config.name}'")
+        else:
+            return _abort(f"refusing prod database '{config.name}'")
     migrations_dir = Path(args.migrations_dir)
     include_evidence = bool(args.with_evidence) or _include_evidence_from_env()
     if not args.apply:
