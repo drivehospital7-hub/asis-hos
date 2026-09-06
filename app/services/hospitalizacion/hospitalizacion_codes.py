@@ -48,7 +48,10 @@ def detect_hospitalizacion_codes(
     fec_factura_idx = indices.get("fec_factura")
     fecha_cierre_idx = indices.get("fecha_cierre")
 
-    if num_fact_idx is None or tipo_factura_descripcion_idx is None:
+    # tipo_factura_descripcion is optional: legacy sheets without the column
+    # are processed unfiltered (pre-chain behavior). When present, only
+    # "Hospitalización" rows are evaluated.
+    if num_fact_idx is None:
         logger.warning("Hospitalización Códigos - Columnas necesarias no encontradas")
         return []
 
@@ -60,11 +63,13 @@ def detect_hospitalizacion_codes(
         if not factura_str:
             continue
 
-        tipo_factura_cell = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
-        tipo_factura_str = str(tipo_factura_cell).strip() if tipo_factura_cell else ""
+        tipo_factura_str = ""
+        if tipo_factura_descripcion_idx is not None:
+            tipo_factura_cell = data_sheet.cell(row=row, column=tipo_factura_descripcion_idx + 1).value
+            tipo_factura_str = str(tipo_factura_cell).strip() if tipo_factura_cell else ""
 
-        if tipo_factura_str != "Hospitalización":
-            continue
+            if tipo_factura_str != "Hospitalización":
+                continue
 
         codigo_cell = data_sheet.cell(row=row, column=codigo_idx + 1).value if codigo_idx else None
         codigo_normalized = str(codigo_cell).strip() if codigo_cell else ""
