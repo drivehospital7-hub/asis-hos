@@ -1,0 +1,79 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  bre-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: asis_hos_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d asis_hos_test"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5433
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      TEST_DB_NAME: asis_hos_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # requirements.txt omits test-only deps: pytest (not declared) and
+      # psycopg2 (run_migrations.py imports psycopg2; requirements pins
+      # psycopg v3 only). Installed here so prod deps stay untouched.
+      - run: pip install -r requirements.txt pytest psycopg2-binary
+      - run: python -m pytest tests/bre -q
+
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: asis_hos_test
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd="pg_isready -U postgres -d asis_hos_test"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    env:
+      DB_HOST: localhost
+      DB_PORT: 5433
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      TEST_DB_NAME: asis_hos_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # requirements.txt omits test-only deps: pytest (not declared) and
+      # psycopg2 (run_migrations.py imports psycopg2; requirements pins
+      # psycopg v3 only). Installed here so prod deps stay untouched.
+      - run: pip install -r requirements.txt pytest psycopg2-binary
+      # The service DB starts empty, but reglas/engine tests use live
+      # sessions (get_session) against it. Base tables come from models,
+      # then the migration chain layers on top — same order as local dev.
+      - run: python -c "from app.database import Base, _get_engine; import app.models; Base.metadata.create_all(bind=_get_engine())"
+      - run: python run_migrations.py --apply --confirm
+      # Scope is reglas+engine only. tests/services/monitoreo_carpetas
+      # (filesystem watcher, hang-prone) is out of scope by path selection,
+      # so no --ignore flag is needed.
+      - run: python -m pytest tests/reglas tests/engine -q

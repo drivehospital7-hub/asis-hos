@@ -1,0 +1,5 @@
+# tests/bre/test_prod_gate.py pins the raw-byte SHA-256 of app/constants/base.py.
+# Force CRLF checkout for that file so Linux/macOS runners hash the same
+# bytes as the pinned digest (repo blob is CRLF; GitHub runners normalize
+# to LF by default, which breaks the pin without any real prod change).
+app/constants/base.py text eol=crlf
