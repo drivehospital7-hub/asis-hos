@@ -798,6 +798,8 @@ export function AbiertasUrgenciasPage({
                     r._enviada || envioEnviadas.current.has(r.factura);
                   const isSinEgreso = r.responsable === "Sin Egreso";
                   const isSinHorario = r.responsable === "Sin horario";
+                  const hcNorm = (r.hcPendiente || "").trim().toLowerCase();
+                  const isHcPendiente = hcNorm === "si" || hcNorm === "sí";
 
                   let actionHtml: React.ReactNode;
                   if (yaEnviada) {
@@ -835,6 +837,7 @@ export function AbiertasUrgenciasPage({
                       isSinEgreso,
                       r.estado,
                       isSinHorario,
+                      isHcPendiente,
                     );
                     const isDisabled = sinEgresoConfig.disabled;
                     actionHtml = (
