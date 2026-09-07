@@ -1241,8 +1241,8 @@
   // Field-aware text write-back. Preserves non-text children (e.g. .obs-img-btn).
   // Selector contract: .obs-cell-wrapper is shared with the openEditor read path - do not rename.
   function updateObservationCellText(td, newText) {
+    const text = newText || '-';
     if (td.dataset.field === 'observacion') {
-      const text = newText || '-';
       const wrapper = td.querySelector('.obs-cell-wrapper');
       if (wrapper) { wrapper.textContent = text; return; }
     } else if (td.dataset.field === 'factura') {
@@ -1254,7 +1254,7 @@
       const span = td.querySelector('span');
       if (span) { span.textContent = t; return; }
     }
-    td.textContent = newText || '-'; // legacy rows / other text fields
+    td.textContent = text; // legacy rows / other text fields
   }
 
   async function saveFromEditor() {
