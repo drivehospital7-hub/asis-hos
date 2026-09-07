@@ -25,7 +25,7 @@ interface NavItem {
 const ALL_NAV: NavItem[] = [
   { label: "Panel principal", href: "/dashboard", icon: LayoutDashboard, exact: true },
   { label: "Procesar", href: "/procesar", icon: FileText, permiso: "procesar" },
-  { label: "Control de Novedades", href: "/control-errores", icon: ClipboardCheck, permiso: "control_urgencias" },
+  { label: "Control de Novedades", href: "/control-novedades", icon: ClipboardCheck, permiso: "control_urgencias" },
   { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
   { label: "Búsqueda PDF", href: "/busqueda-pdf", icon: Search, permiso: "busqueda_pdf" },
   { label: "Cronograma Urgencias", href: "/cronograma-urgencias", icon: CalendarClock, permiso: "cronograma_urgencias" },
