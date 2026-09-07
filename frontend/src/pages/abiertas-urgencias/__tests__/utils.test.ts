@@ -963,6 +963,46 @@ describe("T4 getSinEgresoButtonConfig isSinHorario precedence", () => {
   });
 });
 
+describe("getSinEgresoButtonConfig isHcPendiente", () => {
+  it("disables when isHcPendiente is true", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Abierta", false, true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("HC pendiente — no se puede enviar");
+  });
+
+  it("disables when isHcPendiente is true even with empty estado", () => {
+    const cfg = getSinEgresoButtonConfig(false, "", false, true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("HC pendiente — no se puede enviar");
+  });
+
+  it("keeps enabled path when isHcPendiente is false", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Abierta", false, false);
+    expect(cfg.disabled).toBe(false);
+    expect(cfg.title).toBe("Enviar a Control de Errores");
+  });
+
+  it("keeps enabled path when isHcPendiente is undefined", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Abierta", false, undefined);
+    expect(cfg.disabled).toBe(false);
+  });
+
+  it("Sin horario and Sin Egreso keep precedence over isHcPendiente", () => {
+    expect(
+      getSinEgresoButtonConfig(false, "Abierta", true, true).title,
+    ).toBe("Sin horario: cargue horario de ese mes");
+    expect(getSinEgresoButtonConfig(true, "Abierta", false, true).title).toBe(
+      "Sin egreso — no hay responsable asignado",
+    );
+  });
+
+  it("isHcPendiente takes precedence over Cerrada", () => {
+    const cfg = getSinEgresoButtonConfig(false, "Cerrada", false, true);
+    expect(cfg.disabled).toBe(true);
+    expect(cfg.title).toBe("HC pendiente — no se puede enviar");
+  });
+});
+
 describe("T4 filter includes Sin horario", () => {
   it("getUniqueResponsables includes Sin horario", () => {
     const results: FacturaResult[] = [

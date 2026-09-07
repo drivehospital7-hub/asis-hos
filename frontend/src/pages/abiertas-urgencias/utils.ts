@@ -527,12 +527,14 @@ export interface SinEgresoButtonConfig {
  * Returns the button configuration for the "Enviar a Control" action.
  * The button must be disabled (with an explanatory tooltip) when the
  * factura has no responsable asignado ("Sin Egreso"), when its estado
- * is "Cerrada", or when no horario exists for the egreso month ("Sin horario").
+ * is "Cerrada", when no horario exists for the egreso month ("Sin horario"),
+ * or when HC is pending ("Sí").
  */
 export function getSinEgresoButtonConfig(
   isSinEgreso: boolean,
   estado?: string,
   isSinHorario?: boolean,
+  isHcPendiente?: boolean,
 ): SinEgresoButtonConfig {
   if (isSinHorario) {
     return {
@@ -544,6 +546,12 @@ export function getSinEgresoButtonConfig(
     return {
       disabled: true,
       title: "Sin egreso — no hay responsable asignado",
+    };
+  }
+  if (isHcPendiente) {
+    return {
+      disabled: true,
+      title: "HC pendiente — no se puede enviar",
     };
   }
   if (estado && estado.trim().toLowerCase() === "cerrada") {
