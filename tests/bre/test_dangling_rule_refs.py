@@ -260,7 +260,13 @@ class TestSalaObservacionMapping:
     def _fixture(self):
         headers = ["factura", "codigo"]
         rows = [("U-SAL-001", "129B02"), ("U-SAL-001", "890701")]
-        return _wb(headers, rows), {h: i for i, h in enumerate(headers)}
+        wb = _wb(headers, rows)
+        indices = {h: i for i, h in enumerate(headers)}
+        # Prod indices key the invoice column as "numero_factura"
+        # (exporter required_headers: "Número Factura" — exact Excel header).
+        # Mirror it so sala_obs_check_set callers cover the prod index shape.
+        indices["numero_factura"] = indices["factura"]
+        return wb, indices
 
     def test_check_set_rule_matches_fixture(self):
         """Sala code present but 890601 missing → NOT contains-all → MATCH."""
