@@ -524,7 +524,13 @@ class TestUnifiedProcessorCupsGap:
 class TestIntramuralGaps:
     """GAPs: bacteriologas / centro_costo / ide_simple / pym_rutas_dx /
     duplicado_05+02_lab / revision_cantidad intramural have no covering rule
-    in any DB. Engine evaluation is explicitly skipped ([] + no lookup)."""
+    in any DB. Engine evaluation is explicitly skipped ([] + no lookup).
+
+    NOTE (015): migrations/015_seed_intramural_gaps.sql seeds 4 of the 7 as
+    active v1 (bacteriologas, centro_costo, dup_05, revision) — still unwired
+    here, so the skip assertions below keep holding until the detect_all
+    wiring follow-up. ide_simple / pym_rutas_dx / dup_02_lab stay unseeded
+    (need product input; see 015 header)."""
 
     GAP_NAMES = (
         "bacteriologas_cronograma",
