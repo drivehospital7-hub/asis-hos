@@ -32,7 +32,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt pytest
+      # requirements.txt omits test-only deps: pytest (not declared) and
+      # psycopg2 (run_migrations.py imports psycopg2; requirements pins
+      # psycopg v3 only). Installed here so prod deps stay untouched.
+      - run: pip install -r requirements.txt pytest psycopg2-binary
       - run: python -m pytest tests/bre -q
 
   scope:
@@ -61,7 +64,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -r requirements.txt pytest
+      # requirements.txt omits test-only deps: pytest (not declared) and
+      # psycopg2 (run_migrations.py imports psycopg2; requirements pins
+      # psycopg v3 only). Installed here so prod deps stay untouched.
+      - run: pip install -r requirements.txt pytest psycopg2-binary
       # Scope is reglas+engine only. tests/services/monitoreo_carpetas
       # (filesystem watcher, hang-prone) is out of scope by path selection,
       # so no --ignore flag is needed.
