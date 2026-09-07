@@ -68,6 +68,11 @@ jobs:
       # psycopg2 (run_migrations.py imports psycopg2; requirements pins
       # psycopg v3 only). Installed here so prod deps stay untouched.
       - run: pip install -r requirements.txt pytest psycopg2-binary
+      # The service DB starts empty, but reglas/engine tests use live
+      # sessions (get_session) against it. Base tables come from models,
+      # then the migration chain layers on top — same order as local dev.
+      - run: python -c "from app.database import Base, _get_engine; import app.models; Base.metadata.create_all(bind=_get_engine())"
+      - run: python run_migrations.py --apply --confirm
       # Scope is reglas+engine only. tests/services/monitoreo_carpetas
       # (filesystem watcher, hang-prone) is out of scope by path selection,
       # so no --ignore flag is needed.
