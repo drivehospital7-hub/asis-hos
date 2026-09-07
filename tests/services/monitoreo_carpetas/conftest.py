@@ -68,6 +68,30 @@ def temp_scan_root() -> Generator[Path, None, None]:
         yield root
 
 
+@pytest.fixture(autouse=True)
+def _isolate_route_watcher() -> Generator[None, None, None]:
+    """Reset the module-global route FolderWatcher before/after each test.
+
+    The Flask route keeps a process-global ``FolderWatcher`` singleton
+    (with a watchdog Observer thread + on-disk snapshot). Without a reset,
+    one E2E test's observer/snapshot leaks into the next test — observers
+    accumulate on deleted temp dirs and the full-dir run stalls.
+    """
+    try:
+        import app.routes.monitoreo_carpetas as route_mod
+
+        route_mod._watcher.reset()
+    except Exception:
+        pass
+    yield
+    try:
+        import app.routes.monitoreo_carpetas as route_mod
+
+        route_mod._watcher.reset()
+    except Exception:
+        pass
+
+
 @pytest.fixture
 def sample_invoice_records() -> list[InvoiceRecord]:
     """Returns a list of sample InvoiceRecord instances for testing."""
