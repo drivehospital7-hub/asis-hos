@@ -1,8 +1,8 @@
-"""Strict TDD: Snapshot tests for duplicados_farmacia_farmacia engine toggle.
+"""Strict TDD: Snapshot tests for duplicados_farmacia engine toggle.
 
-Verifies that detect_duplicados_farmacia_farmacia is routed through the
-DB-backed rule engine when is_rule_engine_enabled()=True, and falls back to
-legacy when False. Both paths MUST produce the same output for the same data.
+Verifies that the farmacia duplicados detector is routed through the
+DB-backed rule engine (rule "duplicados_farmacia", Ref #1) when
+is_rule_engine_enabled()=True, and falls back to legacy when False. Both paths MUST produce the same output for the same data.
 
 Scenarios covered:
 1. Normal data (no duplicates) — both paths return []
@@ -121,7 +121,7 @@ NO_DUPLICATES = [
 
 
 class TestFarmaciaDuplicadosEngineToggle:
-    """Tests for duplicados_farmacia_farmacia engine toggle."""
+    """Tests for duplicados_farmacia engine toggle (Ref #1 mapping)."""
 
     def _make_mock_session(self) -> MagicMock:
         session = MagicMock()
@@ -140,7 +140,7 @@ class TestFarmaciaDuplicadosEngineToggle:
     def test_engine_path_routes_duplicados(
         self, mock_detector_cls, mock_get_session,
     ) -> None:
-        """Engine path must call RuleBasedDetector for duplicados_farmacia_farmacia."""
+        """Engine path must call RuleBasedDetector for duplicados_farmacia."""
         mock_session = self._make_mock_session()
         mock_get_session.return_value = mock_session
         mock_detector = MagicMock()
@@ -162,10 +162,12 @@ class TestFarmaciaDuplicadosEngineToggle:
         called_with_names = [
             args[0] for args, _ in mock_detector_cls.call_args_list
         ]
-        assert "duplicados_farmacia_farmacia" in called_with_names, (
-            f"Rule 'duplicados_farmacia_farmacia' was NOT routed to engine. "
+        assert "duplicados_farmacia" in called_with_names, (
+            f"Rule 'duplicados_farmacia' was NOT routed to engine. "
             f"Calls were: {called_with_names}"
         )
+        # Ref #1: the suffixed dangling name must never be looked up.
+        assert "duplicados_farmacia_farmacia" not in called_with_names
 
     def test_legacy_path_all_duplicated_returns_list(self) -> None:
         """Engine/mocked path with all-duplicated data must flag F001."""
@@ -182,7 +184,7 @@ class TestFarmaciaDuplicadosEngineToggle:
 
                 def _side_effect(name, session):
                     d = MagicMock()
-                    if name == "duplicados_farmacia_farmacia":
+                    if name == "duplicados_farmacia":
                         d.detect.return_value = [
                             {"factura": "F001", "problema": "Duplicados Farmacia",
                              "regla": "#1", "severidad": "error"}

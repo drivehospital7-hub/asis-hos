@@ -168,7 +168,10 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia_farmacia", session).detect(data_sheet, indices, persist=_PERSIST)
+            # Ref #1: "duplicados_farmacia_farmacia" exists in no DB but the
+            # test DB; the seeded duplicados_farmacia rule (tipo==FARMACIA AND
+            # cantidad>1) covers the Duplicados Farmacia intent.
+            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:

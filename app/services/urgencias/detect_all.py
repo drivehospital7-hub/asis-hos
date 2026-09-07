@@ -88,12 +88,11 @@ def detect_all_problems_urgencias(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            problemas_ide_contrato.extend(
-                RuleBasedDetector("ide_contrato_simple_urgencias", session).detect(
-                    data_sheet, indices, persist=_PERSIST,
-                    evidence_collector=collector, rows=rows,
-                )
-            )
+            # Ref #1: the "ide_contrato_simple_urgencias" rule exists in no DB
+            # and its intent (codigo+entidad → IDE único) is already covered by
+            # ide_contrato_urgencias_valido above ("Cubre reglas simples,
+            # multiples y genericas de entidad"). The second evaluation was
+            # pure duplication, so it is removed, not renamed.
 
             # CUPS equivalentes + Sala observación
             problemas_cups_equivalentes.extend(
@@ -102,8 +101,13 @@ def detect_all_problems_urgencias(
                     evidence_collector=collector, rows=rows,
                 )
             )
+            # Ref #1: "sala_observacion_valido" exists in no DB. The only
+            # executable, dev-live rule for the slot is sala_obs_check_set
+            # (obligatorios 890701+890601 presence when sala codes present;
+            # the sala_obs_check-evaluator rules can never fire — that
+            # operator is deregistered from EVALUATOR_REGISTRY).
             problemas_cups_equivalentes.extend(
-                RuleBasedDetector("sala_observacion_valido", session).detect(
+                RuleBasedDetector("sala_obs_check_set", session).detect(
                     data_sheet, indices, persist=_PERSIST,
                     evidence_collector=collector, rows=rows,
                 )
@@ -243,8 +247,10 @@ def detect_all_problems_urgencias(
                 len(revision_entidad_86),
             )
 
-            # Revision cantidad
-            revision_cantidad = RuleBasedDetector("revision_cantidad_urgencias_valido", session).detect(
+            # Revision cantidad (Ref #1: "revision_cantidad_urgencias_valido"
+            # exists in no DB; the seeded revision_cantidad_urgencias rule
+            # covers the revisión-cantidad intent as group SUM > 1).
+            revision_cantidad = RuleBasedDetector("revision_cantidad_urgencias", session).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -461,8 +467,12 @@ def detect_all_problems_urgencias(
             "cups_equivalentes": [
                 {
                     "factura": item["factura"],
-                    "codigo": item["codigo"],
-                    "codigo_equiv": item["codigo_equiv"],
+                    # .get: engine items never carry codigo_equiv (row data has
+                    # no such column) and group-shape items carry no scalar
+                    # codigo; legacy items always have both keys, so legacy
+                    # output is unchanged (same pattern as hospitalizacion).
+                    "codigo": item.get("codigo", ""),
+                    "codigo_equiv": item.get("codigo_equiv", ""),
                     "accion": item.get("accion", item.get("problema", "")),
                 }
                 for item in problemas_cups_equivalentes

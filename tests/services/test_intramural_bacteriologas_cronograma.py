@@ -1211,21 +1211,14 @@ class TestDetectAllPassesResponsableCierra:
         ws.cell(row=2, column=resp_idx + 1, value="CHAPUEL CASANOVA ANGIE TATIANA")
 
         def _mock_detector(name, session):
+            # Ref #1: bacteriologas_cronograma and centro_costo_intramural_valido
+            # are documented GAPs (dangling names) — detect_all must never
+            # evaluate them; the sections stay [].
+            assert name not in ("bacteriologas_cronograma", "centro_costo_intramural_valido"), (
+                f"dangling rule evaluated: {name}"
+            )
             d = MagicMock()
-            if name == "bacteriologas_cronograma":
-                d.detect.return_value = [
-                    {"factura": "FAC-001", "tipo": "error",
-                     "responsable_cierra": "CHAPUEL CASANOVA ANGIE TATIANA",
-                     "profesional": "03730"}
-                ]
-            elif name == "centro_costo_intramural_valido":
-                d.detect.return_value = [
-                    {"factura": "FAC-001", "centro_actual": "SERVICIOS AMBULATORIOS",
-                     "centro_deberia": "PYM", "prioridad": 1, "codigo": "904902",
-                     "procedimiento": "Hormona Estimulante del Tiroides [TSH]"}
-                ]
-            else:
-                d.detect.return_value = []
+            d.detect.return_value = []
             return d
 
         with patch("app.database.get_session") as m_gs:
@@ -1235,6 +1228,7 @@ class TestDetectAllPassesResponsableCierra:
                 result, _ = detect_all_problems_intramural(wb.active, indices)
 
         assert "profesionales" in result["problemas"]
+        assert result["problemas"]["profesionales"] == []
 
     def test_detect_all_without_responsable_column(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """detect_all sin columna responsable_cierra debe funcionar igual."""

@@ -284,18 +284,14 @@ def process_unified(
         detect_cups_equivalentes_transversal,
     )
     cups_equiv = detect_cups_equivalentes_transversal(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            cups_equiv = RuleBasedDetector("cups_equivalentes_transversal", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
+    # Ref #1 GAP (documented, no engine rule covers this intent): the
+    # transversal 906317/906249 mapping has no DB rule
+    # ("cups_equivalentes_transversal" exists in no DB; seeded
+    # cups_equivalentes is the urgencias code set, and
+    # cups_equivalentes_hospitalizacion is hospitalizacion-scoped), so there
+    # is deliberately no engine override here — the legacy result above
+    # stands. Do NOT re-add a RuleBasedDetector call for this name without a
+    # seeded rule, or findings will be silently discarded ("Rule not found").
     if cups_equiv:
         if "cups_equivalentes" in all_problemas:
             all_problemas["cups_equivalentes"].extend(cups_equiv)
