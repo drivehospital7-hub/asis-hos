@@ -134,11 +134,24 @@ def detect_all_problems_equipos_basicos(
             )
             tipo_id_entidad = r1_ent + r2_ent
 
-            # Cantidades anomalas
-            cantidades = RuleBasedDetector("cantidades_anomalas", session).detect(
+            # Cantidades anomalas (Ref #1: the singular "cantidades_anomalas"
+            # rule exists in no DB; legacy detect_cantidades_anomalas is the OR
+            # of 3 checks whose thresholds match the 3 seeded transversal
+            # rules 1:1 with equipos constants 2/10/3, so all three are
+            # evaluated, like tipo_documento_edad above).
+            cantidades_consultas = RuleBasedDetector("cantidad_consultas_anomalas", session).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
+            cantidades_general = RuleBasedDetector("cantidad_general_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            cantidades_pyp = RuleBasedDetector("cantidad_pyp_anomalas", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            cantidades = cantidades_consultas + cantidades_general + cantidades_pyp
 
             # codigo_entidad
             entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(
@@ -152,9 +165,12 @@ def detect_all_problems_equipos_basicos(
                 evidence_collector=collector, rows=rows,
             )
 
-            # IDE Contrato equipos básicos
+            # IDE Contrato equipos básicos (Ref #1: "ide_contrato_equipos_basicos_valido"
+            # exists in no DB; the legacy path below falls back to
+            # detect_ide_contrato_odontologia, whose engine counterpart is the
+            # seeded ide_contrato_odontologia_valido rule).
             logger.info("detect_all_problems_equipos_basicos - Llamando detect_ide_contrato_odontologia")
-            ide_contrato = RuleBasedDetector("ide_contrato_equipos_basicos_valido", session).detect(
+            ide_contrato = RuleBasedDetector("ide_contrato_odontologia_valido", session).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )

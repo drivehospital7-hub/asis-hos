@@ -32,13 +32,19 @@ class TestDetectAllProblemsIntramural:
         return result
 
     def _run_with_data(self, ws, indices, revision_data=None):
-        """Helper que corre con engine activo pero mockeado."""
+        """Helper que corre con engine activo pero mockeado.
+
+        Ref #1: revision_cantidad_intramural is a documented GAP (dangling
+        rule name) — the engine section is explicitly skipped, so injected
+        revision_data no longer flows; the helper keeps its signature and
+        asserts the skip.
+        """
+        calls: list[str] = []
+
         def _mock_detector(name, session):
+            calls.append(name)
             d = MagicMock()
-            if name == "revision_cantidad_intramural" and revision_data is not None:
-                d.detect.return_value = revision_data
-            else:
-                d.detect.return_value = []
+            d.detect.return_value = []
             return d
 
         with patch("app.database.get_session") as m_gs:
@@ -46,6 +52,7 @@ class TestDetectAllProblemsIntramural:
                 m_gs.return_value = MagicMock()
                 m_dc.side_effect = _mock_detector
                 result, _ = detect_all_problems_intramural(ws, indices)
+        assert "revision_cantidad_intramural" not in calls
         return result
 
     def test_retorna_dict_con_key_problemas(self, workbook_minimal: Workbook) -> None:
@@ -78,7 +85,8 @@ class TestDetectAllProblemsIntramural:
         assert "missing_columns" in result
 
     def test_revision_cantidad_in_resultado(self) -> None:
-        """resultado['problemas'] debe incluir 'revision_cantidad'."""
+        """resultado['problemas'] debe incluir 'revision_cantidad' (Ref #1 GAP:
+        sección explícitamente vacía — la regla no existe en ninguna DB)."""
         wb = Workbook()
         ws = wb.active
         ws.title = "Datos"
@@ -104,7 +112,7 @@ class TestDetectAllProblemsIntramural:
         revision_data = [{"factura": "F001", "tipo_error": "⚠️ Revisión Necesaria", "cantidad": 3}]
         result = self._run_with_data(ws, indices, revision_data=revision_data)
         assert "revision_cantidad" in result["problemas"]
-        assert len(result["problemas"]["revision_cantidad"]) == 1
+        assert result["problemas"]["revision_cantidad"] == []
 
     def test_revision_cantidad_in_totales(self) -> None:
         """resultado['totales'] debe incluir 'revision_cantidad'."""
@@ -133,10 +141,10 @@ class TestDetectAllProblemsIntramural:
         revision_data = [{"factura": "F001", "tipo_error": "⚠️ Revisión Necesaria", "cantidad": 3}]
         result = self._run_with_data(ws, indices, revision_data=revision_data)
         assert "revision_cantidad" in result["totales"]
-        assert result["totales"]["revision_cantidad"] == 1
+        assert result["totales"]["revision_cantidad"] == 0
 
     def test_revision_cantidad_in_normalized_rows(self) -> None:
-        """revision_cantidad items aparecen en normalizados como ⚠️ Revisión."""
+        """Sin datos de revisión (Ref #1 GAP), no hay filas ⚠️ Revisión Necesaria."""
         wb = Workbook()
         ws = wb.active
         ws.title = "Datos"
@@ -166,7 +174,5 @@ class TestDetectAllProblemsIntramural:
         revision_rows = [
             r for r in normalizados if r["tipo_error"] == "⚠️ Revisión Necesaria"
         ]
-        assert len(revision_rows) == 1
-        assert revision_rows[0]["factura"] == "F001"
-        assert "Cant:" in revision_rows[0]["detalle"]
+        assert revision_rows == []
 

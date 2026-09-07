@@ -574,8 +574,9 @@ class TestRevisionCantidadIntramuralEvaluator:
 class TestIntramuralF4Integration:
     """Integration tests: detect_all_problems_intramural routes to engine when activated.
 
-    T-F4.4: toggles route centro_costo_intramural and revision_cantidad_intramural
-    to engine. ide_contrato_intramural stays legacy (too complex for row-by-row engine).
+    T-F4.4: centro_costo_intramural and revision_cantidad_intramural are Ref #1
+    GAPs (dangling rule names — engine evaluation explicitly skipped).
+    ide_contrato_intramural stays legacy (too complex for row-by-row engine).
 
     T-F4.5: snapshot structure matching between engine and legacy paths.
     """
@@ -641,7 +642,8 @@ class TestIntramuralF4Integration:
     # ── Engine path routes centro_costo_intramural ──
 
     def test_engine_path_routes_centro_costo_intramural(self):
-        """Engine path MUST call RuleBasedDetector for centro_costo_intramural_valido."""
+        """Engine path must NOT look up the dangling centro_costo_intramural_valido
+        rule (Ref #1 GAP: exists in no DB) — the section is explicitly []."""
         import os
         with patch("app.database.get_session") as m_gs:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
@@ -665,15 +667,17 @@ class TestIntramuralF4Integration:
                         os.environ.pop("USE_RULE_ENGINE", None)
 
         call_names = [call[0][0] for call in m_dc.call_args_list]
-        assert "centro_costo_intramural_valido" in call_names, (
-            f"centro_costo_intramural_valido not in calls: {call_names}"
+        assert "centro_costo_intramural_valido" not in call_names, (
+            f"dangling centro_costo_intramural_valido still evaluated: {call_names}"
         )
         assert "centros_de_costos" in r["problemas"]
+        assert r["problemas"]["centros_de_costos"] == []
 
     # ── Engine path routes revision_cantidad_intramural ──
 
     def test_engine_path_routes_revision_cantidad(self):
-        """Engine path MUST call RuleBasedDetector for revision_cantidad_intramural."""
+        """Engine path must NOT look up the dangling revision_cantidad_intramural
+        rule (Ref #1 GAP: exists in no DB) — the section is explicitly []."""
         import os
         with patch("app.database.get_session") as m_gs:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
@@ -697,10 +701,11 @@ class TestIntramuralF4Integration:
                         os.environ.pop("USE_RULE_ENGINE", None)
 
         call_names = [call[0][0] for call in m_dc.call_args_list]
-        assert "revision_cantidad_intramural" in call_names, (
-            f"revision_cantidad_intramural not in calls: {call_names}"
+        assert "revision_cantidad_intramural" not in call_names, (
+            f"dangling revision_cantidad_intramural still evaluated: {call_names}"
         )
         assert "revision_cantidad" in r["problemas"]
+        assert r["problemas"]["revision_cantidad"] == []
 
     # ── IDE Contrato stays legacy (documented) ──
 

@@ -217,37 +217,18 @@ def detect_all_problems_intramural(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 5. Bacteriólogas Cronograma (con toggle engine)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            bacteriologas = RuleBasedDetector("bacteriologas_cronograma", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        bacteriologas = []
+    # 5. Bacteriólogas Cronograma (Ref #1 GAP: "bacteriologas_cronograma"
+    # exists in no DB, so engine evaluation is explicitly skipped — a
+    # RuleBasedDetector call here could only log "Rule not found" and yield
+    # []. Seed a rule before re-adding an engine lookup for this intent.)
+    bacteriologas: list[dict[str, Any]] = []
 
-    # 6. Centro de Costo (con toggle engine)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            problemas_centros = RuleBasedDetector("centro_costo_intramural_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        problemas_centros = []
+    # 6. Centro de Costo (Ref #1 GAP: "centro_costo_intramural_valido"
+    # exists in no DB — not even the F15 seed file names a live rule — so
+    # engine evaluation is explicitly skipped (see bacteriologas note above).
+    # centro_costo_hospitalizacion_valido is hospitalizacion-scoped and does
+    # not cover the intramural center sets.)
+    problemas_centros: list[dict[str, Any]] = []
     logger.info(
         "Centros de Costo Intramural - Problemas encontrados: %d",
         len(problemas_centros),
@@ -279,39 +260,16 @@ def detect_all_problems_intramural(
         len(problemas_centros_filtrados),
     )
 
-    # 7. IDE Contrato (con toggle engine)
-    # Nuevos evaluadores: IdeContratoSimpleEvaluator + PymRutasDxEvaluator
-    # El pre-scan de laboratorio envío se maneja via PymRutasDxEvaluator.pre_scan_sheet()
+    # 7. IDE Contrato (Ref #1 GAP: "ide_contrato_simple" and "pym_rutas_dx"
+    # exist in no DB, so the engine lookups are explicitly skipped. The legacy
+    # detector stays authoritative: it owns the laboratorio-envío pre-scan
+    # (sheet-level, not row-by-row) and the engine rules silently yielded []
+    # when missing from the DB.
     if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        from app.services.engine.evaluators import PymRutasDxEvaluator
-        session = get_session()
-        try:
-            # Pre-scan: detectar facturas con solo laboratorio de envío
-            pym_ev = PymRutasDxEvaluator()
-            pym_ev.pre_scan_sheet(data_sheet, indices)
-
-            # Evaluar reglas vía engine
-            problemas_ide_contrato = []
-            problemas_ide_contrato.extend(
-                RuleBasedDetector("ide_contrato_simple", session).detect(data_sheet, indices, persist=_PERSIST)
-            )
-            problemas_ide_contrato.extend(
-                RuleBasedDetector("pym_rutas_dx", session).detect(data_sheet, indices, persist=_PERSIST)
-            )
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-        # Legacy detector stays authoritative in engine path: it owns the
-        # laboratorio-envío pre-scan (sheet-level, not row-by-row) and the
-        # engine rules silently yield [] when missing from the DB.
         from app.services.intramural.ide_contrato_intramural import (
             detect_ide_contrato_intramural,
         )
+        problemas_ide_contrato = []
         try:
             problemas_ide_contrato.extend(
                 detect_ide_contrato_intramural(data_sheet, indices)
@@ -328,23 +286,13 @@ def detect_all_problems_intramural(
             logger.exception("Error en detect_ide_contrato_intramural")
             problemas_ide_contrato = []
 
-    # 8. Duplicado ID+Código (con toggle engine)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        from app.constants.urgencias import FACTURADORES_URGENCIAS
-        session = get_session()
-        try:
-            r1 = RuleBasedDetector("duplicado_id_codigo_05", session).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("duplicado_id_codigo_02_lab", session).detect(data_sheet, indices, persist=_PERSIST)
-            raw_results = r1 + r2
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
+    # 8. Duplicado ID+Código (Ref #1 GAP: "duplicado_id_codigo_05" and
+    # "duplicado_id_codigo_02_lab" exist in no DB — the seeded duplicado rules
+    # are the farmacia family with different (factura, codigo+cantidad)
+    # semantics — so engine evaluation is explicitly skipped and the
+    # post-processing below runs over an empty set.
+    raw_results: list[dict[str, Any]] = []
+    if not is_rule_engine_enabled():
         duplicado_id_codigo = []
 
     if is_rule_engine_enabled():
@@ -405,21 +353,11 @@ def detect_all_problems_intramural(
             len(duplicado_id_codigo), len(raw_results),
         )
 
-    # 9. Revision Cantidad Intramural (con toggle engine)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            revision_cantidad = RuleBasedDetector("revision_cantidad_intramural", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        revision_cantidad = []
+    # 9. Revision Cantidad Intramural (Ref #1 GAP:
+    # "revision_cantidad_intramural" exists in no DB — the seeded revision
+    # rules are the urgencias group SUM (different cascade) and the farmacia
+    # v2 — so engine evaluation is explicitly skipped.)
+    revision_cantidad: list[dict[str, Any]] = []
     logger.info(
         "[BACK] Revision Cantidad Intramural: %d items",
         len(revision_cantidad),

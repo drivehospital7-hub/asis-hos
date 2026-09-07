@@ -2,7 +2,7 @@
 
 T-F5.2: collect_group_keys aggregation
 T-F5.3: duplicado_id_codigo → engine via GroupEvaluator
-T-F5.4: bacteriologas_cronograma toggle integration
+T-F5.4: bacteriologas_cronograma explicit skip (Ref #1 GAP — dangling rule)
 T-F5.5: Snapshot tests
 """
 from __future__ import annotations
@@ -104,22 +104,13 @@ class TestEngineRoutingF5:
     @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
     def test_engine_path_calls_duplicado_05(self, mock_rbd, mock_enabled):
-        """Engine path should call duplicado_id_codigo_05 rule."""
+        """Engine path must NOT look up the dangling duplicado_id_codigo_05 /
+        duplicado_id_codigo_02_lab rules (Ref #1 GAP) — section is []."""
         from app.services.intramural.detect_all import detect_all_problems_intramural
 
-        mock_results = {
-            "duplicado_id_codigo_05": [
-                {"factura": "123\t890201\tI10X", "count": 2, "facturas": ["F001", "F002"]}
-            ],
-            "duplicado_id_codigo_02_lab": [],
-            "bacteriologas_cronograma": [],
-            "centro_costo_intramural_valido": [],
-            "revision_cantidad_intramural": [],
-            "valores_decimales": [],
-        }
         def _mock_rbd(name, session):
             m = MagicMock()
-            m.detect.return_value = mock_results.get(name, [])
+            m.detect.return_value = []
             return m
         mock_rbd.side_effect = _mock_rbd
 
@@ -148,15 +139,17 @@ class TestEngineRoutingF5:
 
         result, _ = detect_all_problems_intramural(ws, indices)
 
-        # Verify duplicado_id_codigo_05 was called
+        # Dangling duplicado rules must never be evaluated (explicit skip).
         call_names = [c[0][0] for c in mock_rbd.call_args_list]
-        assert "duplicado_id_codigo_05" in call_names
-        assert "duplicado_id_codigo_02_lab" in call_names
+        assert "duplicado_id_codigo_05" not in call_names
+        assert "duplicado_id_codigo_02_lab" not in call_names
+        assert result["problemas"]["duplicado_id_codigo"] == []
 
     @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
     def test_engine_path_calls_bacteriologas_cronograma(self, mock_rbd, mock_enabled):
-        """Engine path should call bacteriologas_cronograma rule."""
+        """Engine path must NOT look up dangling bacteriologas_cronograma
+        (Ref #1 GAP) — the profesionales section is explicitly []."""
         from app.services.intramural.detect_all import detect_all_problems_intramural
 
         mock_rbd_instance = MagicMock()
@@ -182,7 +175,8 @@ class TestEngineRoutingF5:
         result, _ = detect_all_problems_intramural(ws, indices)
 
         call_names = [c[0][0] for c in mock_rbd.call_args_list]
-        assert "bacteriologas_cronograma" in call_names
+        assert "bacteriologas_cronograma" not in call_names
+        assert result["problemas"]["profesionales"] == []
 
     @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
     def test_legacy_path_called_when_engine_disabled(self, mock_enabled):
