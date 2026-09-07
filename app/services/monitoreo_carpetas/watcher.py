@@ -294,13 +294,22 @@ class FolderWatcher:
         Intended for testing — allows tests to start fresh without
         server restart.
         """
+        # NOTE: stop/join OUTSIDE the lock — watchdog dispatches handler
+        # callbacks (update_subtree) in the observer thread, which needs
+        # this same lock. Joining while holding it would deadlock.
         with self._lock:
-            if self._observer is not None:
-                try:
-                    self._observer.stop()
-                except Exception:
-                    pass
-                self._observer = None
+            observer = self._observer
+            self._observer = None
+        if observer is not None:
+            try:
+                observer.stop()
+            except Exception:
+                pass
+            try:
+                observer.join(timeout=5)
+            except Exception:
+                pass
+        with self._lock:
             self._result = None
             self._roots = []
             self._events_count = 0
@@ -400,6 +409,7 @@ class FolderWatcher:
         if self._observer is not None:
             try:
                 self._observer.stop()
+                self._observer.join(timeout=5)
             except Exception:
                 pass
             self._observer = None

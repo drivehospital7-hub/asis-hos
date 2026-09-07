@@ -29,8 +29,8 @@ STATUS_KEYWORDS: dict[str, list[str]] = {
 # FEV seguido de uno o más dígitos (case-insensitive)
 FEV_REGEX: str = r"FEV\d+"
 
-# CAP seguido de uno o más dígitos (case-insensitive)
-CAP_REGEX: str = r"CAP\d+"
+# CAP + dígitos + _ + letras/dígitos + dígitos (ej: CAP001_CC123)
+CAP_REGEX: str = r"CAP\d+_\w+\d+"
 
 # =============================================================================
 # ENV VAR - Configuración de rutas de red
