@@ -40,10 +40,12 @@ import logging
 from typing import Any
 
 from app.constants import IMAGENES_MAX_PER_OBSERVACION
+from app.constants.base import INTEGRATION_QUERY_MAX_FACTURAS
 from app.constants.urgencias import ERROR_TIPO_URGENCIAS
 from app.services.control_errores_service import (
     _resolve_responsable_identity,
     _resolve_validador_identity,
+    get_errores,
 )
 from app.utils import errores_storage
 
@@ -377,6 +379,97 @@ def _submit_batch(
         "resultados": resultados,
     }
     return {"status": "success", "data": data, "errors": []}, 200
+
+
+def parse_factura_filter(raw_values: list[str] | None) -> list[str]:
+    """Normalize raw ``?factura=`` values into an ordered, deduped list.
+
+    Accepts repeated params (``?factura=A&factura=B``) and comma-separated
+    values (``?factura=A,B``). Each token is stripped, uppercased, and empty
+    tokens are dropped; duplicates keep first-seen order.
+    """
+    seen: list[str] = []
+    for raw in raw_values or []:
+        for token in str(raw).split(","):
+            normalized = token.strip().upper()
+            if normalized and normalized not in seen:
+                seen.append(normalized)
+    return seen
+
+
+def _group_by_factura(
+    facturas: list[str], errores: list[dict[str, Any]]
+) -> tuple[dict[str, list[dict[str, Any]]], list[str]]:
+    """Group visible records under each requested invoice key.
+
+    A record appears under every requested key it matches (``factura`` or
+    ``refactura``). Keys with zero matches are reported as not found.
+    """
+    por_factura: dict[str, list[dict[str, Any]]] = {f: [] for f in facturas}
+    for error in errores:
+        for key in facturas:
+            if (error.get("factura") or "").upper() == key or (
+                error.get("refactura") or ""
+            ).upper() == key:
+                por_factura[key].append(error)
+    no_encontradas = [f for f in facturas if not por_factura[f]]
+    return por_factura, no_encontradas
+
+
+def query_by_facturas(
+    raw_values: list[str] | None,
+    session: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], int]:
+    """Read-only query of novedades by invoice number(s).
+
+    Reuses ``get_errores`` so role visibility applies exactly like the
+    browser list (facturador sees only own records, others see all).
+    ``raw_values`` are the raw ``?factura=`` params (repeated and/or
+    comma-separated); empty filter returns everything visible, grouped by
+    stored ``factura``. Exceeding ``INTEGRATION_QUERY_MAX_FACTURAS`` → 400.
+    """
+    try:
+        facturas = parse_factura_filter(raw_values)
+        if len(facturas) > INTEGRATION_QUERY_MAX_FACTURAS:
+            return {
+                "status": "error",
+                "data": {},
+                "errors": [
+                    f"Máximo {INTEGRATION_QUERY_MAX_FACTURAS} facturas por consulta"
+                ],
+            }, 400
+        result = get_errores(
+            session=session if session is not None else {},
+            facturas=facturas or None,
+        )
+        if result["status"] != "success":
+            return result, 500
+        errores = result["data"].get("errores", [])
+        if not facturas:
+            por_factura: dict[str, list[dict[str, Any]]] = {}
+            for error in errores:
+                por_factura.setdefault(error.get("factura") or "", []).append(error)
+            data = {
+                "facturas_solicitadas": [],
+                "no_encontradas": [],
+                "por_factura": por_factura,
+            }
+        else:
+            por_factura, no_encontradas = _group_by_factura(facturas, errores)
+            data = {
+                "facturas_solicitadas": facturas,
+                "no_encontradas": no_encontradas,
+                "por_factura": por_factura,
+            }
+        logger.info(
+            "[BACK] Integración: consulta por %d factura(s), %d registro(s)",
+            len(facturas),
+            len(errores),
+        )
+        return {"status": "success", "data": data, "errors": []}, 200
+    except Exception as e:
+        logger.exception("[BACK][ERROR] Error en consulta de novedades por factura")
+        return {"status": "error", "data": {}, "errors": [str(e)]}, 500
 
 
 def submit(

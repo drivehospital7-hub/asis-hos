@@ -12,7 +12,7 @@ import logging
 from flask import Blueprint, current_app, g, jsonify, request
 
 from app.constants.base import INTEGRATION_HTTPS_REQUIRED
-from app.services.integration_service import submit
+from app.services.integration_service import query_by_facturas, submit
 from app.utils import token_store
 from app.utils.auth import admin_requerido
 
@@ -108,6 +108,66 @@ Multipart procesa un solo registro plano y acepta el campo ``imagen``
 
     synth_session = _build_synth_session(bearer) if bearer else None
     envelope, status = submit(data, synth_session, imagenes)
+    return jsonify(envelope), status
+
+
+def _check_integration_https() -> tuple | None:
+    """Reject non-TLS integration requests when HTTPS is required (TESTING exempt)."""
+    if (
+        INTEGRATION_HTTPS_REQUIRED
+        and not current_app.config.get("TESTING")
+        and not request.is_secure
+    ):
+        _warn_insecure("Petición no TLS al endpoint de integración rechazada")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["HTTPS requerido para la integración"],
+        }), 403
+    return None
+
+
+def _check_integration_read_permission(bearer: dict | None) -> tuple | None:
+    """Manual read-permission check for session-less integration requests.
+
+    Accepts ``control_urgencias`` (base), ``control_urgencias:write``
+    (write implies read) or admin (``*``). permiso_requerido only reads the
+    browser session, so bearer identity in ``g.bearer_user`` is checked here.
+    """
+    permisos = bearer.get("permisos", []) if bearer else []
+    if (
+        "control_urgencias" not in permisos
+        and "control_urgencias:write" not in permisos
+        and "*" not in permisos
+    ):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Permiso denegado"],
+        }), 403
+    return None
+
+
+@integration_bp.get("/control-novedades")
+def control_novedades_query():
+    """Query novedades by invoice number, authenticated by bearer token.
+
+    Accepts repeated params (``?factura=FEV1&factura=FEV2``) and
+    comma-separated values (``?factura=FEV1,FEV2``); no filter returns
+    everything visible to the token role. Thin delegator: parsing,
+    filtering and shaping live in ``integration_service.query_by_facturas``.
+    """
+    denied = _check_integration_https()
+    if denied:
+        return denied
+    bearer = g.get("bearer_user")
+    denied = _check_integration_read_permission(bearer)
+    if denied:
+        return denied
+    synth_session = _build_synth_session(bearer) if bearer else None
+    envelope, status = query_by_facturas(
+        request.args.getlist("factura"), synth_session
+    )
     return jsonify(envelope), status
 
 

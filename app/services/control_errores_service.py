@@ -230,6 +230,28 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
+def _filtrar_por_facturas(
+    errores: list[dict[str, Any]], facturas: list[str] | None
+) -> list[dict[str, Any]]:
+    """Filter records by invoice number (exact match, case-insensitive).
+
+    Matches ``factura`` OR ``refactura``: a rebilled record keeps the
+    economic document identity in either field, so a LAN query for an
+    invoice number must find it regardless of which field holds it.
+    ``facturas`` must already be normalized (upper, stripped, non-empty).
+    None → no filtering (return everything visible to the caller).
+    """
+    if facturas is None:
+        return errores
+    wanted = set(facturas)
+    return [
+        e
+        for e in errores
+        if (e.get("factura") or "").upper() in wanted
+        or (e.get("refactura") or "").upper() in wanted
+    ]
+
+
 def get_errores(
     tipo_error: str | None = None,
     estado: str | None = None,
@@ -237,6 +259,7 @@ def get_errores(
     area: str | None = None,
     session: dict[str, Any] | None = None,
     validador: str | None = None,
+    facturas: list[str] | None = None,
 ) -> dict[str, Any]:
     """Listar errores con filtros + visibilidad por rol.
 
@@ -245,6 +268,8 @@ def get_errores(
     - validador/admin/otros → todas las novedades (owner_identity=None).
     - area (aditivo) → post-filtra por área de los responsables elegibles;
       slug inválido = no-op; área válida sin usuarios = resultado vacío.
+    - facturas (aditivo) → post-filtra por número de factura exacto
+      (``factura`` o ``refactura``); None = sin filtro.
     """
     try:
         sess = session if session is not None else flask.session
@@ -276,6 +301,8 @@ def get_errores(
                 e for e in errores
                 if normalizar_identidad(e.get("responsable", "")) in area_identities
             ]
+
+        errores = _filtrar_por_facturas(errores, facturas)
 
         logger.info(
             "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, validador: %s, area: %s, owner: %s, total: %d",

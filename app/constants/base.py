@@ -254,6 +254,10 @@ INTEGRATION_HTTPS_REQUIRED = (
     os.getenv("INTEGRATION_HTTPS_REQUIRED", "false").strip().lower() == "true"
 )
 
+# Max invoice numbers accepted per read-only integration query
+# (GET /api/integration/control-novedades?factura=...).
+INTEGRATION_QUERY_MAX_FACTURAS = 50
+
 # =============================================================================
 # VALIDATION THRESHOLDS - Umbrales para validaciones
 # =============================================================================

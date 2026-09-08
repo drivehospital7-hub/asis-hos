@@ -29,8 +29,13 @@ PUBLIC_ENDPOINTS = frozenset({
     "control_errores.servir_imagen",
 })
 
-# Endpoint de integración LAN que se autentica por bearer token (sin sesión).
+# Endpoints de integración LAN que se autentican por bearer token (sin sesión).
 INTEGRATION_SUBMIT_ENDPOINT = "integration.control_novedades_submit"
+INTEGRATION_QUERY_ENDPOINT = "integration.control_novedades_query"
+INTEGRATION_BEARER_ENDPOINTS = frozenset({
+    INTEGRATION_SUBMIT_ENDPOINT,
+    INTEGRATION_QUERY_ENDPOINT,
+})
 
 
 def _ensure_secret_key(app: Flask) -> None:
@@ -128,8 +133,8 @@ def create_app(config=None):
 
     @app.before_request
     def check_session_auth():
-        # Endpoint de integración: se autentica por bearer token (sin sesión).
-        if request.endpoint == INTEGRATION_SUBMIT_ENDPOINT:
+        # Endpoints de integración: se autentican por bearer token (sin sesión).
+        if request.endpoint in INTEGRATION_BEARER_ENDPOINTS:
             return _handle_bearer_auth()
 
         # Rutas públicas (login, logout, status, estáticos)
