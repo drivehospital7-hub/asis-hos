@@ -203,7 +203,7 @@ class TestValidadorIntegration:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "success"
-        assert data["data"]["error"]["validador"] == "Juan Pérez"
+        assert data["data"]["error"]["validador"] == "JUAN PÉREZ"
 
     def test_post_validador_ignores_client_payload_integration(self, app_client):
         """POST with validador in payload MUST use session value, not payload."""
@@ -223,7 +223,7 @@ class TestValidadorIntegration:
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["status"] == "success"
-        assert data["data"]["error"]["validador"] == "Maria Gomez"
+        assert data["data"]["error"]["validador"] == "MARIA GOMEZ"
         assert data["data"]["error"]["validador"] != "hacker"
 
 
@@ -467,7 +467,7 @@ class TestAuthAreasIntegration:
             data={
                 "username": "nuevo_user",
                 "rol": "facturador",
-                "permisos": ["urgencias"],
+                "permisos": ["control_urgencias"],
                 "areas": ["extramural", "odontologia"],
             },
             follow_redirects=True,
@@ -525,7 +525,7 @@ class TestAuthAreasIntegration:
             data={
                 "username": "nuevo_user",
                 "rol": "facturador",
-                "permisos": ["urgencias"],
+                "permisos": ["control_urgencias"],
                 "areas": ["extramural"],
             },
             follow_redirects=True,

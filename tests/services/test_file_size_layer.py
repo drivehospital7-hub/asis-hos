@@ -161,6 +161,7 @@ class TestFlaskMaxContentLengthGate:
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["username"] = "test"
+            sess["permisos"] = ["procesar"]
 
     def test_flask_returns_413_when_content_length_exceeds_limit(
         self, app_client
@@ -179,7 +180,7 @@ class TestFlaskMaxContentLengthGate:
         oversized_data = b"x" * (test_limit + 1)
 
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={"file": (BytesIO(oversized_data), "test.xlsx")},
         )
 
@@ -204,7 +205,7 @@ class TestFlaskMaxContentLengthGate:
         safe_data = b"x" * 1024
 
         response = app_client.post(
-            "/odontologia/",
+            "/procesar/",
             data={"file": (BytesIO(safe_data), "test.xlsx")},
         )
 
