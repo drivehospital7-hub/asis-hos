@@ -65,11 +65,13 @@ type TabId = "lista" | "evidencias" | "simulador" | "catalogos";
 interface Tab {
   id: TabId;
   label: string;
+  disabled?: boolean;
 }
 
 const TABS: Tab[] = [
   { id: "lista", label: "Reglas" },
-  { id: "evidencias", label: "Evidencias" },
+  // TODO: reactivar Evidencias cuando tenga funcionalidad
+  { id: "evidencias", label: "Evidencias", disabled: true },
   { id: "simulador", label: "Simulador" },
   { id: "catalogos", label: "Catálogos" },
 ];
@@ -119,21 +121,36 @@ export function AdminReglasPage() {
 
       {/* Tab selector */}
       <div className="mb-6 flex gap-1 border-b border-border" role="tablist">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            role="tab"
-            aria-selected={activeTab === tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
-            style={{
-              borderColor: activeTab === tab.id ? "var(--color-primary)" : "transparent",
-              color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-muted-foreground)",
-            }}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) =>
+          tab.disabled ? (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={false}
+              aria-disabled="true"
+              disabled
+              title="Próximamente — en construcción"
+              className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px opacity-50 cursor-not-allowed text-gray-400"
+              style={{ borderColor: "transparent" }}
+            >
+              {tab.label}
+            </button>
+          ) : (
+            <button
+              key={tab.id}
+              role="tab"
+              aria-selected={activeTab === tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className="px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px"
+              style={{
+                borderColor: activeTab === tab.id ? "var(--color-primary)" : "transparent",
+                color: activeTab === tab.id ? "var(--color-primary)" : "var(--color-muted-foreground)",
+              }}
+            >
+              {tab.label}
+            </button>
+          )
+        )}
       </div>
 
       {/* Tab panels */}
