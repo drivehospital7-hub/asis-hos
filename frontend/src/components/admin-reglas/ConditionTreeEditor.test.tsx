@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { serializeTree, treeReducer, validateConditionTree } from "./ConditionTreeEditor";
+import { renderToStaticMarkup } from "react-dom/server";
+import {
+  ConditionTreeEditor,
+  serializeTree,
+  treeReducer,
+  validateConditionTree,
+} from "./ConditionTreeEditor";
 
 describe("condition tree reverse nodes", () => {
   it("accepts a NOT node with exactly one nested condition", () => {
@@ -46,6 +52,30 @@ describe("condition tree reverse nodes", () => {
     expect(validateConditionTree([
       { ...base, condiciones: [{ ...base, id: 2 }, { ...base, id: 3 }] },
     ])).toMatch(/exactly one child/);
+  });
+});
+
+describe("condition tree root rendering", () => {
+  it("renders an atomic root as an AtomicNode", () => {
+    const html = renderToStaticMarkup(
+      <ConditionTreeEditor
+        tree={[{
+          id: 1,
+          regla_id: 1,
+          padre_id: null,
+          tipo: "atomic",
+          operador: "eq",
+          fuente_datos: "invoice.codigo",
+          valor_esperado: "906317",
+          orden: 0,
+        }]}
+        onChange={() => {}}
+      />,
+    );
+
+    expect(html).toContain('value="invoice.codigo"');
+    expect(html).toContain("Igual (=)");
+    expect(html).not.toContain("Sin condiciones. Usá");
   });
 });
 

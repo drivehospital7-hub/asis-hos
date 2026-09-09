@@ -239,11 +239,10 @@ class EpsNota(Base):
 
 
 class Regla(Base):
-    """Regla de auditoría versionada, parametric y domain-scoped.
+    """Regla de auditoría parametric and domain-scoped.
 
-    States: draft → active → deprecated → retired.
-    Version grouping via rule_base_id: updates create a new version row
-    sharing the same rule_base_id, linked by (nombre, version) uniqueness.
+    Operational states are active and retired. Legacy version metadata remains
+    for stored evidence and database compatibility.
     """
     __tablename__ = "reglas"
 
@@ -257,7 +256,7 @@ class Regla(Base):
     nombre = Column(String(100), nullable=False)
     descripcion = Column(Text, nullable=True)
     dominio = Column(String(50), nullable=False)
-    estado = Column(String(20), nullable=False, default="draft")
+    estado = Column(String(20), nullable=False, default="active")
     version = Column(Integer, nullable=False, default=1)
     prioridad = Column(Integer, nullable=False, default=100)
     parametros = Column(JSONB_COMPAT, nullable=True)

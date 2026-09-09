@@ -214,7 +214,7 @@ DEFAULT_TEMPLATES = [
 # =============================================================================
 
 ENGINE_DOMAIN_TRANSVERSAL = "transversal"
-RULE_STATES: frozenset[str] = frozenset({"draft", "active", "deprecated", "retired"})
+RULE_STATES: frozenset[str] = frozenset({"active", "retired"})
 DEFAULT_SEVERITY = "error"
 
 import os as _os

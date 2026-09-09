@@ -56,6 +56,125 @@ def _get_hospitalizacion_detectors() -> list[Callable]:
     ]
 
 
+# Intended hospitalización engine rules -> result group key. Every rule listed
+# here MUST be seeded/active in the DB (migration 010) so evaluation never hits
+# a silent "Rule not found" gap.
+_HOSPITALIZACION_ENGINE_RULES: dict[str, str] = {
+    "centro_costo_hospitalizacion_valido": "centros_de_costos",
+    "ide_contrato_hospitalizacion_valido": "ide_contrato",
+    "cups_equivalentes_hospitalizacion": "cups_equivalentes",
+    "hosp_codigos_oblig_mayor24h": "cups_equivalentes",
+    "hosp_codigos_oblig_menor24h": "cups_equivalentes",
+    "hosp_codigos_prohibidos": "cups_equivalentes",
+    "cantidades_hospitalizacion": "cantidades_hospitalizacion",
+    "cantidades_soat_hospitalizacion": "cantidades_soat_hospitalizacion",
+    "valores_decimales": "decimales",
+    "tipo_documento_edad_menor_7": "tipo_identificacion_edad",
+    "tipo_documento_edad_mayor_18": "tipo_identificacion_edad",
+    "tipo_documento_edad_7_17": "tipo_identificacion_edad",
+    "tipo_documento_edad_as_menor": "tipo_identificacion_edad",
+    "tipo_documento_edad_ms_mayor": "tipo_identificacion_edad",
+    "tipo_documento_edad_cn_invalido": "tipo_identificacion_edad",
+    "tipo_documento_edad_ce_invalido": "tipo_identificacion_edad",
+    "tipo_id_requiere_entidad_86000": "tipo_identificacion_entidad",
+    "entidad_86000_requiere_as_ms": "tipo_identificacion_entidad",
+    "codigo_entidad": "codigo_entidad_vs_afiliacion",
+    "tipo_usuario_valido": "tipo_usuario",
+    "copago_entidad_valido": "copago_entidad",
+    "profesional_hospitalizacion_valido": "profesionales",
+    "cups_sin_contrato": "cups_sin_contrato",
+}
+
+
+def _evaluate_hospitalizacion_engine_rules(
+    data_sheet: Worksheet,
+    indices: dict[str, int | None],
+) -> dict[str, list[dict[str, Any]]]:
+    """Evaluate every intended active hospitalización rule exactly once.
+
+    Opens a single DB session and uses a single EvidenceCollector (same pattern
+    as the urgencias orchestrator). Verifies each intended rule exists and is
+    active in the DB before evaluating, logging loudly when one is missing so
+    silent ``Rule not found`` gaps are eliminated.
+
+    Args:
+        data_sheet: Hoja de Excel con los datos.
+        indices: Índices de columnas.
+
+    Returns:
+        Dict mapping each result group key to the list of detections.
+    """
+    from app.services.engine.rule_based_detector import RuleBasedDetector
+    from app.database import get_session
+    from app.services.engine.evidence_collector import EvidenceCollector
+    from app.models import Regla, ResultadoAuditoria
+
+    groups: dict[str, list[dict[str, Any]]] = {
+        key: [] for key in set(_HOSPITALIZACION_ENGINE_RULES.values())
+    }
+
+    session = get_session()
+    try:
+        # Verify every intended rule is discoverable (active) in the DB.
+        existing = {
+            r.nombre
+            for r in session.query(Regla)
+            .filter(Regla.nombre.in_(list(_HOSPITALIZACION_ENGINE_RULES)))
+            .filter(Regla.estado == "active", Regla.activo.is_(True))
+        }
+        missing = sorted(set(_HOSPITALIZACION_ENGINE_RULES) - existing)
+        if missing:
+            logger.error(
+                "Hospitalización: reglas engine intencionales ausentes o no activas "
+                "en DB (Rule not found): %s",
+                missing,
+            )
+
+        collector = EvidenceCollector(domain="hospitalizacion")
+        for rule_name, group_key in _HOSPITALIZACION_ENGINE_RULES.items():
+            results = RuleBasedDetector(rule_name, session).detect(
+                data_sheet, indices, persist=_PERSIST, evidence_collector=collector,
+            )
+            groups[group_key].extend(results)
+
+        # ── Flush evidence + create ResultadoAuditoria rows (urgencias pattern) ──
+        if _PERSIST:
+            evidencias = collector.flush_batch(session)
+            if evidencias:
+                regla_ids = {e.regla_id for e in evidencias}
+                reglas_map = {
+                    r.id: r
+                    for r in session.query(Regla).filter(Regla.id.in_(regla_ids))
+                }
+                for ev in evidencias:
+                    if ev.outcome == "MATCH":
+                        resultado_str = "FAIL"
+                    elif ev.outcome == "ERROR":
+                        resultado_str = "ERROR"
+                    else:
+                        resultado_str = "PASS"
+                    rule = reglas_map.get(ev.regla_id)
+                    session.add(ResultadoAuditoria(
+                        evidencia_id=ev.id,
+                        regla_id=ev.regla_id,
+                        regla_version=ev.regla_version,
+                        factura=ev.factura,
+                        param_config_id=ev.param_config_id,
+                        resultado=resultado_str,
+                        severidad=rule.severidad if rule else "error",
+                        mensaje=ev.error_mensaje or (rule.descripcion if rule else ""),
+                        detalles={"outcome": ev.outcome},
+                    ))
+                session.flush()
+            session.commit()
+        else:
+            session.rollback()
+    finally:
+        session.close()
+
+    return groups
+
+
 def detect_all_problems_hospitalizacion(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -97,221 +216,48 @@ def detect_all_problems_hospitalizacion(
     )
     from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
-    # 1. Centro Costo + IDE Contrato
+    # 1-4. Evaluación engine consolidada: una sola sesión + un solo collector.
+    # Cada regla hospitalización/transversal intencional se evalúa exactamente
+    # una vez. Se verifica que cada regla exista y esté activa en la DB para no
+    # dejar gaps silenciosos de "Rule not found".
     if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            problemas_centros = RuleBasedDetector("centro_costo_hospitalizacion_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    problemas_ide_contrato = detect_ide_contrato_urgencias(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            problemas_ide_contrato = RuleBasedDetector("ide_contrato_hospitalizacion_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
+        groups = _evaluate_hospitalizacion_engine_rules(data_sheet, indices)
+        problemas_centros = groups["centros_de_costos"]
+        problemas_ide_contrato = groups["ide_contrato"]
+        problemas_cups_equivalentes = groups["cups_equivalentes"]
+        cantidades_hospitalizacion = groups["cantidades_hospitalizacion"]
+        cantidades_soat_hospitalizacion = groups["cantidades_soat_hospitalizacion"]
+        decimales = groups["decimales"]
+        tipo_identificacion_edad = groups["tipo_identificacion_edad"]
+        tipo_identificacion_entidad = groups["tipo_identificacion_entidad"]
+        entidad_afiliacion_comparison = groups["codigo_entidad_vs_afiliacion"]
+        tipo_usuario = groups["tipo_usuario"]
+        copago_entidad = groups["copago_entidad"]
+        profesionales = groups["profesionales"]
+        cups_sin_contrato = groups["cups_sin_contrato"]
+    else:
+        problemas_centros = detect_centro_costo_hospitalizacion(data_sheet, indices)
+        problemas_ide_contrato = detect_ide_contrato_urgencias(data_sheet, indices)
+        problemas_cups_equivalentes = detect_hospitalizacion_codes(data_sheet, indices)
+        cantidades_hospitalizacion = detect_cantidades_hospitalizacion(data_sheet, indices)
+        cantidades_soat_hospitalizacion = detect_cantidades_soat_hospitalizacion(data_sheet, indices)
+        decimales = detect_decimales(data_sheet, indices)
+        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5,
+        )
+        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
+        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+        profesionales = detect_profesionales_urgencias(
+            data_sheet, indices, tipos_validos={"Hospitalización"},
+        )
+        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
-    # 2. Cups Equivalentes (Hospitalización codes — group rules via engine)
-    problemas_cups_equivalentes: list[dict[str, str]] = []
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            problemas_cups_equivalentes.extend(
-                RuleBasedDetector("hosp_codigos_oblig_mayor24h", session).detect(data_sheet, indices, persist=_PERSIST)
-            )
-            problemas_cups_equivalentes.extend(
-                RuleBasedDetector("hosp_codigos_oblig_menor24h", session).detect(data_sheet, indices, persist=_PERSIST)
-            )
-            problemas_cups_equivalentes.extend(
-                RuleBasedDetector("hosp_codigos_prohibidos", session).detect(data_sheet, indices, persist=_PERSIST)
-            )
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-        # Legacy detector stays authoritative in engine path: no engine rule
-        # covers the computed estancia filter, so the engine path must still
-        # call detect_hospitalizacion_codes (T-F3.3).
-        try:
-            problemas_cups_equivalentes.extend(
-                detect_hospitalizacion_codes(data_sheet, indices)
-            )
-        except Exception:
-            logger.exception("Error en detect_hospitalizacion_codes (engine path)")
-    else:
-        problemas_cups_equivalentes.extend(detect_hospitalizacion_codes(data_sheet, indices))
-
-    # 3. Detectores transversales (con toggle engine)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            decimales = RuleBasedDetector("valores_decimales", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        decimales = []
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices, persist=_PERSIST)
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(data_sheet, indices, persist=_PERSIST)
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(data_sheet, indices, persist=_PERSIST)
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(data_sheet, indices, persist=_PERSIST)
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
-            tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        tipo_identificacion_edad = []
-    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(data_sheet, indices, persist=_PERSIST)
-            tipo_identificacion_entidad = r1 + r2
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-
-    # 4. Detectores específicos de Hospitalización
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            cantidades_hospitalizacion = RuleBasedDetector("cantidades_hospitalizacion", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        cantidades_hospitalizacion = []
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            cantidades_soat_hospitalizacion = RuleBasedDetector("cantidades_soat_hospitalizacion", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        cantidades_soat_hospitalizacion = []
-    copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            copago_entidad = RuleBasedDetector("copago_entidad_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-
-    profesionales = detect_profesionales_urgencias(data_sheet, indices, tipos_validos={"Hospitalización"})
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            profesionales = RuleBasedDetector("profesional_hospitalizacion_valido", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
     logger.info(
         "detect_all_problems_hospitalizacion - Profesionales encontrados: %d",
         len(profesionales),
     )
-
-    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
     logger.info(
         "detect_all_problems_hospitalizacion - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),

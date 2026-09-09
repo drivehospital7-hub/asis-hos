@@ -16,12 +16,10 @@ from app.database import get_db
 from app.services.reglas.rule_service import (
     create_rule,
     delete_rule,
+    duplicate_rule,
     get_rule,
     list_rules,
-    list_versions,
-    create_version,
     update_rule,
-    publish_rule,
 )
 from app.services.reglas.exception_service import list_exceptions, create_exception
 from app.services.reglas.evidence_service import query_evidence
@@ -90,7 +88,7 @@ def api_get_rule(regla_id: int):
 @reglas_api_bp.route("/reglas", methods=["POST"])
 @admin_requerido
 def api_create_rule():
-    """Create a new rule (draft, version=1)."""
+    """Create a new active rule."""
     db = next(get_db())
     try:
         data = request.get_json(force=True)
@@ -121,7 +119,7 @@ def api_create_rule():
 @reglas_api_bp.route("/reglas/<int:regla_id>", methods=["PUT"])
 @admin_requerido
 def api_update_rule(regla_id: int):
-    """Update rule with auto-versioning (deprecates old, creates new)."""
+    """Update the same active rule row in place."""
     db = next(get_db())
     try:
         data = request.get_json(force=True)
@@ -167,61 +165,18 @@ def api_delete_rule(regla_id: int):
         db.close()
 
 
-# ─── Versions ────────────────────────────────────────────────────────
-
-
-@reglas_api_bp.route("/reglas/<int:regla_id>/versiones", methods=["GET"])
+@reglas_api_bp.route("/reglas/<int:regla_id>/duplicar", methods=["POST"])
 @admin_requerido
-def api_list_versions(regla_id: int):
-    """List all versions of a rule (ordered DESC)."""
+def api_duplicate_rule(regla_id: int):
+    """Create an independent active copy of a rule."""
     db = next(get_db())
     try:
-        versions = list_versions(db, regla_id)
-        return jsonify({"status": "success", "data": versions, "errors": []})
-    except Exception as exc:
-        logger.exception("Error listing versions for rule %s", regla_id)
-        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
-    finally:
-        db.close()
-
-
-@reglas_api_bp.route("/reglas/<int:regla_id>/versionar", methods=["POST"])
-@admin_requerido
-def api_create_version(regla_id: int):
-    """Clone active rule as a new draft version."""
-    db = next(get_db())
-    try:
-        new_version = create_version(db, regla_id)
-        return jsonify({"status": "success", "data": new_version, "errors": []}), 201
+        result = duplicate_rule(db, regla_id)
+        return jsonify({"status": "success", "data": result, "errors": []}), 201
     except ValueError as e:
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
-        logger.exception("Error versioning rule %s", regla_id)
-        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
-    finally:
-        db.close()
-
-
-@reglas_api_bp.route("/reglas/<int:regla_id>/publicar", methods=["POST"])
-@admin_requerido
-def api_publish_rule(regla_id: int):
-    """Promote a draft rule to active, deprecating the current active incumbent."""
-    db = next(get_db())
-    try:
-        responsible = session.get("username")
-        if responsible is None:
-            return jsonify({
-                "status": "error",
-                "data": {},
-                "errors": ["No se pudo determinar el usuario autenticado"],
-            }), 400
-
-        result = publish_rule(db, regla_id, responsible)
-        return jsonify({"status": "success", "data": result, "errors": []}), 200
-    except ValueError as e:
-        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
-    except Exception as exc:
-        logger.exception("Error publishing rule %s", regla_id)
+        logger.exception("Error duplicating rule %s", regla_id)
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()

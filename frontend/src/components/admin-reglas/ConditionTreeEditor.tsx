@@ -1,6 +1,6 @@
 import { useReducer, useEffect, useRef } from "react";
 import type { CondicionTree } from "@/lib/api-reglas";
-import { CompositeNode } from "./CompositeNode";
+import { NodeRenderer } from "./CompositeNode";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -326,7 +326,7 @@ export function ConditionTreeEditor({
       style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
     >
       {state.map((node) => (
-        <CompositeNode
+        <NodeRenderer
           key={node.id}
           node={node}
           depth={0}

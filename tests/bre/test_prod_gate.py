@@ -32,8 +32,8 @@ def test_pinned_digests_match_live_files() -> None:
     assert set(live) == set(pinned)
     for key, digest in live.items():
         assert digest == pinned[key], f"digest drift (prod touched?): {key}"
-    assert live["app/constants/base.py"].startswith("00c9f068")
-    assert live["app/constants/base.py"].endswith("007bbe")
+    assert live["app/constants/base.py"].startswith("707cf9cf")
+    assert live["app/constants/base.py"].endswith("977369")
 
 
 def test_baseline_rerun_is_stable() -> None:

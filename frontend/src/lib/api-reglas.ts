@@ -1,6 +1,6 @@
 /** API client for the Rule Engine Admin page.
  *
- * Typed fetch wrapper for CRUD operations on rules, versions,
+ * Typed fetch wrapper for CRUD operations on rules,
  * exceptions, evidence, audit, and simulation.
  *
  * Each function returns the parsed response data on success,
@@ -111,13 +111,6 @@ export interface SimulateResult {
   truncated: boolean;
 }
 
-export interface UpdateResult {
-  old_rule_id: number;
-  new_rule_id: number;
-  old_version: number;
-  new_version: number;
-}
-
 interface ApiResponse<T> {
   status: "success" | "error";
   data: T;
@@ -195,9 +188,9 @@ export async function createRegla(data: Partial<Regla> & { condiciones?: unknown
   return apiPost<Regla>("/api/reglas", data);
 }
 
-/** Update a rule (auto-versioning). */
-export async function updateRegla(id: number, data: Partial<Regla>): Promise<UpdateResult> {
-  return apiPut<UpdateResult>(`/api/reglas/${id}`, data);
+/** Update a rule in place. */
+export async function updateRegla(id: number, data: Partial<Regla>): Promise<Regla> {
+  return apiPut<Regla>(`/api/reglas/${id}`, data);
 }
 
 /** Soft-delete a rule. */
@@ -205,26 +198,9 @@ export async function deleteRegla(id: number): Promise<void> {
   return apiDelete(`/api/reglas/${id}`);
 }
 
-// ─── Versions ────────────────────────────────────────────────────────
-
-/** List all versions of a rule. */
-export async function fetchVersiones(reglaId: number): Promise<Regla[]> {
-  return apiGet<Regla[]>(`/api/reglas/${reglaId}/versiones`);
-}
-
-/** Clone the active version as a new draft. */
-export async function versionarRegla(reglaId: number): Promise<Regla> {
-  return apiPost<Regla>(`/api/reglas/${reglaId}/versionar`, {});
-}
-
-/** Result of publishing a draft: the promoted rule plus the deprecated incumbent id. */
-export interface PublicarResult extends Regla {
-  deprecated_id: number | null;
-}
-
-/** Promote a draft rule to active, deprecating the current active incumbent. */
-export async function publicarRegla(reglaId: number): Promise<PublicarResult> {
-  return apiPost<PublicarResult>(`/api/reglas/${reglaId}/publicar`, {});
+/** Duplicate a rule as an independent active rule. */
+export async function duplicarRegla(reglaId: number): Promise<Regla> {
+  return apiPost<Regla>(`/api/reglas/${reglaId}/duplicar`, {});
 }
 
 // ─── Exceptions ──────────────────────────────────────────────────────
@@ -326,7 +302,6 @@ export interface ReglaRef {
   nombre: string;
   dominio: string;
   estado: string;
-  version: number;
   activo: boolean;
 }
 

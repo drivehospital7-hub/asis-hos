@@ -350,17 +350,17 @@ class TestF3CantidadesToggle:
 class TestF3HospitalizacionCodesToggle:
     """T-F3.3: hospitalizacion_codes → legacy toggle (engine can't handle computed filter)."""
 
-    def test_engine_path_calls_legacy_hospitalizacion_codes(self):
-        """Engine path MUST still call legacy detect_hospitalizacion_codes
-        (no engine rule exists for this — computed filter not supported)."""
+    def test_engine_path_calls_cups_equivalentes_hospitalizacion(self):
+        """Engine path MUST invoke the DB rule cups_equivalentes_hospitalizacion
+        instead of the legacy detector (rule exists and covers CUPS equivalents)."""
         from app.services.hospitalizacion.detect_all import (
             detect_all_problems_hospitalizacion,
         )
         from app.services.hospitalizacion import hospitalizacion_codes as hc_module
         original_fn = hc_module.detect_hospitalizacion_codes
-        call_log: list[str] = []
+        legacy_called: list[str] = []
         def tracking_fn(ds, idx):
-            call_log.append("called")
+            legacy_called.append("called")
             return original_fn(ds, idx)
 
         try:
@@ -374,10 +374,11 @@ class TestF3HospitalizacionCodesToggle:
         finally:
             hc_module.detect_hospitalizacion_codes = original_fn
 
-        assert call_log, (
-            "Legacy detect_hospitalizacion_codes was NOT called in engine path!"
+        assert not legacy_called, (
+            "Legacy detect_hospitalizacion_codes must NOT be called in engine path"
         )
         assert "cups_equivalentes" in r["problemas"]
+        assert r["problemas"]["cups_equivalentes"] == []
 
     def test_legacy_path_produces_cups_equivalentes(self):
         """Legacy path must produce cups_equivalentes without crashing."""

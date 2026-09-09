@@ -1,4 +1,4 @@
-"""Rule CRUD with auto-versioning and version management.
+"""Rule CRUD and independent rule duplication.
 
 All functions accept a SQLAlchemy Session as first argument.
 Returns dicts matching the Regla.to_dict() shape with additions.
@@ -149,11 +149,27 @@ def _clone_conditions(db_session, old_rule_id: int, new_rule_id: int) -> None:
     db_session.flush()
 
 
+def _next_duplicate_name(db_session, original_name: str) -> str:
+    """Return a distinguishable duplicate name that does not already exist."""
+    suffix = " (copia)"
+    base_name = original_name[:100 - len(suffix)]
+    candidate = f"{base_name}{suffix}"
+    copy_number = 2
+
+    while db_session.query(Regla).filter(Regla.nombre == candidate).first():
+        suffix = f" (copia {copy_number})"
+        base_name = original_name[:100 - len(suffix)]
+        candidate = f"{base_name}{suffix}"
+        copy_number += 1
+
+    return candidate
+
+
 # ─── Public API ──────────────────────────────────────────────────────
 
 
 def create_rule(db_session, data: dict) -> dict:
-    """Create a new rule as draft, version=1.
+    """Create a new active rule.
 
     Args:
         db_session: SQLAlchemy Session
@@ -162,6 +178,7 @@ def create_rule(db_session, data: dict) -> dict:
     Returns:
         dict: Created rule serialized
     """
+    data = dict(data)
     condiciones_data = data.pop("condiciones", None)
     excepciones_data = data.pop("excepciones", None)
 
@@ -170,7 +187,7 @@ def create_rule(db_session, data: dict) -> dict:
         nombre=data.get("nombre", ""),
         descripcion=data.get("descripcion"),
         dominio=data.get("dominio", ""),
-        estado="draft",
+        estado="active",
         version=1,
         prioridad=data.get("prioridad", 100),
         severidad=data.get("severidad", "error"),
@@ -297,10 +314,7 @@ def update_rule(
     data: dict,
     responsible: str | None = None,
 ) -> dict:
-    """Update a rule with auto-versioning.
-
-    Deprecates the current active version and creates a new version
-    with incremented version number. Transactional.
+    """Update an active rule in place.
 
     Args:
         db_session: SQLAlchemy Session
@@ -308,7 +322,7 @@ def update_rule(
         data: Partial update fields
 
     Returns:
-        dict with old_rule_id, new_rule_id, old_version, new_version
+        The updated rule serialized from the same database row.
 
     Raises:
         ValueError: If rule is not active or not found
@@ -326,83 +340,32 @@ def update_rule(
     if "condiciones" in data:
         _validate_condition_tree(_condition_nodes(data["condiciones"]))
 
-    # No-op guard: if nothing changed, return same IDs
+    # No-op guard: avoid unnecessary writes.
     if not _has_changes(rule, data):
-        return {
-            "old_rule_id": rule_id,
-            "new_rule_id": rule_id,
-            "old_version": rule.version,
-            "new_version": rule.version,
-        }
-
-    change_what = str(data.get("cambio_que", "")).strip()
-    change_why = str(data.get("cambio_por_que", "")).strip()
-    if not change_what or not change_why:
-        raise ValueError("cambio_que y cambio_por_que son requeridos al crear una versión")
+        return rule.to_dict()
     if responsible is not None and not responsible.strip():
         raise ValueError("No se pudo determinar el usuario autenticado")
 
     try:
-        # 1. Deprecate current
-        old_version = rule.version
-        old_rule_id = rule.id
-        rule_base_id = _ensure_rule_base_id(rule)
-        rule.estado = "deprecated"
-        db_session.flush()
-
-        # 1b. Find next available version (avoid collisions with retired versions)
-        max_ver_row = (
-            db_session.query(Regla.version)
-            .filter(Regla.nombre == rule.nombre)
-            .order_by(Regla.version.desc())
-            .first()
-        )
-        max_ver = int(max_ver_row[0]) if max_ver_row else 0
-        next_version = max(max_ver, rule.version) + 1
-
-        # 2. Create new version
-        new_rule = Regla(
-            rule_base_id=rule_base_id,
-            nombre=rule.nombre,
-            descripcion=rule.descripcion,
-            dominio=rule.dominio,
-            estado="active",
-            version=next_version,
-            prioridad=rule.prioridad,
-            severidad=rule.severidad,
-            activo=rule.activo,
-            parametros=rule.parametros,
-            parametros_default=rule.parametros_default,
-            cambio_que=change_what,
-            cambio_por_que=change_why,
-            cambio_responsable=responsible,
-        )
-        # Apply partial updates
-        _apply_updates(new_rule, data)
-        db_session.add(new_rule)
-        db_session.flush()
-        new_rule_id = new_rule.id
-
-        # 3. Persist submitted conditions; otherwise preserve the old tree.
+        _apply_updates(rule, data)
+        if "cambio_que" in data:
+            rule.cambio_que = str(data["cambio_que"]).strip() or None
+        if "cambio_por_que" in data:
+            rule.cambio_por_que = str(data["cambio_por_que"]).strip() or None
+        if responsible is not None:
+            rule.cambio_responsable = responsible
         if "condiciones" in data:
+            db_session.query(Condicion).filter(Condicion.regla_id == rule_id).delete(
+                synchronize_session=False
+            )
             for node in _condition_nodes(data["condiciones"]):
-                _store_condition_tree(db_session, new_rule_id, None, node)
-        else:
-            _clone_conditions(db_session, old_rule_id, new_rule_id)
+                _store_condition_tree(db_session, rule_id, None, node)
 
         db_session.commit()
-        return {
-            "old_rule_id": old_rule_id,
-            "new_rule_id": new_rule_id,
-            "old_version": old_version,
-            "new_version": new_rule.version,
-            "cambio_que": new_rule.cambio_que,
-            "cambio_por_que": new_rule.cambio_por_que,
-            "cambio_responsable": new_rule.cambio_responsable,
-        }
+        return rule.to_dict()
     except Exception:
         db_session.rollback()
-        logger.exception("Auto-versioning transaction failed for rule %s", rule_id)
+        logger.exception("Rule update transaction failed for rule %s", rule_id)
         raise
 
 
@@ -428,6 +391,43 @@ def delete_rule(db_session, rule_id: int) -> None:
 
     rule.estado = "retired"
     db_session.commit()
+
+
+def duplicate_rule(db_session, rule_id: int) -> dict:
+    """Create an independent active copy of a rule and its owned data."""
+    rule = db_session.query(Regla).filter(Regla.id == rule_id).first()
+    if not rule:
+        raise ValueError(f"Rule {rule_id} not found")
+
+    duplicate = Regla(
+        rule_base_id=None,
+        nombre=_next_duplicate_name(db_session, rule.nombre),
+        descripcion=rule.descripcion,
+        dominio=rule.dominio,
+        estado="active",
+        # Legacy metadata remains available for evidence compatibility.
+        version=1,
+        prioridad=rule.prioridad,
+        severidad=rule.severidad,
+        activo=rule.activo,
+        parametros=copy.deepcopy(rule.parametros),
+        parametros_default=copy.deepcopy(rule.parametros_default),
+    )
+    db_session.add(duplicate)
+    db_session.flush()
+    duplicate.rule_base_id = duplicate.id
+    _clone_conditions(db_session, rule.id, duplicate.id)
+    for exception in rule.excepciones or []:
+        db_session.add(Excepcion(
+            regla_id=duplicate.id,
+            tipo_efecto=exception.tipo_efecto,
+            condicion_json=copy.deepcopy(exception.condicion_json),
+            parametros_override=copy.deepcopy(exception.parametros_override),
+            activo=exception.activo,
+            expira_en=exception.expira_en,
+        ))
+    db_session.commit()
+    return get_rule(db_session, duplicate.id)
 
 
 def list_versions(db_session, rule_id: int) -> list[dict]:

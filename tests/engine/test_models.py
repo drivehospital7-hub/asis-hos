@@ -59,10 +59,10 @@ class TestReglaModel:
         )
         assert has_constraint, "Expected composite unique (nombre, version)"
 
-    def test_estado_default_draft(self):
+    def test_estado_default_active(self):
         from app.models import Regla
         estado_col = Regla.__table__.columns["estado"]
-        assert estado_col.default.arg == "draft"
+        assert estado_col.default.arg == "active"
 
     def test_severidad_default_error(self):
         from app.models import Regla

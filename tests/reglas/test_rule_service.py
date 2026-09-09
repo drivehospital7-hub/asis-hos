@@ -14,7 +14,7 @@ class TestRuleServiceQueries:
     """Unit tests for query operations."""
 
     def test_create_rule_returns_regla_with_id(self):
-        """Creating a rule returns a dict with id and estado=draft, version=1."""
+        """Creating a rule returns an active dict with version metadata retained."""
         from app.services.reglas.rule_service import create_rule
 
         mock_db = MagicMock()
@@ -32,7 +32,7 @@ class TestRuleServiceQueries:
 
         result = create_rule(mock_db, data)
 
-        assert result["estado"] == "draft"
+        assert result["estado"] == "active"
         assert result["version"] == 1
         assert result["nombre"] == "Test Rule"
         assert "id" in result
@@ -201,13 +201,11 @@ class TestRuleServiceQueries:
         assert result == []
 
 
-class TestRuleServiceAutoVersioning:
-    """Tests for the auto-versioning update mechanism."""
+class TestRuleServiceInPlaceUpdates:
+    """Tests for direct active-row updates."""
 
-    def test_update_rule_deprecates_and_creates_new(self):
-        """update_rule deprecates old version and creates new active version."""
-        import app.services.reglas.rule_service as rs
-
+    def test_update_rule_mutates_same_row(self):
+        """update_rule keeps the original id and active state."""
         from app.services.reglas.rule_service import update_rule
 
         mock_db = MagicMock()
@@ -226,34 +224,16 @@ class TestRuleServiceAutoVersioning:
         mock_rule.parametros_default = None
         mock_rule.descripcion = "Original"
         type(mock_rule).condiciones = PropertyMock(return_value=[])
+        mock_rule.to_dict.return_value = {"id": 1, "nombre": "Updated Rule", "estado": "active"}
 
-        mock_query = mock_db.query.return_value
-        mock_filter = mock_query.filter.return_value
-        mock_order = mock_filter.order_by.return_value
-        mock_order.first.return_value = None  # version query: no existing rows
-        mock_filter.first.return_value = mock_rule  # rule query: returns the rule
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_rule
+        result = update_rule(mock_db, 1, {"nombre": "Updated Rule"}, responsible="admin")
 
-        # Patch Regla at module level so constructor returns a mock with ID
-        mock_new_rule = MagicMock(spec=rs.Regla)
-        mock_new_rule.id = 101
-        mock_new_rule.version = 4
-
-        with patch.object(rs, 'Regla', return_value=mock_new_rule) as regla_cls:
-            result = update_rule(mock_db, 1, {
-                "nombre": "Updated Rule",
-                "cambio_que": "Updated the rule name",
-                "cambio_por_que": "Reflect the current business definition",
-            }, responsible="admin")
-
-        assert result["old_rule_id"] == 1
-        assert result["new_rule_id"] == 101
-        assert result["old_version"] == 3
-        assert result["new_version"] == 4
-        assert mock_rule.estado == "deprecated"
-        kwargs = regla_cls.call_args.kwargs
-        assert kwargs["cambio_que"] == "Updated the rule name"
-        assert kwargs["cambio_por_que"] == "Reflect the current business definition"
-        assert kwargs["cambio_responsable"] == "admin"
+        assert result["id"] == 1
+        assert mock_rule.id == 1
+        assert mock_rule.nombre == "Updated Rule"
+        assert mock_rule.estado == "active"
+        mock_db.add.assert_not_called()
 
     def test_update_rule_persists_submitted_reverse_tree(self):
         """Updating conditions stores the submitted NOT subtree, not the old tree."""
@@ -275,16 +255,12 @@ class TestRuleServiceAutoVersioning:
         mock_rule.parametros_default = None
         mock_rule.descripcion = None
         type(mock_rule).condiciones = PropertyMock(return_value=[])
+        mock_rule.to_dict.return_value = {"id": 1, "estado": "active"}
 
         mock_query = mock_db.query.return_value
         mock_filter = mock_query.filter.return_value
-        mock_order = mock_filter.order_by.return_value
-        mock_order.first.return_value = None
         mock_filter.first.return_value = mock_rule
 
-        mock_new_rule = MagicMock(spec=rs.Regla)
-        mock_new_rule.id = 2
-        mock_new_rule.version = 2
         reverse_tree = [{
             "tipo": "composite",
             "operador": "NOT",
@@ -298,8 +274,7 @@ class TestRuleServiceAutoVersioning:
             }],
         }]
 
-        with patch.object(rs, "Regla", return_value=mock_new_rule), \
-             patch.object(rs, "_store_condition_tree") as store_tree, \
+        with patch.object(rs, "_store_condition_tree") as store_tree, \
              patch.object(rs, "_clone_conditions") as clone_conditions:
             result = update_rule(mock_db, 1, {
                 "condiciones": reverse_tree,
@@ -307,8 +282,8 @@ class TestRuleServiceAutoVersioning:
                 "cambio_por_que": "Use the revised validation logic",
             }, responsible="admin")
 
-        assert result["new_rule_id"] == 2
-        store_tree.assert_called_once_with(mock_db, 2, None, reverse_tree[0])
+        assert result["id"] == 1
+        store_tree.assert_called_once_with(mock_db, 1, None, reverse_tree[0])
         clone_conditions.assert_not_called()
 
     def test_update_rule_rejects_invalid_reverse_tree(self):
@@ -341,6 +316,17 @@ class TestRuleServiceAutoVersioning:
         with pytest.raises(ValueError, match="Cannot modify non-active rule"):
             update_rule(mock_db, 1, {"nombre": "New"})
 
+    def test_update_rule_rejects_retired_rule(self):
+        """update_rule rejects retired rows instead of mutating them."""
+        from app.services.reglas.rule_service import update_rule
+
+        mock_db = MagicMock()
+        mock_rule = MagicMock(estado="retired")
+        mock_db.query.return_value.filter.return_value.first.return_value = mock_rule
+
+        with pytest.raises(ValueError, match="Cannot modify non-active rule"):
+            update_rule(mock_db, 1, {"nombre": "New"})
+
     def test_update_rule_noop_on_unchanged_data(self):
         """update_rule returns same IDs when no data changed."""
         from app.services.reglas.rule_service import update_rule
@@ -362,7 +348,7 @@ class TestRuleServiceAutoVersioning:
         mock_rule.activo = True
         type(mock_rule).condiciones = PropertyMock(return_value=[])
         mock_rule.to_dict.return_value = {
-            "nombre": "Same", "dominio": "odontologia", "severidad": "alta",
+            "id": 1, "nombre": "Same", "dominio": "odontologia", "severidad": "alta",
             "prioridad": 50, "descripcion": None, "activo": True,
             "parametros": None,
         }
@@ -372,13 +358,10 @@ class TestRuleServiceAutoVersioning:
         mock_filter.first.return_value = mock_rule
 
         result = update_rule(mock_db, 1, {"nombre": "Same"})
-        assert result["old_rule_id"] == 1
-        assert result["new_rule_id"] == 1
-        assert result["old_version"] == 3
-        assert result["new_version"] == 3
+        assert result["id"] == 1
 
     def test_update_rule_requires_audit_metadata_for_real_changes(self):
-        """A changed rule cannot create a version without what/why metadata."""
+        """A changed rule no longer requires version audit metadata."""
         from app.services.reglas.rule_service import update_rule
 
         mock_db = MagicMock()
@@ -396,19 +379,20 @@ class TestRuleServiceAutoVersioning:
         mock_rule.parametros_default = None
         mock_rule.activo = True
         type(mock_rule).condiciones = PropertyMock(return_value=[])
+        mock_rule.to_dict.return_value = {"id": 1, "estado": "active"}
 
         mock_filter = mock_db.query.return_value.filter.return_value
         mock_filter.first.return_value = mock_rule
 
-        with pytest.raises(ValueError, match="cambio_que y cambio_por_que"):
-            update_rule(mock_db, 1, {"nombre": "Changed"}, responsible="admin")
+        result = update_rule(mock_db, 1, {"nombre": "Changed"}, responsible="admin")
+        assert result["id"] == 1
 
     def test_update_rule_rolls_back_on_failure(self):
         """update_rule rolls back when an error occurs after deprecation."""
         from app.services.reglas.rule_service import update_rule
 
         mock_db = MagicMock()
-        mock_db.flush.side_effect = [None, Exception("DB Error")]
+        mock_db.commit.side_effect = Exception("DB Error")
 
         mock_rule = MagicMock()
         mock_rule.id = 1
@@ -427,15 +411,11 @@ class TestRuleServiceAutoVersioning:
 
         mock_query = mock_db.query.return_value
         mock_filter = mock_query.filter.return_value
-        mock_order = mock_filter.order_by.return_value
-        mock_order.first.return_value = None
         mock_filter.first.return_value = mock_rule
 
         with pytest.raises(Exception, match="DB Error"):
             update_rule(mock_db, 1, {
                 "nombre": "New Name",
-                "cambio_que": "Renamed the rule",
-                "cambio_por_que": "Align the rule name",
             }, responsible="admin")
         mock_db.rollback.assert_called_once()
 
@@ -499,6 +479,59 @@ class TestRuleServiceVersionManagement:
         with pytest.raises(ValueError, match="already retired"):
             delete_rule(mock_db, 1)
 
+
+class TestRuleServiceDuplicate:
+    """Tests for independent active copies."""
+
+    def test_duplicate_rule_uses_unique_copy_name_and_clones_owned_data(self):
+        """Duplicate names are distinguishable and conditions/exceptions are copied."""
+        import app.services.reglas.rule_service as rs
+        from app.services.reglas.rule_service import duplicate_rule
+
+        mock_db = MagicMock()
+        source = MagicMock()
+        source.id = 1
+        source.nombre = "Test Rule"
+        source.descripcion = "Description"
+        source.dominio = "odontologia"
+        source.prioridad = 10
+        source.severidad = "error"
+        source.activo = True
+        source.parametros = {"threshold": 1}
+        source.parametros_default = {"threshold": 0}
+        source.excepciones = [MagicMock(
+            tipo_efecto="skip",
+            condicion_json={"campo": "x"},
+            parametros_override={"reason": "legacy"},
+            activo=True,
+            expira_en=None,
+        )]
+
+        duplicate = MagicMock()
+        duplicate.id = 2
+        duplicate.to_dict.return_value = {"id": 2, "nombre": "Test Rule (copia 2)", "estado": "active"}
+        source_query = MagicMock()
+        source_query.filter.return_value.first.return_value = source
+        collision_query = MagicMock()
+        collision_query.filter.return_value.first.side_effect = [MagicMock(), None]
+        mock_db.query.side_effect = [source_query, collision_query, collision_query]
+
+        with patch.object(rs, "Regla", return_value=duplicate) as regla_cls, \
+             patch.object(rs, "Excepcion", side_effect=lambda **kwargs: MagicMock(**kwargs)), \
+             patch.object(rs, "_clone_conditions") as clone_conditions, \
+             patch.object(rs, "get_rule", return_value=duplicate.to_dict.return_value):
+            result = duplicate_rule(mock_db, 1)
+
+        assert result["nombre"] == "Test Rule (copia 2)"
+        constructor_args = regla_cls.call_args.kwargs
+        assert constructor_args["nombre"] == "Test Rule (copia 2)"
+        assert constructor_args["estado"] == "active"
+        assert constructor_args["version"] == 1
+        clone_conditions.assert_called_once_with(mock_db, 1, 2)
+        exception = mock_db.add.call_args_list[-1].args[0]
+        assert exception.condicion_json == {"campo": "x"}
+        assert exception.parametros_override == {"reason": "legacy"}
+
     def test_create_version_clones_active_as_draft(self):
         """create_version clones active rule as a new draft."""
         from app.services.reglas.rule_service import create_version
@@ -550,6 +583,7 @@ class TestRuleServiceVersionManagement:
         mock_rule.parametros_default = None
         mock_rule.descripcion = None
         type(mock_rule).condiciones = PropertyMock(return_value=[])
+        mock_rule.to_dict.return_value = {"id": 1, "estado": "active"}
 
         mock_query = mock_db.query.return_value
         mock_filter = mock_query.filter.return_value

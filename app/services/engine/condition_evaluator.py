@@ -61,7 +61,11 @@ class ConditionEvaluator:
         if not roots:
             return None
         if len(roots) > 1:
-            logger.warning("Multiple root conditions found (%d), using first", len(roots))
+            logger.error(
+                "Invalid condition tree: multiple root conditions found (%d); rejecting tree",
+                len(roots),
+            )
+            return None
 
         # Pre-resolve providers and evaluators for the whole tree
         self._pre_resolve_tree(roots[0])

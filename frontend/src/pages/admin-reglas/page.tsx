@@ -19,8 +19,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   XCircle,
-  GitBranch,
-  History,
   Play,
   RefreshCw,
   Ban,
@@ -46,9 +44,7 @@ import {
   createRegla,
   updateRegla,
   deleteRegla,
-  fetchVersiones,
-  versionarRegla,
-  publicarRegla,
+  duplicarRegla,
   fetchExcepciones,
   createExcepcion,
   queryEvidencias,
@@ -79,16 +75,14 @@ const TABS: Tab[] = [
 ];
 
 const DOMINIOS = ["odontologia", "urgencias", "equipos_basicos", "transversal", "farmacia", "intramural", "hospitalizacion", "ambulatoria"];
-const ESTADOS = ["draft", "active", "deprecated", "retired"];
+const ESTADOS = ["active", "retired"];
 const SEVERIDADES = ["error", "warning", "info"];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
 
 function EstadoBadge({ estado }: { estado: string }) {
   const colors: Record<string, string> = {
-    draft: "bg-yellow-100 text-yellow-800",
     active: "bg-green-100 text-green-800",
-    deprecated: "bg-orange-100 text-orange-800",
     retired: "bg-gray-100 text-gray-500",
   };
   return (
@@ -113,11 +107,7 @@ function SeveridadBadge({ severidad }: { severidad: string }) {
 
 // ─── Main component ─────────────────────────────────────────────────
 
-interface AdminReglasPageProps {
-  authenticatedUsername?: string;
-}
-
-export function AdminReglasPage({ authenticatedUsername }: AdminReglasPageProps) {
+export function AdminReglasPage() {
   const [activeTab, setActiveTab] = useState<TabId>("lista");
 
   return (
@@ -147,7 +137,7 @@ export function AdminReglasPage({ authenticatedUsername }: AdminReglasPageProps)
       </div>
 
       {/* Tab panels */}
-      {activeTab === "lista" && <RulesListView authenticatedUsername={authenticatedUsername} />}
+      {activeTab === "lista" && <RulesListView />}
       {activeTab === "evidencias" && <EvidenceDashboard />}
       {activeTab === "simulador" && <SimulatorView />}
       {activeTab === "catalogos" && <CatalogosListView />}
@@ -159,11 +149,7 @@ export function AdminReglasPage({ authenticatedUsername }: AdminReglasPageProps)
 // RULES LIST VIEW
 // ═════════════════════════════════════════════════════════════════════
 
-interface RulesListViewProps {
-  authenticatedUsername?: string;
-}
-
-function RulesListView({ authenticatedUsername }: RulesListViewProps) {
+function RulesListView() {
   const [items, setItems] = useState<Regla[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -218,7 +204,7 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
 
   const handleDelete = async (item: Regla) => {
     if (!window.__showConfirm) return;
-    const ok = await window.__showConfirm(`¿Desactivar regla "${item.nombre}" (v${item.version})?`);
+    const ok = await window.__showConfirm(`¿Retirar regla "${item.nombre}"?`);
     if (!ok) return;
     try {
       await deleteRegla(item.id);
@@ -238,26 +224,14 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
     }
   };
 
-  const handleVersionar = async (item: Regla) => {
+  const handleDuplicate = async (item: Regla) => {
     try {
-      await versionarRegla(item.id);
+      const duplicated = await duplicarRegla(item.id);
+      setSelectedRule(duplicated);
+      setViewMode("detail");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al versionar");
-    }
-  };
-
-  const handlePublicar = async (item: Regla) => {
-    if (!window.__showConfirm) return;
-    const ok = await window.__showConfirm(
-      `¿Publicar la regla "${item.nombre}" (v${item.version})? Si existe una versión activa del mismo lineage, será deprecada automáticamente.`
-    );
-    if (!ok) return;
-    try {
-      await publicarRegla(item.id);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al publicar");
+      setError(e instanceof Error ? e.message : "Error al duplicar");
     }
   };
 
@@ -265,8 +239,7 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
     return (
         <RuleDetailForm
           rule={selectedRule}
-          authenticatedUsername={authenticatedUsername}
-        onBack={() => { setViewMode("list"); setSelectedRule(null); }}
+          onBack={() => { setViewMode("list"); setSelectedRule(null); }}
         onSaved={() => { setViewMode("list"); setSelectedRule(null); load(); }}
       />
     );
@@ -346,7 +319,6 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
                 <th className="py-3 px-4 text-left">Nombre</th>
                 <th className="py-3 px-4 text-left w-28">Dominio</th>
                 <th className="py-3 px-4 text-left w-24">Estado</th>
-                <th className="py-3 px-4 text-left w-16">Versión</th>
                 <th className="py-3 px-4 text-left w-20">Prioridad</th>
                 <th className="py-3 px-4 text-left w-24">Severidad</th>
                 <th className="py-3 px-4 text-left w-72">Acciones</th>
@@ -363,7 +335,6 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
                   </td>
                   <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
                   <td className="py-3 px-4"><EstadoBadge estado={item.estado} /></td>
-                  <td className="py-3 px-4">v{item.version}</td>
                   <td className="py-3 px-4">{item.prioridad}</td>
                   <td className="py-3 px-4"><SeveridadBadge severidad={item.severidad} /></td>
                   <td className="py-3 px-4">
@@ -372,14 +343,9 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
                         <Eye className="h-3.5 w-3.5" />
                         Ver
                       </Button>
-                      <Button size="sm" variant="secondary" onClick={() => handleVersionar(item)}>
-                        <GitBranch className="h-3.5 w-3.5" />
+                      <Button size="sm" variant="secondary" onClick={() => handleDuplicate(item)}>
+                        Duplicar
                       </Button>
-                      {item.estado === "draft" && (
-                        <Button size="sm" variant="default" onClick={() => handlePublicar(item)}>
-                          Publicar
-                        </Button>
-                      )}
                       <Button size="sm" variant="secondary" onClick={() => handleViewExceptions(item)}>
                         <Ban className="h-3.5 w-3.5" />
                       </Button>
@@ -496,12 +462,11 @@ function RulesListView({ authenticatedUsername }: RulesListViewProps) {
 
 interface RuleDetailFormProps {
   rule: Regla;
-  authenticatedUsername?: string;
   onBack: () => void;
   onSaved: () => void;
 }
 
-function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDetailFormProps) {
+function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [nombre, setNombre] = useState(rule.nombre);
   const [descripcion, setDescripcion] = useState(rule.descripcion ?? "");
   const [dominio, setDominio] = useState(rule.dominio);
@@ -512,12 +477,7 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
     rule.parametros ? JSON.stringify(rule.parametros, null, 2) : ""
   );
   const [saving, setSaving] = useState(false);
-  const [publishing, setPublishing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [changeWhat, setChangeWhat] = useState("");
-  const [changeWhy, setChangeWhy] = useState("");
-  const [versionsOpen, setVersionsOpen] = useState(false);
-  const [versions, setVersions] = useState<Regla[]>([]);
   const [catalogOptions, setCatalogOptions] = useState<string[]>([]);
 
   useEffect(() => {
@@ -535,51 +495,11 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
     return [{ id: 1, tipo: "composite", operador: "AND", fuente_datos: null, valor_esperado: null, condiciones: [], regla_id: 0, padre_id: null, orden: 0 }];
   });
 
-  const isReadOnly = rule.estado !== "active" && rule.estado !== "draft";
-  const hasRuleChanges =
-    nombre.trim() !== rule.nombre ||
-    (descripcion.trim() || null) !== rule.descripcion ||
-    dominio !== rule.dominio || severidad !== rule.severidad ||
-    Number(prioridad) !== rule.prioridad || activo !== rule.activo ||
-    parametros.trim() !== (rule.parametros ? JSON.stringify(rule.parametros, null, 2) : "") ||
-    JSON.stringify(tree) !== JSON.stringify(rule.condiciones ?? []);
-
-  const handleLoadVersions = async () => {
-    try {
-      const data = await fetchVersiones(rule.id);
-      setVersions(data);
-      setVersionsOpen(true);
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Error al cargar versiones");
-    }
-  };
-
-  const handlePublishDetail = async () => {
-    if (!window.__showConfirm) return;
-    const ok = await window.__showConfirm(
-      `¿Publicar la regla "${rule.nombre}" (v${rule.version})? Si existe una versión activa del mismo lineage, será deprecada automáticamente.`
-    );
-    if (!ok) return;
-    setPublishing(true);
-    setFormError(null);
-    try {
-      await publicarRegla(rule.id);
-      onSaved();
-    } catch (e) {
-      setFormError(e instanceof Error ? e.message : "Error al publicar");
-    } finally {
-      setPublishing(false);
-    }
-  };
-
+  const isReadOnly = rule.estado === "retired";
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nombre.trim()) {
       setFormError("El nombre no puede estar vacío");
-      return;
-    }
-    if (hasRuleChanges && (!changeWhat.trim() || !changeWhy.trim())) {
-      setFormError("Qué cambió y Por qué son obligatorios para crear una nueva versión");
       return;
     }
     const conditionError = validateConditionTree(tree);
@@ -609,7 +529,6 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
           activo,
           condiciones: tree,
           parametros: parametros.trim() ? JSON.parse(parametros) : null,
-          ...(hasRuleChanges ? { cambio_que: changeWhat.trim(), cambio_por_que: changeWhy.trim() } : {}),
         });
       onSaved();
     } catch (err) {
@@ -628,24 +547,11 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
               ← Volver
             </Button>
             <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-              {rule.nombre} <span className="text-xs font-mono text-muted-foreground">(#{rule.id})</span> <span className="text-sm font-normal text-muted-foreground">v{rule.version}</span>
+              {rule.nombre} <span className="text-xs font-mono text-muted-foreground">(#{rule.id})</span>
             </h2>
             <EstadoBadge estado={rule.estado} />
           </div>
           <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={handleLoadVersions}>
-              <History className="h-3.5 w-3.5 mr-1" />
-              Versiones
-            </Button>
-            <Button size="sm" variant="default" onClick={() => versionarRegla(rule.id)}>
-              <GitBranch className="h-3.5 w-3.5 mr-1" />
-              Versionar
-            </Button>
-            {rule.estado === "draft" && (
-              <Button size="sm" variant="default" disabled={publishing} onClick={handlePublishDetail}>
-                Publicar
-              </Button>
-            )}
           </div>
         </div>
 
@@ -727,21 +633,6 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
           </div>
 
           {!isReadOnly && (
-            <div className="mb-4 rounded-lg border p-4" style={{ borderColor: "oklch(0.55 0.04 160 / 0.15)", background: "oklch(0.98 0.01 160)" }}>
-              <h3 className="text-sm font-semibold mb-3" style={{ color: "oklch(0.25 0.06 160)" }}>Auditoría del cambio</h3>
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Qué cambió</label>
-              <textarea value={changeWhat} onChange={(e) => setChangeWhat(e.target.value)} rows={2}
-                className="w-full rounded-lg border px-3 py-2 text-sm mb-3 outline-none" placeholder="Describe los campos o condiciones modificados" />
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Por qué</label>
-              <textarea value={changeWhy} onChange={(e) => setChangeWhy(e.target.value)} rows={2}
-                className="w-full rounded-lg border px-3 py-2 text-sm mb-3 outline-none" placeholder="Explica el motivo del cambio" />
-              <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Responsable</label>
-              <input value={authenticatedUsername ?? "No disponible"} readOnly disabled
-                className="w-full rounded-lg border px-3 py-2 text-sm bg-gray-100 text-gray-600" />
-            </div>
-          )}
-
-          {!isReadOnly && (
             <div className="flex items-center gap-3 mb-4">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -801,17 +692,6 @@ function RuleDetailForm({ rule, authenticatedUsername, onBack, onSaved }: RuleDe
         </form>
       </Card>
 
-      {/* Versions Timeline */}
-      {versionsOpen && (
-        <VersionTimeline
-          versions={versions}
-          onClose={() => setVersionsOpen(false)}
-          onVersionar={async (id) => {
-            await versionarRegla(id);
-            handleLoadVersions();
-          }}
-        />
-      )}
     </>
   );
 }
@@ -1373,7 +1253,6 @@ function ReglasVinculadas({ catalogKey, onClose }: ReglasVinculadasProps) {
                   <th className="py-2 px-3 text-left">Nombre</th>
                   <th className="py-2 px-3 text-left">Dominio</th>
                   <th className="py-2 px-3 text-left">Estado</th>
-                  <th className="py-2 px-3 text-left">Versión</th>
                 </tr>
               </thead>
               <tbody>
@@ -1383,7 +1262,6 @@ function ReglasVinculadas({ catalogKey, onClose }: ReglasVinculadasProps) {
                     <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{r.nombre}</td>
                     <td className="py-2 px-3"><DominioBadge dominio={r.dominio} /></td>
                     <td className="py-2 px-3"><EstadoBadge estado={r.estado} /></td>
-                    <td className="py-2 px-3">v{r.version}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1535,70 +1413,6 @@ function ExceptionsPanel({ reglaId, onClose }: ExceptionsPanelProps) {
               <Button type="button" size="sm" variant="secondary" onClick={() => setShowCreate(false)}>Cancelar</Button>
             </div>
           </form>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ═════════════════════════════════════════════════════════════════════
-// VERSION TIMELINE
-// ═════════════════════════════════════════════════════════════════════
-
-interface VersionTimelineProps {
-  versions: Regla[];
-  onClose: () => void;
-  onVersionar: (id: number) => Promise<void>;
-}
-
-function VersionTimeline({ versions, onClose, onVersionar }: VersionTimelineProps) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-         onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-xl mx-4 max-h-[80vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="font-heading font-semibold text-lg" style={{ color: "oklch(0.15 0.02 160)" }}>
-            Historial de Versiones
-          </h2>
-          <button onClick={onClose} className="p-1 rounded-md hover:bg-gray-100">
-            <X className="h-5 w-5" style={{ color: "oklch(0.55 0.04 160)" }} />
-          </button>
-        </div>
-
-        {versions.length === 0 ? (
-          <p className="text-sm text-muted-foreground py-8 text-center">Sin versiones</p>
-        ) : (
-          <div className="space-y-3">
-            {versions.map((v) => (
-              <div key={v.id} className="p-3 rounded-lg border"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-sm" style={{ color: "oklch(0.15 0.02 160)" }}>
-                      v{v.version}
-                    </span>
-                    <EstadoBadge estado={v.estado} />
-                    {v.creado_en && (
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(v.creado_en).toLocaleDateString("es-CO")}
-                      </span>
-                    )}
-                  </div>
-                  {v.estado === "active" && (
-                    <Button size="sm" variant="default" onClick={() => onVersionar(v.id)}>
-                      <GitBranch className="h-3 w-3 mr-1" />
-                      Versionar
-                    </Button>
-                  )}
-                </div>
-                <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                  <p><strong>Qué cambió:</strong> {v.cambio_que ?? "Información no registrada en esta versión"}</p>
-                  <p><strong>Por qué:</strong> {v.cambio_por_que ?? "Información no registrada en esta versión"}</p>
-                  <p><strong>Responsable:</strong> {v.cambio_responsable ?? "No registrado"}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         )}
       </div>
     </div>
@@ -1899,7 +1713,6 @@ function EvidenceDashboard() {
             <div className="grid grid-cols-2 gap-3 mb-4 text-sm">
               <div><span className="font-medium">Factura:</span> {(detailItem as any).factura}</div>
               <div><span className="font-medium">Regla ID:</span> #{(detailItem as any).regla_id}</div>
-              <div><span className="font-medium">Versión:</span> v{(detailItem as any).regla_version}</div>
               <div><span className="font-medium">Creado:</span> {(detailItem as any).creado_en?.slice(0, 19) ?? "—"}</div>
               {detailType === "evidencia" && (
                 <>

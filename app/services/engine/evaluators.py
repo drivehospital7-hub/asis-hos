@@ -1259,6 +1259,7 @@ def _register_builtins() -> None:
         PymRutasDxEvaluator(),
         RevisionCantidadUrgenciasEvaluator(),
         CupsEquivalentesTransversalEvaluator(),
+        HospitalizacionCantidadEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev
@@ -1366,6 +1367,55 @@ class RevisionCantidadUrgenciasEvaluator(AtomicEvaluator):
 
         # 6. General: Cant > 1
         return cantidad > 1
+
+
+class HospitalizacionCantidadEvaluator(AtomicEvaluator):
+    """Apply legacy hospitalizacion quantity rules using DB-backed conditions."""
+
+    operator = "hospitalizacion_cantidad_check"
+
+    def evaluate(self, condition, row_value, expected=None, context=None) -> bool:
+        if context is None or row_value is None:
+            return False
+        inv = context.invoice_data or {}
+        if str(inv.get("tipo_factura_descripcion", "")).strip() != "Hospitalización":
+            return False
+        try:
+            quantity = float(row_value)
+        except (TypeError, ValueError):
+            return False
+        codigo = str(inv.get("codigo", "") or "").strip().upper()
+        tarifario = str(inv.get("tarifario", "") or "").strip().upper()
+        hours = self._hours(inv)
+        if hours is None:
+            return False
+        days = int(hours) // 24
+        if codigo == "38114":
+            return quantity != days + 1
+        if codigo == "39131":
+            return quantity != days
+        if codigo == "39133":
+            return tarifario == "SOAT" and quantity > 1
+        if codigo == "890601H":
+            return quantity != days + 1
+        if codigo == "890601":
+            return quantity != (0 if hours < 24 else days)
+        return codigo in {"890201", "890205", "890701"} and tarifario != "SOAT" and quantity > 1
+
+    @staticmethod
+    def _hours(invoice: dict) -> float | None:
+        from datetime import datetime
+        try:
+            start, end = invoice.get("fec_factura"), invoice.get("fecha_cierre")
+            if not start or not end:
+                return None
+            if not isinstance(start, datetime):
+                start = datetime.strptime(str(start).strip()[:19], "%Y-%m-%d %H:%M:%S")
+            if not isinstance(end, datetime):
+                end = datetime.strptime(str(end).strip()[:19], "%Y-%m-%d %H:%M:%S")
+            return (end - start).total_seconds() / 3600
+        except (TypeError, ValueError):
+            return None
 
 
 class CupsEquivalentesTransversalEvaluator(AtomicEvaluator):

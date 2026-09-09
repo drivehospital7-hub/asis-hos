@@ -13,7 +13,7 @@ if (!root) throw new Error("Root element #root not found");
 createRoot(root).render(
   <StrictMode>
     <AppLayout username={data?.username} permisos={data?.permisos}>
-      <AdminReglasPage authenticatedUsername={data?.session_username || data?.username} />
+      <AdminReglasPage />
     </AppLayout>
   </StrictMode>,
 );

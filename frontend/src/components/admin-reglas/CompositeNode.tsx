@@ -199,7 +199,7 @@ interface NodeRendererProps {
   onToggleCollapse: (nodeId: number) => void;
 }
 
-function NodeRenderer({
+export function NodeRenderer({
   node,
   depth,
   catalogOptions,

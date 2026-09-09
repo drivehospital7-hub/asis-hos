@@ -44,6 +44,41 @@ class TestConditionEvaluator:
         from app.services.engine.condition_evaluator import ConditionEvaluator
         assert ConditionEvaluator is not None
 
+    def test_build_tree_rejects_multiple_roots_without_discarding_any(self, caplog):
+        from app.services.engine.condition_evaluator import ConditionEvaluator
+
+        conditions = [
+            {"id": 1, "padre_id": None, "tipo": "composite", "operador": "OR", "orden": 0},
+            {"id": 2, "padre_id": None, "tipo": "atomic", "operador": "eq", "orden": 1},
+        ]
+
+        with caplog.at_level("ERROR"):
+            tree = ConditionEvaluator().build_tree(conditions)
+
+        assert tree is None
+        assert "multiple root conditions" in caplog.text
+
+    def test_rule_61_shape_is_one_or_root_with_both_code_conditions(self):
+        from app.services.engine.condition_evaluator import ConditionEvaluator
+
+        conditions = [
+            {"id": 61, "padre_id": None, "tipo": "composite", "operador": "OR", "orden": 0},
+            {
+                "id": 62, "padre_id": 61, "tipo": "atomic", "operador": "eq",
+                "fuente_datos": "invoice.codigo", "valor_esperado": "906317", "orden": 1,
+            },
+            {
+                "id": 63, "padre_id": 61, "tipo": "atomic", "operador": "eq",
+                "fuente_datos": "invoice.codigo", "valor_esperado": "906249", "orden": 2,
+            },
+        ]
+
+        tree = ConditionEvaluator().build_tree(conditions)
+
+        assert tree["id"] == 61
+        assert tree["operador"] == "OR"
+        assert [child["valor_esperado"] for child in tree["_children"]] == ["906317", "906249"]
+
     # ── Atomic evaluation ────────────────────────────────────────────────
 
     def test_atomic_eq_match(self):
