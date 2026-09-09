@@ -434,7 +434,7 @@ body.editor-open {
 }
 
 .custom-select-trigger:after {
-  content: 'â–¼';
+  content: '\25BC';
   font-size: 9px;
   color: inherit;
   opacity: 0.6;
