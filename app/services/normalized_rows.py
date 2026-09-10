@@ -6,7 +6,99 @@ con un builder parametrizado por error_groups: dict que mapea tipo_error -> list
 
 from __future__ import annotations
 
+import calendar
+from datetime import datetime
 from typing import Any
+
+
+def _parse_fecha_edad(value: Any) -> datetime | None:
+    """Parsea fecha de nacimiento/factura en datetime o None.
+
+    Acepta datetime, date y strings ISO o día-primero.
+    """
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    # date (no datetime) -> medianoche, para comparar solo calendario
+    try:
+        from datetime import date as _date
+
+        if isinstance(value, _date):
+            return datetime(value.year, value.month, value.day)
+    except (ValueError, TypeError):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S.%f",
+                "%d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt)
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _add_meses_clamp(nac_day: int, base_y: int, base_m: int, meses: int) -> datetime:
+    """Suma meses a (base_y, base_m) clampando el día al fin de mes."""
+    total = (base_m - 1) + meses
+    y = base_y + total // 12
+    m = total % 12 + 1
+    d = min(nac_day, calendar.monthrange(y, m)[1])
+    return datetime(y, m, d)
+
+
+def _build_edad_detalle(anios: int, meses_residuales: int,
+                        fec_nac_raw: Any, fec_fact_raw: Any) -> str:
+    """Construye 'X años Y meses Z días' por diferencia de calendario.
+
+    Recomputa años/meses/días desde las fechas (ignora los valores
+    de entrada, que pueden venir residuales o totales según el
+    detector/engine). Nunca inventa: si alguna fecha no parsea o
+    factura < nacimiento, retorna "".
+
+    Invariantes: 0 <= meses <= 11, 0 <= días <= 30. Omite partes
+    en 0 ("7 años 12 días", "5 meses 3 días", "0 días" si iguales).
+    Fin de mes con day clamp (nac 31/01 -> anchor 28/02).
+    """
+    del anios, meses_residuales  # se recomputan desde fechas; firma kept por compat
+    fec_nac = _parse_fecha_edad(fec_nac_raw)
+    fec_fact = _parse_fecha_edad(fec_fact_raw)
+    if fec_nac is None or fec_fact is None:
+        return ""
+    nac_d = fec_nac.date()
+    fact_d = fec_fact.date()
+    if fact_d < nac_d:
+        return ""
+
+    # Años por aniversario clampado (29/02 -> 28/02 en no bisiestos)
+    calc_anios = fact_d.year - nac_d.year
+    aniversario = _add_meses_clamp(nac_d.day, nac_d.year, nac_d.month, calc_anios * 12)
+    if fact_d < aniversario.date():
+        calc_anios -= 1
+        aniversario = _add_meses_clamp(nac_d.day, nac_d.year, nac_d.month, calc_anios * 12)
+
+    # Meses completos desde el aniversario
+    meses = (fact_d.year - aniversario.year) * 12 + (fact_d.month - aniversario.month)
+    anchor = _add_meses_clamp(
+        nac_d.day, aniversario.year, aniversario.month, meses)
+    if fact_d < anchor.date():
+        meses -= 1
+        anchor = _add_meses_clamp(
+            nac_d.day, aniversario.year, aniversario.month, meses)
+    dias = (fact_d - anchor.date()).days
+    if dias < 0:
+        dias = 0
+
+    partes = []
+    if calc_anios > 0:
+        partes.append(f"{calc_anios} años")
+    if meses > 0:
+        partes.append(f"{meses} meses")
+    if dias > 0 or not partes:
+        partes.append(f"{dias} días")
+    return " ".join(partes)
 
 
 def build_normalized_rows(
@@ -184,7 +276,9 @@ def build_normalized_rows(
     # --- Tipo Identificación / Edad ---
     for item in error_groups.get("Tipo Identificación / Edad", []):
         factura = item.get("factura", "")
-        num_id = item.get("numero_identificacion", "")
+        # Engine usa key "identificacion" (row_store); detector Python
+        # usa "numero_identificacion". Fallback en ese orden.
+        num_id = item.get("identificacion", "") or item.get("numero_identificacion", "")
         tipo_actual = item.get("tipo_actual", "")
         tipo_deberia = item.get("tipo_deberia", "")
         problema = item.get("problema", "")
@@ -205,14 +299,10 @@ def build_normalized_rows(
         except (ValueError, TypeError):
             meses_residuales = 0
 
-        if anios > 0 and meses_residuales > 0:
-            detalle = f"{anios} años {meses_residuales} meses"
-        elif anios > 0:
-            detalle = f"{anios} años"
-        elif meses_residuales > 0:
-            detalle = f"{meses_residuales} meses"
-        else:
-            detalle = ""
+        detalle = _build_edad_detalle(
+            anios, meses_residuales,
+            item.get("fec_nacimiento"), item.get("fec_factura"),
+        )
 
         descripcion = problema or f"Tipo actual {tipo_actual} debería ser {tipo_deberia}"
         rows.append({

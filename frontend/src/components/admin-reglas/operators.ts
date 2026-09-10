@@ -122,6 +122,7 @@ export const FUENTES_DATOS: string[] = [
   "invoice.responsable_cierra",
   "invoice.profesional_atiende",
   "date.edad",
+  "date.edad_meses",
   "date.horas",
   "invoice.distinct_count_tipo_procedimiento",
   "invoice.sum_cantidad",

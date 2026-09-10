@@ -5,7 +5,7 @@ Strict TDD: tests written BEFORE implementation.
 
 from __future__ import annotations
 
-from app.services.normalized_rows import build_normalized_rows
+from app.services.normalized_rows import _build_edad_detalle, build_normalized_rows
 
 
 class TestBuildNormalizedRows:
@@ -637,3 +637,59 @@ class TestSharedP0Fixes:
         }, responsables_map={})
         assert len(rows) == 1
         assert rows[0]["detalle"] is not None
+
+
+class TestEdadDetalle:
+    """Helper _build_edad_detalle: diferencia de calendario por aniversario."""
+
+    def test_reporte_254_dias_pasa_a_meses_dias(self):
+        """Reporte: nac 10/01/2017, fact 20/09/2024.
+
+        Lógica vieja (anios=7, meses=0): 20/09/2024-10/01/2024 = 254 días
+        -> "7 años 254 días" (mal). Nueva: aniversario 10/01/2024,
+        10/01->10/09 = 8 meses completos, 10/09->20/09 = 10 días.
+        """
+        assert _build_edad_detalle(7, 0, "10/01/2017", "20/09/2024") == "7 años 8 meses 10 días"
+
+    def test_ignora_meses_entrada_erroneos(self):
+        """Aunque el detector/engine pase meses=0, se recomputa desde fechas."""
+        rows = build_normalized_rows(error_groups={
+            "Tipo Identificación / Edad": [{
+                "factura": "FAC-B",
+                "numero_identificacion": "999",
+                "edad_anios": 7,
+                "edad_meses": 0,  # erróneo: el real es 8
+                "fec_nacimiento": "10/01/2017",
+                "fec_factura": "20/09/2024",
+                "tipo_actual": "CC",
+                "tipo_deberia": "TI",
+                "problema": "Tipo ID debe ser TI",
+            }]
+        }, responsables_map={})
+        assert rows[0]["detalle"] == "7 años 8 meses 10 días"
+
+    def test_mismo_dia_cero_dias(self):
+        assert _build_edad_detalle(0, 0, "15/05/2024", "15/05/2024") == "0 días"
+
+    def test_fin_de_mes_clamp(self):
+        """Nac 31/01/2020, fact 28/02/2020: febrero no tiene 31,
+        el mes no completa -> 28 días, sin meses."""
+        assert _build_edad_detalle(0, 0, "31/01/2020", "28/02/2020") == "28 días"
+
+    def test_bisiesto_29feb_cumple_28feb(self):
+        """Nac 29/02/2020, fact 28/02/2025: aniversario clampado a
+        28/02 -> cumple 5 años exactos."""
+        assert _build_edad_detalle(0, 0, "29/02/2020", "28/02/2025") == "5 años"
+
+    def test_fecha_invalida_retorna_vacio(self):
+        assert _build_edad_detalle(7, 8, "no-fecha", "20/09/2024") == ""
+        assert _build_edad_detalle(7, 8, "10/01/2017", None) == ""
+        assert _build_edad_detalle(7, 8, None, None) == ""
+
+    def test_factura_antes_nacimiento_retorna_vacio(self):
+        assert _build_edad_detalle(0, 0, "20/09/2024", "10/01/2017") == ""
+
+    def test_omite_partes_en_cero(self):
+        """Solo meses+días, y años+meses sin días."""
+        assert _build_edad_detalle(0, 0, "01/01/2024", "12/06/2024") == "5 meses 11 días"
+        assert _build_edad_detalle(0, 0, "10/01/2024", "10/09/2024") == "8 meses"

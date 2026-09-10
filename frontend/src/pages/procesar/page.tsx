@@ -260,8 +260,8 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                                 <th className="text-left font-medium px-4 py-3">Regla</th>
                                 <th className="text-left font-medium px-4 py-3">Responsable cierre</th>
                                 <th className="text-left font-medium px-4 py-3">Descripción</th>
-                                <th className="text-left font-medium px-4 py-3">Procedimiento</th>
-                                <th className="text-left font-medium px-4 py-3">Detalle</th>
+                                <th className="text-left font-medium px-4 py-3">Detalle A</th>
+                                <th className="text-left font-medium px-4 py-3">Detalle B</th>
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
@@ -279,9 +279,7 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                                     <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra || "-"}</td>
                                     <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
                                     <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
-                                    <td className="px-4 py-3">
-                                      <StatusBadge tone="warning">{f.detalle || "-"}</StatusBadge>
-                                    </td>
+                                    <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.detalle || "-"}</td>
                                   </tr>
                               ))}
                             </tbody>
