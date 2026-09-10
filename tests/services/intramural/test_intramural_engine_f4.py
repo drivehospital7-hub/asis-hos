@@ -707,11 +707,16 @@ class TestIntramuralF4Integration:
         assert "revision_cantidad" in r["problemas"]
         assert r["problemas"]["revision_cantidad"] == []
 
-    # ── IDE Contrato stays legacy (documented) ──
+    # ── IDE Contrato LEGACY OFF (2026-09-09, usuario eligió "Actualizar tests") ──
 
     def test_ide_contrato_stays_legacy(self):
-        """IDE Contrato must still call legacy detector even in engine path
-        (too complex for row-by-row engine — pre-scans sheet for laboratorio)."""
+        """LEGACY OFF (2026-09-09): detect_ide_contrato_intramural legacy ya NO
+        se llama en ningún path — ide_contrato es [] hasta reactivar rules.
+
+        TODO(engine): sembrar rules ide_contrato_simple + pym_rutas_dx y
+        cablear RuleBasedDetector en app/services/intramural/detect_all.py.
+        Revertir con git revert. Ver comentario LEGACY OFF en detect_all.py.
+        """
         import os
         from app.services.intramural import ide_contrato_intramural as ide_module
         original_fn = ide_module.detect_ide_contrato_intramural
@@ -723,26 +728,33 @@ class TestIntramuralF4Integration:
 
         try:
             ide_module.detect_ide_contrato_intramural = tracking_fn
-            from app.services.intramural.detect_all import (
-                detect_all_problems_intramural,
-            )
-            wb, idx = self._build_sheet()
-            old = os.environ.pop("USE_RULE_ENGINE", None)
-            os.environ["USE_RULE_ENGINE"] = "true"
-            try:
-                r, _ = detect_all_problems_intramural(wb.active, idx)
-            finally:
-                if old is not None:
-                    os.environ["USE_RULE_ENGINE"] = old
-                else:
-                    os.environ.pop("USE_RULE_ENGINE", None)
+            with patch("app.database.get_session") as m_gs:
+                with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
+                    m_gs.return_value = self._mock_session()
+                    md = MagicMock()
+                    md.detect.return_value = []
+                    m_dc.return_value = md
+                    from app.services.intramural.detect_all import (
+                        detect_all_problems_intramural,
+                    )
+                    wb, idx = self._build_sheet()
+                    old = os.environ.pop("USE_RULE_ENGINE", None)
+                    os.environ["USE_RULE_ENGINE"] = "true"
+                    try:
+                        r, _ = detect_all_problems_intramural(wb.active, idx)
+                    finally:
+                        if old is not None:
+                            os.environ["USE_RULE_ENGINE"] = old
+                        else:
+                            os.environ.pop("USE_RULE_ENGINE", None)
         finally:
             ide_module.detect_ide_contrato_intramural = original_fn
 
-        assert call_log, (
-            "Legacy detect_ide_contrato_intramural was NOT called in engine path!"
+        assert not call_log, (
+            "LEGACY OFF: legacy detect_ide_contrato_intramural NO debe llamarse"
         )
         assert "ide_contrato" in r["problemas"]
+        assert r["problemas"]["ide_contrato"] == []
 
     # ── Snapshot: keys present in both paths ──
 

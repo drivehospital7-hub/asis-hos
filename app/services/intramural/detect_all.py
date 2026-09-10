@@ -260,31 +260,14 @@ def detect_all_problems_intramural(
         len(problemas_centros_filtrados),
     )
 
-    # 7. IDE Contrato (Ref #1 GAP: "ide_contrato_simple" and "pym_rutas_dx"
-    # exist in no DB, so the engine lookups are explicitly skipped. The legacy
-    # detector stays authoritative: it owns the laboratorio-envío pre-scan
-    # (sheet-level, not row-by-row) and the engine rules silently yielded []
-    # when missing from the DB.
-    if is_rule_engine_enabled():
-        from app.services.intramural.ide_contrato_intramural import (
-            detect_ide_contrato_intramural,
-        )
-        problemas_ide_contrato = []
-        try:
-            problemas_ide_contrato.extend(
-                detect_ide_contrato_intramural(data_sheet, indices)
-            )
-        except Exception:
-            logger.exception("Error en detect_ide_contrato_intramural (engine path)")
-    else:
-        from app.services.intramural.ide_contrato_intramural import (
-            detect_ide_contrato_intramural,
-        )
-        try:
-            problemas_ide_contrato = detect_ide_contrato_intramural(data_sheet, indices)
-        except Exception:
-            logger.exception("Error en detect_ide_contrato_intramural")
-            problemas_ide_contrato = []
+    # LEGACY OFF (2026-09-09): llamada legacy detect_ide_contrato_intramural
+    # anulada en AMBAS ramas — revertir con git revert. No se cablea
+    # RuleBasedDetector porque 015_seed_intramural_gaps.sql excluye
+    # explícitamente ide_contrato_simple y pym_rutas_dx (sin rules DB;
+    # un lookup engine daría "Rule not found" → [] silencioso).
+    # TODO(engine): sembrar rules ide_contrato_simple + pym_rutas_dx y
+    # cablear RuleBasedDetector aquí para reactivar hallazgos.
+    problemas_ide_contrato: list[dict[str, Any]] = []
 
     # 8. Duplicado ID+Código (Ref #1 GAP: "duplicado_id_codigo_05" and
     # "duplicado_id_codigo_02_lab" exist in no DB — the seeded duplicado rules

@@ -106,6 +106,83 @@ class TestDetectAllProblemsUrgencias:
         for row in norm:
             assert "fec_factura" in row
 
+    def test_centro_costo_urgencias_rule_falls_in_centros_de_costo(
+        self, workbook_minimal, monkeypatch
+    ) -> None:
+        """Regla id 56 centro_costo_urgencias debe caer en tipo_error Centros de Costo."""
+        ws = workbook_minimal.active
+        ws.cell(row=2, column=1, value="FAC-CC-056")
+
+        class FakeSessionManager:
+            def __init__(self, domain):
+                self.domain = domain
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        class FakeEvidenceCollector:
+            def __init__(self, domain):
+                self.domain = domain
+
+        class FakeRuleBasedDetector:
+            def __init__(self, rule_name, session):
+                self.rule_name = rule_name
+
+            def detect(self, *args, **kwargs):
+                if self.rule_name == "centro_costo_urgencias_valido":
+                    return [{
+                        "factura": "FAC-CC-VALIDO",
+                        "codigo": "890701",
+                        "procedimiento": "Proc Valido",
+                        "centro_actual": "HOSPITALIZACIÓN - ESTANCIA GENERAL",
+                        "centro_deberia": "URGENCIAS",
+                        "prioridad": 2,
+                    }]
+                if self.rule_name == "centro_costo_urgencias":
+                    return [{
+                        "factura": "FAC-CC-056",
+                        "codigo": "861101",
+                        "procedimiento": "Procedimiento B",
+                        "centro_actual": "HOSPITALIZACIÓN - ESTANCIA GENERAL",
+                        "centro_deberia": "URGENCIAS",
+                        "prioridad": 2,
+                    }]
+                return []
+
+        monkeypatch.setattr(urgencias_detect_all, "is_rule_engine_enabled", lambda: True)
+        monkeypatch.setattr(urgencias_detect_all, "_PERSIST", False)
+        monkeypatch.setattr(
+            "app.services.engine.session_manager.SessionManager", FakeSessionManager
+        )
+        monkeypatch.setattr(
+            "app.services.engine.evidence_collector.EvidenceCollector",
+            FakeEvidenceCollector,
+        )
+        monkeypatch.setattr(
+            "app.services.engine.rule_based_detector.RuleBasedDetector",
+            FakeRuleBasedDetector,
+        )
+
+        result, _ = detect_all_problems_urgencias(
+            ws, {"numero_factura": 0}
+        )
+
+        centros_facturas = {i["factura"] for i in result["problemas"]["centros_de_costos"]}
+        assert "FAC-CC-056" in centros_facturas
+        # La regla existente se mantiene (suma, no reemplazo).
+        assert "FAC-CC-VALIDO" in centros_facturas
+
+        norm_centros = [
+            r for r in result["problemas"]["normalizados"]
+            if r.get("tipo_error") == "Centros de Costo"
+        ]
+        norm_facturas = {r["factura"] for r in norm_centros}
+        assert "FAC-CC-056" in norm_facturas
+        assert "FAC-CC-VALIDO" in norm_facturas
+
     def test_engine_result_without_accion_uses_problema(self, workbook_minimal, monkeypatch):
         """Engine-style results without accion must remain in Urgencias output."""
         class FakeSessionManager:

@@ -24,6 +24,7 @@ def build_odontologia_normalized_rows(
     tipo_usuario: list[dict] | None = None,
     fec_factura_map: dict[str, str] | None = None,
     cups_sin_contrato: list[dict] | None = None,
+    fecha_cierre_vacia_map: dict[str, bool] | None = None,
 ) -> list[dict[str, str]]:
     """
     Normaliza todos los tipos de error de Odontología/Equipos Básicos en filas de 6 columnas.
@@ -39,13 +40,19 @@ def build_odontologia_normalized_rows(
         ide_contrato: Lista de dicts con "factura", "codigo", "cod_entidad", "ide_actual", ...
         responsable_cierra: Dict {factura: responsable}
         fec_factura_map: Dict {factura: fec_factura} (opcional)
+        fecha_cierre_vacia_map: Dict {factura: True si Fecha Cierre está vacía} (opcional)
 
     Returns:
         Lista de dicts normalizados con tipo_error, factura, responsable_cierra,
-        descripcion, procedimiento (Var1), detalle (Var2), fec_factura
+        descripcion, procedimiento (Var1), detalle (Var2), fec_factura,
+        fecha_cierre_vacia
     """
     rows: list[dict[str, str]] = []
     _fec_factura_map = fec_factura_map or {}
+    _fecha_cierre_vacia_map = fecha_cierre_vacia_map or {}
+
+    def _get_fecha_cierre_vacia(factura: str) -> bool:
+        return _fecha_cierre_vacia_map.get(factura, False)
 
     def _get_responsable(factura: str) -> str:
         return responsable_cierra.get(factura, "")
@@ -90,6 +97,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": procedimiento,
             "detalle": detalle,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Doble tipo procedimiento ---
@@ -110,6 +118,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": procedimiento,
             "detalle": detalle,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Ruta Duplicada ---
@@ -133,6 +142,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": procedimiento,
             "detalle": identificacion,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(primera_factura),
         })
 
     # --- Profesionales (reemplaza Convenio de procedimiento) ---
@@ -150,6 +160,7 @@ def build_odontologia_normalized_rows(
             "descripcion": problema or regla,
             "procedimiento": _build_procedimiento(cod_prof, proc_nombre),
             "detalle": problema or "",
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Cantidades ---
@@ -170,6 +181,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": procedimiento,
             "detalle": str(cantidad_val),
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Tipo Identificación vs Edad ---
@@ -220,6 +232,7 @@ def build_odontologia_normalized_rows(
             "descripcion": desc,
             "procedimiento": num_id or "",
             "detalle": detalle,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Tipo Identificación vs Cód Entidad Cobrar ---
@@ -242,6 +255,7 @@ def build_odontologia_normalized_rows(
                 "descripcion": desc,
                 "procedimiento": "",
                 "detalle": f"Cód actual: {cod_actual}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # --- Centro Costo ---
@@ -263,6 +277,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": procedimiento,
             "detalle": detalle,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- IDE Contrato ---
@@ -284,6 +299,7 @@ def build_odontologia_normalized_rows(
             "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, ""),
             "detalle": ide_actual,
+            "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
     # --- Código Entidad vs Afiliación ---
@@ -313,6 +329,7 @@ def build_odontologia_normalized_rows(
                     "descripcion": desc,
                     "procedimiento": cod_actual,
                     "detalle": detalle,
+                    "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
                 })
             else:
                 cod = item.get("codigo_entidad_cobrar", "")
@@ -326,6 +343,7 @@ def build_odontologia_normalized_rows(
                     "descripcion": item.get("problema", ""),
                     "procedimiento": proc_entidad,
                     "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+                    "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
                 })
 
     # --- Tipo Usuario ---
@@ -346,6 +364,7 @@ def build_odontologia_normalized_rows(
                 "descripcion": descripcion,
                 "procedimiento": procedimiento,
                 "detalle": tipo_actual,
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # --- Cups Sin Contrato ---
@@ -364,6 +383,7 @@ def build_odontologia_normalized_rows(
                 "descripcion": item.get("problema", ""),
                 "procedimiento": _build_procedimiento(codigo, proc),
                 "detalle": f"Entidad: {cod_ent}, {entidad}",
+                "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
             })
 
     # Generic fallback: if procedimiento AND detalle are both empty,

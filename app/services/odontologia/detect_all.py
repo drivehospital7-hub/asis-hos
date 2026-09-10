@@ -11,7 +11,7 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import AREA_ODONTOLOGIA, CONVENIO_PYP
+from app.constants import AREA_ODONTOLOGIA
 from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 
 # Module-level flag: skip evidence/audit DB writes when testing
@@ -225,72 +225,8 @@ def detect_all_problems_odontologia(
         centro_costo = []
         cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
-    # Excepción odontología: código 990203 puede tener múltiples tipos de procedimiento
-    codigo_idx = indices.get("codigo")
-    num_fact_idx = indices.get("numero_factura")
-    if codigo_idx is not None and num_fact_idx is not None:
-        facturas_con_990203: set[str] = set()
-        for row in range(2, data_sheet.max_row + 1):
-            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-            if codigo_val is not None and str(codigo_val).strip() == "990203":
-                numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
-                factura = normalize_invoice(numero)
-                if factura:
-                    facturas_con_990203.add(factura)
-        if facturas_con_990203:
-            antes = len(doble_tipo)
-            doble_tipo = [
-                item for item in doble_tipo
-                if item.get("factura") not in facturas_con_990203
-            ]
-            despues = len(doble_tipo)
-            if despues < antes:
-                logger.info(
-                    "Excepción código 990203: %d facturas excluidas de doble tipo procedimiento",
-                    antes - despues,
-                )
-
-    # Excepción odontología: si ruta duplicada es exactamente 3 facturas y
-    # alguna tiene código 990203, P0000011 o 990212, se excluye
-    RUTA_DUP_EXEMPT_CODES = frozenset({"990203", "P0000011", "990212"})
-    codigo_idx = indices.get("codigo")
-    ident_idx = indices.get("identificacion")
-    if ruta_dup and codigo_idx is not None and ident_idx is not None:
-        # Construir mapa de códigos por paciente (solo PyP)
-        codigos_por_paciente: dict[str, set[str]] = {}
-        contrato_idx = indices.get("convenio_facturado")
-        for row in range(2, data_sheet.max_row + 1):
-            contrato_val = (
-                data_sheet.cell(row=row, column=contrato_idx + 1).value
-                if contrato_idx is not None else None
-            )
-            if contrato_idx is not None and contrato_val != CONVENIO_PYP:
-                continue
-            ident_val = data_sheet.cell(row=row, column=ident_idx + 1).value
-            codigo_val = data_sheet.cell(row=row, column=codigo_idx + 1).value
-            if ident_val is not None and codigo_val is not None:
-                ident_str = str(ident_val).strip()
-                codigo_str = str(codigo_val).strip()
-                if ident_str and codigo_str:
-                    if ident_str not in codigos_por_paciente:
-                        codigos_por_paciente[ident_str] = set()
-                    codigos_por_paciente[ident_str].add(codigo_str)
-
-        if codigos_por_paciente:
-            antes = len(ruta_dup)
-            ruta_dup = [
-                item for item in ruta_dup
-                if not (
-                    item["cantidad"] == 3
-                    and RUTA_DUP_EXEMPT_CODES & codigos_por_paciente.get(item["identificacion"], set())
-                )
-            ]
-            despues = len(ruta_dup)
-            if despues < antes:
-                logger.info(
-                    "Excepción códigos PyP (990203, P0000011, 990212): %d rutas duplicadas excluidas",
-                    antes - despues,
-                )
+    # LEGACY OFF: /procesar usa solo engine (is_rule_engine_enabled()=True).
+    # Post-filtros Python 990203 / ruta-dup 3-facturas anulados.
     logger.info(
         "detect_all_problems_odontologia - Cups Sin Contrato encontrados: %d",
         len(cups_sin_contrato),
@@ -310,6 +246,23 @@ def detect_all_problems_odontologia(
             resp = str(raw).strip() if raw else ""
             if resp and factura not in responsable_cierra:
                 responsable_cierra[factura] = resp
+
+    # Build fecha_cierre_vacia mapping
+    fecha_cierre_vacia: dict[str, bool] = {}
+    fecha_cierre_idx = indices.get("fecha_cierre")
+    if fecha_cierre_idx is not None and num_fact_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura = normalize_invoice(numero)
+            if not factura:
+                continue
+            fecha_cierre_val = data_sheet.cell(
+                row=row, column=fecha_cierre_idx + 1
+            ).value
+            if not fecha_cierre_val or str(fecha_cierre_val).strip() == "":
+                fecha_cierre_vacia[factura] = True
+            elif factura not in fecha_cierre_vacia:
+                fecha_cierre_vacia[factura] = False
 
     # Build fec_factura_map
     fec_factura_map: dict[str, str] = {}
@@ -342,6 +295,7 @@ def detect_all_problems_odontologia(
         tipo_usuario=tipo_usuario_od,
         fec_factura_map=fec_factura_map,
         cups_sin_contrato=cups_sin_contrato,
+        fecha_cierre_vacia_map=fecha_cierre_vacia,
     )
 
     resultado: dict[str, Any] = {

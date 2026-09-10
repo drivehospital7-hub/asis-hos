@@ -268,6 +268,23 @@ def detect_all_problems_equipos_basicos(
             if resp and factura not in responsable_cierra:
                 responsable_cierra[factura] = resp
 
+    # Build fecha_cierre_vacia mapping
+    fecha_cierre_vacia: dict[str, bool] = {}
+    fecha_cierre_idx = indices.get("fecha_cierre")
+    if fecha_cierre_idx is not None and num_fact_idx is not None:
+        for row in range(2, data_sheet.max_row + 1):
+            numero = data_sheet.cell(row=row, column=num_fact_idx + 1).value
+            factura = normalize_invoice(numero)
+            if not factura:
+                continue
+            fecha_cierre_val = data_sheet.cell(
+                row=row, column=fecha_cierre_idx + 1
+            ).value
+            if not fecha_cierre_val or str(fecha_cierre_val).strip() == "":
+                fecha_cierre_vacia[factura] = True
+            elif factura not in fecha_cierre_vacia:
+                fecha_cierre_vacia[factura] = False
+
     # Build fec_factura_map
     fec_factura_map: dict[str, str] = {}
     fec_factura_idx = indices.get("fec_factura")
@@ -300,6 +317,7 @@ def detect_all_problems_equipos_basicos(
         tipo_usuario=tipo_usuario_eb,
         fec_factura_map=fec_factura_map,
         cups_sin_contrato=cups_sin_contrato,
+        fecha_cierre_vacia_map=fecha_cierre_vacia,
     )
 
     resultado: dict[str, Any] = {

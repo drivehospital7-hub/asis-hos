@@ -279,19 +279,14 @@ def process_unified(
         # Fusionar responsables
         all_responsables.update(responsables)
 
-    # ── Detectores transversales (se ejecutan UNA vez sobre todo el Excel) ──
-    from app.services.transversales.cups_equivalentes import (
-        detect_cups_equivalentes_transversal,
-    )
-    cups_equiv = detect_cups_equivalentes_transversal(data_sheet, indices)
-    # Ref #1 GAP (documented, no engine rule covers this intent): the
-    # transversal 906317/906249 mapping has no DB rule
-    # ("cups_equivalentes_transversal" exists in no DB; seeded
-    # cups_equivalentes is the urgencias code set, and
-    # cups_equivalentes_hospitalizacion is hospitalizacion-scoped), so there
-    # is deliberately no engine override here — the legacy result above
-    # stands. Do NOT re-add a RuleBasedDetector call for this name without a
-    # seeded rule, or findings will be silently discarded ("Rule not found").
+    # LEGACY OFF (2026-09-09): detect_cups_equivalentes_transversal legacy
+    # anulado — revertir con git revert. Sin equivalente engine en DB.
+    # TODO(engine): sembrar rule cups_equivalentes_transversal y cablear
+    # RuleBasedDetector aquí para reactivar hallazgos.
+    cups_equiv: list = []
+    # LEGACY OFF (2026-09-09): bloque GAP obsoleto — el resultado legacy ya
+    # no existe (cups_equiv = [] arriba). Se conserva el `if` como no-op
+    # para reactivación futura vía TODO(engine) superior.
     if cups_equiv:
         if "cups_equivalentes" in all_problemas:
             all_problemas["cups_equivalentes"].extend(cups_equiv)

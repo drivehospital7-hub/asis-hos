@@ -118,7 +118,14 @@ class TestDetectAllProblemsOdontologia:
     def test_ruta_duplicada_excluye_3_facturas_con_codigo_exento(
         self, workbook_minimal: Workbook
     ) -> None:
-        """3 facturas PyP con código 990203, P0000011 o 990212 NO se reportan."""
+        """LEGACY OFF (2026-09-09, usuario eligió "Actualizar tests"): el
+        post-filtro ruta-dup 3-facturas está ANULADO — el engine retorna los
+        hallazgos sin filtrar (PAC-001 y PAC-002 reportados).
+
+        TODO(engine): modelar esta excepción como rule/filtro engine y
+        reactivar en app/services/odontologia/detect_all.py.
+        Revertir con git revert. Ver comentario LEGACY OFF en detect_all.py.
+        """
         ws = workbook_minimal.active
         ws.cell(row=1, column=1, value="Número Factura")
         ws.cell(row=1, column=2, value="Nº Identificación")
@@ -217,8 +224,9 @@ class TestDetectAllProblemsOdontologia:
         ruta_dup = result["problemas"]["ruta_duplicada"]
         identificaciones = [r["identificacion"] for r in ruta_dup]
 
-        assert "PAC-001" not in identificaciones, (
-            "PAC-001 tiene 3 facturas con código 990203 => debe excluirse"
+        # LEGACY OFF: /procesar usa solo engine, sin post-filtro PAC-001 se reporta.
+        assert "PAC-001" in identificaciones, (
+            "LEGACY OFF: sin post-filtro ruta-dup, PAC-001 debe reportarse"
         )
         assert "PAC-002" in identificaciones, (
             "PAC-002 tiene 3 facturas sin código exento => debe reportarse"
