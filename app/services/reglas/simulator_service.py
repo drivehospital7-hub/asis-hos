@@ -118,9 +118,23 @@ def simulate(
     # Convert to openpyxl worksheet for legacy detectors
     ws, indices = _excel_to_sheet(file_bytes)
 
-    # Run engine detector
+    # Run engine detector (resolve dominio from the rule row; transversal fallback)
+    from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL
+    from app.models import Regla
+
     rule_name_to_use = rule_name or "valores_decimales"
-    detector = RuleBasedDetector(rule_name_to_use, db_session)
+    _row = (
+        db_session.query(Regla)
+        .filter(Regla.nombre == rule_name_to_use)
+        .order_by(Regla.version.desc())
+        .first()
+    )
+    _dominio = (
+        _row.dominio
+        if _row is not None and getattr(_row, "dominio", None)
+        else ENGINE_DOMAIN_TRANSVERSAL
+    )
+    detector = RuleBasedDetector(rule_name_to_use, db_session, dominio=_dominio)
     engine_results = detector.detect(ws, indices)
 
     # Run legacy detectors

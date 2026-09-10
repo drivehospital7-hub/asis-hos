@@ -111,18 +111,21 @@ WHERE NOT EXISTS (SELECT 1 FROM catalogos WHERE key = 'centro_costo_laboratorio_
 -- ---------------------------------------------------------------------------
 -- 1. centro_costo_urgencias (src 17_ p1 tree verbatim: 90 conds, prioridad=1)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_urgencias', 'Centro de costo detallado en Urgencias — REGLAs 1-9/REVERSE + laboratorio ESS118 + intramural/ambulatoria (p1)', 'urgencias', 'active', 1, 1, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -501,18 +504,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- 2. centro_costo_urgencias_cross (src 17_ p2 tree verbatim: 7 conds, prioridad=2)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_urgencias_cross', 'Cruces tipo-factura de centro de costo en Urgencias (p2)', 'urgencias', 'active', 1, 2, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

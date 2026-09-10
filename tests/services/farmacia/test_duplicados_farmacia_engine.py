@@ -182,7 +182,7 @@ class TestFarmaciaDuplicadosEngineToggle:
                      "regla": "#1", "severidad": "error"}
                 ]
 
-                def _side_effect(name, session):
+                def _side_effect(name, session, **kwargs):
                     d = MagicMock()
                     if name == "duplicados_farmacia":
                         d.detect.return_value = [
@@ -214,7 +214,7 @@ class TestFarmaciaDuplicadosEngineToggle:
                 m_detector = MagicMock()
                 m_detector.detect.return_value = []
 
-                def _side_effect(name, session):
+                def _side_effect(name, session, **kwargs):
                     d = MagicMock()
                     d.detect.return_value = []
                     return d
@@ -295,7 +295,7 @@ class TestFarmaciaDuplicadosEngineToggle:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = self._make_mock_session()
 
-                def _side_effect(name, session):
+                def _side_effect(name, session, **kwargs):
                     d = MagicMock()
                     d.detect.return_value = []
                     return d

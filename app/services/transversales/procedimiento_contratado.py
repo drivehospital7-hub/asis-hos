@@ -13,6 +13,7 @@ from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
+from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL
 from app.constants.urgencias import FACTURADORES_URGENCIAS, VALOR_TARIFARIO_FARMACIA
 from app.services.transversales.normalize import normalize_invoice
 
@@ -75,7 +76,10 @@ def detect_cups_sin_contrato(
         try:
             session = SessionLocal()
             try:
-                detector = RuleBasedDetector("cups_sin_contrato", session)
+                detector = RuleBasedDetector(
+                    "cups_sin_contrato", session,
+                    dominio=ENGINE_DOMAIN_TRANSVERSAL,
+                )
                 results = detector.detect(data_sheet, indices, persist=_persist)
                 if _persist:
                     session.commit()

@@ -99,7 +99,7 @@ def _detect(rule_name, ws, indices):
     from app.services.engine.rule_based_detector import RuleBasedDetector
     session = _session()
     try:
-        return RuleBasedDetector(rule_name, session).detect(ws, indices, persist=False)
+        return RuleBasedDetector(rule_name, session, dominio="hospitalizacion").detect(ws, indices, persist=False)
     finally:
         session.close()
 
@@ -332,7 +332,7 @@ class TestRule61Detects939402:
         indices = {"numero_factura": 0, "codigo": 1, "tipo_factura_descripcion": 2}
 
         session = seeded_rule61
-        results = RuleBasedDetector("cups_equivalentes_hospitalizacion", session).detect(
+        results = RuleBasedDetector("cups_equivalentes_hospitalizacion", session, dominio="hospitalizacion").detect(
             ws, indices, persist=False,
         )
         assert "H001" in _facturas(results)
@@ -352,7 +352,7 @@ class TestRule61Detects939402:
         indices = {"numero_factura": 0, "codigo": 1, "tipo_factura_descripcion": 2}
 
         session = seeded_rule61
-        results = RuleBasedDetector("cups_equivalentes_hospitalizacion", session).detect(
+        results = RuleBasedDetector("cups_equivalentes_hospitalizacion", session, dominio="hospitalizacion").detect(
             ws, indices, persist=False,
         )
         assert _facturas(results) == set()

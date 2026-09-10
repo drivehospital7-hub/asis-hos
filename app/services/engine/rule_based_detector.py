@@ -26,7 +26,7 @@ class RuleBasedDetector:
     """Wrapper that exposes the same interface as legacy detectors.
 
     Usage:
-        detector = RuleBasedDetector("valores_decimales", session)
+        detector = RuleBasedDetector("valores_decimales", session, dominio="urgencias")
         problems = detector.detect(data_sheet, indices)
 
     The detector supports two data-paths:
@@ -34,15 +34,18 @@ class RuleBasedDetector:
     - **RowStore path** (fast): Pass ``rows`` (list[dict]) plus ``indices``.
     """
 
-    def __init__(self, rule_name: str, session: "Session") -> None:
+    def __init__(self, rule_name: str, session: "Session", dominio: str) -> None:
         """Initialize detector for a specific rule.
 
         Args:
             rule_name: DB rule name (e.g., 'valores_decimales', 'ruta_duplicada').
             session: SQLAlchemy session for DB access.
+            dominio: Area dominio threading into engine rule loading
+                (e.g., 'urgencias'; transversal rules resolve from any area).
         """
         self._rule_name = rule_name
         self._session = session
+        self._dominio = dominio
         self._engine = RuleEvaluationEngine(session)
 
     def detect(
@@ -77,4 +80,5 @@ class RuleBasedDetector:
             persist=persist,
             rows=rows,
             evidence_collector=evidence_collector,
+            dominio=self._dominio,
         )

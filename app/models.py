@@ -268,6 +268,10 @@ class Regla(Base):
     cambio_que = Column(Text, nullable=True)
     cambio_por_que = Column(Text, nullable=True)
     cambio_responsable = Column(String(100), nullable=True)
+    grupo_error = Column(Text, nullable=True, default=None)
+    detalle_a_campo = Column(Text, nullable=True, default=None)
+    detalle_b_campo = Column(Text, nullable=True, default=None)
+    descripcion_template = Column(Text, nullable=True, default=None)
 
     # Relationships
     condiciones = relationship("Condicion", back_populates="regla")
@@ -294,6 +298,10 @@ class Regla(Base):
             "cambio_que": self.cambio_que,
             "cambio_por_que": self.cambio_por_que,
             "cambio_responsable": self.cambio_responsable,
+            "grupo_error": self.grupo_error,
+            "detalle_a_campo": self.detalle_a_campo,
+            "detalle_b_campo": self.detalle_b_campo,
+            "descripcion_template": self.descripcion_template,
         }
 
 

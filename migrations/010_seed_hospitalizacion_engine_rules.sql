@@ -81,21 +81,24 @@ WHERE NOT EXISTS (SELECT 1 FROM catalogos WHERE key = 'profesionales_urgencias')
 -- Group rule: estancia > 24h AND missing obligatory codes.
 --   OBLIG_MAYOR_24 = ["129B02", "890601H", "890601"]
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'hosp_codigos_oblig_mayor24h',
     'Estancia > 24h sin los códigos obligatorios de hospitalización (129B02, 890601H, 890601)',
     'hospitalizacion', 'active', 1, 5, 'error', true,
     '[{"group_by": "numero_factura", "filter_field": "tipo_factura_descripcion", "filter_value": "Hospitalización", "aggregations": [{"function": "compute_horas", "field1": "fec_factura", "field2": "fecha_cierre", "target": "estancia_horas"}, {"function": "collect_set", "field": "codigo", "target": "collect_set_codigo"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigos Hospitalizacion', 'codigo,procedimiento', NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -124,21 +127,24 @@ END $$;
 -- Group rule: estancia <= 24h AND missing obligatory codes.
 --   OBLIG_MENOR_24 = ["890601H", "129B02"]
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'hosp_codigos_oblig_menor24h',
     'Estancia <= 24h sin los códigos obligatorios de hospitalización (890601H, 129B02)',
     'hospitalizacion', 'active', 1, 6, 'error', true,
     '[{"group_by": "numero_factura", "filter_field": "tipo_factura_descripcion", "filter_value": "Hospitalización", "aggregations": [{"function": "compute_horas", "field1": "fec_factura", "field2": "fecha_cierre", "target": "estancia_horas"}, {"function": "collect_set", "field": "codigo", "target": "collect_set_codigo"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigos Hospitalizacion', 'codigo,procedimiento', NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -168,21 +174,24 @@ END $$;
 --   PROHIBIDOS  = ["05DSB01", "5DSB01", "890701"]
 --   SOAT_PROH   = ["39145", "38915"]  (only when tarifario = SOAT)
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'hosp_codigos_prohibidos',
     'Hospitalización con códigos prohibidos (05DSB01, 5DSB01, 890701; SOAT: 39145, 38915)',
     'hospitalizacion', 'active', 1, 7, 'error', true,
     '[{"group_by": "numero_factura", "filter_field": "tipo_factura_descripcion", "filter_value": "Hospitalización", "aggregations": [{"function": "collect_set", "field": "codigo", "target": "collect_set_codigo"}, {"function": "collect_set", "field": "tarifario", "target": "collect_set_tarifario"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigos Hospitalizacion', 'codigo,procedimiento', NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -214,20 +223,23 @@ END $$;
 -- Row rule: legacy detect_cantidades_hospitalizacion (non-SOAT rows).
 -- Evaluador hospitalizacion_cantidad_check implementa la lógica legacy.
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cantidades_hospitalizacion',
     'Cantidades incorrectas en Hospitalización (no SOAT)',
     'hospitalizacion', 'active', 1, 20, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cantidades Hospitalización', 'codigo,procedimiento', 'cantidad', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -255,20 +267,23 @@ END $$;
 -- 5. cantidades_soat_hospitalizacion
 -- Row rule: legacy detect_cantidades_soat_hospitalizacion (SOAT rows only).
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cantidades_soat_hospitalizacion',
     'Cantidades incorrectas en Hospitalización SOAT',
     'hospitalizacion', 'active', 1, 20, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cantidades SOAT Hospitalización', 'codigo,procedimiento', 'cantidad', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -293,20 +308,23 @@ END $$;
 -- Row rule: legacy detect_profesionales_urgencias(tipos_validos={"Hospitalización"}).
 -- El profesional debe existir en el catálogo profesionales_urgencias.
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'profesional_hospitalizacion_valido',
     'Profesional no válido en Hospitalización (debe estar en el listado de profesionales)',
     'hospitalizacion', 'active', 1, 40, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Profesionales', 'codigo_profesional,procedimiento', 'Cód: {codigo_profesional}', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -337,20 +355,23 @@ END $$;
 -- If rule 40 is absent (fresh DB), the rule is created with no conditions and
 -- simply evaluates to [] until the source rule is seeded.
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'ide_contrato_hospitalizacion_valido',
     'IDE Contrato no válido en Hospitalización (reusa mapeo entidad->IDE de urgencias)',
     'hospitalizacion', 'active', 1, 45, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'IDE Contrato', 'codigo,procedimiento', 'ide_contrato_actual,ide_contrato', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

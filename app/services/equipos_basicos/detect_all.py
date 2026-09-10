@@ -79,56 +79,56 @@ def detect_all_problems_equipos_basicos(
         with SessionManager("equipos_basicos") as session:
             collector = EvidenceCollector(domain="equipos_basicos")
 
-            decimales = RuleBasedDetector("valores_decimales", session).detect(
+            decimales = RuleBasedDetector("valores_decimales", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session).detect(
+            doble_tipo = RuleBasedDetector("doble_tipo_procedimiento", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            ruta_dup = RuleBasedDetector("ruta_duplicada", session).detect(
+            ruta_dup = RuleBasedDetector("ruta_duplicada", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # tipo_documento_edad rules
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
             tipo_id_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
 
             # tipo_identificacion_entidad rules
-            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(
+            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(
+            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -139,28 +139,28 @@ def detect_all_problems_equipos_basicos(
             # of 3 checks whose thresholds match the 3 seeded transversal
             # rules 1:1 with equipos constants 2/10/3, so all three are
             # evaluated, like tipo_documento_edad above).
-            cantidades_consultas = RuleBasedDetector("cantidad_consultas_anomalas", session).detect(
+            cantidades_consultas = RuleBasedDetector("cantidad_consultas_anomalas", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            cantidades_general = RuleBasedDetector("cantidad_general_anomalas", session).detect(
+            cantidades_general = RuleBasedDetector("cantidad_general_anomalas", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            cantidades_pyp = RuleBasedDetector("cantidad_pyp_anomalas", session).detect(
+            cantidades_pyp = RuleBasedDetector("cantidad_pyp_anomalas", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
             cantidades = cantidades_consultas + cantidades_general + cantidades_pyp
 
             # codigo_entidad
-            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # tipo_usuario
-            tipo_usuario_eb = RuleBasedDetector("tipo_usuario_valido", session).detect(
+            tipo_usuario_eb = RuleBasedDetector("tipo_usuario_valido", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -170,7 +170,7 @@ def detect_all_problems_equipos_basicos(
             # detect_ide_contrato_odontologia, whose engine counterpart is the
             # seeded ide_contrato_odontologia_valido rule).
             logger.info("detect_all_problems_equipos_basicos - Llamando detect_ide_contrato_odontologia")
-            ide_contrato = RuleBasedDetector("ide_contrato_odontologia_valido", session).detect(
+            ide_contrato = RuleBasedDetector("ide_contrato_odontologia_valido", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -178,20 +178,20 @@ def detect_all_problems_equipos_basicos(
 
             # Profesionales equipos básicos
             logger.info("detect_all_problems_equipos_basicos - Llamando detect_profesionales_equipos_basicos")
-            profesionales = RuleBasedDetector("profesional_equipos_validos", session).detect(
+            profesionales = RuleBasedDetector("profesional_equipos_validos", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
             logger.info("detect_all_problems_equipos_basicos - Profesionales encontrados: %d", len(profesionales))
 
             # Centro Costo
-            centro_costo = RuleBasedDetector("centro_costo_equipos_basicos_valido", session).detect(
+            centro_costo = RuleBasedDetector("centro_costo_equipos_basicos_valido", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # CUPS sin contrato
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session, dominio=AREA_EQUIPOS_BASICOS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )

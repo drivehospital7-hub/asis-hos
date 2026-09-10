@@ -58,7 +58,7 @@ def _run_engine_detection(rule_name, dominio, descripcion, condiciones, ws, indi
     """Run engine detection against a worksheet with mocked session."""
     from app.services.engine.rule_based_detector import RuleBasedDetector
     session = _mock_session_with_rule(rule_name, dominio, descripcion, condiciones)
-    detector = RuleBasedDetector(rule_name, session)
+    detector = RuleBasedDetector(rule_name, session, dominio=dominio)
     return detector.detect(ws, indices)
 
 
@@ -244,7 +244,7 @@ class TestCupsSinContrato:
         session._db_session = db_session  # Not used, the engine uses the session passed to RuleBasedDetector
 
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        detector = RuleBasedDetector("cups_sin_contrato", session)
+        detector = RuleBasedDetector("cups_sin_contrato", session, dominio="transversal")
         results = detector.detect(ws, indices)
 
         # With the mocked session, the engine creates EvaluationContext with session=session
@@ -299,7 +299,7 @@ class TestCupsSinContrato:
         session.execute.return_value.fetchone.return_value = None
 
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        detector = RuleBasedDetector("cups_sin_contrato", session)
+        detector = RuleBasedDetector("cups_sin_contrato", session, dominio="transversal")
         results = detector.detect(ws, indices)
 
         facturas = _get_facturas_from_results(results)
@@ -348,7 +348,7 @@ class TestCupsSinContrato:
         session.query.return_value = mock_query
 
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        detector = RuleBasedDetector("cups_sin_contrato", session)
+        detector = RuleBasedDetector("cups_sin_contrato", session, dominio="transversal")
         results = detector.detect(ws, indices)
 
         facturas = _get_facturas_from_results(results)
@@ -381,7 +381,7 @@ class TestCupsSinContrato:
         session.query.return_value = mock_query
 
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        detector = RuleBasedDetector("cups_sin_contrato", session)
+        detector = RuleBasedDetector("cups_sin_contrato", session, dominio="transversal")
         results = detector.detect(ws, indices)
         assert results == []
 
@@ -507,7 +507,7 @@ class TestCupsContratadoIntegration:
         session = self._make_session_with_rule(condiciones)
 
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        detector = RuleBasedDetector("cups_sin_contrato", session)
+        detector = RuleBasedDetector("cups_sin_contrato", session, dominio="transversal")
 
         # Pre-load evaluator cache before calling detect()
         from app.services.engine.evaluators import EVALUATOR_REGISTRY

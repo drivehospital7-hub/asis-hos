@@ -193,7 +193,7 @@ class TestDetectAllProblemsOdontologia:
         # Mock RuleBasedDetector to let engine return ruta_dup data
         from unittest.mock import MagicMock
 
-        def _mock_detector(name, session):
+        def _mock_detector(name, session, **kwargs):
             d = MagicMock()
             if name == "ruta_duplicada":
                 # Return data matching the PAC-001/PAC-002 setup
@@ -294,7 +294,7 @@ class TestDetectAllProblemsOdontologia:
         }
         from unittest.mock import MagicMock
 
-        def _mock_detector(name, session):
+        def _mock_detector(name, session, **kwargs):
             d = MagicMock()
             if name == "ruta_duplicada":
                 d.detect.return_value = [

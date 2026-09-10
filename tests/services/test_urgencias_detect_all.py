@@ -128,7 +128,7 @@ class TestDetectAllProblemsUrgencias:
                 self.domain = domain
 
         class FakeRuleBasedDetector:
-            def __init__(self, rule_name, session):
+            def __init__(self, rule_name, session, **kwargs):
                 self.rule_name = rule_name
 
             def detect(self, *args, **kwargs):
@@ -200,7 +200,7 @@ class TestDetectAllProblemsUrgencias:
                 self.domain = domain
 
         class FakeRuleBasedDetector:
-            def __init__(self, rule_name, session):
+            def __init__(self, rule_name, session, **kwargs):
                 self.rule_name = rule_name
 
             def detect(self, *args, **kwargs):
@@ -238,3 +238,193 @@ class TestDetectAllProblemsUrgencias:
             "accion": "Usar codigo equivalente 890201",
             "responsable": "",
         }]
+
+    def test_sala_observacion_estancia_prolongada_dedups_por_factura(
+        self, workbook_minimal, monkeypatch
+    ) -> None:
+        """3 MATCH misma factura de estancia prolongada -> 1 item en cups_equivalentes."""
+        ws = workbook_minimal.active
+        ws.cell(row=2, column=1, value="FAC-EST-001")
+
+        class FakeSessionManager:
+            def __init__(self, domain):
+                self.domain = domain
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+        class FakeEvidenceCollector:
+            def __init__(self, domain):
+                self.domain = domain
+
+        class FakeRuleBasedDetector:
+            def __init__(self, rule_name, session, **kwargs):
+                self.rule_name = rule_name
+
+            def detect(self, *args, **kwargs):
+                if self.rule_name == "sala_observacion_estancia_prolongada":
+                    return [
+                        {
+                            "factura": "FAC-EST-001",
+                            "codigo": "890201",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                        {
+                            "factura": "FAC-EST-001",
+                            "codigo": "890202",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                        {
+                            "factura": "FAC-EST-001",
+                            "codigo": "890203",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                    ]
+                return []
+
+        monkeypatch.setattr(urgencias_detect_all, "is_rule_engine_enabled", lambda: True)
+        monkeypatch.setattr(urgencias_detect_all, "_PERSIST", False)
+        monkeypatch.setattr(
+            "app.services.engine.session_manager.SessionManager", FakeSessionManager
+        )
+        monkeypatch.setattr(
+            "app.services.engine.evidence_collector.EvidenceCollector",
+            FakeEvidenceCollector,
+        )
+        monkeypatch.setattr(
+            "app.services.engine.rule_based_detector.RuleBasedDetector",
+            FakeRuleBasedDetector,
+        )
+
+        result, _ = detect_all_problems_urgencias(
+            ws, {"numero_factura": 0}
+        )
+
+        estancia_items = [
+            i for i in result["problemas"]["cups_equivalentes"]
+            if i["factura"] == "FAC-EST-001"
+        ]
+        assert len(estancia_items) == 1
+
+        norm_estancia = [
+            r for r in result["problemas"]["normalizados"]
+            if r.get("tipo_error") == "Cups Equivalentes"
+            and r.get("factura") == "FAC-EST-001"
+        ]
+        assert len(norm_estancia) == 1
+
+    def test_sala_observacion_estancia_filtro_nivel_factura(
+        self, workbook_minimal, monkeypatch
+    ) -> None:
+        """Factura A (3 MATCH sin sala) -> 1 item; factura B con sala en otra fila -> 0."""
+        ws = workbook_minimal.active
+        ws.cell(row=1, column=2, value="Código")
+        sheet_rows = [
+            ("FAC-EST-A", "890201"),
+            ("FAC-EST-A", "890202"),
+            ("FAC-EST-A", "890203"),
+            ("FAC-EST-B", "890201"),
+            ("FAC-EST-B", "129B02"),
+        ]
+        for r, (factura, codigo) in enumerate(sheet_rows, start=2):
+            ws.cell(row=r, column=1, value=factura)
+            ws.cell(row=r, column=2, value=codigo)
+
+        class FakeQuery:
+            def filter(self, *args, **kwargs):
+                return self
+
+            def first(self):
+                return None
+
+        class FakeSessionManager:
+            def __init__(self, domain):
+                self.domain = domain
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc_value, traceback):
+                return False
+
+            def query(self, *args, **kwargs):
+                return FakeQuery()
+
+        class FakeEvidenceCollector:
+            def __init__(self, domain):
+                self.domain = domain
+
+        class FakeRuleBasedDetector:
+            def __init__(self, rule_name, session, **kwargs):
+                self.rule_name = rule_name
+
+            def detect(self, *args, **kwargs):
+                if self.rule_name == "sala_observacion_estancia_prolongada":
+                    return [
+                        {
+                            "factura": "FAC-EST-A",
+                            "codigo": "890201",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                        {
+                            "factura": "FAC-EST-A",
+                            "codigo": "890202",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                        {
+                            "factura": "FAC-EST-A",
+                            "codigo": "890203",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                        {
+                            "factura": "FAC-EST-B",
+                            "codigo": "890201",
+                            "problema": "Estancia prolongada sin sala observacion",
+                        },
+                    ]
+                return []
+
+        monkeypatch.setattr(urgencias_detect_all, "is_rule_engine_enabled", lambda: True)
+        monkeypatch.setattr(urgencias_detect_all, "_PERSIST", False)
+        monkeypatch.setattr(
+            "app.services.engine.session_manager.SessionManager", FakeSessionManager
+        )
+        monkeypatch.setattr(
+            "app.services.engine.evidence_collector.EvidenceCollector",
+            FakeEvidenceCollector,
+        )
+        monkeypatch.setattr(
+            "app.services.engine.rule_based_detector.RuleBasedDetector",
+            FakeRuleBasedDetector,
+        )
+
+        result, _ = detect_all_problems_urgencias(
+            ws, {"numero_factura": 0, "codigo": 1}
+        )
+
+        items_a = [
+            i for i in result["problemas"]["cups_equivalentes"]
+            if i["factura"] == "FAC-EST-A"
+        ]
+        items_b = [
+            i for i in result["problemas"]["cups_equivalentes"]
+            if i["factura"] == "FAC-EST-B"
+        ]
+        assert len(items_a) == 1
+        assert items_b == []
+
+        norm_a = [
+            r for r in result["problemas"]["normalizados"]
+            if r.get("tipo_error") == "Cups Equivalentes"
+            and r.get("factura") == "FAC-EST-A"
+        ]
+        norm_b = [
+            r for r in result["problemas"]["normalizados"]
+            if r.get("tipo_error") == "Cups Equivalentes"
+            and r.get("factura") == "FAC-EST-B"
+        ]
+        assert len(norm_a) == 1
+        assert norm_b == []

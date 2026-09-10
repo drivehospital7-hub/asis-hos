@@ -125,7 +125,7 @@ class TestOdoParity:
             {"identificacion": "PAC-002", "factura": "FAC-ODO-003", "cantidad": 3},
         ]
 
-        def _mock_detector(name, session):
+        def _mock_detector(name, session, **kwargs):
             detector = MagicMock()
             detector.detect.return_value = list(payload) if name == "ruta_duplicada" else []
             return detector

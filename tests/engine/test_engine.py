@@ -202,7 +202,7 @@ class TestEvaluateSheetDomain:
         # Mock evaluate_sheet to return per-rule results
         calls_log = []
 
-        def mock_evaluate_sheet(rule_name, data_sheet=None, indices=None, persist=True, rows=None, evidence_collector=None):
+        def mock_evaluate_sheet(rule_name, data_sheet=None, indices=None, persist=True, rows=None, evidence_collector=None, dominio=None):
             calls_log.append(rule_name)
             if rule_name == "rule_a":
                 return [{"factura": "F001", "problema": "A", "regla": "#1", "severidad": "error"}]

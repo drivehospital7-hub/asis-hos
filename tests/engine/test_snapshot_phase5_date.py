@@ -59,7 +59,7 @@ def _run_engine_detection(rule_name, dominio, descripcion, condiciones,
     from app.services.engine.rule_based_detector import RuleBasedDetector
     session = _mock_session_with_rule(rule_name, dominio, descripcion,
                                       condiciones, severity)
-    detector = RuleBasedDetector(rule_name, session)
+    detector = RuleBasedDetector(rule_name, session, dominio=dominio)
     return detector.detect(ws, indices)
 
 

@@ -74,17 +74,17 @@ def detect_all_problems_urgencias(
         from app.services.engine.session_manager import SessionManager
         from app.services.engine.evidence_collector import EvidenceCollector
         from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.models import Regla, ResultadoAuditoria
+        from app.models import Catalogo, Regla, ResultadoAuditoria
 
         with SessionManager("urgencias") as session:
             collector = EvidenceCollector(domain="urgencias")
 
             # Centro Costo + IDE Contrato
-            problemas_centros = RuleBasedDetector("centro_costo_urgencias_valido", session).detect(
+            problemas_centros = RuleBasedDetector("centro_costo_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            problemas_centros += RuleBasedDetector("centro_costo_urgencias", session).detect(
+            problemas_centros += RuleBasedDetector("centro_costo_urgencias", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -92,7 +92,7 @@ def detect_all_problems_urgencias(
                 "detect_all_problems_urgencias - Centros Costo encontrados: %d",
                 len(problemas_centros),
             )
-            problemas_ide_contrato = RuleBasedDetector("ide_contrato_urgencias_valido", session).detect(
+            problemas_ide_contrato = RuleBasedDetector("ide_contrato_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -104,22 +104,110 @@ def detect_all_problems_urgencias(
 
             # CUPS equivalentes + Sala observación
             problemas_cups_equivalentes.extend(
-                RuleBasedDetector("cups_equivalentes", session).detect(
+                RuleBasedDetector("cups_equivalentes", session, dominio=AREA_URGENCIAS).detect(
                     data_sheet, indices, persist=_PERSIST,
                     evidence_collector=collector, rows=rows,
                 )
             )
             # Ref #1: "sala_observacion_valido" exists in no DB. The only
-            # executable, dev-live rule for the slot is sala_obs_check_set
-            # (obligatorios 890701+890601 presence when sala codes present;
-            # the sala_obs_check-evaluator rules can never fire — that
-            # operator is deregistered from EVALUATOR_REGISTRY).
+            # executable, dev-live rule for the obligatorios slot is
+            # sala_obs_check_set (obligatorios 890701+890601 presence when
+            # sala codes present; the sala_observacion_entidad rule still runs
+            # the deregistered sala_obs_check evaluator and can never fire).
             problemas_cups_equivalentes.extend(
-                RuleBasedDetector("sala_obs_check_set", session).detect(
+                RuleBasedDetector("sala_obs_check_set", session, dominio=AREA_URGENCIAS).detect(
                     data_sheet, indices, persist=_PERSIST,
                     evidence_collector=collector, rows=rows,
                 )
             )
+            # Rule 44: estancia > 6h en Urgencias sin código de sala de
+            # observación. Explicit tree (gt(date.horas, 6) + eq Urgencias +
+            # NOT(in(codigo, sala codes))) — no deregistered operators.
+            # Nivel factura: la factura en conjunto debe traer alguno de los
+            # códigos de sala. La lista vive en el catálogo 'sala_codes'
+            # (misma que el árbol de la regla); si falta, fallback al set
+            # del árbol. Uno por factura (la estancia es de la factura).
+            _estancia = RuleBasedDetector("sala_observacion_estancia_prolongada", session, dominio=AREA_URGENCIAS).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            _sala_codes: set[str] = {"5DSB01", "05DSB01", "129B02", "38114", "38915"}
+            try:
+                _cat = session.query(Catalogo).filter(Catalogo.key == "sala_codes").first()
+                if _cat is not None and _cat.value:
+                    _sala_codes = {str(v).strip().upper() for v in _cat.value}
+            except Exception:
+                logger.warning("Estancia: no se pudo leer catálogo sala_codes, uso fallback")
+            _facturas_con_sala: set[str] = set()
+            from datetime import datetime as _dt
+
+            def _parse_fecha(_v: object) -> "_dt | None":
+                if _v is None or _v == "":
+                    return None
+                if isinstance(_v, _dt):
+                    return _v
+                _s = str(_v).strip().split(".")[0]
+                for _fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S", "%d/%m/%Y"):
+                    try:
+                        return _dt.strptime(_s, _fmt)
+                    except ValueError:
+                        continue
+                try:
+                    return _dt.fromisoformat(_s)
+                except ValueError:
+                    return None
+
+            def _fmt_estancia(_d0: "_dt", _d1: "_dt") -> str:
+                _delta = _d1 - _d0
+                _hs = int(_delta.total_seconds() // 3600)
+                if _hs < 0:
+                    return ""
+                _dd, _hh = divmod(_hs, 24)
+                if _dd:
+                    return f"{_dd} días {_hh} horas"
+                return f"{_hh} horas"
+
+            _estancia_por_factura: dict[str, str] = {}
+            _fec_idx = indices.get("fec_factura")
+            _cierre_idx = indices.get("fecha_cierre")
+            _codigo_idx = indices.get("codigo")
+            _num_fact_est_idx = indices.get("numero_factura")
+            if _codigo_idx is not None and _num_fact_est_idx is not None:
+                if rows is not None:
+                    for _rd in rows:
+                        _f = normalize_invoice(_rd.get("numero_factura"))
+                        _c = str(_rd.get("codigo", "")).strip().upper() if _rd.get("codigo") is not None else ""
+                        if _f and _c in _sala_codes:
+                            _facturas_con_sala.add(_f)
+                        if _f and _f not in _estancia_por_factura and _fec_idx is not None and _cierre_idx is not None:
+                            _d0 = _parse_fecha(_rd.get("fec_factura"))
+                            _d1 = _parse_fecha(_rd.get("fecha_cierre"))
+                            if _d0 is not None and _d1 is not None:
+                                _estancia_por_factura[_f] = _fmt_estancia(_d0, _d1)
+                elif data_sheet is not None:
+                    for _row in range(2, data_sheet.max_row + 1):
+                        _f = normalize_invoice(data_sheet.cell(row=_row, column=_num_fact_est_idx + 1).value)
+                        _cv = data_sheet.cell(row=_row, column=_codigo_idx + 1).value
+                        _c = str(_cv).strip().upper() if _cv is not None else ""
+                        if _f and _c in _sala_codes:
+                            _facturas_con_sala.add(_f)
+                        if _f and _f not in _estancia_por_factura and _fec_idx is not None and _cierre_idx is not None:
+                            _d0 = _parse_fecha(data_sheet.cell(row=_row, column=_fec_idx + 1).value)
+                            _d1 = _parse_fecha(data_sheet.cell(row=_row, column=_cierre_idx + 1).value)
+                            if _d0 is not None and _d1 is not None:
+                                _estancia_por_factura[_f] = _fmt_estancia(_d0, _d1)
+            _estancia_vistas: set[str] = set()
+            for _item in _estancia:
+                _fact = _item.get("factura", "")
+                if not _fact or _fact in _estancia_vistas:
+                    continue
+                if _fact in _facturas_con_sala:
+                    continue
+                _estancia_vistas.add(_fact)
+                _est = _estancia_por_factura.get(_fact, "")
+                if _est:
+                    _item["estancia_str"] = _est
+                problemas_cups_equivalentes.append(_item)
             for rule_name in [
                 "sala_obs_obligatorios",
                 "sala_obs_ess_129b02",
@@ -127,76 +215,77 @@ def detect_all_problems_urgencias(
                 "sala_obs_soat_prohibido",
                 "sala_obs_890601h",
                 "sala_obs_05dsb01_no_ess",
+                "sala_obs_soat_39145_39131",
             ]:
                 problemas_cups_equivalentes.extend(
-                    RuleBasedDetector(rule_name, session).detect(
+                    RuleBasedDetector(rule_name, session, dominio=AREA_URGENCIAS).detect(
                         data_sheet, indices, persist=_PERSIST,
                         evidence_collector=collector, rows=rows,
                     )
                 )
 
             # Decimales
-            decimales = RuleBasedDetector("valores_decimales", session).detect(
+            decimales = RuleBasedDetector("valores_decimales", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # tipo_documento_edad rules
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
             tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
 
             # tipo_identificacion_entidad rules
-            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(
+            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
-            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(
+            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
             tipo_identificacion_entidad = r1_ent + r2_ent
 
             # tipo_usuario
-            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session).detect(
+            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # codigo_entidad
-            codigo_entidad_afiliacion = RuleBasedDetector("codigo_entidad", session).detect(
+            codigo_entidad_afiliacion = RuleBasedDetector("codigo_entidad", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
 
             # Profesionales urgencias
-            profesionales = RuleBasedDetector("profesional_urgencias_valido", session).detect(
+            profesionales = RuleBasedDetector("profesional_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -206,7 +295,7 @@ def detect_all_problems_urgencias(
             )
 
             # Mal capitado
-            mal_capitado = RuleBasedDetector("mal_capitado", session).detect(
+            mal_capitado = RuleBasedDetector("mal_capitado", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -216,7 +305,7 @@ def detect_all_problems_urgencias(
             )
 
             # Cantidades urgencias
-            cantidades_urgencias = RuleBasedDetector("cantidades_urgencias", session).detect(
+            cantidades_urgencias = RuleBasedDetector("cantidades_urgencias", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -226,7 +315,7 @@ def detect_all_problems_urgencias(
             )
 
             # Cantidades SOAT urgencias
-            cantidades_soat_urgencias = RuleBasedDetector("cantidades_soat_urgencias", session).detect(
+            cantidades_soat_urgencias = RuleBasedDetector("cantidades_soat_urgencias", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -236,7 +325,7 @@ def detect_all_problems_urgencias(
             )
 
             # IDE Contrato reverse
-            ide_contrato_reverse = RuleBasedDetector("ide_contrato_reverse_urgencias_valido", session).detect(
+            ide_contrato_reverse = RuleBasedDetector("ide_contrato_reverse_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -246,7 +335,7 @@ def detect_all_problems_urgencias(
             )
 
             # Revision entidad 86
-            revision_entidad_86 = RuleBasedDetector("revision_entidad_86", session).detect(
+            revision_entidad_86 = RuleBasedDetector("revision_entidad_86", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -258,7 +347,7 @@ def detect_all_problems_urgencias(
             # Revision cantidad (Ref #1: "revision_cantidad_urgencias_valido"
             # exists in no DB; the seeded revision_cantidad_urgencias rule
             # covers the revisión-cantidad intent as group SUM > 1).
-            revision_cantidad = RuleBasedDetector("revision_cantidad_urgencias", session).detect(
+            revision_cantidad = RuleBasedDetector("revision_cantidad_urgencias", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -268,7 +357,7 @@ def detect_all_problems_urgencias(
             )
 
             # Copago vs entidad
-            copago_entidad = RuleBasedDetector("copago_entidad_valido", session).detect(
+            copago_entidad = RuleBasedDetector("copago_entidad_valido", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -278,7 +367,7 @@ def detect_all_problems_urgencias(
             )
 
             # Duplicados farmacia
-            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session).detect(
+            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -288,7 +377,7 @@ def detect_all_problems_urgencias(
             )
 
             # CUPS sin contrato
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session, dominio=AREA_URGENCIAS).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
@@ -421,7 +510,7 @@ def detect_all_problems_urgencias(
     # 10. Build normalized rows (shared builder)
     error_groups = {
         "Centros de Costo": problemas_centros_filtrados,
-        "IDE Contrato": problemas_ide_contrato,
+        "IDE Contrato": problemas_ide_contrato + ide_contrato_reverse,
         "Cups Equivalentes": problemas_cups_equivalentes,
         "MAL CAPITADO": mal_capitado,
         "Cantidades": cantidades_urgencias,
@@ -470,7 +559,19 @@ def detect_all_problems_urgencias(
                     "entidad": item.get("entidad", ""),
                     "nota": item.get("nota", ""),
                 }
-                for item in problemas_ide_contrato
+                for item in (problemas_ide_contrato + ide_contrato_reverse)
+            ],
+            "ide_contrato_reverse": [
+                {
+                    "factura": item["factura"],
+                    "ide_contrato_actual": item.get("ide_contrato_actual", item.get("ide_contrato", "")),
+                    "ide_contrato_deberia": item.get("ide_contrato_deberia", ""),
+                    "procedimiento": item.get("procedimiento", ""),
+                    "codigo": item.get("codigo", ""),
+                    "entidad": item.get("entidad", ""),
+                    "nota": item.get("nota", ""),
+                }
+                for item in ide_contrato_reverse
             ],
             "cups_equivalentes": [
                 {
@@ -504,7 +605,8 @@ def detect_all_problems_urgencias(
         },
         "totales": {
             "centros_de_costos": len(problemas_centros),
-            "ide_contrato": len(problemas_ide_contrato),
+            "ide_contrato": len(problemas_ide_contrato) + len(ide_contrato_reverse),
+            "ide_contrato_reverse": len(ide_contrato_reverse),
             "cups_equivalentes": len(problemas_cups_equivalentes),
             "decimales": len(decimales),
             "tipo_identificacion_edad": len(tipo_identificacion_edad),

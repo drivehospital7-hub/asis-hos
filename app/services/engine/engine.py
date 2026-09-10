@@ -9,6 +9,9 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 
+from sqlalchemy import case, or_
+
+from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL
 from app.models import Regla, Condicion, ResultadoAuditoria
 from app.services.engine.context import EvaluationContext
 from app.services.engine.condition_evaluator import ConditionEvaluator
@@ -55,6 +58,7 @@ class RuleEvaluationEngine:
         persist: bool = True,
         rows: list[dict[str, Any]] | None = None,
         evidence_collector: "EvidenceCollector | None" = None,
+        dominio: str | None = None,
     ) -> list[dict[str, Any]]:
         """Evaluate a single rule against all rows.
 
@@ -80,8 +84,11 @@ class RuleEvaluationEngine:
             List of detection dicts with keys: factura, problema, regla, severidad,
             and optional rule-specific keys.
         """
-        # Load the rule
-        rule = self._load_rule_by_name(rule_name)
+        # Load the rule (dominio-scoped when provided; legacy path otherwise)
+        if dominio is None:
+            rule = self._load_rule_legacy(rule_name)
+        else:
+            rule = self._load_rule_by_name(rule_name, dominio)
         if rule is None:
             logger.warning("Rule not found: %s", rule_name)
             return []
@@ -297,6 +304,7 @@ class RuleEvaluationEngine:
             results = self.evaluate_sheet(
                 rule.nombre, data_sheet, indices,
                 rows=rows, evidence_collector=evidence_collector,
+                dominio=rule.dominio,
             )
             all_results.extend(results)
         return all_results
@@ -399,13 +407,36 @@ class RuleEvaluationEngine:
 
     # ── Internal helpers ──────────────────────────────────────────────────
 
-    def _load_rule_by_name(self, rule_name: str) -> Regla | None:
-        """Load a single rule by name."""
+    def _load_rule_legacy(self, rule_name: str) -> Regla | None:
+        """Load a single rule by name without dominio filter (pre-T6 callers)."""
         return (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
             .filter(Regla.estado == "active")
             .filter(Regla.activo == True)  # noqa: E712
+            .first()
+        )
+
+    def _load_rule_by_name(self, rule_name: str, dominio: str) -> Regla | None:
+        """Load the highest-version active rule for (nombre, dominio).
+
+        Matches the requested dominio plus transversal rules; exact-dominio
+        hits sort first, then highest version wins. A NULL dominio row never
+        matches (SQL equality against the requested value).
+        """
+        exact_first = case((Regla.dominio == dominio, 0), else_=1)
+        return (
+            self._session.query(Regla)
+            .filter(Regla.nombre == rule_name)
+            .filter(Regla.estado == "active")
+            .filter(Regla.activo == True)  # noqa: E712
+            .filter(
+                or_(
+                    Regla.dominio == dominio,
+                    Regla.dominio == ENGINE_DOMAIN_TRANSVERSAL,
+                )
+            )
+            .order_by(exact_first, Regla.version.desc())
             .first()
         )
 

@@ -207,18 +207,21 @@ WHERE NOT EXISTS (SELECT 1 FROM catalogos WHERE key = 'sala_codes');
 --    both atomics under the AND root; the source nests gt under the atomic
 --    eq via MAX(id), leaving the cantidad check dead in dev)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'duplicados_farmacia', 'Detecta posibles duplicados en facturacion de farmacia (simplificado - per-row check)', 'urgencias', 'active', 1, 35, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Duplicados-Farmacia', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -245,18 +248,21 @@ END $$;
 -- 2. profesional_urgencias_valido (src seed/phase2/insert_profesionales_urg.sql,
 --    inline `in` superseded by the dev-active cat_in shape, same values)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'profesional_urgencias_valido', 'Profesional no válido en Urgencias', 'urgencias', 'active', 1, 40, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Profesionales', 'codigo_profesional,procedimiento', 'Cód: {codigo_profesional}', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -280,19 +286,22 @@ END $$;
 -- 3. revision_cantidad_urgencias (src seed/phase6/insert_revision_cantidad.sql,
 --    exact: group_by sum params + single gt cond)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'revision_cantidad_urgencias', 'Revisión necesaria: cantidad anómala por factura (suma > 1)', 'urgencias', 'active', 1, 40, 'warning', true,
     '[{"group_by": "numero_factura", "aggregations": [{"field": "cantidad", "target": "sum_cantidad", "function": "sum"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Revision-Necesaria', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -311,18 +320,21 @@ END $$;
 -- 4. sala_observacion_entidad (dev-active sala_obs_check evaluator shape;
 --    the seed/final_rules.sql 3-cond AND tree is stale and NOT seeded)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'sala_observacion_entidad', 'Estancia en sala de observacion mayor a 6 horas para entidades especificas', 'urgencias', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cups-Equivalentes', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -341,18 +353,21 @@ END $$;
 -- 5. sala_observacion_estancia_prolongada (dev-active sala_obs_check evaluator
 --    shape; the seed/phase5 3-cond AND tree is stale and NOT seeded)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'sala_observacion_estancia_prolongada', 'Estancia en Urgencias superior a 6 horas — requiere código de sala de observación', 'urgencias', 'active', 1, 32, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cups-Equivalentes', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -379,18 +394,21 @@ END $$;
 -- Composite valor_esperado normalized to SQL NULL (010/011/012 + prod
 -- convention; dev v9 stores json 'null', engine-equivalent).
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_hospitalizacion_valido', 'Centro de costo no válido en Hospitalización', 'hospitalizacion', 'active', 1, 25, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

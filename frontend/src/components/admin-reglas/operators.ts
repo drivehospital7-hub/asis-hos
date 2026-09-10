@@ -133,6 +133,10 @@ export const FUENTES_DATOS: string[] = [
   "group.id",
   "group.nombre",
   "group.tipo",
+  "group.collect_set_codigo",
+  "group.collect_value_counts",
+  "group.sum_cantidad",
+  "group.distinct_count_numero_factura",
   // contract.*
   "contract.id",
   "contract.cod_contrato",

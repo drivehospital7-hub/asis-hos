@@ -145,7 +145,7 @@ class TestF3CentroCostoToggle:
                 # When centro_costo_hospitalizacion_valido is created, return centro_costo items
                 actual_detectors: dict[str, MagicMock] = {}
 
-                def _side_effect(name, session):
+                def _side_effect(name, session, **kwargs):
                     if name not in actual_detectors:
                         d = MagicMock()
                         if name == "centro_costo_hospitalizacion_valido":
@@ -191,7 +191,7 @@ class TestF3CentroCostoToggle:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = _mock_session()
 
-                def _side_effect(name, session):
+                def _side_effect(name, session, **kwargs):
                     d = MagicMock()
                     d.detect.return_value = []
                     return d

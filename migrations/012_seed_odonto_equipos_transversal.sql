@@ -245,31 +245,37 @@ WHERE NOT EXISTS (SELECT 1 FROM catalogos WHERE key = 'codigos_tipo_procedimient
 -- seed/migracion-engine/14_centro_costo_comun.sql restricted to these 2
 -- names; reglas rows upserted here first so the tree builder never skips).
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_odontologia_valido', 'Centro de costo no válido en Odontología', 'odontologia', 'active', 1, 25, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_equipos_basicos_valido', 'Centro de costo no válido en Equipos Básicos', 'equipos_basicos', 'active', 1, 25, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -480,18 +486,21 @@ END $$;
 -- ===========================================================================
 -- profesional_odontologia_valido (NOT cat_in profesionales_odontologia)
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'profesional_odontologia_valido', 'Profesional no válido en Odontología', 'odontologia', 'active', 1, 40, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Profesionales', 'codigo_profesional,procedimiento', 'Cód: {codigo_profesional}', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -514,19 +523,22 @@ END $$;
 -- ===========================================================================
 -- ruta_duplicada (group_by identificacion, distinct_count numero_factura)
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'ruta_duplicada', 'Detecta pacientes con múltiples facturas en Promoción y Prevención (PyP).', 'odontologia', 'active', 1, 20, 'warning', true,
     '[{"group_by": "identificacion", "aggregations": [{"field": "numero_factura", "target": "distinct_count_numero_factura", "function": "distinct_count"}], "filter_field": "convenio_facturado", "filter_value": "Promocion y Prevencion"}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Ruta Duplicada', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -544,18 +556,21 @@ END $$;
 -- ===========================================================================
 -- valores_decimales (OR regex vlr_subsidiado / vlr_procedimiento)
 -- ===========================================================================
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'valores_decimales', 'Detecta facturas con valores decimales en Vlr. Subsidiado o Vlr. Procedimiento.', 'odontologia', 'active', 1, 10, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Decimales', '=Vlr. Procedimiento', '=Vlr. Subsidiado', 'Valores con decimales')
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -585,18 +600,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- profesional_equipos_validos (NOT cat_in profesionales_equipos_basicos)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'profesional_equipos_validos', 'Profesional no válido en Equipos Básicos', 'equipos_basicos', 'active', 1, 40, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Profesionales', 'codigo_profesional,procedimiento', 'Cód: {codigo_profesional}', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -623,18 +641,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- cantidad_consultas_anomalas (src seeds/005_cantidades_anomalas_seed.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cantidad_consultas_anomalas', 'Consultas con cantidad >= 2 se consideran anomalas.', 'transversal', 'active', 1, 30, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cantidades', 'codigo,procedimiento', 'cantidad', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -660,18 +681,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- cantidad_general_anomalas (src seeds/005_cantidades_anomalas_seed.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cantidad_general_anomalas', 'Cualquier tipo de procedimiento con cantidad > 10 se considera anomalo.', 'transversal', 'active', 1, 30, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cantidades', 'codigo,procedimiento', 'cantidad', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -694,18 +718,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- cantidad_pyp_anomalas (src seeds/005_cantidades_anomalas_seed.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cantidad_pyp_anomalas', 'Convenio PyP con cantidad >= 3 se considera anomalo.', 'transversal', 'active', 1, 30, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cantidades', 'codigo,procedimiento', 'cantidad', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -731,18 +758,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- codigo_entidad (NOT ent_code_match)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'codigo_entidad', 'Entidad Afiliación carece de código de entidad en formato esperado', 'transversal', 'active', 1, 40, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigo-Entidad-vs-Afiliacion', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -765,18 +795,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- cups_sin_contrato (NOT exists_in_db procedimiento.cups)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'cups_sin_contrato', 'CUPS no encontrado en el catálogo de procedimientos', 'transversal', 'active', 1, 35, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cups Sin Contrato', 'codigo,procedimiento', 'Entidad: {codigo_entidad_cobrar}, {entidad}', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -799,19 +832,22 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- doble_tipo_procedimiento (src seed/phase6/insert_doble_tipo_procedimiento.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'doble_tipo_procedimiento', 'Factura con más de un tipo de procedimiento', 'transversal', 'active', 1, 35, 'error', true,
     '[{"group_by": "numero_factura", "aggregations": [{"field": "tipo_procedimiento", "target": "distinct_count_tipo_procedimiento", "function": "distinct_count"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Doble Tipo Procedimiento', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -829,18 +865,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- entidad_86000_requiere_as_ms (src seeds/004_tipo_id_entidad_seed.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'entidad_86000_requiere_as_ms', 'Cod Entidad Cobrar = 86000 solo es valido para tipo identificacion AS o MS.', 'transversal', 'active', 1, 20, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigo-Entidad-vs-Afiliacion', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -871,18 +910,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_7_17 (AND gte 7 + lt 18 + OR[CC,AS,RC])
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_7_17', 'Tipo de identificacion incorrecto para edad 7-17 anos (debe ser TI)', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -922,18 +964,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_as_menor (src seed/tipo_doc_edad_completo.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_as_menor', 'Tipo AS (Adulto Sin identificacion) no valido para menores de 18 anos', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -959,18 +1004,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_ce_invalido (AND eq CE + lt edad 18)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_ce_invalido', 'Tipo CE (Cedula de Extranjeria) solo valido para mayores de 7 anos', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -996,18 +1044,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_cn_invalido (src seed/tipo_doc_edad_completo.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_cn_invalido', 'Tipo CN (Certificado de Nacimiento) solo valido para menores de 2 meses', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -1033,18 +1084,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_mayor_18 (AND gte 18 + OR[TI,RC,MS,TE])
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_mayor_18', 'Tipo de identificación incorrecto para mayor de edad (debe ser CC)', 'transversal', 'active', 1, 31, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -1084,18 +1138,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_menor_7 (AND lt 7 + OR[TI,CC,AS,TE])
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_menor_7', 'Tipo de identificación incorrecto para menor de 7 años (debe ser RC)', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -1135,18 +1192,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_documento_edad_ms_mayor (src seed/tipo_doc_edad_completo.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_documento_edad_ms_mayor', 'Tipo MS (Menor Sin identificacion) no valido para mayores de 18 anos', 'transversal', 'active', 1, 30, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Identificacion / Edad', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -1172,18 +1232,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_id_requiere_entidad_86000 (src seeds/004_tipo_id_entidad_seed.sql)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_id_requiere_entidad_86000', 'AS o MS como tipo identificacion requieren Cod Entidad Cobrar = 86000.', 'transversal', 'active', 1, 20, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Codigo-Entidad-vs-Afiliacion', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -1214,18 +1277,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- tipo_usuario_valido (NOT cat_in tipo_usuario_validos)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'tipo_usuario_valido', 'Detecta facturas con tipo de usuario no válido.', 'transversal', 'active', 1, 15, 'warning', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Tipo Usuario', 'codigo,procedimiento', 'tipo_actual', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

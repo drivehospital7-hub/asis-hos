@@ -58,6 +58,7 @@ import {
   fetchCatalogoReglas,
 } from "@/lib/api-reglas";
 import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
+import { GroupingFields } from "@/components/admin-reglas/GroupingFields";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -536,6 +537,18 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [severidad, setSeveridad] = useState(rule.severidad);
   const [prioridad, setPrioridad] = useState(String(rule.prioridad));
   const [activo, setActivo] = useState(rule.activo);
+  const [grupoError, setGrupoError] = useState(rule.grupo_error ?? "");
+  const [detalleACampo, setDetalleACampo] = useState(rule.detalle_a_campo ?? "");
+  const [detalleBCampo, setDetalleBCampo] = useState(rule.detalle_b_campo ?? "");
+  const [descripcionTemplate, setDescripcionTemplate] = useState(
+    rule.descripcion_template ?? ""
+  );
+  const handleGroupingChange = (field: string, value: string) => {
+    if (field === "grupo_error") setGrupoError(value);
+    else if (field === "detalle_a_campo") setDetalleACampo(value);
+    else if (field === "detalle_b_campo") setDetalleBCampo(value);
+    else if (field === "descripcion_template") setDescripcionTemplate(value);
+  };
   const [parametros, setParametros] = useState(
     rule.parametros ? JSON.stringify(rule.parametros, null, 2) : ""
   );
@@ -590,6 +603,10 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
         severidad,
         prioridad: Number(prioridad),
           activo,
+          grupo_error: grupoError.trim() || null,
+          detalle_a_campo: detalleACampo.trim() || null,
+          detalle_b_campo: detalleBCampo.trim() || null,
+          descripcion_template: descripcionTemplate.trim() || null,
           condiciones: tree,
           parametros: parametros.trim() ? JSON.parse(parametros) : null,
         });
@@ -694,6 +711,15 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               disabled={isReadOnly}
             />
           </div>
+
+          <GroupingFields
+            grupoError={grupoError}
+            detalleACampo={detalleACampo}
+            detalleBCampo={detalleBCampo}
+            descripcionTemplate={descripcionTemplate}
+            disabled={isReadOnly}
+            onChange={handleGroupingChange}
+          />
 
           {!isReadOnly && (
             <div className="flex items-center gap-3 mb-4">

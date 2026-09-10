@@ -7,8 +7,12 @@ con un builder parametrizado por error_groups: dict que mapea tipo_error -> list
 from __future__ import annotations
 
 import calendar
+import os
 from datetime import datetime
+from string import Formatter
 from typing import Any
+
+from app.constants.grupo_error import NAMED_FORMATTER_GROUPS
 
 
 def _parse_fecha_edad(value: Any) -> datetime | None:
@@ -101,11 +105,308 @@ def _build_edad_detalle(anios: int, meses_residuales: int,
     return " ".join(partes)
 
 
+# Legacy generic-fallback group-by key order. The grupo_error generic mapper
+# replicates this exact order so sparse-dict groups stay byte-stable.
+GENERIC_FALLBACK_KEY_ORDER = (
+    "codigo", "vlr_subsidiado", "tipo_identificacion", "cantidad",
+    "centro_costo", "codigo_entidad_cobrar", "observacion", "accion",
+    "identificacion",
+)
+
+# Named-formatter registry keyed by grupo_error (populated with the 5 special
+# formatters). Unknown keys fall through to the generic mapper.
+GRUPO_FORMATTERS: dict[str, Any] = {}
+
+
+def _format_tipo_id_edad(item: dict, mapping: dict) -> dict[str, str]:
+    """Tipo Identificacion / Edad: edad recompute + identificacion procedimiento."""
+    num_id = item.get("identificacion", "") or item.get("numero_identificacion", "")
+    tipo_actual = item.get("tipo_actual", "")
+    tipo_deberia = item.get("tipo_deberia", "")
+    problema = item.get("problema", "")
+    edad_anios_raw = item.get("edad_anios") if "edad_anios" in item else item.get("date.edad")
+    edad_meses_raw = item.get("edad_meses") if "edad_meses" in item else item.get("date.edad_meses")
+    try:
+        anios = int(edad_anios_raw) if edad_anios_raw is not None else 0
+    except (ValueError, TypeError):
+        anios = 0
+    try:
+        meses_residuales = int(edad_meses_raw) if edad_meses_raw is not None else 0
+        meses_residuales %= 12
+    except (ValueError, TypeError):
+        meses_residuales = 0
+    return {
+        "descripcion": problema or f"Tipo actual {tipo_actual} debería ser {tipo_deberia}",
+        "procedimiento": str(num_id).strip() if num_id else "",
+        "detalle": _build_edad_detalle(
+            anios, meses_residuales, item.get("fec_nacimiento"), item.get("fec_factura")),
+    }
+
+
+def _format_codigo_entidad(item: dict, mapping: dict) -> dict[str, str]:
+    """Codigo-Entidad-vs-Afiliacion: as_ms/86000 branches + legacy branch."""
+    if "tipo_identificacion" in item:
+        tipo_id = item.get("tipo_identificacion", "")
+        cod_actual = item.get("cod_entidad_actual", "")
+        cod_esperado = item.get("cod_entidad_esperado", "")
+        problema_key = item.get("problema", "")
+        if problema_key == "as_ms_requiere_86000":
+            desc = f"Tipo ID {tipo_id} requiere Cód Entidad Cobrar = {cod_esperado}"
+            detalle = f"Actual: {cod_actual}"
+        elif problema_key == "86000_solo_para_as_ms":
+            desc = f"Cód Entidad Cobrar = {cod_actual} solo válido para AS/MS"
+            detalle = f"Tipo ID actual: {tipo_id}"
+        else:
+            desc = item.get("problema", "")
+            detalle = f"Tipo ID: {tipo_id}, Cód: {cod_actual}"
+        return {
+            "descripcion": desc, "procedimiento": str(cod_actual),
+            "detalle": detalle, "_header_override": "Código Entidad",
+        }
+    cod = item.get("codigo_entidad_cobrar", "")
+    nombre = item.get("entidad_cobrar_nombre", "")
+    return {
+        "descripcion": item.get("problema", ""),
+        "procedimiento": f"{cod} - {nombre}" if cod and nombre else str(cod),
+        "detalle": f"Afiliación: {item.get('entidad_afiliacion', '')}",
+        "_header_override": "Entidad de factura",
+    }
+
+
+def _format_duplicados_farmacia(item: dict, mapping: dict) -> dict[str, str]:
+    """Duplicados-Farmacia: pares-join, tipo remapped to Revision-Necesaria."""
+    tipo_proc = item.get("codigo_tipo_procedimiento", "")
+    total_pares = item.get("total_pares", 0)
+    pares = item.get("pares_duplicados", [])
+    problema = item.get("problema", "")
+    detalle_pares = "; ".join(
+        f"{p.get('codigo', '')} x{p.get('cantidad', '')} ({p.get('count', 0)} veces)"
+        for p in pares) if pares else ""
+    if problema:
+        descripcion = problema
+        procedimiento = _combine_procedimiento(
+            item.get("codigo", ""), item.get("procedimiento", "")) or (
+            f"Grupo {tipo_proc}" if tipo_proc else "")
+    elif tipo_proc:
+        descripcion = (f"Duplicados Farmacia — Grupo {tipo_proc}: "
+                       f"{total_pares} par(es) duplicado(s)")
+        procedimiento = f"Grupo {tipo_proc}"
+    else:
+        descripcion = f"Duplicados Farmacia: {total_pares} par(es) duplicado(s)"
+        procedimiento = ""
+    return {
+        "tipo_error": "Revision-Necesaria",
+        "descripcion": descripcion,
+        "procedimiento": procedimiento,
+        "detalle": detalle_pares or f"{total_pares} pares",
+    }
+
+
+def _format_cups_equivalentes(item: dict, mapping: dict) -> dict[str, str]:
+    """Cups-Equivalentes: codigo-list procedimiento + estancia detalle."""
+    codigo_raw = item.get("codigo", "")
+    proc_raw = item.get("procedimiento", "")
+    estancia_str = item.get("estancia_str", "")
+    if isinstance(codigo_raw, list):
+        codigo_str = ", ".join(str(c) for c in codigo_raw)
+    else:
+        codigo_str = str(codigo_raw)
+    proc_str = str(proc_raw).strip() if proc_raw else ""
+    return {
+        "descripcion": item.get("problema", "") or item.get("accion", ""),
+        "procedimiento": proc_str if proc_str else codigo_str,
+        "detalle": f"Estancia: {estancia_str}" if estancia_str else codigo_str,
+    }
+
+
+def _format_revision_necesaria(item: dict, mapping: dict) -> dict[str, str]:
+    """Revision-Necesaria: passthrough with descripcion inference."""
+    detalle = item.get("detalle", "")
+    descripcion = item.get("descripcion", "")
+    if not descripcion:
+        if "Cant:" in str(detalle):
+            descripcion = "Cantidad > 1 con código no exento requiere revisión manual"
+        elif detalle == "86":
+            descripcion = "Cód Entidad Cobrar = 86 requiere revisión manual"
+        else:
+            descripcion = item.get("problema", "Revisión necesaria")
+    return {
+        "descripcion": descripcion,
+        "procedimiento": _combine_procedimiento(item.get("codigo", ""), item.get("procedimiento", "")),
+        "detalle": str(detalle),
+    }
+
+
+GRUPO_FORMATTERS.update({
+    "Tipo Identificacion / Edad": _format_tipo_id_edad,
+    "Codigo-Entidad-vs-Afiliacion": _format_codigo_entidad,
+    "Duplicados-Farmacia": _format_duplicados_farmacia,
+    "Cups-Equivalentes": _format_cups_equivalentes,
+    "Revision-Necesaria": _format_revision_necesaria,
+})
+
+
+def is_grupo_error_mapping_enabled() -> bool:
+    """Cutover flag: True routes build_normalized_rows through grupo mapping."""
+    return os.getenv("GRUPO_ERROR_MAPPING", "false").strip().lower() == "true"
+
+
+def _combine_procedimiento(codigo: Any, procedimiento: Any) -> str:
+    """Combine codigo + procedimiento nombre as 'COD - Nombre' (pure)."""
+    codigo = str(codigo).strip() if codigo else ""
+    procedimiento = str(procedimiento).strip() if procedimiento else ""
+    if codigo and procedimiento:
+        return f"{codigo} - {procedimiento}"
+    return codigo or procedimiento or ""
+
+
+def _safe_format(template: str, item: dict) -> str:
+    """Format a template with item fields; missing keys render as ''."""
+    try:
+        return Formatter().vformat(template, (), _DefaultDict(item))
+    except (ValueError, IndexError, KeyError):
+        return ""
+
+
+class _DefaultDict(dict):
+    """Missing keys render as empty string in _safe_format."""
+
+    def __missing__(self, key: str) -> str:
+        return ""
+
+
+def _resolve_procedimiento(item: dict, a_campo: str | None) -> str:
+    """Resolve procedimiento from detalle_a_campo: '=literal', 'f1,f2' pair, field."""
+    if not a_campo:
+        return ""
+    if a_campo.startswith("="):
+        return a_campo[1:]
+    if "," in a_campo:
+        first, second = (p.strip() for p in a_campo.split(",", 1))
+        return _combine_procedimiento(item.get(first, ""), item.get(second, ""))
+    value = item.get(a_campo, "")
+    return str(value).strip() if value is not None else ""
+
+
+def _resolve_detalle(item: dict, b_campo: str | None) -> str:
+    """Resolve detalle from detalle_b_campo: '=literal', template, fallback list, field."""
+    if not b_campo:
+        return ""
+    if b_campo.startswith("="):
+        return b_campo[1:]
+    if "{" in b_campo:
+        return _safe_format(b_campo, item)
+    if "," in b_campo:
+        for name in (p.strip() for p in b_campo.split(",")):
+            value = item.get(name, "")
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return ""
+    value = item.get(b_campo, "")
+    return str(value).strip() if value is not None else ""
+
+
+def _build_grupo_mapped_rows(
+    error_groups: dict[str, list],
+    responsables_map: dict[str, str],
+    fec_factura_map: dict[str, str],
+    fecha_cierre_vacia_map: dict[str, bool],
+    grupo_mappings: dict[str, dict[str, Any]],
+) -> list[dict[str, str]]:
+    """Build rows from grupo_error-keyed groups via formatters or generic mapper."""
+    rows: list[dict[str, str]] = []
+
+    def _row_base(grupo: str, factura: str) -> dict[str, str]:
+        return {
+            "tipo_error": grupo,
+            "factura": factura,
+            "fec_factura": fec_factura_map.get(factura, ""),
+            "responsable_cierra": responsables_map.get(factura, ""),
+            "fecha_cierre_vacia": fecha_cierre_vacia_map.get(factura, False),
+        }
+
+    for grupo, group_list in error_groups.items():
+        formatter = GRUPO_FORMATTERS.get(grupo)
+        mapping = grupo_mappings.get(grupo, {})
+        a_campo = mapping.get("detalle_a_campo")
+        b_campo = mapping.get("detalle_b_campo")
+        template = mapping.get("descripcion_template")
+        for raw in group_list or []:
+            item = {"factura": str(raw)} if isinstance(raw, str) else dict(raw)
+            factura = str(item.get("factura", ""))
+            if formatter is not None:
+                row = _row_base(grupo, factura)
+                row.update(formatter(item, mapping))
+                rows.append(row)
+                continue
+            descripcion = _safe_format(template, item) if template else item.get("problema", "")
+            row = _row_base(grupo, factura)
+            row["descripcion"] = descripcion
+            row["procedimiento"] = _resolve_procedimiento(item, a_campo)
+            row["detalle"] = _resolve_detalle(item, b_campo)
+            if grupo not in NAMED_FORMATTER_GROUPS and not any([a_campo, b_campo, template]):
+                row["mapping_completa"] = False
+            rows.append(row)
+
+    _attach_regla_and_fallback(rows, error_groups, {"Duplicados-Farmacia": "Revision-Necesaria"})
+    return rows
+
+
+def _attach_regla_and_fallback(
+    rows: list[dict],
+    error_groups: dict[str, list],
+    key_to_tipo_remap: dict[str, str],
+) -> None:
+    """Enrich rows with regla ids and fill empty procedimiento via key order."""
+    _item_reglas: dict[tuple[str, str], str] = {}
+    for grupo_key, group_list in error_groups.items():
+        tipo = key_to_tipo_remap.get(grupo_key, grupo_key)
+        if isinstance(group_list, list):
+            for item in group_list:
+                if isinstance(item, dict):
+                    r = item.get("regla", "")
+                    f = item.get("factura", "")
+                    if r and f:
+                        key = (f, tipo)
+                        if key not in _item_reglas:
+                            _item_reglas[key] = r
+    for row in rows:
+        f = row.get("factura", "")
+        t = row.get("tipo_error", "")
+        r = _item_reglas.get((f, t))
+        row["regla"] = r if r else ""
+
+    if rows:
+        all_items: list[dict] = []
+        for group_list in error_groups.values():
+            if isinstance(group_list, list):
+                for item in group_list:
+                    if isinstance(item, dict):
+                        all_items.append(item)
+        factura_to_item = {}
+        for item in all_items:
+            f = item.get("factura", "")
+            if f:
+                factura_to_item[f] = item
+        for row in rows:
+            if not row.get("procedimiento") and not row.get("detalle"):
+                item = factura_to_item.get(row.get("factura", ""))
+                if item:
+                    for key in GENERIC_FALLBACK_KEY_ORDER:
+                        val = item.get(key, "")
+                        if val:
+                            row["procedimiento"] = str(val)
+                            break
+
+
 def build_normalized_rows(
     error_groups: dict[str, list],
     responsables_map: dict[str, str],
     fec_factura_map: dict[str, str] | None = None,
     fecha_cierre_vacia_map: dict[str, bool] | None = None,
+    *,
+    use_grupo_mapping: bool | None = None,
+    grupo_mappings: dict[str, dict[str, Any]] | None = None,
 ) -> list[dict[str, str]]:
     """Normaliza todos los tipos de error en filas de 6 columnas.
 
@@ -119,6 +420,16 @@ def build_normalized_rows(
         Lista de dicts con keys: tipo_error, factura, fec_factura,
         responsable_cierra, descripcion, procedimiento, detalle, fecha_cierre_vacia
     """
+    enabled = use_grupo_mapping if use_grupo_mapping is not None else is_grupo_error_mapping_enabled()
+    if enabled:
+        return _build_grupo_mapped_rows(
+            error_groups,
+            responsables_map,
+            fec_factura_map or {},
+            fecha_cierre_vacia_map or {},
+            grupo_mappings or {},
+        )
+
     rows: list[dict[str, str]] = []
     _fec_factura_map = fec_factura_map or {}
     _fecha_cierre_vacia_map = fecha_cierre_vacia_map or {}
@@ -133,11 +444,7 @@ def build_normalized_rows(
         return _fec_factura_map.get(factura, "")
 
     def _build_procedimiento(codigo: str, procedimiento: str) -> str:
-        codigo = str(codigo).strip() if codigo else ""
-        procedimiento = str(procedimiento).strip() if procedimiento else ""
-        if codigo and procedimiento:
-            return f"{codigo} - {procedimiento}"
-        return codigo or procedimiento or ""
+        return _combine_procedimiento(codigo, procedimiento)
 
     # --- Centros de Costo ---
     for item in error_groups.get("Centros de Costo", []):
@@ -178,7 +485,7 @@ def build_normalized_rows(
             "responsable_cierra": _get_responsable(factura),
             "descripcion": descripcion,
             "procedimiento": _build_procedimiento(codigo, proc),
-            "detalle": item.get("ide_contrato_actual", ""),
+            "detalle": item.get("ide_contrato_actual", "") or item.get("ide_contrato", ""),
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(factura),
         })
 
@@ -545,57 +852,9 @@ def build_normalized_rows(
     # Enrich rows with rule identifier (regla) from original detection items.
     # Some error_groups keys get remapped to a different tipo_error in the row
     # (e.g. "Duplicados Farmacia" → "⚠️ Revisión Necesaria"). Map them explicitly.
-    _KEY_TO_TIPO_REMAP = {
-        "Duplicados Farmacia": "⚠️ Revisión Necesaria",
-    }
-    # Build (factura, tipo_error) → regla from original items
-    _item_reglas: dict[tuple[str, str], str] = {}
-    for grupo_key, group_list in error_groups.items():
-        tipo = _KEY_TO_TIPO_REMAP.get(grupo_key, grupo_key)
-        if isinstance(group_list, list):
-            for item in group_list:
-                if isinstance(item, dict):
-                    r = item.get("regla", "")
-                    f = item.get("factura", "")
-                    if r and f:
-                        key = (f, tipo)
-                        if key not in _item_reglas:
-                            _item_reglas[key] = r
-    for row in rows:
-        f = row.get("factura", "")
-        t = row.get("tipo_error", "")
-        r = _item_reglas.get((f, t))
-        if r:
-            row["regla"] = r
-        else:
-            row["regla"] = ""
-
-    # Generic fallback: if procedimiento AND detalle are both empty,
-    # find the original item by factura and use its first matching key.
-    # This handles group-by rules (sparse dicts with only factura + problema).
-    if rows:
-        all_items: list[dict] = []
-        for group_list in error_groups.values():
-            if isinstance(group_list, list):
-                for item in group_list:
-                    if isinstance(item, dict):
-                        all_items.append(item)
-        factura_to_item = {}
-        for item in all_items:
-            f = item.get("factura", "")
-            if f:
-                factura_to_item[f] = item
-        for row in rows:
-            if not row.get("procedimiento") and not row.get("detalle"):
-                item = factura_to_item.get(row.get("factura", ""))
-                if item:
-                    for key in ("codigo", "vlr_subsidiado", "tipo_identificacion",
-                                "cantidad", "centro_costo", "codigo_entidad_cobrar",
-                                "observacion", "accion", "identificacion"):
-                        val = item.get(key, "")
-                        if val:
-                            row["procedimiento"] = str(val)
-                            break
+    _attach_regla_and_fallback(
+        rows, error_groups, {"Duplicados Farmacia": "⚠️ Revisión Necesaria"}
+    )
 
     return rows
 

@@ -30,7 +30,7 @@ class TestRuleBasedDetector:
         ws = wb.active
         ws.cell(row=1, column=1, value="FACTURA")
 
-        detector = RuleBasedDetector("test_rule", session)
+        detector = RuleBasedDetector("test_rule", session, dominio="transversal")
         result = detector.detect(ws, {"numero_factura": 0})
         assert isinstance(result, list)
 
@@ -48,6 +48,6 @@ class TestRuleBasedDetector:
     def test_init_stores_rule_name_and_session(self):
         from app.services.engine.rule_based_detector import RuleBasedDetector
         session = MagicMock()
-        detector = RuleBasedDetector("valores_decimales", session)
+        detector = RuleBasedDetector("valores_decimales", session, dominio="transversal")
         assert detector._rule_name == "valores_decimales"
         assert detector._session is session

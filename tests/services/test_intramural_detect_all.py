@@ -41,7 +41,7 @@ class TestDetectAllProblemsIntramural:
         """
         calls: list[str] = []
 
-        def _mock_detector(name, session):
+        def _mock_detector(name, session, **kwargs):
             calls.append(name)
             d = MagicMock()
             d.detect.return_value = []

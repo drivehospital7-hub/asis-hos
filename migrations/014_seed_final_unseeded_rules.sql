@@ -102,18 +102,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- ide_contrato_odontologia_valido (odontologia, 111 conds, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'ide_contrato_odontologia_valido', 'IDE Contrato debe corresponder a la entidad y tipo de procedimiento (PyP vs No PyP) en Odontologia.', 'odontologia', 'active', 1, 40, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'IDE Contrato', 'codigo,procedimiento', 'ide_contrato_actual,ide_contrato', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -466,18 +469,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- detect_duplicados_base (transversal, 1 cond, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'detect_duplicados_base', 'Detecta grupos de farmacia donde todos los pares (codigo, cantidad) aparecen al menos 2 veces', 'transversal', 'active', 1, 35, 'warning', true, '[{"group_by": "factura", "aggregations": [{"fields": ["codigo", "cantidad"], "function": "collect_value_counts"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Duplicados-Farmacia', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -500,18 +506,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- duplicados_farmacia_v2 (urgencias, 1 cond, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'duplicados_farmacia_v2', 'Detecta grupos de farmacia donde todos los pares estan duplicados (filtrado por tipo=FARMACIA)', 'urgencias', 'active', 1, 35, 'warning', true, '[{"group_by": "factura", "aggregations": [{"fields": ["codigo", "cantidad"], "function": "collect_value_counts"}], "filter_field": "tipo_factura_descripcion", "filter_value": "FARMACIA"}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Duplicados-Farmacia', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -530,18 +539,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- ide_contrato_reverse_urgencias_valido (urgencias, 21 conds, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'ide_contrato_reverse_urgencias_valido', 'Valida que el código CUPS corresponda al IDE Contrato (reglas REVERSE). Cubre reglas simples sin pre-scan.', 'urgencias', 'active', 1, 46, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'IDE Contrato', 'codigo,procedimiento', 'ide_contrato_actual,ide_contrato', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -620,18 +632,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- revision_cantidad_v2 (urgencias, 1 cond, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'revision_cantidad_v2', 'Revision de cantidad en facturas de farmacia agrupando por factura', 'urgencias', 'active', 1, 35, 'warning', true, '[{"group_by": "factura", "aggregations": [{"field": "cantidad", "function": "sum"}], "filter_field": "tipo_factura_descripcion", "filter_value": "FARMACIA"}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Revision-Necesaria', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -650,18 +665,21 @@ END $$;
 -- ---------------------------------------------------------------------------
 -- sala_obs_check_set (urgencias, 4 conds, live-faithful)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'sala_obs_check_set', 'Verifica que si hay codigos de sala de observacion, esten los obligatorios 890701 y 890601', 'urgencias', 'active', 1, 30, 'error', true, '[{"group_by": "factura", "aggregations": [{"field": "codigo", "function": "collect_set"}]}]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cups-Equivalentes', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

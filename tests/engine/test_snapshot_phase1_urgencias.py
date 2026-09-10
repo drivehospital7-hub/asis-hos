@@ -60,7 +60,7 @@ def _run_engine_detection(rule_name, dominio, descripcion, condiciones, ws, indi
     """Run engine detection against a worksheet with mocked session."""
     from app.services.engine.rule_based_detector import RuleBasedDetector
     session = _mock_session_with_rule(rule_name, dominio, descripcion, condiciones)
-    detector = RuleBasedDetector(rule_name, session)
+    detector = RuleBasedDetector(rule_name, session, dominio=dominio)
     return detector.detect(ws, indices)
 
 

@@ -108,7 +108,7 @@ class TestEngineRoutingF5:
         duplicado_id_codigo_02_lab rules (Ref #1 GAP) — section is []."""
         from app.services.intramural.detect_all import detect_all_problems_intramural
 
-        def _mock_rbd(name, session):
+        def _mock_rbd(name, session, **kwargs):
             m = MagicMock()
             m.detect.return_value = []
             return m
@@ -154,7 +154,7 @@ class TestEngineRoutingF5:
 
         mock_rbd_instance = MagicMock()
         mock_rbd_instance.detect.return_value = []
-        mock_rbd.side_effect = lambda name, session: mock_rbd_instance
+        mock_rbd.side_effect = lambda name, session, **kwargs: mock_rbd_instance
 
         wb = Workbook()
         ws = wb.active
@@ -221,7 +221,7 @@ class TestEngineRoutingF5:
 
             mock_instance = MagicMock()
             mock_instance.detect.return_value = []
-            mock_rbd.side_effect = lambda name, session: mock_instance
+            mock_rbd.side_effect = lambda name, session, **kwargs: mock_instance
 
             wb = Workbook()
             ws = wb.active
@@ -281,7 +281,7 @@ class TestSnapshotF5:
 
             mock_instance = MagicMock()
             mock_instance.detect.return_value = []
-            mock_rbd.side_effect = lambda name, session: mock_instance
+            mock_rbd.side_effect = lambda name, session, **kwargs: mock_instance
 
             wb, indices = self._build_wb()
             result_engine, _ = detect_all_problems_intramural(wb.active, indices)
@@ -304,7 +304,7 @@ class TestSnapshotF5:
 
             mock_instance = MagicMock()
             mock_instance.detect.return_value = []
-            mock_rbd.side_effect = lambda name, session: mock_instance
+            mock_rbd.side_effect = lambda name, session, **kwargs: mock_instance
 
             wb, indices = self._build_wb()
             result_engine, _ = detect_all_problems_intramural(wb.active, indices)

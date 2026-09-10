@@ -130,18 +130,21 @@ END $$;
 -- 1. bacteriologas_cronograma (src seed/migracion-engine/09 verbatim:
 --    1 cond cronograma_check on invoice.codigo_profesional)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'bacteriologas_cronograma', 'Bacterióloga debe estar en cronograma del día — Intramural tipo 02/05 con Laboratorio=Si', 'intramural', 'active', 1, 60, 'error', true, '[]'::jsonb
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Cronograma Bacteriologas', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -161,18 +164,21 @@ END $$;
 --    OR tree replacing the deprecated centro_costo_intramural evaluator.
 --    100 conds = OR root + 18 AND branches + nested composites.)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, parametros, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'centro_costo_intramural_valido', 'Centro de costo no valido en Intramural', 'intramural', 'active', 1, 25, 'error', true, NULL
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Centros de Costo', 'codigo,procedimiento', 'centro_actual,centro_costo', NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -599,20 +605,23 @@ END $$;
 --    group_by (identificacion, codigo, codigo_dx_principal) filter
 --    codigo_tipo_procedimiento='05', single gte count>=2)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, parametros, severidad, activo)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, parametros, severidad, activo, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'duplicado_id_codigo_05', 'Duplicados ID+Código para tipo=05 — grupos de (identificacion, codigo, dx_principal) con count >= 2', 'intramural', 'active', 1, 50,
     '[{"group_by": ["identificacion", "codigo", "codigo_dx_principal"], "filter_field": "codigo_tipo_procedimiento", "filter_value": "05", "aggregations": [{"function": "group_size", "target": "count"}, {"function": "collect_group_keys", "field": "numero_factura", "target": "facturas"}]}]'::jsonb,
     'warning', true
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Duplicado ID-Codigo', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE
@@ -632,18 +641,21 @@ END $$;
 --    1 cond revision_cantidad_intramural on invoice.cantidad; cascade
 --    02+Lab=No→>2, 03/04→>13, general→>1 + specific 901101:3)
 -- ---------------------------------------------------------------------------
-INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo)
+INSERT INTO reglas (nombre, descripcion, dominio, estado, version, prioridad, severidad, activo, grupo_error, detalle_a_campo, detalle_b_campo, descripcion_template)
 VALUES (
     'revision_cantidad_intramural', 'Cantidad fuera de rango en Intramural — requiere revision manual', 'intramural', 'active', 1, 25, 'warning', true
-)
-ON CONFLICT (nombre, version) DO UPDATE SET
-    descripcion = EXCLUDED.descripcion,
+, 'Revision-Necesaria', NULL, NULL, NULL)
+ON CONFLICT (nombre, version) DO UPDATE SET descripcion = EXCLUDED.descripcion,
     dominio = EXCLUDED.dominio,
     estado = 'active',
     prioridad = EXCLUDED.prioridad,
     severidad = EXCLUDED.severidad,
     activo = true,
-    parametros = EXCLUDED.parametros;
+    parametros = EXCLUDED.parametros,
+    grupo_error = EXCLUDED.grupo_error,
+    detalle_a_campo = EXCLUDED.detalle_a_campo,
+    detalle_b_campo = EXCLUDED.detalle_b_campo,
+    descripcion_template = EXCLUDED.descripcion_template;
 
 DO $$
 DECLARE

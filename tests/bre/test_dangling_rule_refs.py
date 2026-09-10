@@ -77,7 +77,7 @@ def _run(rule_name: str | None, dominio: str, descripcion: str,
     from app.services.engine.rule_based_detector import RuleBasedDetector
 
     session = _mock_session(rule_name, dominio, descripcion, condiciones, parametros)
-    return RuleBasedDetector(rule_name or "dangling", session).detect(
+    return RuleBasedDetector(rule_name or "dangling", session, dominio=dominio).detect(
         ws, indices, persist=False,
     )
 

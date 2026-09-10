@@ -132,7 +132,7 @@ def _evaluate_hospitalizacion_engine_rules(
 
         collector = EvidenceCollector(domain="hospitalizacion")
         for rule_name, group_key in _HOSPITALIZACION_ENGINE_RULES.items():
-            results = RuleBasedDetector(rule_name, session).detect(
+            results = RuleBasedDetector(rule_name, session, dominio=AREA_HOSPITALIZACION).detect(
                 data_sheet, indices, persist=_PERSIST, evidence_collector=collector,
             )
             groups[group_key].extend(results)

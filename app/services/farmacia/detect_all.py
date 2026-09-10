@@ -68,7 +68,7 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            decimales = RuleBasedDetector("valores_decimales", session).detect(data_sheet, indices, persist=_PERSIST)
+            decimales = RuleBasedDetector("valores_decimales", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:
@@ -80,13 +80,13 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session).detect(data_sheet, indices, persist=_PERSIST)
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session).detect(data_sheet, indices, persist=_PERSIST)
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session).detect(data_sheet, indices, persist=_PERSIST)
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session).detect(data_sheet, indices, persist=_PERSIST)
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session).detect(data_sheet, indices, persist=_PERSIST)
+            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
             if _PERSIST:
                 session.commit()
@@ -100,8 +100,8 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session).detect(data_sheet, indices, persist=_PERSIST)
+            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
+            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             tipo_identificacion_entidad = r1 + r2
             if _PERSIST:
                 session.commit()
@@ -117,7 +117,7 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session).detect(data_sheet, indices, persist=_PERSIST)
+            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:
@@ -130,7 +130,7 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session).detect(data_sheet, indices, persist=_PERSIST)
+            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:
@@ -143,7 +143,7 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            copago_entidad = RuleBasedDetector("copago_entidad_valido", session).detect(data_sheet, indices, persist=_PERSIST)
+            copago_entidad = RuleBasedDetector("copago_entidad_valido", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:
@@ -156,7 +156,7 @@ def detect_all_problems_farmacia(
         from app.database import get_session
         session = get_session()
         try:
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session).detect(data_sheet, indices, persist=_PERSIST)
+            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:
@@ -171,7 +171,7 @@ def detect_all_problems_farmacia(
             # Ref #1: "duplicados_farmacia_farmacia" exists in no DB but the
             # test DB; the seeded duplicados_farmacia rule (tipo==FARMACIA AND
             # cantidad>1) covers the Duplicados Farmacia intent.
-            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session).detect(data_sheet, indices, persist=_PERSIST)
+            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session, dominio=AREA_FARMACIA).detect(data_sheet, indices, persist=_PERSIST)
             if _PERSIST:
                 session.commit()
             else:

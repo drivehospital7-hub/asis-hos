@@ -20,6 +20,10 @@ export interface Regla {
   prioridad: number;
   severidad: string;
   activo: boolean;
+  grupo_error: string | null;
+  detalle_a_campo: string | null;
+  detalle_b_campo: string | null;
+  descripcion_template: string | null;
   parametros: Record<string, unknown> | null;
   parametros_default: Record<string, unknown> | null;
   creado_en: string | null;

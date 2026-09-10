@@ -1210,7 +1210,7 @@ class TestDetectAllPassesResponsableCierra:
         resp_idx = indices["responsable_cierra"]
         ws.cell(row=2, column=resp_idx + 1, value="CHAPUEL CASANOVA ANGIE TATIANA")
 
-        def _mock_detector(name, session):
+        def _mock_detector(name, session, **kwargs):
             # Ref #1: bacteriologas_cronograma and centro_costo_intramural_valido
             # are documented GAPs (dangling names) — detect_all must never
             # evaluate them; the sections stay [].

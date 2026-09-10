@@ -18,6 +18,8 @@ logger = logging.getLogger(__name__)
 _MUTABLE_FIELDS = frozenset({
     "nombre", "descripcion", "dominio", "severidad", "prioridad",
     "activo", "parametros", "parametros_default",
+    "grupo_error", "detalle_a_campo", "detalle_b_campo",
+    "descripcion_template",
 })
 
 
@@ -194,6 +196,10 @@ def create_rule(db_session, data: dict) -> dict:
         activo=data.get("activo", True),
         parametros=data.get("parametros"),
         parametros_default=data.get("parametros_default"),
+        grupo_error=data.get("grupo_error"),
+        detalle_a_campo=data.get("detalle_a_campo"),
+        detalle_b_campo=data.get("detalle_b_campo"),
+        descripcion_template=data.get("descripcion_template"),
     )
     db_session.add(rule)
     db_session.flush()  # Get ID
@@ -412,6 +418,10 @@ def duplicate_rule(db_session, rule_id: int) -> dict:
         activo=rule.activo,
         parametros=copy.deepcopy(rule.parametros),
         parametros_default=copy.deepcopy(rule.parametros_default),
+        grupo_error=rule.grupo_error,
+        detalle_a_campo=rule.detalle_a_campo,
+        detalle_b_campo=rule.detalle_b_campo,
+        descripcion_template=rule.descripcion_template,
     )
     db_session.add(duplicate)
     db_session.flush()
