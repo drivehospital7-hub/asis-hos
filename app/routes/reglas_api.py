@@ -15,6 +15,7 @@ from sqlalchemy import text
 from app.database import get_db
 from app.services.reglas.rule_service import (
     create_rule,
+    deactivate_all_rules,
     delete_rule,
     duplicate_rule,
     get_rule,
@@ -60,6 +61,36 @@ def api_list_rules():
         return jsonify({"status": "success", "data": items, "errors": []})
     except Exception as exc:
         logger.exception("Error listing rules")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/desactivar-todas", methods=["POST"])
+@admin_requerido
+def api_deactivate_all_rules():
+    """Deactivate ALL active rules across every domain.
+
+    NOTE: no collision with /reglas/<int:regla_id> — the int converter only
+    matches digits, so 'desactivar-todas' never matches it (same precedent
+    as the existing /reglas/simular route below).
+    """
+    db = next(get_db())
+    try:
+        responsible = session.get("username")
+        if responsible is None:
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": ["No se pudo determinar el usuario autenticado"],
+            }), 400
+
+        result = deactivate_all_rules(db, responsible=responsible)
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error deactivating all rules")
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()

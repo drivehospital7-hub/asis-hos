@@ -45,6 +45,7 @@ import {
   updateRegla,
   deleteRegla,
   duplicarRegla,
+  desactivarTodasReglas,
   fetchExcepciones,
   createExcepcion,
   queryEvidencias,
@@ -82,7 +83,19 @@ const SEVERIDADES = ["error", "warning", "info"];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
 
-function EstadoBadge({ estado }: { estado: string }) {
+interface EstadoBadgeProps {
+  estado: string;
+  activo?: boolean;
+}
+
+function EstadoBadge({ estado, activo }: EstadoBadgeProps) {
+  if (estado === "active" && activo === false) {
+    return (
+      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+        inactiva
+      </span>
+    );
+  }
   const colors: Record<string, string> = {
     active: "bg-green-100 text-green-800",
     retired: "bg-gray-100 text-gray-500",
@@ -185,6 +198,7 @@ function RulesListView() {
   const [createFormPrio, setCreateFormPrio] = useState("50");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSaving, setCreateSaving] = useState(false);
+  const [deactivating, setDeactivating] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -252,6 +266,25 @@ function RulesListView() {
     }
   };
 
+  const activeCount = items.filter((r) => r.activo && r.estado === "active").length;
+
+  const handleDeactivateAll = async () => {
+    if (!window.__showConfirm) return;
+    const ok = await window.__showConfirm(
+      `¿Desactivar las ${activeCount} reglas activas? /procesar quedará sin validaciones.`
+    );
+    if (!ok) return;
+    setDeactivating(true);
+    try {
+      await desactivarTodasReglas();
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al desactivar reglas");
+    } finally {
+      setDeactivating(false);
+    }
+  };
+
   if (viewMode === "detail" && selectedRule) {
     return (
         <RuleDetailForm
@@ -286,10 +319,23 @@ function RulesListView() {
         <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
           Reglas de Auditoría
         </h2>
-        <Button size="sm" onClick={() => setShowCreate(true)}>
-          <Plus className="h-3.5 w-3.5 mr-1" />
-          Nueva Regla
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={handleDeactivateAll}
+            disabled={loading || deactivating || activeCount === 0}
+          >
+            {deactivating
+              ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              : <Ban className="h-3.5 w-3.5 mr-1" />}
+            Desactivar todas
+          </Button>
+          <Button size="sm" onClick={() => setShowCreate(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" />
+            Nueva Regla
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -351,7 +397,7 @@ function RulesListView() {
                     {item.nombre}
                   </td>
                   <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
-                  <td className="py-3 px-4"><EstadoBadge estado={item.estado} /></td>
+                  <td className="py-3 px-4"><EstadoBadge estado={item.estado} activo={item.activo} /></td>
                   <td className="py-3 px-4">{item.prioridad}</td>
                   <td className="py-3 px-4"><SeveridadBadge severidad={item.severidad} /></td>
                   <td className="py-3 px-4">

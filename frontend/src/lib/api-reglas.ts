@@ -203,6 +203,16 @@ export async function duplicarRegla(reglaId: number): Promise<Regla> {
   return apiPost<Regla>(`/api/reglas/${reglaId}/duplicar`, {});
 }
 
+export interface DesactivarTodasResult {
+  desactivadas: number;
+  responsible: string;
+}
+
+/** Deactivate ALL active rules across every domain. Requires admin + client confirmation. */
+export async function desactivarTodasReglas(): Promise<DesactivarTodasResult> {
+  return apiPost<DesactivarTodasResult>("/api/reglas/desactivar-todas", {});
+}
+
 // ─── Exceptions ──────────────────────────────────────────────────────
 
 /** List all exceptions for a rule. */

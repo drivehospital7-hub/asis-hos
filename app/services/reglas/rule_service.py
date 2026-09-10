@@ -591,3 +591,43 @@ def publish_rule(
         db_session.rollback()
         logger.exception("Publish transaction failed for rule %s", rule_id)
         raise
+
+
+def deactivate_all_rules(db_session, responsible: str | None = None) -> dict:
+    """Deactivate all active rules across every domain in one transaction.
+
+    Sets activo=False on every row with activo=True and estado="active".
+    Retired/deprecated/draft rows are left untouched.
+
+    Args:
+        db_session: SQLAlchemy Session
+        responsible: authenticated username, persisted as cambio_responsable
+            (audit: who disabled everything).
+
+    Returns:
+        dict with 'desactivadas' (count) and 'responsible'.
+
+    Raises:
+        ValueError: If responsible is missing or blank.
+    """
+    if responsible is None or not responsible.strip():
+        raise ValueError("No se pudo determinar el usuario autenticado")
+
+    try:
+        count = (
+            db_session.query(Regla)
+            .filter(Regla.activo.is_(True), Regla.estado == "active")
+            .update(
+                {Regla.activo: False, Regla.cambio_responsable: responsible},
+                synchronize_session=False,
+            )
+        )
+        db_session.commit()
+        logger.warning(
+            "All active rules deactivated by %s: %s rule(s)", responsible, count
+        )
+        return {"desactivadas": count, "responsible": responsible}
+    except Exception:
+        db_session.rollback()
+        logger.exception("Deactivate-all transaction failed")
+        raise

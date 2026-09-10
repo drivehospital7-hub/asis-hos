@@ -404,6 +404,7 @@ class RuleEvaluationEngine:
         return (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
+            .filter(Regla.estado == "active")
             .filter(Regla.activo == True)  # noqa: E712
             .first()
         )
