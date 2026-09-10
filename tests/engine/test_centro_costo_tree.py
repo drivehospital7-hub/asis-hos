@@ -42,6 +42,12 @@ def _make_context(invoice_data: dict) -> EvaluationContext:
             "APOYO DIAGNOSTICO-LABORATOR CLINICO",
             "APOYO DIAGNOSTICO-LABORATOR CLINICO.",
         ],
+        "centro_costo_laboratorio_urg": [
+            "903437", "903866", "903867", "9062082", "903833", "903828",
+            "902209", "906340", "904903", "902206", "906129", "906127",
+            "907009", "906305", "903427",
+        ],
+        "centro_costo_laboratorio_urg_rev": ["904902"],
         "codigos_tipo_procedimiento_ambulatorio": ["03", "04"],
         "codigos_tipo_procedimiento_laboratorio": ["02", "05"],
         "centros_costo_validos_urgencias": [
@@ -670,3 +676,381 @@ class TestUrgenciasGeneralInvalidCenter:
                 "centro_costo": "URGENCIAS",
             },
         ) is False
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# URGENCIAS DETALLADO (Strict TDD RED — builders land in GREEN, mirroring
+# seed/migracion-engine/17_centro_costo_urgencias_detallado.sql).
+#
+# P1 tree `centro_costo_urgencias` (prioridad=1): F14 shared OR-block
+# (REGLA9/1/REV1/2/REV2/3/REV3/4/REV4/REV9/8) + REGLA5 / REVERSE5-CN /
+# INTRAMURAL_OTRAS_ENTIDADES / AMBULATORIA_PYP.
+# P2 rule `centro_costo_urgencias_cross` (prioridad=2): 2 cross tipo-factura.
+# Operators: cat_in + eq only, never inline `in`.
+# ═══════════════════════════════════════════════════════════════════════════════
+
+LAB_URG = [
+    "903437", "903866", "903867", "9062082", "903833", "903828",
+    "902209", "906340", "904903", "902206", "906129", "906127",
+    "907009", "906305", "903427",
+]
+LAB_URG_REV = ["904902"]
+
+CENTRO_LAB = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+CENTRO_DIAG = "APOYO DIAGNOSTICO-IMAGENOLOGIA"
+CENTRO_FARMACIA = "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
+CENTRO_PYP = "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
+CENTRO_QUIROFANO = "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
+CENTRO_HOSP = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+TARIFARIO_FARMACIA = "Suminstros, Medicamentos"
+
+
+def _run_detallado(data: dict) -> bool:
+    """Evaluate the p1 detallado tree (RED: builder does not exist yet)."""
+    return _run_tree(_build_urgencias_detallado_tree(), data)  # noqa: F821
+
+
+def _build_urgencias_detallado_tree() -> list[dict]:
+    """Build p1 detallado tree (mirrors seed/17_centro_costo_urgencias_detallado.sql).
+
+    Root OR: F14 shared block (REGLA9/1/REV1/2/REV2/3/REV3/4/REV4/REV9/8) +
+    REGLA5 + REVERSE5 (tipo + codigo CN-aware) + INTRAMURAL_OTRAS + AMBULATORIA_PYP.
+    Operators: cat_in + eq only.
+    """
+    conds: list[dict] = []
+    _cid = [2000]
+
+    def nid():
+        _cid[0] -= 1
+        return _cid[0]
+
+    def add(tipo, op, fuente, esperado, padre, orden):
+        conds.append({"id": nid(), "padre_id": padre, "tipo": tipo, "operador": op,
+                       "fuente_datos": fuente, "valor_esperado": esperado, "orden": orden})
+        return conds[-1]["id"]
+
+    def comp(op, padre, orden): return add("composite", op, None, None, padre, orden)
+    def atom(op, fuente, esperado, padre, orden): return add("atomic", op, fuente, esperado, padre, orden)
+
+    root = comp("OR", None, 0)
+
+    # REGLA9
+    r9 = comp("AND", root, 0)
+    atom("eq", "invoice.tarifario", "Suminstros, Medicamentos", r9, 0)
+    r9_n = comp("NOT", r9, 1)
+    atom("eq", "invoice.centro_costo", "APOYO TERAPEUTICO-FARMACIA E INSUMOS.", r9_n, 0)
+
+    # REGLA1
+    r1 = comp("AND", root, 1)
+    atom("eq", "invoice.codigo_tipo_procedimiento", "02", r1, 0)
+    atom("eq", "invoice.laboratorio", "No", r1, 1)
+    r1_n1 = comp("NOT", r1, 2)
+    atom("cat_in", "invoice.codigo", "codigos_exceptuados", r1_n1, 0)
+    r1_n2 = comp("NOT", r1, 3)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-IMAGENOLOGIA", r1_n2, 0)
+
+    # REVERSE1
+    rev1 = comp("AND", root, 2)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-IMAGENOLOGIA", rev1, 0)
+    rev1_n = comp("NOT", rev1, 1)
+    rev1_and = comp("AND", rev1_n, 0)
+    atom("eq", "invoice.codigo_tipo_procedimiento", "02", rev1_and, 0)
+    atom("eq", "invoice.laboratorio", "No", rev1_and, 1)
+
+    # REGLA2
+    r2 = comp("AND", root, 3)
+    atom("eq", "invoice.codigo_tipo_procedimiento", "14", r2, 0)
+    r2_n = comp("NOT", r2, 1)
+    atom("eq", "invoice.centro_costo", "TRASLADOS", r2_n, 0)
+
+    # REVERSE2
+    rev2 = comp("AND", root, 4)
+    atom("eq", "invoice.centro_costo", "TRASLADOS", rev2, 0)
+    rev2_n = comp("NOT", rev2, 1)
+    atom("eq", "invoice.codigo_tipo_procedimiento", "14", rev2_n, 0)
+
+    # REGLA3
+    r3 = comp("AND", root, 5)
+    atom("cat_in", "invoice.codigo", "centro_costo_pyp", r3, 0)
+    r3_n = comp("NOT", r3, 1)
+    atom("eq", "invoice.centro_costo", "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN", r3_n, 0)
+
+    # REVERSE3
+    rev3 = comp("AND", root, 6)
+    atom("eq", "invoice.centro_costo", "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN", rev3, 0)
+    rev3_n = comp("NOT", rev3, 1)
+    atom("cat_in", "invoice.codigo", "centro_costo_pyp", rev3_n, 0)
+
+    # REGLA4
+    r4 = comp("AND", root, 7)
+    atom("cat_in", "invoice.codigo", "centro_costo_quirofano", r4, 0)
+    r4_n = comp("NOT", r4, 1)
+    atom("eq", "invoice.centro_costo", "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO", r4_n, 0)
+
+    # REVERSE4
+    rev4 = comp("AND", root, 8)
+    atom("eq", "invoice.centro_costo", "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO", rev4, 0)
+    rev4_n = comp("NOT", rev4, 1)
+    atom("cat_in", "invoice.codigo", "centro_costo_quirofano", rev4_n, 0)
+
+    # REVERSE9
+    rev9 = comp("AND", root, 9)
+    atom("eq", "invoice.centro_costo", "APOYO TERAPEUTICO-FARMACIA E INSUMOS.", rev9, 0)
+    rev9_n = comp("NOT", rev9, 1)
+    atom("eq", "invoice.tarifario", "Suminstros, Medicamentos", rev9_n, 0)
+
+    # REGLA8
+    r8 = comp("AND", root, 10)
+    atom("cat_in", "invoice.codigo", "centro_costo_hospitalizacion", r8, 0)
+    r8_n = comp("NOT", r8, 1)
+    atom("eq", "invoice.centro_costo", "HOSPITALIZACIÓN - ESTANCIA GENERAL", r8_n, 0)
+
+    # REGLA5: lab code + ESS118 + Intramural + centro not LAB/LAB.
+    r5 = comp("AND", root, 11)
+    atom("cat_in", "invoice.codigo", "centro_costo_laboratorio_urg", r5, 0)
+    atom("eq", "invoice.codigo_entidad_cobrar", "ESS118", r5, 1)
+    atom("eq", "invoice.tipo_factura_descripcion", "Intramural", r5, 2)
+    r5_n1 = comp("NOT", r5, 3)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO", r5_n1, 0)
+    r5_n2 = comp("NOT", r5, 4)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO.", r5_n2, 0)
+
+    # REVERSE5-tipo: centro LAB/LAB. + tipo != Intramural.
+    rv5t = comp("AND", root, 12)
+    rv5t_or = comp("OR", rv5t, 0)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO", rv5t_or, 0)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO.", rv5t_or, 1)
+    rv5t_n = comp("NOT", rv5t, 1)
+    atom("eq", "invoice.tipo_factura_descripcion", "Intramural", rv5t_n, 0)
+
+    # REVERSE5-codigo: centro LAB/LAB. + tipo Intramural + codigo not valid
+    # (CN admits lab OR lab_rev; non-CN admits lab only).
+    rv5c = comp("AND", root, 13)
+    rv5c_or = comp("OR", rv5c, 0)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO", rv5c_or, 0)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO.", rv5c_or, 1)
+    atom("eq", "invoice.tipo_factura_descripcion", "Intramural", rv5c, 1)
+    rv5c_oor = comp("OR", rv5c, 2)
+    rv5c_cc = comp("AND", rv5c_oor, 0)
+    rv5c_cc_n1 = comp("NOT", rv5c_cc, 0)
+    atom("eq", "invoice.tipo_identificacion", "CN", rv5c_cc_n1, 0)
+    rv5c_cc_n2 = comp("NOT", rv5c_cc, 1)
+    atom("cat_in", "invoice.codigo", "centro_costo_laboratorio_urg", rv5c_cc_n2, 0)
+    rv5c_cn = comp("AND", rv5c_oor, 1)
+    atom("eq", "invoice.tipo_identificacion", "CN", rv5c_cn, 0)
+    rv5c_cn_n1 = comp("NOT", rv5c_cn, 1)
+    atom("cat_in", "invoice.codigo", "centro_costo_laboratorio_urg", rv5c_cn_n1, 0)
+    rv5c_cn_n2 = comp("NOT", rv5c_cn, 2)
+    atom("cat_in", "invoice.codigo", "centro_costo_laboratorio_urg_rev", rv5c_cn_n2, 0)
+
+    # INTRAMURAL_OTRAS_ENTIDADES: Intramural + entidad != ESS118 + centro not LAB/LAB.
+    intra = comp("AND", root, 14)
+    atom("eq", "invoice.tipo_factura_descripcion", "Intramural", intra, 0)
+    intra_n1 = comp("NOT", intra, 1)
+    atom("eq", "invoice.codigo_entidad_cobrar", "ESS118", intra_n1, 0)
+    intra_n2 = comp("NOT", intra, 2)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO", intra_n2, 0)
+    intra_n3 = comp("NOT", intra, 3)
+    atom("eq", "invoice.centro_costo", "APOYO DIAGNOSTICO-LABORATOR CLINICO.", intra_n3, 0)
+
+    # AMBULATORIA_PYP: tipo Ambulatoria + centro != PYP.
+    amb = comp("AND", root, 15)
+    atom("eq", "invoice.tipo_factura_descripcion", "Ambulatoria", amb, 0)
+    amb_n = comp("NOT", amb, 1)
+    atom("eq", "invoice.centro_costo", "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN", amb_n, 0)
+
+    return conds
+
+
+def _build_urgencias_cross_tree() -> list[dict]:
+    """Build p2 cross tree (mirrors seed/17 root OR with 2 AND-subtrees)."""
+    conds: list[dict] = []
+    _cid = [3000]
+
+    def nid():
+        _cid[0] -= 1
+        return _cid[0]
+
+    def add(tipo, op, fuente, esperado, padre, orden):
+        conds.append({"id": nid(), "padre_id": padre, "tipo": tipo, "operador": op,
+                       "fuente_datos": fuente, "valor_esperado": esperado, "orden": orden})
+        return conds[-1]["id"]
+
+    def comp(op, padre, orden): return add("composite", op, None, None, padre, orden)
+    def atom(op, fuente, esperado, padre, orden): return add("atomic", op, fuente, esperado, padre, orden)
+
+    root = comp("OR", None, 0)
+
+    x1 = comp("AND", root, 0)
+    atom("eq", "invoice.tipo_factura_descripcion", "Hospitalización", x1, 0)
+    atom("eq", "invoice.centro_costo", "URGENCIAS", x1, 1)
+
+    x2 = comp("AND", root, 1)
+    atom("eq", "invoice.tipo_factura_descripcion", "Urgencias", x2, 0)
+    atom("eq", "invoice.centro_costo", "HOSPITALIZACIÓN - ESTANCIA GENERAL", x2, 1)
+
+    return conds
+
+
+def _run_cross(data: dict) -> bool:
+    """Evaluate the p2 cross tree."""
+    return _run_tree(_build_urgencias_cross_tree(), data)
+
+
+def MATCH_D(data: dict) -> None:
+    assert _run_detallado(data) is True, f"Detallado tree should MATCH for {data}"
+
+
+def NO_MATCH_D(data: dict) -> None:
+    assert _run_detallado(data) is False, f"Detallado tree should NOT match for {data}"
+
+
+def MATCH_X(data: dict) -> None:
+    assert _run_cross(data) is True, f"Cross tree should MATCH for {data}"
+
+
+def NO_MATCH_X(data: dict) -> None:
+    assert _run_cross(data) is False, f"Cross tree should NOT match for {data}"
+
+
+NEUTRAL_D: dict = {
+    "codigo_tipo_procedimiento": "01",
+    "codigo": "890601",
+    "laboratorio": "No",
+    "centro_costo": "URGENCIAS",
+    "tarifario": "Subsidiado",
+    "codigo_entidad_cobrar": "EPSI05",
+    "tipo_factura_descripcion": "Urgencias",
+    "tipo_identificacion": "CC",
+}
+
+
+def _row(**overrides) -> dict:
+    return {**NEUTRAL_D, **overrides}
+
+
+class TestDetalladoSharedBranches:
+    """2.1: fwd/rev/neg for the 9 shared F14 branches in the p1 tree."""
+
+    def test_regla9_fwd(self): MATCH_D(_row(tarifario=TARIFARIO_FARMACIA))
+    def test_regla9_neg_correct(self): NO_MATCH_D(_row(tarifario=TARIFARIO_FARMACIA, centro_costo=CENTRO_FARMACIA))
+    def test_regla9_neg_other_tarifario(self): NO_MATCH_D(_row(tarifario="SOAT"))
+
+    def test_regla1_fwd(self): MATCH_D(_row(codigo_tipo_procedimiento="02", laboratorio="No"))
+    def test_regla1_neg_correct(self): NO_MATCH_D(_row(codigo_tipo_procedimiento="02", laboratorio="No", centro_costo=CENTRO_DIAG))
+    def test_regla1_neg_exceptuado(self): NO_MATCH_D(_row(codigo_tipo_procedimiento="02", laboratorio="No", codigo="903883"))
+
+    def test_rev1_fwd(self): MATCH_D(_row(centro_costo=CENTRO_DIAG, codigo_tipo_procedimiento="14"))
+    def test_rev1_neg_correct(self): NO_MATCH_D(_row(centro_costo=CENTRO_DIAG, codigo_tipo_procedimiento="02", laboratorio="No"))
+
+    def test_regla2_fwd(self): MATCH_D(_row(codigo_tipo_procedimiento="14"))
+    def test_regla2_neg_correct(self): NO_MATCH_D(_row(codigo_tipo_procedimiento="14", centro_costo="TRASLADOS"))
+
+    def test_rev2_fwd(self): MATCH_D(_row(centro_costo="TRASLADOS", codigo_tipo_procedimiento="02", codigo="903883"))
+    def test_rev2_neg_correct(self): NO_MATCH_D(_row(centro_costo="TRASLADOS", codigo_tipo_procedimiento="14"))
+
+    def test_regla3_fwd(self): MATCH_D(_row(codigo="990211"))
+    def test_regla3_neg_correct(self): NO_MATCH_D(_row(codigo="990211", centro_costo=CENTRO_PYP))
+
+    def test_rev3_fwd(self): MATCH_D(_row(centro_costo=CENTRO_PYP, codigo="735301"))
+    def test_rev3_neg_correct(self): NO_MATCH_D(_row(centro_costo=CENTRO_PYP, codigo="990211"))
+
+    def test_regla4_fwd(self): MATCH_D(_row(codigo="735301"))
+    def test_regla4_neg_correct(self): NO_MATCH_D(_row(codigo="735301", centro_costo=CENTRO_QUIROFANO))
+
+    def test_rev4_fwd(self): MATCH_D(_row(centro_costo=CENTRO_QUIROFANO, codigo="990211"))
+    def test_rev4_neg_correct(self): NO_MATCH_D(_row(centro_costo=CENTRO_QUIROFANO, codigo="735301"))
+
+    def test_rev9_fwd(self): MATCH_D(_row(centro_costo=CENTRO_FARMACIA, tarifario="SOAT"))
+    def test_rev9_neg_correct(self): NO_MATCH_D(_row(centro_costo=CENTRO_FARMACIA, tarifario=TARIFARIO_FARMACIA))
+
+    def test_regla8_fwd(self): MATCH_D(_row(codigo="890601H"))
+    def test_regla8_neg_correct(self): NO_MATCH_D(_row(codigo="890601H", centro_costo=CENTRO_HOSP))
+
+
+class TestDetalladoRegla5Reverse5:
+    """2.2: REGLA5 lab hit, REVERSE5-CN gating, trailing-dot, 2-variant exclusion."""
+
+    R5_HIT = {"codigo": "906340", "codigo_tipo_procedimiento": "09",
+              "codigo_entidad_cobrar": "ESS118", "tipo_factura_descripcion": "Intramural"}
+
+    def test_regla5_lab_hit(self): MATCH_D(_row(**self.R5_HIT))
+    def test_regla5_neg_correct_centro(self): NO_MATCH_D(_row(**{**self.R5_HIT, "centro_costo": CENTRO_LAB}))
+    def test_regla5_neg_correct_centro_trailing_dot(self): NO_MATCH_D(_row(**{**self.R5_HIT, "centro_costo": f"{CENTRO_LAB}."}))
+    def test_regla5_wrong_entidad_fires_intramural(self):
+        # entidad != ESS118 with Intramural tipo → INTRAMURAL_OTRAS fires (legacy parity).
+        MATCH_D(_row(**{**self.R5_HIT, "codigo_entidad_cobrar": "EPSI05"}))
+
+    def test_reverse5_cn_rev_code_is_valid(self):
+        NO_MATCH_D(_row(centro_costo=CENTRO_LAB, tipo_factura_descripcion="Intramural",
+                         codigo="904902", tipo_identificacion="CN",
+                         codigo_tipo_procedimiento="09", codigo_entidad_cobrar="EPSI05"))
+
+    def test_reverse5_non_cn_rev_code_fires(self):
+        MATCH_D(_row(centro_costo=CENTRO_LAB, tipo_factura_descripcion="Intramural",
+                       codigo="904902", tipo_identificacion="CC",
+                       codigo_tipo_procedimiento="09", codigo_entidad_cobrar="EPSI05"))
+
+    def test_reverse5_cn_unknown_code_fires(self):
+        MATCH_D(_row(centro_costo=CENTRO_LAB, tipo_factura_descripcion="Intramural",
+                       codigo="890601", tipo_identificacion="CN",
+                       codigo_tipo_procedimiento="09", codigo_entidad_cobrar="EPSI05"))
+
+    def test_reverse5_wrong_tipo_fires(self):
+        MATCH_D(_row(centro_costo=CENTRO_LAB, tipo_factura_descripcion="Urgencias",
+                       codigo="906340", tipo_identificacion="CC", codigo_tipo_procedimiento="09"))
+
+    def test_trailing_dot_wrong_center_fires(self):
+        MATCH_D(_row(**{**self.R5_HIT, "centro_costo": "URGENCIAS."}))
+
+    def test_ess118_scalar_exact_match(self):
+        MATCH_D(_row(**self.R5_HIT))
+        # Wrong scalar → INTRAMURAL_OTRAS branch fires instead (still MATCH, other path).
+        MATCH_D(_row(**{**self.R5_HIT, "codigo_entidad_cobrar": "ESS119"}))
+
+
+class TestDetalladoIntramuralAmbulatoria:
+    """2.3: INTRAMURAL_OTRAS_ENTIDADES + AMBULATORIA_PYP distinct firing."""
+
+    def test_intramural_otras_fires(self):
+        MATCH_D(_row(tipo_factura_descripcion="Intramural", codigo_entidad_cobrar="EPSI05",
+                       codigo_tipo_procedimiento="09"))
+
+    def test_intramural_neg_ess118(self):
+        NO_MATCH_D(_row(tipo_factura_descripcion="Intramural", codigo_entidad_cobrar="ESS118",
+                          codigo_tipo_procedimiento="09"))
+
+    def test_intramural_neg_lab_center_with_lab_code(self):
+        NO_MATCH_D(_row(tipo_factura_descripcion="Intramural", codigo_entidad_cobrar="EPSI05",
+                          centro_costo=CENTRO_LAB, codigo="906340", codigo_tipo_procedimiento="09"))
+
+    def test_ambulatoria_pyp_fires(self):
+        MATCH_D(_row(tipo_factura_descripcion="Ambulatoria"))
+
+    def test_ambulatoria_neg_correct_pyp_center(self):
+        NO_MATCH_D(_row(tipo_factura_descripcion="Ambulatoria", centro_costo=CENTRO_PYP, codigo="990211"))
+
+
+class TestCrossP2:
+    """2.4: cross p2 fires prioridad=2 only; dual p1+p2 without collapse; negs."""
+
+    def test_cross_hosp_centro_urg_fires(self):
+        MATCH_X(_row(tipo_factura_descripcion="Hospitalización", centro_costo="URGENCIAS"))
+
+    def test_cross_hosp_centro_hosp_neg(self):
+        NO_MATCH_X(_row(tipo_factura_descripcion="Hospitalización", centro_costo=CENTRO_HOSP))
+
+    def test_cross_urg_centro_hosp_fires(self):
+        MATCH_X(_row(tipo_factura_descripcion="Urgencias", centro_costo=CENTRO_HOSP))
+
+    def test_cross_urg_centro_urg_neg(self):
+        NO_MATCH_X(_row(tipo_factura_descripcion="Urgencias", centro_costo="URGENCIAS"))
+
+    def test_dual_p1_p2_without_collapse(self):
+        data = _row(tipo_factura_descripcion="Urgencias", centro_costo=CENTRO_HOSP, codigo="990211")
+        assert _run_detallado(data) is True, "p1 must fire (REGLA3)"
+        assert _run_cross(data) is True, "p2 must fire (cross) independently"
+
+    def test_neg_rows_fire_nothing(self):
+        assert _run_detallado(dict(NEUTRAL_D)) is False
+        assert _run_cross(dict(NEUTRAL_D)) is False

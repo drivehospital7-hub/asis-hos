@@ -84,6 +84,14 @@ def detect_all_problems_urgencias(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
             )
+            problemas_centros += RuleBasedDetector("centro_costo_urgencias", session).detect(
+                data_sheet, indices, persist=_PERSIST,
+                evidence_collector=collector, rows=rows,
+            )
+            logger.info(
+                "detect_all_problems_urgencias - Centros Costo encontrados: %d",
+                len(problemas_centros),
+            )
             problemas_ide_contrato = RuleBasedDetector("ide_contrato_urgencias_valido", session).detect(
                 data_sheet, indices, persist=_PERSIST,
                 evidence_collector=collector, rows=rows,
