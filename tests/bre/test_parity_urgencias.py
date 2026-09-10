@@ -217,3 +217,116 @@ class TestUrgParity:
         indices, missing = get_column_indices(["Código", "Número Factura"], required)
         assert indices["codigo"] == 0
         assert missing == []
+
+
+# ── Detallado parity (Strict TDD RED — oracle builders land in GREEN) ──
+
+DETALLADO_HEADERS: dict[str, str] = {
+    "numero_factura": "Número Factura",
+    "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
+    "codigo": "Código",
+    "laboratorio": "Laboratorio",
+    "centro_costo": "Centro Costo",
+    "codigo_entidad_cobrar": "Cód Entidad Cobrar",
+    "tipo_factura_descripcion": "Tipo Factura Descripción",
+    "procedimiento": "Procedimiento",
+    "tarifario": "Tarifario",
+    "tipo_identificacion": "Tipo Identificación",
+}
+
+LAB = "APOYO DIAGNOSTICO-LABORATOR CLINICO"
+DIAG = "APOYO DIAGNOSTICO-IMAGENOLOGIA"
+FARM = "APOYO TERAPEUTICO-FARMACIA E INSUMOS."
+PYP = "PROCEDIMIENTO DE PROMOCIÓN Y PREVENCIÓN"
+QUIR = "QUIRÓFANOS Y SALAS DE PARTO- SALA DE PARTO"
+HOSP = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
+FARM_TAR = "Suminstros, Medicamentos"
+
+# 17 branches + 2 negatives. Each row: (factura, cod_tipo, codigo, lab, centro,
+# entidad, tipo_factura, tarifario, tipo_id). All centros valid (valido-rule
+# scope excluded); exact spellings (eq has no strip fallback).
+DETALLADO_FIXTURES: list[tuple] = [
+    ("FAC-D-01", "01", "890601", "No", "URGENCIAS", "EPSI05", "Urgencias", FARM_TAR, "CC"),  # R9
+    ("FAC-D-02", "02", "890601", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # R1
+    ("FAC-D-03", "01", "890601", "No", DIAG, "EPSI05", "Urgencias", "Subsidiado", "CC"),  # REV1
+    ("FAC-D-04", "14", "890601", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # R2
+    ("FAC-D-05", "02", "903883", "No", "TRASLADOS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # REV2
+    ("FAC-D-06", "01", "990211", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # R3
+    ("FAC-D-07", "01", "735301", "No", PYP, "EPSI05", "Urgencias", "Subsidiado", "CC"),  # REV3
+    ("FAC-D-08", "01", "735301", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # R4
+    ("FAC-D-09", "01", "990211", "No", QUIR, "EPSI05", "Urgencias", "Subsidiado", "CC"),  # REV4
+    ("FAC-D-10", "09", "906340", "No", "URGENCIAS", "ESS118", "Intramural", "Subsidiado", "CC"),  # R5
+    ("FAC-D-11", "09", "906340", "No", LAB, "EPSI05", "Urgencias", "Subsidiado", "CC"),  # REV5
+    ("FAC-D-12", "01", "890601", "No", FARM, "EPSI05", "Urgencias", "SOAT", "CC"),  # REV9
+    ("FAC-D-13", "01", "890601H", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # R8
+    ("FAC-D-14", "09", "890601", "No", "URGENCIAS", "EPSI05", "Intramural", "Subsidiado", "CC"),  # INTRA
+    ("FAC-D-15", "01", "890601", "No", "URGENCIAS", "EPSI05", "Ambulatoria", "Subsidiado", "CC"),  # AMB
+    ("FAC-D-16", "01", "890601", "No", "URGENCIAS", "EPSI05", "Hospitalización", "Subsidiado", "CC"),  # X1
+    ("FAC-D-17", "01", "890601", "No", HOSP, "EPSI05", "Urgencias", "Subsidiado", "CC"),  # X2
+    ("FAC-D-18", "01", "890601", "No", "URGENCIAS", "EPSI05", "Urgencias", "Subsidiado", "CC"),  # NEG
+    ("FAC-D-19", "09", "904902", "No", LAB, "EPSI05", "Intramural", "Subsidiado", "CN"),  # NEG CN
+]
+
+BRANCH_FACTURAS = frozenset(f"FAC-D-{i:02d}" for i in range(1, 18))
+
+
+def _load_tree_oracle():
+    """Load test_centro_costo_tree.py by path (RED: builders missing → fail)."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "engine" / "test_centro_costo_tree.py"
+    spec = importlib.util.spec_from_file_location("tct_oracle", path)
+    assert spec is not None and spec.loader is not None
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _build_detallado_workbook() -> Workbook:
+    wb = Workbook()
+    ws = wb.active
+    for col, name in enumerate(DETALLADO_HEADERS.values(), start=1):
+        ws.cell(row=1, column=col, value=name)
+    for r, (fact, ct, cod, lab, centro, ent, tipo, tar, tid) in enumerate(DETALLADO_FIXTURES, start=2):
+        ws.cell(row=r, column=1, value=fact)
+        ws.cell(row=r, column=2, value=ct)
+        ws.cell(row=r, column=3, value=cod)
+        ws.cell(row=r, column=4, value=lab)
+        ws.cell(row=r, column=5, value=centro)
+        ws.cell(row=r, column=6, value=ent)
+        ws.cell(row=r, column=7, value=tipo)
+        ws.cell(row=r, column=8, value=f"Proc {fact}")
+        ws.cell(row=r, column=9, value=tar)
+        ws.cell(row=r, column=10, value=tid)
+    return wb
+
+
+class TestUrgenciasDetalladoParity:
+    def test_legacy_vs_engine_snapshot_diff_empty(self) -> None:
+        """Legacy detector fire-set == (p1 or p2) tree fire-set over 17 branches."""
+        from app.services.urgencias.centro_costo_urgencias import detect_centro_costo_urgencias
+
+        oracle = _load_tree_oracle()
+        wb = _build_detallado_workbook()
+        headers = [wb.active.cell(row=1, column=c).value for c in range(1, wb.active.max_column + 1)]
+        indices, _ = get_column_indices(headers, DETALLADO_HEADERS)
+
+        legacy = detect_centro_costo_urgencias(wb.active, indices)
+        legacy_fired = {item["factura"] for item in legacy}
+
+        tree_fired: set[str] = set()
+        for (fact, ct, cod, lab, centro, ent, tipo, tar, tid) in DETALLADO_FIXTURES:
+            row = {
+                "codigo_tipo_procedimiento": ct, "codigo": cod, "laboratorio": lab,
+                "centro_costo": centro, "codigo_entidad_cobrar": ent,
+                "tipo_factura_descripcion": tipo, "tarifario": tar,
+                "tipo_identificacion": tid,
+            }
+            p1 = oracle._run_tree(oracle._build_urgencias_detallado_tree(), row)
+            p2 = oracle._run_tree(oracle._build_urgencias_cross_tree(), row)
+            if p1 or p2:
+                tree_fired.add(fact)
+
+        assert BRANCH_FACTURAS <= legacy_fired, f"fixtures must fire legacy: {BRANCH_FACTURAS - legacy_fired}"
+        assert tree_fired == legacy_fired, f"parity diff: legacy-only={legacy_fired - tree_fired} tree-only={tree_fired - legacy_fired}"
