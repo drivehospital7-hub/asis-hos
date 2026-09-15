@@ -1271,6 +1271,7 @@ def _register_builtins() -> None:
         RevisionCantidadUrgenciasEvaluator(),
         CupsEquivalentesTransversalEvaluator(),
         HospitalizacionCantidadEvaluator(),
+        HospiSalaObsCantidadCheckEvaluator(),
     ]
     for ev in builtins:
         EVALUATOR_REGISTRY[ev.operator] = ev
@@ -1427,6 +1428,87 @@ class HospitalizacionCantidadEvaluator(AtomicEvaluator):
             return (end - start).total_seconds() / 3600
         except (TypeError, ValueError):
             return None
+
+
+class HospiSalaObsCantidadCheckEvaluator(AtomicEvaluator):
+    """Sala observacion 38114 cantidad vs estancia (Hospitalizacion Soat).
+
+    Operator: hospi_sala_obs_cantidad_check
+
+    Group mode (context.group_rows set) suma cantidad de filas con
+    codigo == 38114; row mode usa la fila unica (cant si codigo es
+    38114, si no 0). Horas = primer par valido
+    fec_factura/fecha_cierre. Esperada = 1+floor(horas/24).
+    MATCH si cant != esperada. Gate Soat/Hospitalizacion
+    re-chequeado adentro (el arbol tambien lo exige).
+    """
+
+    operator = "hospi_sala_obs_cantidad_check"
+    CODIGO = "38114"
+
+    def evaluate(self, condition, row_value, expected=None, context=None) -> bool:
+        import math
+
+        if context is None:
+            return False
+        group_rows = getattr(context, "group_rows", None)
+        if group_rows is not None:
+            rows = list(group_rows)
+            ref = (context.invoice_data or {})
+        else:
+            ref = (getattr(context, "invoice_data", None) or {})
+            rows = [ref] if ref else []
+        if not rows:
+            return False
+        if str(ref.get("tipo_factura_descripcion", "")).strip() != "Hospitalización":
+            # Fallback: gate por primera fila si invoice_data es agregado
+            first_tipo = str((rows[0].get("tipo_factura_descripcion", ""))).strip()
+            if first_tipo != "Hospitalización":
+                return False
+        tarif = str(ref.get("tarifario", "") or "").strip().upper()
+        if not tarif:
+            tarif = str(rows[0].get("tarifario", "") or "").strip().upper()
+        if tarif != "SOAT":
+            return False
+        hours = self._first_hours(rows)
+        if hours is None:
+            return False
+        esperada = 1 + math.floor(hours / 24)
+        cant = self._sum_38114(rows)
+        return cant != float(esperada)
+
+    @classmethod
+    def _sum_38114(cls, rows: list[dict]) -> float:
+        total = 0.0
+        for r in rows:
+            if str(r.get("codigo", "") or "").strip().upper() != cls.CODIGO:
+                continue
+            try:
+                total += float(r.get("cantidad"))
+            except (TypeError, ValueError):
+                continue
+        return total
+
+    @staticmethod
+    def _first_hours(rows: list[dict]) -> float | None:
+        from datetime import datetime
+
+        for r in rows:
+            start, end = r.get("fec_factura"), r.get("fecha_cierre")
+            if not start or not end:
+                continue
+            try:
+                if not isinstance(start, datetime):
+                    start = datetime.strptime(str(start).strip()[:19], "%Y-%m-%d %H:%M:%S")
+                if not isinstance(end, datetime):
+                    end = datetime.strptime(str(end).strip()[:19], "%Y-%m-%d %H:%M:%S")
+                hours = (end - start).total_seconds() / 3600
+            except (TypeError, ValueError):
+                continue
+            if hours < 0:
+                continue
+            return hours
+        return None
 
 
 class CupsEquivalentesTransversalEvaluator(AtomicEvaluator):

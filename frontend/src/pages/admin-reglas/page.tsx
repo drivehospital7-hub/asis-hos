@@ -187,6 +187,7 @@ function RulesListView() {
   const [error, setError] = useState<string | null>(null);
   const [filterDominio, setFilterDominio] = useState("");
   const [filterEstado, setFilterEstado] = useState("");
+  const [filterActivo, setFilterActivo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRule, setSelectedRule] = useState<Regla | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "detail">("list");
@@ -222,6 +223,7 @@ function RulesListView() {
       const data = await fetchReglas({
         dominio: filterDominio || undefined,
         estado: filterEstado || undefined,
+        activo: filterActivo || undefined,
       });
       setItems(data);
     } catch (e) {
@@ -229,7 +231,7 @@ function RulesListView() {
     } finally {
       setLoading(false);
     }
-  }, [filterDominio, filterEstado]);
+  }, [filterDominio, filterEstado, filterActivo]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -390,6 +392,17 @@ function RulesListView() {
         >
           <option value="">Todos los estados</option>
           {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
+        </select>
+        <select
+          value={filterActivo}
+          onChange={(e) => setFilterActivo(e.target.value)}
+          aria-label="Filtrar por activación"
+          className="rounded-lg border px-3 py-1.5 text-sm outline-none"
+          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+        >
+          <option value="">Activación: Todas</option>
+          <option value="true">Activas</option>
+          <option value="false">Inactivas</option>
         </select>
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />

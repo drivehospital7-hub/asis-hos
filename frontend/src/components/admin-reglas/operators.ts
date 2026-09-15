@@ -30,7 +30,7 @@ export const CATEGORIAS: CategoryDef[] = [
   { id: "complex", label: "Complejo" },
 ];
 
-// ─── All 18 Atomic Operators (sync with evaluators.py) ─────────────
+// ─── All 19 Atomic Operators (sync with evaluators.py) ─────────────
 
 export const OPERADORES_ATOMICOS: OperatorDef[] = [
   // Comparison
@@ -53,6 +53,7 @@ export const OPERADORES_ATOMICOS: OperatorDef[] = [
   { value: "ent_code_match", label: "Código entidad coincide", category: "db" },
   { value: "sala_obs_check", label: "Sala observación", category: "db" },
   { value: "centro_costo_check", label: "Centro costo", category: "db" },
+  { value: "hospi_sala_obs_cantidad_check", label: "Hospi sala obs cantidad", category: "db" },
   // Complex
   { value: "all_values_match", label: "Todos los valores coinciden", category: "complex" },
   { value: "cups_contratado", label: "CUPS contratado", category: "complex" },
@@ -81,6 +82,7 @@ export const OPERADOR_VALUE_TYPE: Record<string, ValueType> = {
   ent_code_match: "hidden", // context-derived
   sala_obs_check: "hidden", // context-derived
   centro_costo_check: "hidden", // context-derived
+  hospi_sala_obs_cantidad_check: "hidden", // context-derived
   // Complex
   all_values_match: "number", // threshold
   cups_contratado: "hidden", // context-derived
