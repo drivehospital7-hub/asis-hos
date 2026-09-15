@@ -250,7 +250,7 @@ class RuleEvaluationEngine:
                             problem[field] = row_data[field]
                         elif field in eval_ctx.invoice_data:
                             problem[field] = eval_ctx.invoice_data[field]
-                    _enrich_estancia_str(problem, eval_ctx.invoice_data, row_data)
+                    _enrich_estancia_str(problem, eval_ctx.invoice_data, row_data, rule=rule)
                     results.append(problem)
 
         if persist:
@@ -534,12 +534,38 @@ def _format_estancia(horas: float | None) -> str:
     return f"{hrs}h"
 
 
+def _rule_requests_estancia_str(
+    detalle_a: Any | None,
+    detalle_b: Any | None,
+    template: Any | None,
+) -> bool:
+    """Opt-in: True solo si la regla referencia estancia_str.
+
+    La regla lo pide con detalle_a/b_campo == 'estancia_str' o con
+    descripcion_template que contenga '{estancia_str}'.
+    """
+    if detalle_a == "estancia_str" or detalle_b == "estancia_str":
+        return True
+    return isinstance(template, str) and "{estancia_str}" in template
+
+
 def _enrich_estancia_str(
     problem: dict[str, Any],
     *sources: dict[str, Any] | None,
+    rule: Any | None = None,
 ) -> None:
-    """Agrega estancia_str si hay estancia_horas numérico y falta el str."""
+    """Agrega estancia_str solo si la regla lo pide explícitamente.
+
+    Legacy con estancia_str de origen se respeta (no se borra).
+    Sin opt-in de la regla no se genera nada, aunque haya horas.
+    """
     if problem.get("estancia_str"):
+        return
+    if rule is not None and not _rule_requests_estancia_str(
+        getattr(rule, "detalle_a_campo", None),
+        getattr(rule, "detalle_b_campo", None),
+        getattr(rule, "descripcion_template", None),
+    ):
         return
     horas = problem.get("estancia_horas")
     if isinstance(horas, bool) or not isinstance(horas, (int, float)):

@@ -49,9 +49,33 @@ def _format_estancia(horas: float | None) -> str:
     return f"{hrs}h"
 
 
-def _enrich_estancia_str(problem: dict[str, Any]) -> None:
-    """Agrega estancia_str si hay estancia_horas numérico y falta el str."""
+def _rule_requests_estancia_str(rule_info: dict[str, Any] | None) -> bool:
+    """Opt-in: True solo si la regla referencia estancia_str.
+
+    La regla lo pide con detalle_a/b_campo == 'estancia_str' o con
+    descripcion_template que contenga '{estancia_str}'.
+    """
+    if not rule_info:
+        return False
+    if (rule_info.get("detalle_a_campo") == "estancia_str"
+            or rule_info.get("detalle_b_campo") == "estancia_str"):
+        return True
+    template = rule_info.get("descripcion_template")
+    return isinstance(template, str) and "{estancia_str}" in template
+
+
+def _enrich_estancia_str(
+    problem: dict[str, Any],
+    rule_info: dict[str, Any] | None = None,
+) -> None:
+    """Agrega estancia_str solo si la regla lo pide explícitamente.
+
+    Legacy con estancia_str de origen se respeta (no se borra).
+    Sin opt-in de la regla no se genera nada, aunque haya horas.
+    """
     if problem.get("estancia_str"):
+        return
+    if not _rule_requests_estancia_str(rule_info):
         return
     horas = problem.get("estancia_horas")
     if isinstance(horas, bool) or not isinstance(horas, (int, float)):
@@ -798,7 +822,7 @@ class GroupEvaluator:
                 for key, val in group_data.items():
                     if key not in ("numero_factura",) and val is not None:
                         problem[key] = val
-                _enrich_estancia_str(problem)
+                _enrich_estancia_str(problem, rule_info)
                 results.append(problem)
 
         return results
