@@ -731,6 +731,7 @@ class GroupEvaluator:
         evidence_collector: "EvidenceCollector",
         record_evidence: bool = True,
         rows: list[dict[str, Any]] | None = None,
+        param_config: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Evaluate a group-by rule against all groups.
 
@@ -772,9 +773,13 @@ class GroupEvaluator:
 
             # 2. Build evaluation context with aggregated data.
             # group_rows marks group mode for providers (row path untouched).
+            # param_config (rule.parametros[0]) travels as ctx.params so
+            # parametrized evaluators read operator config without touching
+            # invoice_data (tree gates keep seeing real row values).
             ctx = EvaluationContext(
                 invoice_data=group_data, indices=indices,
                 group_rows=row_dicts,
+                params=param_config if isinstance(param_config, dict) else None,
             )
 
             # 3. Evaluate condition tree

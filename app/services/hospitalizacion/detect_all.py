@@ -10,7 +10,7 @@ from typing import Any, Callable
 
 from openpyxl.worksheet.worksheet import Worksheet
 
-from app.constants import AREA_HOSPITALIZACION
+from app.constants import AREA_HOSPITALIZACION, CODIGOS_EQUIVALENTES_OBLIGATORIOS_HOSP
 from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 from app.services.transversales import (
     normalize_invoice,
@@ -81,6 +81,29 @@ _GRUPO_A_BUCKET: dict[str, str] = {
 _FALLBACK_NOMBRE_A_BUCKET: dict[str, str] = {
     "cups_equivalentes_hospitalizacion": "cups_equivalentes",
 }
+
+
+def _codigo_equivalentes_display(item: dict[str, Any]) -> str:
+    """Display code for the cups_equivalentes bucket (rule #69 fix).
+
+    Group-rule items carry the first-row ``codigo`` (parity bridge) plus the
+    full ``collect_set_codigo``. Show the intersection with the mandatory
+    38114/129B02 pair; when absent (missing-code error) show the invoice set
+    so reviewers see what the factura actually brought.
+    """
+    raw = item.get("collect_set_codigo") or []
+    codes = [raw] if isinstance(raw, str) else list(raw)
+    present = sorted(
+        {str(c).strip() for c in codes} & set(CODIGOS_EQUIVALENTES_OBLIGATORIOS_HOSP)
+    )
+    if present:
+        return ", ".join(present)
+    if codes:
+        return ", ".join(sorted({str(c).strip() for c in codes if str(c).strip()}))
+    fallback = item.get("codigo", "")
+    if isinstance(fallback, (list, tuple, set)):
+        return ", ".join(sorted(str(c) for c in fallback))
+    return str(fallback)
 
 
 def _evaluate_hospitalizacion_engine_rules(
@@ -388,7 +411,9 @@ def detect_all_problems_hospitalizacion(
                     "factura": item.get("factura", ""),
                     # Engine group rules emit problema/collect_set_codigo instead
                     # of the legacy accion/codigo keys — map both shapes.
-                    "codigo": item.get("codigo", item.get("collect_set_codigo", "")),
+                    # Rule #69: show the 38114/129B02 intersection, never the
+                    # first-row codigo dragged in by the parity bridge.
+                    "codigo": _codigo_equivalentes_display(item),
                     "codigo_equiv": item.get("codigo_equiv", ""),
                     "accion": item.get("accion", item.get("problema", "")),
                 }

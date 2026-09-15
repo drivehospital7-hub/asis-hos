@@ -170,6 +170,7 @@ class RuleEvaluationEngine:
                     invoice_data=merged_data,
                     indices=indices,
                     session=self._session,
+                    params=params if isinstance(params, dict) else None,
                 )
 
                 # Pre-resolve common computed fields (only when tree references them)
@@ -392,6 +393,7 @@ class RuleEvaluationEngine:
             evidence_collector=collector,
             record_evidence=persist,
             rows=rows,
+            param_config=param_config if isinstance(param_config, dict) else None,
         )
 
         if persist:

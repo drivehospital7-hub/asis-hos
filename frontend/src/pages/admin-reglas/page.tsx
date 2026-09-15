@@ -80,7 +80,6 @@ const TABS: Tab[] = [
 ];
 
 const DOMINIOS = ["odontologia", "urgencias", "equipos_basicos", "transversal", "farmacia", "intramural", "hospitalizacion", "ambulatoria"];
-const ESTADOS = ["active", "retired"];
 const SEVERIDADES = ["error", "warning", "info"];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
@@ -128,7 +127,7 @@ export function AdminReglasPage() {
   const [activeTab, setActiveTab] = useState<TabId>("lista");
 
   return (
-    <div className="mx-auto max-w-7xl">
+    <div className="w-full max-w-none">
       <PageTitle
         title="Admin Reglas"
         description="Gestión del motor de reglas de auditoría."
@@ -186,8 +185,8 @@ function RulesListView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterDominio, setFilterDominio] = useState("");
-  const [filterEstado, setFilterEstado] = useState("");
   const [filterActivo, setFilterActivo] = useState("");
+  const [filterGrupo, setFilterGrupo] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRule, setSelectedRule] = useState<Regla | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "detail">("list");
@@ -220,10 +219,12 @@ function RulesListView() {
     setLoading(true);
     setError(null);
     try {
+      const isRetiredView = filterActivo === "retired";
       const data = await fetchReglas({
         dominio: filterDominio || undefined,
-        estado: filterEstado || undefined,
-        activo: filterActivo || undefined,
+        ...(isRetiredView
+          ? { estado: "retired" }
+          : { estado: "active", activo: filterActivo || undefined }),
       });
       setItems(data);
     } catch (e) {
@@ -231,18 +232,36 @@ function RulesListView() {
     } finally {
       setLoading(false);
     }
-  }, [filterDominio, filterEstado, filterActivo]);
+  }, [filterDominio, filterActivo]);
 
   useEffect(() => { load(); }, [load]);
+
+  const isRetiredView = filterActivo === "retired";
+
+  useEffect(() => {
+    if (isRetiredView) clearSelection();
+  }, [isRetiredView, clearSelection]);
 
   useEffect(() => {
     pruneSelection(items.map((r) => r.id));
   }, [items, pruneSelection]);
 
-  const filteredItems = (searchTerm
-    ? items.filter((r) => r.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
-    : items
-  ).sort((a, b) => b.id - a.id);
+  const grupoOptions = Array.from(
+    new Set(
+      items
+        .map((r) => r.grupo_error?.trim())
+        .filter((g): g is string => !!g)
+    )
+  ).sort((a, b) => a.localeCompare(b));
+
+  const filteredItems = items
+    .filter(
+      (r) =>
+        (!searchTerm ||
+          r.nombre.toLowerCase().includes(searchTerm.toLowerCase())) &&
+        (!filterGrupo || r.grupo_error === filterGrupo)
+    )
+    .sort((a, b) => b.id - a.id);
 
   const handleViewDetail = async (item: Regla) => {
     try {
@@ -359,7 +378,7 @@ function RulesListView() {
             size="sm"
             variant="destructive"
             onClick={handleDeactivateAll}
-            disabled={loading || deactivating || activeCount === 0}
+            disabled={loading || deactivating || activeCount === 0 || isRetiredView}
           >
             {deactivating
               ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
@@ -385,24 +404,26 @@ function RulesListView() {
           {DOMINIOS.map((d) => <option key={d} value={d}>{d}</option>)}
         </select>
         <select
-          value={filterEstado}
-          onChange={(e) => setFilterEstado(e.target.value)}
-          className="rounded-lg border px-3 py-1.5 text-sm outline-none"
-          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-        >
-          <option value="">Todos los estados</option>
-          {ESTADOS.map((e) => <option key={e} value={e}>{e}</option>)}
-        </select>
-        <select
           value={filterActivo}
           onChange={(e) => setFilterActivo(e.target.value)}
           aria-label="Filtrar por activación"
           className="rounded-lg border px-3 py-1.5 text-sm outline-none"
           style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
         >
-          <option value="">Activación: Todas</option>
+          <option value="">Todas</option>
           <option value="true">Activas</option>
           <option value="false">Inactivas</option>
+          <option value="retired">Retiradas</option>
+        </select>
+        <select
+          value={filterGrupo}
+          onChange={(e) => setFilterGrupo(e.target.value)}
+          aria-label="Filtrar por grupo de error"
+          className="rounded-lg border px-3 py-1.5 text-sm outline-none"
+          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+        >
+          <option value="">Todos los grupos</option>
+          {grupoOptions.map((g) => <option key={g} value={g}>{g}</option>)}
         </select>
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />
@@ -417,8 +438,8 @@ function RulesListView() {
         </div>
       </div>
 
-      {/* Bulk activation bar */}
-      {selectedIds.length > 0 && (
+      {/* Bulk activation bar — disabled in Retiradas view (read-only) */}
+      {selectedIds.length > 0 && !isRetiredView && (
         <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg border"
              style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)", background: "oklch(0.55 0.04 160 / 0.04)" }}>
           <span className="text-sm font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>
@@ -457,8 +478,8 @@ function RulesListView() {
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No hay reglas</p>
       ) : (
-        <div className="rounded-lg border" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-          <table className="w-full text-sm table-fixed">
+        <div className="rounded-lg border overflow-x-auto" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+          <table className="w-full text-sm min-w-[1200px]">
             <thead>
               <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
                 <th className="py-3 px-4 text-left w-10">
@@ -467,17 +488,20 @@ function RulesListView() {
                     checked={allFilteredSelected}
                     onChange={() => toggleSelectAll(filteredIds)}
                     aria-label="Seleccionar reglas filtradas"
-                    className="rounded border-gray-300"
+                    disabled={isRetiredView}
+                    className="rounded border-gray-300 disabled:opacity-40"
                     style={{ accentColor: "oklch(0.55 0.04 160)" }}
                   />
                 </th>
                 <th className="py-3 px-4 text-left w-14">#</th>
-                <th className="py-3 px-4 text-left">Nombre</th>
-                <th className="py-3 px-4 text-left w-28">Dominio</th>
-                <th className="py-3 px-4 text-left w-24">Estado</th>
-                <th className="py-3 px-4 text-left w-20">Prioridad</th>
-                <th className="py-3 px-4 text-left w-24">Severidad</th>
-                <th className="py-3 px-4 text-left w-72">Acciones</th>
+                <th className="py-3 px-4 text-left w-[14%]">Nombre</th>
+                <th className="py-3 px-4 text-left w-[28%]">Descripción</th>
+                <th className="py-3 px-4 text-left w-[12%]">Grupo error</th>
+                <th className="py-3 px-4 text-left w-[8%]">Dominio</th>
+                <th className="py-3 px-4 text-left w-[8%]">Estado</th>
+                <th className="py-3 px-4 text-left w-[6%]">Prioridad</th>
+                <th className="py-3 px-4 text-left w-[8%]">Severidad</th>
+                <th className="py-3 px-4 text-left w-[16%]">Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -489,7 +513,8 @@ function RulesListView() {
                       checked={selectedIds.includes(item.id)}
                       onChange={() => toggleSelectId(item.id)}
                       aria-label={`Seleccionar regla ${item.nombre}`}
-                      className="rounded border-gray-300"
+                      disabled={isRetiredView}
+                      className="rounded border-gray-300 disabled:opacity-40"
                       style={{ accentColor: "oklch(0.55 0.04 160)" }}
                     />
                   </td>
@@ -499,12 +524,20 @@ function RulesListView() {
                       onClick={() => handleViewDetail(item)}>
                     {item.nombre}
                   </td>
+                  <td className="py-3 px-4 truncate text-muted-foreground" style={{ maxWidth: "340px" }}
+                      title={item.descripcion ?? ""}>
+                    {item.descripcion ?? "—"}
+                  </td>
+                  <td className="py-3 px-4 truncate" style={{ color: "oklch(0.55 0.04 160)", maxWidth: "180px" }}
+                      title={item.grupo_error ?? ""}>
+                    {item.grupo_error ?? "—"}
+                  </td>
                   <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
                   <td className="py-3 px-4"><EstadoBadge estado={item.estado} activo={item.activo} /></td>
                   <td className="py-3 px-4">{item.prioridad}</td>
                   <td className="py-3 px-4"><SeveridadBadge severidad={item.severidad} /></td>
                   <td className="py-3 px-4">
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 whitespace-nowrap">
                       <Button size="sm" variant="default" onClick={() => handleViewDetail(item)}>
                         <Eye className="h-3.5 w-3.5" />
                         Ver

@@ -1431,57 +1431,65 @@ class HospitalizacionCantidadEvaluator(AtomicEvaluator):
 
 
 class HospiSalaObsCantidadCheckEvaluator(AtomicEvaluator):
-    """Sala observacion 38114 cantidad vs estancia (Hospitalizacion Soat).
+    """Sala observacion cantidad vs estancia (Hospitalizacion).
 
     Operator: hospi_sala_obs_cantidad_check
 
+    Parametrizado por rule.parametros[0] (el engine lo lleva en
+    context.params):
+    - codigo_objetivo (default "38114"): codigo cuya cantidad se suma.
+    - base (default 1): desplazamiento de la esperada.
+      esperada = base + floor(h/24). Con base=0 la esperada equivale
+      a dias completos (<24h->0, 24h->1, 36h->1, 49h->2).
+
+    El gate de tarifario/tipo vive en el arbol (eq); el evaluator NO
+    lo re-chequea: solo suma el codigo objetivo y compara contra la
+    formula base+floor(h/24).
+
     Group mode (context.group_rows set) suma cantidad de filas con
-    codigo == 38114; row mode usa la fila unica (cant si codigo es
-    38114, si no 0). Horas = primer par valido
-    fec_factura/fecha_cierre. Esperada = 1+floor(horas/24).
-    MATCH si cant != esperada. Gate Soat/Hospitalizacion
-    re-chequeado adentro (el arbol tambien lo exige).
+    codigo == codigo_objetivo; row mode usa la fila unica (cant si
+    codigo es el objetivo, si no 0). Horas = primer par valido
+    fec_factura/fecha_cierre. Esperada = base+floor(horas/24).
+    MATCH si cant != esperada.
     """
 
     operator = "hospi_sala_obs_cantidad_check"
     CODIGO = "38114"
+    BASE = 1
 
     def evaluate(self, condition, row_value, expected=None, context=None) -> bool:
         import math
 
         if context is None:
             return False
+        params = getattr(context, "params", None) or {}
+        codigo_objetivo = str(
+            params.get("codigo_objetivo", self.CODIGO) or self.CODIGO
+        ).strip().upper()
+        try:
+            base = int(params.get("base", self.BASE))
+        except (TypeError, ValueError):
+            base = self.BASE
         group_rows = getattr(context, "group_rows", None)
         if group_rows is not None:
             rows = list(group_rows)
-            ref = (context.invoice_data or {})
         else:
             ref = (getattr(context, "invoice_data", None) or {})
             rows = [ref] if ref else []
         if not rows:
             return False
-        if str(ref.get("tipo_factura_descripcion", "")).strip() != "Hospitalización":
-            # Fallback: gate por primera fila si invoice_data es agregado
-            first_tipo = str((rows[0].get("tipo_factura_descripcion", ""))).strip()
-            if first_tipo != "Hospitalización":
-                return False
-        tarif = str(ref.get("tarifario", "") or "").strip().upper()
-        if not tarif:
-            tarif = str(rows[0].get("tarifario", "") or "").strip().upper()
-        if tarif != "SOAT":
-            return False
         hours = self._first_hours(rows)
         if hours is None:
             return False
-        esperada = 1 + math.floor(hours / 24)
-        cant = self._sum_38114(rows)
+        esperada = base + math.floor(hours / 24)
+        cant = self._sum_codigo(rows, codigo_objetivo)
         return cant != float(esperada)
 
-    @classmethod
-    def _sum_38114(cls, rows: list[dict]) -> float:
+    @staticmethod
+    def _sum_codigo(rows: list[dict], codigo: str) -> float:
         total = 0.0
         for r in rows:
-            if str(r.get("codigo", "") or "").strip().upper() != cls.CODIGO:
+            if str(r.get("codigo", "") or "").strip().upper() != codigo:
                 continue
             try:
                 total += float(r.get("cantidad"))

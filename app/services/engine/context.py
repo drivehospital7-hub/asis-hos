@@ -34,3 +34,8 @@ class EvaluationContext:
     resolve row-written sources against the group (first valid date pair,
     first-row scalars, on-demand collect_set). Row path untouched.
     """
+    params: dict[str, Any] | None = None
+    """Rule.parametros[0]: operator config forwarded by the engine.
+
+    None (default) = no overrides; evaluators fall back to their defaults.
+    """

@@ -405,6 +405,14 @@ CODIGOS_HOSPITALIZACION_PROHIBIDOS = frozenset({
     "890701",
 })
 
+# Hospitalización a nivel factura: debe traer 38114 o 129B02 (basta uno).
+# Regla hospi_equivalentes_group_fac (#69): ERROR cuando la factura NO trae
+# ninguno de los dos (OR semantics → NOT[set_intersects] en el árbol).
+CODIGOS_EQUIVALENTES_OBLIGATORIOS_HOSP = frozenset({
+    "38114",
+    "129B02",
+})
+
 # Código CUPS 890601H -> Centro de costo "HOSPITALIZACIÓN - ESTANCIA GENERAL"
 CODIGO_CUPS_HOSPITALIZACION = "890601H"
 CENTRO_COSTO_HOSPITALIZACION_ESTANCIA = "HOSPITALIZACIÓN - ESTANCIA GENERAL"
