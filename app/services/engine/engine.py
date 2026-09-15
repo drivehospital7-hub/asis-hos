@@ -331,14 +331,18 @@ class RuleEvaluationEngine:
     ) -> list[dict[str, Any]]:
         """Evaluate a group-by rule: pre-scan → partition → aggregate → evaluate.
 
+        Si el param solo trae ``group_by`` (sin aggregations/filter), la
+        config se infiere del arbol (ver
+        ``GroupEvaluator.resolve_group_config``): lo explicito manda.
+
         Args:
             rule: The loaded Regla ORM object.
             tree: Condition tree root node.
             data_sheet: openpyxl Worksheet.
             indices: Column name → index mapping.
-            param_config: The parametros config dict with group_by + aggregations.
-            persist: If True (default), record evidence and audit. If False,
-                     skip all DB writes.
+            param_config: Parametros dict with group_by (+ optional
+                aggregations/filter; missing pieces are inferred).
+            persist: If True (default), record evidence and audit.
             rows: Optional list of dicts (RowStore) for O(1) dict access.
             evidence_collector: Optional external EvidenceCollector.
 
@@ -346,9 +350,9 @@ class RuleEvaluationEngine:
             List of detection dicts with factura, problema, regla, severidad.
         """
         group_by_field = param_config.get("group_by", "numero_factura")
-        filter_field = param_config.get("filter_field")
-        filter_value = param_config.get("filter_value")
-        agg_configs = param_config.get("aggregations", [])
+        agg_configs, filter_field, filter_value = (
+            GroupEvaluator.resolve_group_config(tree, param_config)
+        )
 
         # Determine which collector to use
         collector = evidence_collector if evidence_collector is not None else self._evidence_collector

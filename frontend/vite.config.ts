@@ -39,6 +39,7 @@ export default defineConfig({
         path.resolve(__dirname, "src/pages/monitoreo-carpetas/index.html"),
         path.resolve(__dirname, "src/pages/examenes/index.html"),
         path.resolve(__dirname, "src/pages/busqueda-pdf/index.html"),
+        path.resolve(__dirname, "src/islands/user-menu/index.html"),
       ],
     },
   },

@@ -97,11 +97,32 @@ def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
     return manifest.get(entry_key, {}).get(field, "")
 
 
+def _get_manifest_css(manifest_path: Path, entry_key: str) -> str:
+    """First css asset of a Vite manifest entry ("" when the entry has none)."""
+    if not manifest_path.exists():
+        return ""
+    manifest = json.loads(manifest_path.read_text())
+    css = manifest.get(entry_key, {}).get("css", [])
+    return css[0] if css else ""
+
+
+USER_MENU_ISLAND_ENTRY = "src/islands/user-menu/index.html"
+
+
 @control_errores_bp.get("/control-novedades")
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def control_errores_page():
-    """Página principal del control de errores (Jinja2)."""
-    return render_template("control_errores.html")
+    """Página principal del control de errores (Jinja2 + isla user-menu)."""
+    manifest_path = Path(current_app.root_path) / "static" / "react-dist" / "manifest.json"
+    entry_js = _get_manifest_asset(manifest_path, USER_MENU_ISLAND_ENTRY, "file")
+    entry_css = _get_manifest_css(manifest_path, USER_MENU_ISLAND_ENTRY)
+    logger.info("[BACK] Control novedades page, user-menu island js=%s css=%s", entry_js, entry_css)
+    return render_template(
+        "control_errores.html",
+        user_menu_entry_js=entry_js,
+        user_menu_entry_css=entry_css,
+        user_menu_initial_data={"username": session.get("username", "")},
+    )
 
 
 @control_errores_bp.get("/api/control-errores/opciones")

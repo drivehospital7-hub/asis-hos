@@ -23,6 +23,11 @@
   {# ── Custom CSS (tokens + utilities) ── #}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/main.css') }}">
 
+  {# ── User-menu island CSS (only on pages that opt in via the route) ── #}
+  {% if user_menu_entry_css %}
+  <link rel="stylesheet" crossorigin href="{{ url_for('static', filename='react-dist/' + user_menu_entry_css) }}">
+  {% endif %}
+
   {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -167,8 +172,13 @@
             <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
             Sesión iniciada
           </span>
-          <span class="text-sm text-[var(--muted)] font-body" id="header-username"></span>
+          <span class="text-sm text-[var(--muted)] font-body" id="header-username">{{ session_username or '' }}</span>
         </div>
+        {# ── User-menu React island mount (hidden until its bundle takes over) ── #}
+        <div class="flex items-center gap-3" id="user-menu-root" data-username="{{ session_username or '' }}" style="display: none;"></div>
+        {% if session.get('ce_authenticated') %}
+        <noscript><style>#header-auth-status{display:flex !important}</style></noscript>
+        {% endif %}
       </header>
 
       {# ── BREADCRUMBS ── #}
@@ -483,6 +493,33 @@
   {# ── Shared modal CSS + JS for styled confirm/alert dialogs ── #}
   <link rel="stylesheet" href="{{ url_for('static', filename='css/modal.css') }}">
   <script src="{{ url_for('static', filename='js/modal.js') }}"></script>
+
+  {# ── User-menu React island (only on pages that opt in via the route).
+       window.ceAuth and the ce-auth-change event contract stay intact. ── #}
+  {% if user_menu_entry_js %}
+  <style>
+    :root {
+      --color-primary: var(--primary);
+      --color-primary-foreground: var(--primary-foreground);
+      --color-secondary: var(--secondary);
+      --color-secondary-foreground: var(--secondary-foreground);
+      --color-accent: var(--accent);
+      --color-accent-foreground: var(--accent-foreground);
+      --color-background: var(--background);
+      --color-border: var(--border);
+      --color-input: var(--input);
+      --color-ring: var(--ring);
+      --color-destructive: var(--destructive);
+      --color-destructive-foreground: var(--destructive-foreground);
+      --color-muted: var(--muted);
+      --color-muted-foreground: var(--muted-foreground);
+    }
+  </style>
+  <script>
+    window.__INITIAL_DATA__ = {{ user_menu_initial_data | tojson | safe }};
+  </script>
+  <script type="module" crossorigin src="{{ url_for('static', filename='react-dist/' + user_menu_entry_js) }}"></script>
+  {% endif %}
 
   {% block scripts %}{% endblock %}
 </body>

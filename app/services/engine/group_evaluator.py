@@ -19,6 +19,21 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+#: Ops donde invoice.codigo exige collect_set en modo grupo.
+_INFER_CODIGO_OPS: frozenset[str] = frozenset(
+    {"in", "set_contains_all", "set_intersects"}
+)
+
+#: Campos invoice.* homogeneos por factura: seguros como prefiltro pre-grupo.
+_FACTURA_LEVEL_FIELDS: frozenset[str] = frozenset({
+    "tipo_factura_descripcion",
+    "convenio_facturado",
+    "codigo_entidad_cobrar",
+    "entidad_cobrar",
+    "tarifario",
+})
+
+
 class GroupEvaluator:
     """Evaluates conditions against GROUPS of rows instead of individual rows.
 
@@ -50,6 +65,121 @@ class GroupEvaluator:
         - ``date.horas`` → first valid pair wins; None when no valid pair.
         - ``cat_in``/session evaluators → first-row scalar semantics.
     """
+
+    @staticmethod
+    def _iter_atomic_nodes(tree: dict | None):
+        """Rinde cada nodo atomico del arbol (camina _children)."""
+        if not isinstance(tree, dict):
+            return
+        if tree.get("tipo") == "atomic":
+            yield tree
+            return
+        for child in tree.get("_children", []) or []:
+            yield from GroupEvaluator._iter_atomic_nodes(child)
+
+    @staticmethod
+    def _strip_literal(value: Any) -> str | None:
+        """Normaliza un literal para prefiltro: '"Urgencias"' → 'Urgencias'.
+
+        Solo escalares cuentan como literal; listas/dicts/None → None.
+        """
+        if value is None or isinstance(value, (list, dict, tuple, set, bool)):
+            return None
+        text = str(value).strip()
+        if len(text) >= 2 and text[0] == text[-1] and text[0] in ("'", '"'):
+            text = text[1:-1].strip()
+        return text or None
+
+    @staticmethod
+    def infer_aggregations(tree: dict | None) -> list[dict[str, Any]]:
+        """Infiere agregaciones desde las fuentes usadas en el arbol.
+
+        Reglas de inferencia:
+        - ``date.horas`` (o ``*.estancia_horas``) → compute_horas
+          (fec_factura, fecha_cierre → estancia_horas).
+        - ``invoice.codigo`` con ops de set/membresia (o ya
+          ``group.collect_set_codigo``) → collect_set
+          (codigo → collect_set_codigo).
+        - ``date.edad[_meses]`` → nada: los providers ya resuelven
+          via group bridge (primeras filas), sin agregacion.
+        """
+        uses_horas = False
+        uses_codigo_set = False
+        for node in GroupEvaluator._iter_atomic_nodes(tree):
+            fuente = node.get("fuente_datos") or ""
+            operador = node.get("operador") or ""
+            campo = fuente.split(".")[-1]
+            if fuente == "date.horas" or (
+                campo == "estancia_horas"
+                and fuente.split(".")[0] in ("invoice", "group")
+            ):
+                uses_horas = True
+            if fuente in ("group.collect_set_codigo", "invoice.collect_set_codigo"):
+                uses_codigo_set = True
+            elif fuente == "invoice.codigo" and operador in _INFER_CODIGO_OPS:
+                uses_codigo_set = True
+        aggs: list[dict[str, Any]] = []
+        if uses_horas:
+            aggs.append({
+                "function": "compute_horas", "field1": "fec_factura",
+                "field2": "fecha_cierre", "target": "estancia_horas",
+            })
+        if uses_codigo_set:
+            aggs.append({
+                "function": "collect_set", "field": "codigo",
+                "target": "collect_set_codigo",
+            })
+        return aggs
+
+    @staticmethod
+    def infer_prefilter(tree: dict | None) -> tuple[str | None, str | None]:
+        """Infiere (filter_field, filter_value) del primer eq factura-nivel.
+
+        Solo atomicas ``invoice.<campo> eq <literal>`` sobre campos
+        factura-nivel (ej. tipo_factura_descripcion) se vuelven filtro
+        de filas pre-grupo. Solo eq con literal; el resto se evalua
+        normal en el grupo (el eq inferido tambien se re-evalua: es
+        idempotente en grupos homogeneos).
+        """
+        for node in GroupEvaluator._iter_atomic_nodes(tree):
+            if (node.get("operador") or "") != "eq":
+                continue
+            fuente = node.get("fuente_datos") or ""
+            if not fuente.startswith("invoice."):
+                continue
+            campo = fuente.split(".", 1)[1]
+            if campo not in _FACTURA_LEVEL_FIELDS:
+                continue
+            literal = GroupEvaluator._strip_literal(node.get("valor_esperado"))
+            if literal is None:
+                continue
+            return campo, literal
+        return None, None
+
+    @staticmethod
+    def resolve_group_config(
+        tree: dict | None,
+        param_config: dict[str, Any] | None,
+    ) -> tuple[list[dict[str, Any]], str | None, str | None]:
+        """Resuelve la config efectiva de grupo: lo explicito manda.
+
+        - Con ``aggregations`` no vacias se usan tal cual (compat #60,
+          #1/#2); si faltan, se infieren del arbol.
+        - Con ``filter_field`` se respeta el par explicito; si falta,
+          se infiere del arbol.
+        - ``{"group_by": "numero_factura"}`` solo → todo inferido.
+        """
+        param_config = param_config or {}
+        explicit_aggs = param_config.get("aggregations") or []
+        if explicit_aggs:
+            agg_configs = list(explicit_aggs)
+        else:
+            agg_configs = GroupEvaluator.infer_aggregations(tree)
+        filter_field = param_config.get("filter_field")
+        filter_value = param_config.get("filter_value")
+        if not filter_field:
+            filter_field, filter_value = GroupEvaluator.infer_prefilter(tree)
+        return agg_configs, filter_field, filter_value
 
     @staticmethod
     def _group_row_dicts(
