@@ -556,6 +556,13 @@ class GroupEvaluator:
                     "regla": f"#{rule_info.get('id', '')}",
                     "severidad": rule_info.get("severidad", "error"),
                 }
+                # Mapping metadata viaja en el item (misma razón que engine.py).
+                if rule_info.get("descripcion_template"):
+                    problem["descripcion_template"] = rule_info["descripcion_template"]
+                if rule_info.get("detalle_a_campo"):
+                    problem["detalle_a_campo"] = rule_info["detalle_a_campo"]
+                if rule_info.get("detalle_b_campo"):
+                    problem["detalle_b_campo"] = rule_info["detalle_b_campo"]
                 # Include aggregate data in problem dict for toggle post-processing
                 for key, val in group_data.items():
                     if key not in ("numero_factura",) and val is not None:

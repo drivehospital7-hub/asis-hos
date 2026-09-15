@@ -310,6 +310,102 @@ def _resolve_detalle(item: dict, b_campo: str | None) -> str:
     return str(value).strip() if value is not None else ""
 
 
+def _resolve_template_for(item: dict, mapping: dict) -> str:
+    """Resuelve descripcion_template con prioridad item > mapping.
+
+    Un solo punto de override: el template de la regla gana sobre la
+    descripcion del formatter. Item-level primero (granularidad por
+    regla dentro del mismo grupo), luego grupo-level.
+    """
+    item_template = item.get("descripcion_template")
+    if isinstance(item_template, str) and item_template.strip():
+        return item_template
+    mapping_template = (mapping or {}).get("descripcion_template")
+    if isinstance(mapping_template, str) and mapping_template.strip():
+        return mapping_template
+    return ""
+
+
+def _apply_template_override(
+    row: dict[str, str], item: dict, mapping: dict,
+    regla_templates: dict[str, str] | None = None,
+) -> None:
+    """Sobrescribe row['descripcion'] con el template si existe (in-place)."""
+    template = _resolve_template_for(item, mapping)
+    if not template and regla_templates:
+        regla_key = str(item.get("regla", "")).strip()
+        if regla_key:
+            candidate = regla_templates.get(regla_key, "")
+            if isinstance(candidate, str) and candidate.strip():
+                template = candidate
+    if template:
+        rendered = _safe_format(template, item)
+        if rendered.strip():
+            row["descripcion"] = rendered
+
+
+def _parse_regla_id(regla: object) -> int | None:
+    """Parsea '#60' -> 60. None si no es un id numérico."""
+    text = str(regla or "").strip().lstrip("#").strip()
+    if text.isdigit():
+        return int(text)
+    return None
+
+
+def _resolve_lazy_regla_templates(
+    error_groups: dict[str, list],
+    grupo_mappings: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    """Resuelve templates por regla con una query liviana (lazy, best-effort).
+
+    Solo consulta la DB cuando algún grupo con formatter o sin mapping
+    trae items con 'regla' (#id) y ni el item ni el mapping aportan
+    template. Falla silencioso ({}): tests sin DB y callers legacy
+    mantienen comportamiento. No sobrescribe mappings explícitos.
+    """
+    need_query = False
+    regla_ids: set[int] = set()
+    for grupo, group_list in (error_groups or {}).items():
+        mapping = (grupo_mappings or {}).get(grupo, {})
+        mapping_has = isinstance(mapping.get("descripcion_template"), str) and bool(
+            mapping["descripcion_template"].strip()
+        )
+        for raw in group_list or []:
+            if not isinstance(raw, dict):
+                continue
+            item_has = isinstance(raw.get("descripcion_template"), str) and bool(
+                raw["descripcion_template"].strip()
+            )
+            if item_has or mapping_has:
+                continue
+            rid = _parse_regla_id(raw.get("regla"))
+            if rid is not None:
+                regla_ids.add(rid)
+                need_query = True
+    if not need_query or not regla_ids:
+        return {}
+    try:
+        from app.database import get_session  # lazy: evita ciclo de import
+        from app.models import Regla
+
+        session = get_session()
+        try:
+            rows = (
+                session.query(Regla.id, Regla.descripcion_template)
+                .filter(Regla.id.in_(sorted(regla_ids)))
+                .all()
+            )
+        finally:
+            session.close()
+        out: dict[str, str] = {}
+        for rid, template in rows:
+            if isinstance(template, str) and template.strip():
+                out[f"#{rid}"] = template
+        return out
+    except Exception:
+        return {}
+
+
 def _build_grupo_mapped_rows(
     error_groups: dict[str, list],
     responsables_map: dict[str, str],
@@ -319,6 +415,7 @@ def _build_grupo_mapped_rows(
 ) -> list[dict[str, str]]:
     """Build rows from grupo_error-keyed groups via formatters or generic mapper."""
     rows: list[dict[str, str]] = []
+    regla_templates = _resolve_lazy_regla_templates(error_groups, grupo_mappings)
 
     def _row_base(grupo: str, factura: str) -> dict[str, str]:
         return {
@@ -341,9 +438,15 @@ def _build_grupo_mapped_rows(
             if formatter is not None:
                 row = _row_base(grupo, factura)
                 row.update(formatter(item, mapping))
+                _apply_template_override(row, item, mapping, regla_templates)
                 rows.append(row)
                 continue
-            descripcion = _safe_format(template, item) if template else item.get("problema", "")
+            resolved = _resolve_template_for(item, mapping)
+            if not resolved and regla_templates:
+                candidate = regla_templates.get(str(item.get("regla", "")).strip(), "")
+                if isinstance(candidate, str) and candidate.strip():
+                    resolved = candidate
+            descripcion = _safe_format(resolved, item) if resolved else item.get("problema", "")
             row = _row_base(grupo, factura)
             row["descripcion"] = descripcion
             row["procedimiento"] = _resolve_procedimiento(item, a_campo)

@@ -225,6 +225,15 @@ class RuleEvaluationEngine:
                         "severidad": rule.severidad,
                         "param_config_id": config_idx,
                     }
+                    # Mapping metadata viaja en el item para que
+                    # normalized_rows aplique descripcion_template con
+                    # prioridad sobre los formatters con nombre.
+                    if getattr(rule, "descripcion_template", None):
+                        problem["descripcion_template"] = rule.descripcion_template
+                    if getattr(rule, "detalle_a_campo", None):
+                        problem["detalle_a_campo"] = rule.detalle_a_campo
+                    if getattr(rule, "detalle_b_campo", None):
+                        problem["detalle_b_campo"] = rule.detalle_b_campo
                     # Include relevant Excel row data for display in /procesar
                     for field in ("codigo", "codigo_equiv", "procedimiento", "tipo_identificacion",
                                   "codigo_entidad_cobrar", "tipo_procedimiento", "vlr_subsidiado",
@@ -360,6 +369,9 @@ class RuleEvaluationEngine:
             "nombre": rule.nombre,
             "descripcion": rule.descripcion,
             "severidad": rule.severidad,
+            "descripcion_template": getattr(rule, "descripcion_template", None),
+            "detalle_a_campo": getattr(rule, "detalle_a_campo", None),
+            "detalle_b_campo": getattr(rule, "detalle_b_campo", None),
         }
 
         # 3. Delegate to GroupEvaluator
