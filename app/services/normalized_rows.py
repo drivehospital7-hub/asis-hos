@@ -439,6 +439,7 @@ def _build_grupo_mapped_rows(
                 row = _row_base(grupo, factura)
                 row.update(formatter(item, mapping))
                 _apply_template_override(row, item, mapping, regla_templates)
+                row["regla"] = item.get("regla", "") or ""
                 rows.append(row)
                 continue
             resolved = _resolve_template_for(item, mapping)
@@ -451,6 +452,7 @@ def _build_grupo_mapped_rows(
             row["descripcion"] = descripcion
             row["procedimiento"] = _resolve_procedimiento(item, a_campo)
             row["detalle"] = _resolve_detalle(item, b_campo)
+            row["regla"] = item.get("regla", "") or ""
             if grupo not in NAMED_FORMATTER_GROUPS and not any([a_campo, b_campo, template]):
                 row["mapping_completa"] = False
             rows.append(row)
@@ -464,7 +466,11 @@ def _attach_regla_and_fallback(
     error_groups: dict[str, list],
     key_to_tipo_remap: dict[str, str],
 ) -> None:
-    """Enrich rows with regla ids and fill empty procedimiento via key order."""
+    """Enrich rows with regla ids and fill empty procedimiento via key order.
+
+    Las rows construidas 1:1 en _build_grupo_mapped_rows ya traen su
+    propia regla; aqui solo se usa como fallback cuando la row no trae.
+    """
     _item_reglas: dict[tuple[str, str], str] = {}
     for grupo_key, group_list in error_groups.items():
         tipo = key_to_tipo_remap.get(grupo_key, grupo_key)
@@ -478,6 +484,8 @@ def _attach_regla_and_fallback(
                         if key not in _item_reglas:
                             _item_reglas[key] = r
     for row in rows:
+        if row.get("regla"):
+            continue
         f = row.get("factura", "")
         t = row.get("tipo_error", "")
         r = _item_reglas.get((f, t))
