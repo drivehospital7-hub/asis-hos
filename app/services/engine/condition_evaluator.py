@@ -17,6 +17,41 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+#: Operators where a row-written ``invoice.codigo`` condition is evaluated
+#: against the group's code set in group mode (any-match semantics, equal
+#: to the row verdict for homogeneous groups). ``NOT … in …`` needs no
+#: entry: NOT is a composite that inverts the bridged ``in`` verdict.
+#: ``cat_in`` is intentionally excluded: it needs a DB session per check
+#: and keeps first-row scalar semantics (parity holds when homogeneous).
+_GROUP_CODIGO_BRIDGE_OPS: frozenset[str] = frozenset(
+    {"in", "set_contains_all", "set_intersects"}
+)
+
+
+def _group_codigo_bridge_value(node: dict, context: "EvaluationContext") -> tuple[bool, Any]:
+    """Resolve the group code set for a row-written codigo condition.
+
+    Returns (bridged, value). bridged=True only in group mode
+    (``context.group_rows`` set) for fuente ``invoice.codigo`` with a
+    membership operator. Value is the on-demand collect_set list.
+    """
+    if getattr(context, "group_rows", None) is None:
+        return False, None
+    if node.get("fuente_datos") != "invoice.codigo":
+        return False, None
+    if (node.get("operador") or "") not in _GROUP_CODIGO_BRIDGE_OPS:
+        return False, None
+    invoice_data = getattr(context, "invoice_data", None) or {}
+    codes = invoice_data.get("collect_set_codigo")
+    if codes is None:
+        seen: set[str] = set()
+        for row in context.group_rows or []:
+            val = row.get("codigo")
+            if val is not None:
+                seen.add(str(val).strip())
+        codes = sorted(seen)
+    return True, codes
+
 
 class ConditionEvaluator:
     """Evaluates a condition tree (built from condiciones rows) against a context.
@@ -196,6 +231,10 @@ class ConditionEvaluator:
 
         row_value = provider.resolve(fuente, context) if provider else None
 
+        bridged, bridge_value = _group_codigo_bridge_value(node, context)
+        if bridged:
+            row_value = bridge_value
+
         evaluator = node.get("_evaluator") or get_evaluator(operador)
         if evaluator is None:
             return {"outcome": False, "error": f"Unknown evaluator operator: {operador}"}
@@ -354,6 +393,11 @@ class ConditionEvaluator:
             }
 
         row_value = provider.resolve(fuente, context) if provider else None
+
+        # Group bridge: row-written invoice.codigo membership → group set.
+        bridged, bridge_value = _group_codigo_bridge_value(node, context)
+        if bridged:
+            row_value = bridge_value
 
         # Look up evaluator — prefer cached
         evaluator = node.get("_evaluator") or get_evaluator(operador)

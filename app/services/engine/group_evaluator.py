@@ -36,7 +36,72 @@ class GroupEvaluator:
     - **Worksheet path**: Provide ``data_sheet`` and ``indices``.
     - **RowStore path**: Provide ``rows`` (list[dict]) — dict accesses replace
       ``data_sheet.cell()`` calls.
+
+    Row↔group parity bridge (no condition migration needed):
+        A row-written condition gives the same verdict in group mode when
+        the group is homogeneous. Inside ``evaluate()`` the group_data is
+        enriched with first-row scalars and an on-demand ``collect_set_codigo``,
+        and the ctx carries ``group_rows`` so providers resolve ``date.horas``
+        from the first valid date pair. Heterogeneous divergences (ONE group
+        verdict vs N row verdicts):
+        - ``invoice.codigo`` + ``in``/``set_*`` → any-match over the group
+          set (``NOT in`` matches only when NO code is in the set).
+        - scalar ``eq``/``gt``/… (incl. ``invoice.codigo``) → first row wins.
+        - ``date.horas`` → first valid pair wins; None when no valid pair.
+        - ``cat_in``/session evaluators → first-row scalar semantics.
     """
+
+    @staticmethod
+    def _group_row_dicts(
+        group_rows: list[int],
+        data_sheet: "Worksheet | None",
+        indices: dict[str, int | None],
+        rows: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Per-row dicts for a group (bridge payload for providers).
+
+        RowStore path returns the live row dicts; Worksheet path builds
+        dicts from ``indices`` via ``_cell_value``.
+        """
+        if rows is not None:
+            return [rows[i - 2] for i in group_rows]
+        row_dicts: list[dict[str, Any]] = []
+        for row_idx in group_rows:
+            row_dicts.append({
+                field: GroupEvaluator._cell_value(
+                    row_idx, field, data_sheet, indices,
+                )
+                for field in indices
+                if indices.get(field) is not None
+            })
+        return row_dicts
+
+    @staticmethod
+    def _apply_row_parity_bridge(
+        group_data: dict[str, Any],
+        row_dicts: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        """Enrich group_data so row-written conditions resolve in group mode.
+
+        - Missing scalars (tipo_factura_descripcion, fec_factura, …) come
+          from the first row; aggregate targets are never overwritten.
+        - ``collect_set_codigo`` is computed on-demand when no aggregation
+          produced it (cero migración de params).
+        """
+        if not row_dicts:
+            return group_data
+        first = row_dicts[0]
+        for key, val in first.items():
+            if key not in group_data and val is not None:
+                group_data[key] = val
+        if group_data.get("collect_set_codigo") is None:
+            seen: set[str] = set()
+            for row in row_dicts:
+                val = row.get("codigo")
+                if val is not None:
+                    seen.add(str(val).strip())
+            group_data["collect_set_codigo"] = sorted(seen)
+        return group_data
 
     @staticmethod
     def _cell_value(
@@ -519,8 +584,19 @@ class GroupEvaluator:
                 factura, group_rows, data_sheet, indices, agg_configs, rows=rows,
             )
 
-            # 2. Build evaluation context with aggregated data
-            ctx = EvaluationContext(invoice_data=group_data, indices=indices)
+            # 1b. Parity bridge: first-row scalars + on-demand collect_set,
+            # so row-written conditions resolve without migration.
+            row_dicts = GroupEvaluator._group_row_dicts(
+                group_rows, data_sheet, indices, rows=rows,
+            )
+            GroupEvaluator._apply_row_parity_bridge(group_data, row_dicts)
+
+            # 2. Build evaluation context with aggregated data.
+            # group_rows marks group mode for providers (row path untouched).
+            ctx = EvaluationContext(
+                invoice_data=group_data, indices=indices,
+                group_rows=row_dicts,
+            )
 
             # 3. Evaluate condition tree
             eval_result = condition_evaluator.evaluate(condition_tree, ctx)

@@ -27,3 +27,10 @@ class EvaluationContext:
     reference_data: dict[str, Any] | None = None
     indices: dict[str, int | None] | None = None
     session: Any = None
+    group_rows: list[dict[str, Any]] | None = None
+    """Group-mode payload: per-row dicts of the factura group.
+
+    None (default) = row mode. Set (even empty) = group mode: providers
+    resolve row-written sources against the group (first valid date pair,
+    first-row scalars, on-demand collect_set). Row path untouched.
+    """

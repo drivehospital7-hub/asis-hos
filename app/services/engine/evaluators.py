@@ -180,15 +180,26 @@ class InEvaluator(AtomicEvaluator):
         if not isinstance(expected, (list, tuple, set, frozenset)):
             return False
 
-        # 1. Direct check (same types)
-        if row_value in expected:
-            return True
+        # Group bridge: list row_value (collect_set) → any-match semantics.
+        # Scalar path below is unchanged (row mode intact).
+        values = (
+            list(row_value)
+            if isinstance(row_value, (list, tuple, set, frozenset))
+            else [row_value]
+        )
+        if not values:
+            return False
 
-        # 2. String coercion: compare as stripped uppercase strings
-        row_str = str(row_value).strip().upper() if row_value is not None else ""
-        for val in expected:
-            if str(val).strip().upper() == row_str:
+        for item in values:
+            # 1. Direct check (same types)
+            if item in expected:
                 return True
+
+            # 2. String coercion: compare as stripped uppercase strings
+            item_str = str(item).strip().upper() if item is not None else ""
+            for val in expected:
+                if str(val).strip().upper() == item_str:
+                    return True
 
         return False
 

@@ -218,13 +218,34 @@ class DateProvider(ContextProvider):
         return meses
 
     def _compute_horas(self, context: "EvaluationContext") -> int | None:
-        """Compute hours difference between fec_factura and fecha_cierre."""
+        """Compute hours difference between fec_factura and fecha_cierre.
+
+        Group mode (``context.group_rows`` set): first valid pair across
+        the group's rows wins; None when no row has a valid pair.
+        Row mode: single-row pair from invoice_data (unchanged).
+        """
+        group_rows = getattr(context, "group_rows", None)
+        if group_rows is not None:
+            return self._compute_horas_from_rows(group_rows)
         fec_fact = self._parse_date(context.invoice_data.get("fec_factura"))
         fecha_cierre = self._parse_date(context.invoice_data.get("fecha_cierre"))
         if fec_fact is None or fecha_cierre is None:
             return None
         diff = (fecha_cierre - fec_fact).total_seconds()
         return int(diff / 3600)
+
+    def _compute_horas_from_rows(
+        self, rows_list: list[dict],
+    ) -> int | None:
+        """First valid (fec_factura, fecha_cierre) pair across rows."""
+        for row in rows_list:
+            fec_fact = self._parse_date(row.get("fec_factura"))
+            fecha_cierre = self._parse_date(row.get("fecha_cierre"))
+            if fec_fact is None or fecha_cierre is None:
+                continue
+            diff = (fecha_cierre - fec_fact).total_seconds()
+            return int(diff / 3600)
+        return None
 
     @staticmethod
     def _parse_date(date_value: Any) -> datetime | None:
