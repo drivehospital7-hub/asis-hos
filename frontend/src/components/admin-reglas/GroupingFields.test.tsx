@@ -37,6 +37,41 @@ describe("GroupingFields", () => {
     expect(DETALLE_FIELD_KEYS).toContain("edad_anios");
   });
 
+  it("renders grupo_error as a select with auto option and canonical labels", () => {
+    const html = renderToStaticMarkup(
+      <GroupingFields
+        grupoError="Centros de Costo"
+        detalleACampo=""
+        detalleBCampo=""
+        descripcionTemplate=""
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('name="grupo_error"');
+    expect(html).toContain("<select");
+    expect(html).toContain("— auto —");
+    expect(html).toContain('value="Centros de Costo"');
+    expect(html).toContain("Tipo Identificacion / Edad");
+  });
+
+  it("preserves a legacy grupo_error value as an extra option", () => {
+    const html = renderToStaticMarkup(
+      <GroupingFields
+        grupoError="Grupo Legacy 123"
+        detalleACampo=""
+        detalleBCampo=""
+        descripcionTemplate=""
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain("Grupo Legacy 123");
+    expect(html).toContain('value="__legacy__"');
+  });
+
   it("renders detalle A/B as selects with auto option and keys", () => {
     const html = renderToStaticMarkup(
       <GroupingFields

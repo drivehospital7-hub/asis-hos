@@ -143,22 +143,29 @@ export function GroupingFields({
         <label className="block text-sm font-medium mb-1" style={labelStyle}>
           Error group
         </label>
-        <input
-          type="text"
+        <select
           name="grupo_error"
-          list="grupo-error-labels"
-          value={grupoError}
-          onChange={(e) => onChange("grupo_error", e.target.value)}
-          placeholder="e.g. Centros de Costo"
+          value={GRUPO_ERROR_LABELS.includes(grupoError) || grupoError === "" ? grupoError : "__legacy__"}
+          onChange={(e) =>
+            onChange(
+              "grupo_error",
+              e.target.value === "__legacy__" ? grupoError : e.target.value,
+            )
+          }
           className={inputClassName}
           style={inputStyle}
           disabled={disabled}
-        />
-        <datalist id="grupo-error-labels">
+        >
+          <option value="">— auto —</option>
           {GRUPO_ERROR_LABELS.map((label) => (
-            <option key={label} value={label} />
+            <option key={label} value={label}>
+              {label}
+            </option>
           ))}
-        </datalist>
+          {grupoError !== "" && !GRUPO_ERROR_LABELS.includes(grupoError) && (
+            <option value="__legacy__">{grupoError}</option>
+          )}
+        </select>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1" style={labelStyle}>
