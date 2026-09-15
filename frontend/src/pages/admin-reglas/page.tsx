@@ -59,6 +59,7 @@ import {
 } from "@/lib/api-reglas";
 import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
 import { GroupingFields } from "@/components/admin-reglas/GroupingFields";
+import { useBulkActivacion } from "@/hooks/useBulkActivacion";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -200,6 +201,19 @@ function RulesListView() {
   const [createError, setCreateError] = useState<string | null>(null);
   const [createSaving, setCreateSaving] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const {
+    selectedIds,
+    running: bulkRunning,
+    done: bulkDone,
+    total: bulkTotal,
+    failures: bulkFailures,
+    toggleId: toggleSelectId,
+    toggleAll: toggleSelectAll,
+    clear: clearSelection,
+    prune: pruneSelection,
+    retainOnly: retainOnlySelection,
+    runBulk,
+  } = useBulkActivacion({ runOne: (id, activo) => updateRegla(id, { activo }) });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -218,6 +232,10 @@ function RulesListView() {
   }, [filterDominio, filterEstado]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    pruneSelection(items.map((r) => r.id));
+  }, [items, pruneSelection]);
 
   const filteredItems = (searchTerm
     ? items.filter((r) => r.nombre.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -285,6 +303,20 @@ function RulesListView() {
       setDeactivating(false);
     }
   };
+
+  const handleBulk = async (activo: boolean) => {
+    const failures = await runBulk(activo);
+    await load();
+    if (failures.length === 0) {
+      clearSelection();
+    } else {
+      retainOnlySelection(failures.map((f) => f.id));
+    }
+  };
+
+  const filteredIds = filteredItems.map((r) => r.id);
+  const allFilteredSelected =
+    filteredIds.length > 0 && filteredIds.every((id) => selectedIds.includes(id));
 
   if (viewMode === "detail" && selectedRule) {
     return (
@@ -372,6 +404,43 @@ function RulesListView() {
         </div>
       </div>
 
+      {/* Bulk activation bar */}
+      {selectedIds.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-lg border"
+             style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)", background: "oklch(0.55 0.04 160 / 0.04)" }}>
+          <span className="text-sm font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>
+            {selectedIds.length} seleccionada{selectedIds.length === 1 ? "" : "s"}
+          </span>
+          <Button size="sm" onClick={() => handleBulk(true)} disabled={bulkRunning}>
+            {bulkRunning
+              ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              : <CheckCircle2 className="h-3.5 w-3.5 mr-1" />}
+            Activar
+          </Button>
+          <Button size="sm" variant="secondary" onClick={() => handleBulk(false)} disabled={bulkRunning}>
+            {bulkRunning
+              ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />
+              : <XCircle className="h-3.5 w-3.5 mr-1" />}
+            Desactivar
+          </Button>
+          <Button size="sm" variant="secondary" onClick={clearSelection} disabled={bulkRunning}>
+            Limpiar
+          </Button>
+          {bulkRunning && bulkTotal > 0 && (
+            <span className="text-xs text-muted-foreground">
+              Procesando {bulkDone}/{bulkTotal}...
+            </span>
+          )}
+          {!bulkRunning && bulkFailures.length > 0 && (
+            <span className="text-xs" style={{ color: "oklch(0.6 0.2 25)" }}>
+              {bulkFailures.length} error{bulkFailures.length === 1 ? "" : "es"}:{" "}
+              {bulkFailures.slice(0, 3).map((f) => `#${f.id} (${f.message})`).join(", ")}
+              {bulkFailures.length > 3 ? ` y ${bulkFailures.length - 3} más` : ""}. Quedan seleccionadas para reintentar.
+            </span>
+          )}
+        </div>
+      )}
+
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No hay reglas</p>
       ) : (
@@ -379,6 +448,16 @@ function RulesListView() {
           <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+                <th className="py-3 px-4 text-left w-10">
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={() => toggleSelectAll(filteredIds)}
+                    aria-label="Seleccionar reglas filtradas"
+                    className="rounded border-gray-300"
+                    style={{ accentColor: "oklch(0.55 0.04 160)" }}
+                  />
+                </th>
                 <th className="py-3 px-4 text-left w-14">#</th>
                 <th className="py-3 px-4 text-left">Nombre</th>
                 <th className="py-3 px-4 text-left w-28">Dominio</th>
@@ -391,6 +470,16 @@ function RulesListView() {
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
+                  <td className="py-3 px-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.includes(item.id)}
+                      onChange={() => toggleSelectId(item.id)}
+                      aria-label={`Seleccionar regla ${item.nombre}`}
+                      className="rounded border-gray-300"
+                      style={{ accentColor: "oklch(0.55 0.04 160)" }}
+                    />
+                  </td>
                   <td className="py-3 px-4 text-xs text-muted-foreground font-mono" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
                   <td className="py-3 px-4 font-medium truncate cursor-pointer" style={{ color: "oklch(0.15 0.02 160)" }}
                       title={item.nombre}
@@ -536,7 +625,6 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [dominio, setDominio] = useState(rule.dominio);
   const [severidad, setSeveridad] = useState(rule.severidad);
   const [prioridad, setPrioridad] = useState(String(rule.prioridad));
-  const [activo, setActivo] = useState(rule.activo);
   const [grupoError, setGrupoError] = useState(rule.grupo_error ?? "");
   const [detalleACampo, setDetalleACampo] = useState(rule.detalle_a_campo ?? "");
   const [detalleBCampo, setDetalleBCampo] = useState(rule.detalle_b_campo ?? "");
@@ -602,7 +690,6 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
         dominio,
         severidad,
         prioridad: Number(prioridad),
-          activo,
           grupo_error: grupoError.trim() || null,
           detalle_a_campo: detalleACampo.trim() || null,
           detalle_b_campo: detalleBCampo.trim() || null,
@@ -721,25 +808,11 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
             onChange={handleGroupingChange}
           />
 
-          {!isReadOnly && (
-            <div className="flex items-center gap-3 mb-4">
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={activo}
-                  onChange={(e) => setActivo(e.target.checked)}
-                  className="rounded border-gray-300"
-                  style={{ accentColor: "oklch(0.55 0.04 160)" }}
-                />
-                <span className="text-sm font-medium" style={{ color: "oklch(0.55 0.04 160)" }}>
-                  Activa
-                </span>
-              </label>
-              <span className="text-xs text-muted-foreground">
-                {activo ? "La regla se evalúa en los procesos" : "La regla está desactivada, no se evalúa"}
-              </span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-sm font-medium" style={{ color: "oklch(0.55 0.04 160)" }}>
+              Activación: {rule.activo ? "Activa" : "Inactiva"} (se gestiona desde el listado)
+            </span>
+          </div>
 
           <div className="mb-4">
             <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>

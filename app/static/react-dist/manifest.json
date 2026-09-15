@@ -201,7 +201,7 @@
     ]
   },
   "src/pages/admin-reglas/index.html": {
-    "file": "assets/index-ZN2t5euR.js",
+    "file": "assets/index-BughMWgA.js",
     "name": "index",
     "src": "src/pages/admin-reglas/index.html",
     "isEntry": true,
@@ -214,11 +214,11 @@
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js",
       "_chevron-down-BGA8Tm_F.js",
+      "_circle-check-CRdT4vUM.js",
+      "_circle-x-DWHZiwFP.js",
       "_trash-2-B_HF-4H9.js",
       "_play-Dpt2ANAv.js",
-      "_pencil-BNxqi9es.js",
-      "_circle-check-CRdT4vUM.js",
-      "_circle-x-DWHZiwFP.js"
+      "_pencil-BNxqi9es.js"
     ]
   },
   "src/pages/auditoria/index.html": {
