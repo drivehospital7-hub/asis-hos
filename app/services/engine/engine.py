@@ -244,11 +244,13 @@ class RuleEvaluationEngine:
                                   "tipo_factura_descripcion", "responsable_cierra",
                                   "profesional_atiende", "identificacion",
                                   "fec_nacimiento", "fec_factura", "edad",
-                                  "date.edad", "date.edad_meses", "numero_identificacion"):
+                                  "date.edad", "date.edad_meses", "numero_identificacion",
+                                  "estancia_horas", "estancia_str"):
                         if field in row_data:
                             problem[field] = row_data[field]
                         elif field in eval_ctx.invoice_data:
                             problem[field] = eval_ctx.invoice_data[field]
+                    _enrich_estancia_str(problem, eval_ctx.invoice_data, row_data)
                     results.append(problem)
 
         if persist:
@@ -515,6 +517,43 @@ class RuleEvaluationEngine:
             except Exception:
                 pass
         return None
+
+
+def _format_estancia(horas: float | None) -> str:
+    """Formatea estancia en días + horas (convención legacy sala/hosp).
+
+    Local al engine para no importar desde urgencias/hospitalizacion:
+    el engine es transversal y esos packages son de dominio.
+    """
+    if horas is None:
+        return "N/A"
+    dias = int(horas // 24)
+    hrs = int(horas % 24)
+    if dias > 0:
+        return f"{dias}d {hrs}h"
+    return f"{hrs}h"
+
+
+def _enrich_estancia_str(
+    problem: dict[str, Any],
+    *sources: dict[str, Any] | None,
+) -> None:
+    """Agrega estancia_str si hay estancia_horas numérico y falta el str."""
+    if problem.get("estancia_str"):
+        return
+    horas = problem.get("estancia_horas")
+    if isinstance(horas, bool) or not isinstance(horas, (int, float)):
+        for source in sources:
+            candidate = (source or {}).get("estancia_horas")
+            if isinstance(candidate, bool):
+                continue
+            if isinstance(candidate, (int, float)):
+                horas = candidate
+                break
+        else:
+            return
+    problem.setdefault("estancia_horas", horas)
+    problem["estancia_str"] = _format_estancia(horas)
 
 
 def _extract_factura(row_data: dict[str, Any]) -> str | None:

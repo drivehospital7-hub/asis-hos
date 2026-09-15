@@ -34,6 +34,31 @@ _FACTURA_LEVEL_FIELDS: frozenset[str] = frozenset({
 })
 
 
+def _format_estancia(horas: float | None) -> str:
+    """Formatea estancia en días + horas (convención legacy sala/hosp).
+
+    No importa legacy para evitar acople entre dominios: el engine
+    es transversal y los formatters viven en urgencias/hospitalizacion.
+    """
+    if horas is None:
+        return "N/A"
+    dias = int(horas // 24)
+    hrs = int(horas % 24)
+    if dias > 0:
+        return f"{dias}d {hrs}h"
+    return f"{hrs}h"
+
+
+def _enrich_estancia_str(problem: dict[str, Any]) -> None:
+    """Agrega estancia_str si hay estancia_horas numérico y falta el str."""
+    if problem.get("estancia_str"):
+        return
+    horas = problem.get("estancia_horas")
+    if isinstance(horas, bool) or not isinstance(horas, (int, float)):
+        return
+    problem["estancia_str"] = _format_estancia(horas)
+
+
 class GroupEvaluator:
     """Evaluates conditions against GROUPS of rows instead of individual rows.
 
@@ -773,6 +798,7 @@ class GroupEvaluator:
                 for key, val in group_data.items():
                     if key not in ("numero_factura",) and val is not None:
                         problem[key] = val
+                _enrich_estancia_str(problem)
                 results.append(problem)
 
         return results
