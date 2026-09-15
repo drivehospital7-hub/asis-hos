@@ -127,7 +127,7 @@ export function AdminReglasPage() {
   const [activeTab, setActiveTab] = useState<TabId>("lista");
 
   return (
-    <div className="w-full max-w-none">
+    <div className="w-full max-w-none mx-auto">
       <PageTitle
         title="Admin Reglas"
         description="Gestión del motor de reglas de auditoría."
@@ -478,11 +478,11 @@ function RulesListView() {
       {filteredItems.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">No hay reglas</p>
       ) : (
-        <div className="rounded-lg border overflow-x-auto" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-          <table className="w-full text-sm min-w-[1200px]">
+        <div className="rounded-lg border w-full" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
+          <table className="w-full text-sm table-fixed">
             <thead>
               <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
-                <th className="py-3 px-4 text-left w-10">
+                <th className="py-2 px-2 text-left w-[3%]">
                   <input
                     type="checkbox"
                     checked={allFilteredSelected}
@@ -493,21 +493,21 @@ function RulesListView() {
                     style={{ accentColor: "oklch(0.55 0.04 160)" }}
                   />
                 </th>
-                <th className="py-3 px-4 text-left w-14">#</th>
-                <th className="py-3 px-4 text-left w-[14%]">Nombre</th>
-                <th className="py-3 px-4 text-left w-[28%]">Descripción</th>
-                <th className="py-3 px-4 text-left w-[12%]">Grupo error</th>
-                <th className="py-3 px-4 text-left w-[8%]">Dominio</th>
-                <th className="py-3 px-4 text-left w-[8%]">Estado</th>
-                <th className="py-3 px-4 text-left w-[6%]">Prioridad</th>
-                <th className="py-3 px-4 text-left w-[8%]">Severidad</th>
-                <th className="py-3 px-4 text-left w-[16%]">Acciones</th>
+                <th className="py-2 px-2 text-left w-[4%]">#</th>
+                <th className="py-2 px-2 text-left w-[20%]">Nombre</th>
+                <th className="py-2 px-2 text-left w-[20%]">Descripción</th>
+                <th className="py-2 px-2 text-left w-[9%]">Grupo error</th>
+                <th className="py-2 px-2 text-left w-[8%]">Dominio</th>
+                <th className="py-2 px-2 text-left w-[8%]">Estado</th>
+                <th className="py-2 px-2 text-left w-[6%]">Prioridad</th>
+                <th className="py-2 px-2 text-left w-[8%]">Severidad</th>
+                <th className="py-2 px-2 text-left w-[14%]">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {filteredItems.map((item) => (
                 <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                  <td className="py-3 px-4">
+                  <td className="py-2 px-2">
                     <input
                       type="checkbox"
                       checked={selectedIds.includes(item.id)}
@@ -518,26 +518,26 @@ function RulesListView() {
                       style={{ accentColor: "oklch(0.55 0.04 160)" }}
                     />
                   </td>
-                  <td className="py-3 px-4 text-xs text-muted-foreground font-mono" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
-                  <td className="py-3 px-4 font-medium truncate cursor-pointer" style={{ color: "oklch(0.15 0.02 160)" }}
+                  <td className="py-2 px-2 text-xs text-muted-foreground font-mono break-all align-top" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
+                  <td className="py-2 px-2 font-medium cursor-pointer whitespace-normal break-words align-top" style={{ color: "oklch(0.15 0.02 160)" }}
                       title={item.nombre}
                       onClick={() => handleViewDetail(item)}>
                     {item.nombre}
                   </td>
-                  <td className="py-3 px-4 truncate text-muted-foreground" style={{ maxWidth: "340px" }}
+                  <td className="py-2 px-2 whitespace-normal break-words text-muted-foreground align-top"
                       title={item.descripcion ?? ""}>
                     {item.descripcion ?? "—"}
                   </td>
-                  <td className="py-3 px-4 truncate" style={{ color: "oklch(0.55 0.04 160)", maxWidth: "180px" }}
+                  <td className="py-2 px-2 whitespace-normal break-words align-top" style={{ color: "oklch(0.55 0.04 160)" }}
                       title={item.grupo_error ?? ""}>
                     {item.grupo_error ?? "—"}
                   </td>
-                  <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
-                  <td className="py-3 px-4"><EstadoBadge estado={item.estado} activo={item.activo} /></td>
-                  <td className="py-3 px-4">{item.prioridad}</td>
-                  <td className="py-3 px-4"><SeveridadBadge severidad={item.severidad} /></td>
-                  <td className="py-3 px-4">
-                    <div className="flex gap-2 whitespace-nowrap">
+                  <td className="py-2 px-2 whitespace-normal break-words align-top" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
+                  <td className="py-2 px-2 align-top"><EstadoBadge estado={item.estado} activo={item.activo} /></td>
+                  <td className="py-2 px-2 align-top">{item.prioridad}</td>
+                  <td className="py-2 px-2 align-top"><SeveridadBadge severidad={item.severidad} /></td>
+                  <td className="py-2 px-2 align-top">
+                    <div className="flex flex-wrap gap-1">
                       <Button size="sm" variant="default" onClick={() => handleViewDetail(item)}>
                         <Eye className="h-3.5 w-3.5" />
                         Ver
