@@ -63,6 +63,7 @@ class TestGenericMapperParity:
         legacy = build_normalized_rows(
             error_groups={k: [dict(i) for i in v] for k, v in groups.items()},
             responsables_map={},
+            use_grupo_mapping=False,
         )
         mapped = build_normalized_rows(
             error_groups={k: [dict(i) for i in v] for k, v in groups.items()},
@@ -148,16 +149,30 @@ class TestKeyOrderStability:
 
 
 class TestCutoverFlag:
-    def test_default_off_runs_legacy_blocks(self):
+    def test_default_on_runs_grupo_mapping(self):
+        """Cutover default ON: sin override explícito corre el grupo mapping."""
         from app.services.normalized_rows import build_normalized_rows
 
         groups = {"Centros de Costo": [dict(i) for i in CENTROS_ITEMS]}
         default = build_normalized_rows(
             error_groups={k: [dict(i) for i in v] for k, v in groups.items()},
             responsables_map={},
+            grupo_mappings=CENTROS_MAPPINGS,
         )
         assert default[0]["tipo_error"] == "Centros de Costo"
         assert "mapping_completa" not in default[0]
+
+    def test_explicit_off_runs_legacy_blocks(self):
+        from app.services.normalized_rows import build_normalized_rows
+
+        groups = {"Centros de Costo": [dict(i) for i in CENTROS_ITEMS]}
+        legacy = build_normalized_rows(
+            error_groups={k: [dict(i) for i in v] for k, v in groups.items()},
+            responsables_map={},
+            use_grupo_mapping=False,
+        )
+        assert legacy[0]["tipo_error"] == "Centros de Costo"
+        assert "mapping_completa" not in legacy[0]
 
     def test_unknown_group_empty_mapping_flagged(self):
         from app.services.normalized_rows import build_normalized_rows

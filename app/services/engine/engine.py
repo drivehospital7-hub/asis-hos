@@ -408,11 +408,13 @@ class RuleEvaluationEngine:
     # ── Internal helpers ──────────────────────────────────────────────────
 
     def _load_rule_legacy(self, rule_name: str) -> Regla | None:
-        """Load a single rule by name without dominio filter (pre-T6 callers)."""
+        """Load a single rule by name without dominio filter (pre-T6 callers).
+
+        Single-flag cutover: filters ONLY by activo (no estado filter).
+        """
         return (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
-            .filter(Regla.estado == "active")
             .filter(Regla.activo == True)  # noqa: E712
             .first()
         )
@@ -420,6 +422,7 @@ class RuleEvaluationEngine:
     def _load_rule_by_name(self, rule_name: str, dominio: str) -> Regla | None:
         """Load the highest-version active rule for (nombre, dominio).
 
+        Single-flag cutover: filters ONLY by activo (no estado filter).
         Matches the requested dominio plus transversal rules; exact-dominio
         hits sort first, then highest version wins. A NULL dominio row never
         matches (SQL equality against the requested value).
@@ -428,7 +431,6 @@ class RuleEvaluationEngine:
         return (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
-            .filter(Regla.estado == "active")
             .filter(Regla.activo == True)  # noqa: E712
             .filter(
                 or_(

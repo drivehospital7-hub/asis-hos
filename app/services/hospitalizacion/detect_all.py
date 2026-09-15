@@ -56,91 +56,94 @@ def _get_hospitalizacion_detectors() -> list[Callable]:
     ]
 
 
-# Intended hospitalización engine rules -> result group key. Every rule listed
-# here MUST be seeded/active in the DB (migration 010) so evaluation never hits
-# a silent "Rule not found" gap.
-_HOSPITALIZACION_ENGINE_RULES: dict[str, str] = {
-    "centro_costo_hospitalizacion_valido": "centros_de_costos",
-    "ide_contrato_hospitalizacion_valido": "ide_contrato",
+# Legacy grupo_error -> bucket taxonómico (presentación, no descubrimiento).
+# El descubrimiento es 100% dinámico vía RuleResolver; este mapa solo conserva
+# las keys legacy de resultado. Reglas futuras caen en su bucket de grupo.
+_GRUPO_A_BUCKET: dict[str, str] = {
+    "Centros de Costo": "centros_de_costos",
+    "IDE Contrato": "ide_contrato",
+    "Cups-Equivalentes": "cups_equivalentes",
+    "Codigos Hospitalizacion": "cups_equivalentes",
+    "Cantidades Hospitalización": "cantidades_hospitalizacion",
+    "Cantidades SOAT Hospitalización": "cantidades_soat_hospitalizacion",
+    "Decimales": "decimales",
+    "Tipo Identificacion / Edad": "tipo_identificacion_edad",
+    "Tipo Usuario": "tipo_usuario",
+    "Copago vs Entidad": "copago_entidad",
+    "Profesionales": "profesionales",
+    "Cups Sin Contrato": "cups_sin_contrato",
+}
+
+
+# Fallback nombre->bucket para reglas que preceden la taxonomía grupo_error
+# y aún no la declaran (ej. cups_equivalentes_hospitalizacion, regla 61 solo
+# prod). Muere cuando el admin declare su grupo_error en la UI.
+_FALLBACK_NOMBRE_A_BUCKET: dict[str, str] = {
     "cups_equivalentes_hospitalizacion": "cups_equivalentes",
-    "hosp_codigos_oblig_mayor24h": "cups_equivalentes",
-    "hosp_codigos_oblig_menor24h": "cups_equivalentes",
-    "hosp_codigos_prohibidos": "cups_equivalentes",
-    "cantidades_hospitalizacion": "cantidades_hospitalizacion",
-    "cantidades_soat_hospitalizacion": "cantidades_soat_hospitalizacion",
-    "valores_decimales": "decimales",
-    "tipo_documento_edad_menor_7": "tipo_identificacion_edad",
-    "tipo_documento_edad_mayor_18": "tipo_identificacion_edad",
-    "tipo_documento_edad_7_17": "tipo_identificacion_edad",
-    "tipo_documento_edad_as_menor": "tipo_identificacion_edad",
-    "tipo_documento_edad_ms_mayor": "tipo_identificacion_edad",
-    "tipo_documento_edad_cn_invalido": "tipo_identificacion_edad",
-    "tipo_documento_edad_ce_invalido": "tipo_identificacion_edad",
-    "tipo_id_requiere_entidad_86000": "tipo_identificacion_entidad",
-    "entidad_86000_requiere_as_ms": "tipo_identificacion_entidad",
-    "codigo_entidad": "codigo_entidad_vs_afiliacion",
-    "tipo_usuario_valido": "tipo_usuario",
-    "copago_entidad_valido": "copago_entidad",
-    "profesional_hospitalizacion_valido": "profesionales",
-    "cups_sin_contrato": "cups_sin_contrato",
 }
 
 
 def _evaluate_hospitalizacion_engine_rules(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
-) -> dict[str, list[dict[str, Any]]]:
-    """Evaluate every intended active hospitalización rule exactly once.
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
+    """Evaluate every enabled hospitalización rule exactly once (dynamic).
 
-    Opens a single DB session and uses a single EvidenceCollector (same pattern
-    as the urgencias orchestrator). Verifies each intended rule exists and is
-    active in the DB before evaluating, logging loudly when one is missing so
-    silent ``Rule not found`` gaps are eliminated.
+    Discovers rules from the DB via RuleResolver (dominio + transversales,
+    solo activo) — no hardcoded names. Buckets legacy via _GRUPO_A_BUCKET
+    (+ fallback for pre-taxonomy rules); error_groups keyed by grupo_error
+    for the GRUPO_ERROR_MAPPING cutover.
 
     Args:
         data_sheet: Hoja de Excel con los datos.
         indices: Índices de columnas.
 
     Returns:
-        Dict mapping each result group key to the list of detections.
+        (groups, error_groups): legacy-bucket dict + grupo-keyed dict.
     """
-    from app.services.engine.rule_based_detector import RuleBasedDetector
     from app.database import get_session
     from app.services.engine.evidence_collector import EvidenceCollector
-    from app.models import Regla, ResultadoAuditoria
+    from app.services.engine.domain_detection import (
+        detect_domain_rules,
+        group_by_grupo,
+        items_by_nombre,
+        split_codigo_entidad,
+    )
+    from app.models import ResultadoAuditoria
 
-    groups: dict[str, list[dict[str, Any]]] = {
-        key: [] for key in set(_HOSPITALIZACION_ENGINE_RULES.values())
-    }
+    groups: dict[str, list[dict[str, Any]]] = {}
+    error_groups: dict[str, list[dict[str, Any]]] = {}
 
     session = get_session()
     try:
-        # Verify every intended rule is discoverable (active) in the DB.
-        existing = {
-            r.nombre
-            for r in session.query(Regla)
-            .filter(Regla.nombre.in_(list(_HOSPITALIZACION_ENGINE_RULES)))
-            .filter(Regla.estado == "active", Regla.activo.is_(True))
-        }
-        missing = sorted(set(_HOSPITALIZACION_ENGINE_RULES) - existing)
-        if missing:
-            logger.error(
-                "Hospitalización: reglas engine intencionales ausentes o no activas "
-                "en DB (Rule not found): %s",
-                missing,
-            )
-
         collector = EvidenceCollector(domain="hospitalizacion")
-        for rule_name, group_key in _HOSPITALIZACION_ENGINE_RULES.items():
-            results = RuleBasedDetector(rule_name, session, dominio=AREA_HOSPITALIZACION).detect(
-                data_sheet, indices, persist=_PERSIST, evidence_collector=collector,
-            )
-            groups[group_key].extend(results)
+        batches = detect_domain_rules(
+            session, AREA_HOSPITALIZACION, data_sheet, indices,
+            persist=_PERSIST, evidence_collector=collector,
+        )
+        grupos = group_by_grupo(batches)
+        por_nombre = items_by_nombre(batches)
+
+        for grupo, items in grupos.items():
+            bucket = _GRUPO_A_BUCKET.get(grupo)
+            if bucket is not None:
+                groups.setdefault(bucket, []).extend(items)
+        for nombre, items in por_nombre.items():
+            bucket = _FALLBACK_NOMBRE_A_BUCKET.get(nombre)
+            if bucket is not None:
+                groups.setdefault(bucket, []).extend(items)
+
+        tipo_entidad, codigo_ent = split_codigo_entidad(grupos, batches)
+        groups["tipo_identificacion_entidad"] = tipo_entidad
+        groups["codigo_entidad_vs_afiliacion"] = codigo_ent
+
+        error_groups = dict(grupos)
 
         # ── Flush evidence + create ResultadoAuditoria rows (urgencias pattern) ──
         if _PERSIST:
             evidencias = collector.flush_batch(session)
             if evidencias:
+                from app.models import Regla
                 regla_ids = {e.regla_id for e in evidencias}
                 reglas_map = {
                     r.id: r
@@ -172,7 +175,7 @@ def _evaluate_hospitalizacion_engine_rules(
     finally:
         session.close()
 
-    return groups
+    return groups, error_groups
 
 
 def detect_all_problems_hospitalizacion(
@@ -217,24 +220,23 @@ def detect_all_problems_hospitalizacion(
     from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
     # 1-4. Evaluación engine consolidada: una sola sesión + un solo collector.
-    # Cada regla hospitalización/transversal intencional se evalúa exactamente
-    # una vez. Se verifica que cada regla exista y esté activa en la DB para no
-    # dejar gaps silenciosos de "Rule not found".
+    # Descubrimiento dinámico (RuleResolver, solo activo): cada regla
+    # habilitada del dominio + transversales se evalúa exactamente una vez.
     if is_rule_engine_enabled():
-        groups = _evaluate_hospitalizacion_engine_rules(data_sheet, indices)
-        problemas_centros = groups["centros_de_costos"]
-        problemas_ide_contrato = groups["ide_contrato"]
-        problemas_cups_equivalentes = groups["cups_equivalentes"]
-        cantidades_hospitalizacion = groups["cantidades_hospitalizacion"]
-        cantidades_soat_hospitalizacion = groups["cantidades_soat_hospitalizacion"]
-        decimales = groups["decimales"]
-        tipo_identificacion_edad = groups["tipo_identificacion_edad"]
-        tipo_identificacion_entidad = groups["tipo_identificacion_entidad"]
-        entidad_afiliacion_comparison = groups["codigo_entidad_vs_afiliacion"]
-        tipo_usuario = groups["tipo_usuario"]
-        copago_entidad = groups["copago_entidad"]
-        profesionales = groups["profesionales"]
-        cups_sin_contrato = groups["cups_sin_contrato"]
+        groups, error_groups = _evaluate_hospitalizacion_engine_rules(data_sheet, indices)
+        problemas_centros = groups.get("centros_de_costos", [])
+        problemas_ide_contrato = groups.get("ide_contrato", [])
+        problemas_cups_equivalentes = groups.get("cups_equivalentes", [])
+        cantidades_hospitalizacion = groups.get("cantidades_hospitalizacion", [])
+        cantidades_soat_hospitalizacion = groups.get("cantidades_soat_hospitalizacion", [])
+        decimales = groups.get("decimales", [])
+        tipo_identificacion_edad = groups.get("tipo_identificacion_edad", [])
+        tipo_identificacion_entidad = groups.get("tipo_identificacion_entidad", [])
+        entidad_afiliacion_comparison = groups.get("codigo_entidad_vs_afiliacion", [])
+        tipo_usuario = groups.get("tipo_usuario", [])
+        copago_entidad = groups.get("copago_entidad", [])
+        profesionales = groups.get("profesionales", [])
+        cups_sin_contrato = groups.get("cups_sin_contrato", [])
     else:
         problemas_centros = detect_centro_costo_hospitalizacion(data_sheet, indices)
         problemas_ide_contrato = detect_ide_contrato_urgencias(data_sheet, indices)
@@ -253,6 +255,20 @@ def detect_all_problems_hospitalizacion(
             data_sheet, indices, tipos_validos={"Hospitalización"},
         )
         cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+        error_groups = {
+            "Centros de Costo": problemas_centros,
+            "IDE Contrato": problemas_ide_contrato,
+            "Cups Equivalentes": problemas_cups_equivalentes,
+            "Cantidades Hospitalización": cantidades_hospitalizacion,
+            "Cantidades SOAT Hospitalización": cantidades_soat_hospitalizacion,
+            "Decimales": decimales,
+            "Tipo Identificación / Edad": tipo_identificacion_edad,
+            "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
+            "Tipo Usuario": tipo_usuario,
+            "Copago vs Entidad": copago_entidad,
+            "Profesionales": profesionales,
+            "Cups Sin Contrato": cups_sin_contrato,
+        }
 
     logger.info(
         "detect_all_problems_hospitalizacion - Profesionales encontrados: %d",
@@ -327,21 +343,10 @@ def detect_all_problems_hospitalizacion(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 9. Build normalized rows
-    error_groups = {
-        "Centros de Costo": problemas_centros_filtrados,
-        "IDE Contrato": problemas_ide_contrato,
-        "Cups Equivalentes": problemas_cups_equivalentes,
-        "Cantidades Hospitalización": cantidades_hospitalizacion,
-        "Cantidades SOAT Hospitalización": cantidades_soat_hospitalizacion,
-        "Decimales": decimales,
-        "Tipo Identificación / Edad": tipo_identificacion_edad,
-        "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
-        "Tipo Usuario": tipo_usuario,
-        "Copago vs Entidad": copago_entidad,
-        "Profesionales": profesionales,
-        "Cups Sin Contrato": cups_sin_contrato,
-    }
+    # 9. Build normalized rows. Engine: error_groups grupo-keyed del evaluador
+    # (flag GRUPO_ERROR_MAPPING), con centros filtrados por prioridad.
+    if is_rule_engine_enabled():
+        error_groups["Centros de Costo"] = problemas_centros_filtrados
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
         responsables_map=responsable_cierra,

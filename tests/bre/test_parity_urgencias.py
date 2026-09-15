@@ -140,6 +140,7 @@ class TestUrgParity:
 
     def test_engine_mocked_ide_centro_parity(self) -> None:
         """Engine ON (mocked RuleBasedDetector): IDE/centro sets match legacy."""
+        from app.models import Regla
         from app.services.unified_processor import process_unified
         from app.services.urgencias.detect_all import detect_all_problems_urgencias
 
@@ -153,6 +154,20 @@ class TestUrgParity:
             {"factura": "FAC-URG-003", "codigo": "906340", "entidad": "EPSI05",
              "ide_contrato_actual": "000", "ide_contrato_deberia": "986"},
         ]
+        served = [
+            Regla(
+                id=1, nombre="centro_costo_urgencias_valido", dominio="urgencias",
+                estado="active", version=1, prioridad=10, severidad="error",
+                activo=True, grupo_error="Centros de Costo",
+            ),
+            Regla(
+                id=2, nombre="ide_contrato_urgencias_valido", dominio="urgencias",
+                estado="active", version=1, prioridad=20, severidad="error",
+                activo=True, grupo_error="IDE Contrato",
+            ),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
 
         def _mock_detector(name, session, **kwargs):
             detector = MagicMock()
@@ -170,6 +185,10 @@ class TestUrgParity:
             patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=True),
             patch("app.services.unified_processor.is_rule_engine_enabled", return_value=True),
             patch("app.services.engine.session_manager.SessionManager") as mock_session_mgr,
+            patch(
+                "app.services.engine.domain_detection.RuleResolver",
+                return_value=fake_resolver,
+            ),
             patch("app.services.engine.rule_based_detector.RuleBasedDetector") as mock_detector_cls,
             patch("app.database.get_session", return_value=MagicMock()),
         ):

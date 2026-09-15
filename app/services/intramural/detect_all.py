@@ -67,111 +67,71 @@ def detect_all_problems_intramural(
     )
     from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
 
-    # 1. Detectores transversales (con toggle engine)
+    # 1. Detección engine: descubrimiento dinámico por dominio (sin nombres fijos).
+    # Las reglas habilitadas (dominio + transversales, solo activo) salen de la
+    # DB vía RuleResolver — incluye los 4 gaps 015 (bacteriologas, centro_costo,
+    # dup_05, revision) sin cableado manual. ide_contrato_simple / pym_rutas_dx /
+    # dup_02_lab siguen sin seed (015): el resolver no los sirve, no se evalúan.
+    batches: list = []
     if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
         from app.database import get_session
+        from app.services.engine.domain_detection import (
+            detect_domain_rules,
+            group_by_grupo,
+            split_codigo_entidad,
+        )
         session = get_session()
         try:
-            decimales = RuleBasedDetector("valores_decimales", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
+            batches = detect_domain_rules(
+                session, AREA_INTRAMURAL, data_sheet, indices, persist=_PERSIST,
+            )
+            grupos = group_by_grupo(batches)
+            decimales = grupos.get("Decimales", [])
+            tipo_identificacion_edad = grupos.get("Tipo Identificacion / Edad", [])
+            tipo_identificacion_entidad, entidad_afiliacion_comparison = (
+                split_codigo_entidad(grupos, batches)
+            )
+            tipo_usuario = grupos.get("Tipo Usuario", [])
+            copago_entidad = grupos.get("Copago vs Entidad", [])
+            cups_sin_contrato = grupos.get("Cups Sin Contrato", [])
+            bacteriologas = grupos.get("Cronograma Bacteriologas", [])
+            problemas_centros = grupos.get("Centros de Costo", [])
+            raw_results = grupos.get("Duplicado ID-Codigo", [])
+            revision_cantidad = grupos.get("Revision-Necesaria", [])
             if _PERSIST:
                 session.commit()
             else:
                 session.rollback()
         finally:
             session.close()
+        error_groups = dict(grupos)
     else:
-        decimales = []
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    else:
-        tipo_identificacion_edad = []
-    tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            r1 = RuleBasedDetector("tipo_id_requiere_entidad_86000", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            r2 = RuleBasedDetector("entidad_86000_requiere_as_ms", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            tipo_identificacion_entidad = r1 + r2
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-        data_sheet, indices, limit_log=5
-    )
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            entidad_afiliacion_comparison = RuleBasedDetector("codigo_entidad", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            copago_entidad = RuleBasedDetector("copago_entidad_valido", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
-    cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
-    if is_rule_engine_enabled():
-        from app.services.engine.rule_based_detector import RuleBasedDetector
-        from app.database import get_session
-        session = get_session()
-        try:
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session, dominio=AREA_INTRAMURAL).detect(data_sheet, indices, persist=_PERSIST)
-            if _PERSIST:
-                session.commit()
-            else:
-                session.rollback()
-        finally:
-            session.close()
+        decimales = detect_decimales(data_sheet, indices)
+        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
+        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
+        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
+            data_sheet, indices, limit_log=5
+        )
+        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
+        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
+        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
+        bacteriologas = []
+        problemas_centros = []
+        raw_results = []
+        revision_cantidad = []
+        error_groups = {
+            "Centros de Costo": [],
+            "Decimales": decimales,
+            "Tipo Identificación / Edad": tipo_identificacion_edad,
+            "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
+            "Tipo Usuario": tipo_usuario,
+            "Copago vs Entidad": copago_entidad,
+            "IDE Contrato": [],
+            "Cups Sin Contrato": cups_sin_contrato,
+            "Profesionales": bacteriologas,
+            "Duplicado ID+Código": [],
+            "⚠️ Revisión Necesaria": revision_cantidad,
+        }
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
@@ -217,18 +177,15 @@ def detect_all_problems_intramural(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 5. Bacteriólogas Cronograma (Ref #1 GAP: "bacteriologas_cronograma"
-    # exists in no DB, so engine evaluation is explicitly skipped — a
-    # RuleBasedDetector call here could only log "Rule not found" and yield
-    # []. Seed a rule before re-adding an engine lookup for this intent.)
-    bacteriologas: list[dict[str, Any]] = []
+    # 5. Bacteriólogas Cronograma: viene del resolver (grupo
+    # 'Cronograma Bacteriologas', seed 015). Sin regla habilitada → [].
+    logger.info(
+        "Bacteriologas Cronograma Intramural - Problemas encontrados: %d",
+        len(bacteriologas),
+    )
 
-    # 6. Centro de Costo (Ref #1 GAP: "centro_costo_intramural_valido"
-    # exists in no DB — not even the F15 seed file names a live rule — so
-    # engine evaluation is explicitly skipped (see bacteriologas note above).
-    # centro_costo_hospitalizacion_valido is hospitalizacion-scoped and does
-    # not cover the intramural center sets.)
-    problemas_centros: list[dict[str, Any]] = []
+    # 6. Centro de Costo: viene del resolver (grupo 'Centros de Costo',
+    # seed 015). Sin regla habilitada → [] (el filtro por prioridad corre igual).
     logger.info(
         "Centros de Costo Intramural - Problemas encontrados: %d",
         len(problemas_centros),
@@ -259,6 +216,8 @@ def detect_all_problems_intramural(
         len(problemas_centros),
         len(problemas_centros_filtrados),
     )
+    # Normalizado usa centros filtrados por prioridad (igual que legacy).
+    error_groups["Centros de Costo"] = problemas_centros_filtrados
 
     # LEGACY OFF (2026-09-09): llamada legacy detect_ide_contrato_intramural
     # anulada en AMBAS ramas — revertir con git revert. No se cablea
@@ -269,12 +228,10 @@ def detect_all_problems_intramural(
     # cablear RuleBasedDetector aquí para reactivar hallazgos.
     problemas_ide_contrato: list[dict[str, Any]] = []
 
-    # 8. Duplicado ID+Código (Ref #1 GAP: "duplicado_id_codigo_05" and
-    # "duplicado_id_codigo_02_lab" exist in no DB — the seeded duplicado rules
-    # are the farmacia family with different (factura, codigo+cantidad)
-    # semantics — so engine evaluation is explicitly skipped and the
-    # post-processing below runs over an empty set.
-    raw_results: list[dict[str, Any]] = []
+    # 8. Duplicado ID+Código: raw viene del resolver (grupo
+    # 'Duplicado ID-Codigo', seed 015). duplicado_id_codigo_02_lab sigue sin
+    # seed (015): el resolver no lo sirve, no se evalúa. El post-procesado
+    # corre sobre el set que haya (vacío → []).
     if not is_rule_engine_enabled():
         duplicado_id_codigo = []
 
@@ -336,30 +293,14 @@ def detect_all_problems_intramural(
             len(duplicado_id_codigo), len(raw_results),
         )
 
-    # 9. Revision Cantidad Intramural (Ref #1 GAP:
-    # "revision_cantidad_intramural" exists in no DB — the seeded revision
-    # rules are the urgencias group SUM (different cascade) and the farmacia
-    # v2 — so engine evaluation is explicitly skipped.)
-    revision_cantidad: list[dict[str, Any]] = []
+    # 9. Revision Cantidad Intramural: viene del resolver (grupo
+    # 'Revision-Necesaria', seed 015). Sin regla habilitada → [].
     logger.info(
         "[BACK] Revision Cantidad Intramural: %d items",
         len(revision_cantidad),
     )
 
-    # 10. Build normalized rows
-    error_groups = {
-        "Centros de Costo": problemas_centros_filtrados,
-        "Decimales": decimales,
-        "Tipo Identificación / Edad": tipo_identificacion_edad,
-        "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
-        "Tipo Usuario": tipo_usuario,
-        "Copago vs Entidad": copago_entidad,
-        "IDE Contrato": problemas_ide_contrato,
-        "Cups Sin Contrato": cups_sin_contrato,
-        "Profesionales": bacteriologas,
-        "Duplicado ID+Código": duplicado_id_codigo,
-        "⚠️ Revisión Necesaria": revision_cantidad,
-    }
+    # 10. Build normalized rows (error_groups ya viene por path).
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
         responsables_map=responsable_cierra,

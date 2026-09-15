@@ -115,16 +115,26 @@ def _facturas(results: list[dict]) -> set[str]:
 class TestIntendedRulesDiscoverable:
     """All orchestrator-intended hospitalización rules exist and are active."""
 
-    def test_orchestrator_intended_mapping_is_complete(self):
-        """The orchestrator's engine-rule mapping must cover every intended rule."""
-        from app.services.hospitalizacion.detect_all import (
-            _HOSPITALIZACION_ENGINE_RULES,
+    def test_orchestrator_has_no_hardcoded_rule_map(self):
+        """Dynamic discovery: hospitalización must not hardcode rule names.
+
+        The engine-rule mapping dict is gone; rules resolve from the DB.
+        """
+        import app.services.hospitalizacion.detect_all as hosp_mod
+
+        assert not hasattr(hosp_mod, "_HOSPITALIZACION_ENGINE_RULES"), (
+            "hardcoded rule map still present — discovery must be dynamic"
+        )
+        assert "detect_domain_rules" in dir(hosp_mod) or (
+            "detect_domain_rules" in
+            open(hosp_mod.__file__, encoding="utf-8").read()
         )
 
-        assert set(_HOSPITALIZACION_ENGINE_RULES) == set(INTENDED_HOSPITALIZACION_RULES)
-
     def test_migration_010_rules_present_and_active(self):
-        """Rules seeded by migration 010 must exist and be active in the DB."""
+        """Rules seeded by migration 010 must exist and be enabled in the DB.
+
+        Single-flag cutover: discoverability = activo (no estado filter).
+        """
         from app.models import Regla
 
         session = _session()
@@ -132,7 +142,7 @@ class TestIntendedRulesDiscoverable:
             rules = (
                 session.query(Regla)
                 .filter(Regla.nombre.in_(list(MIGRATION_010_RULES)))
-                .filter(Regla.estado == "active", Regla.activo.is_(True))
+                .filter(Regla.activo.is_(True))
                 .all()
             )
         finally:

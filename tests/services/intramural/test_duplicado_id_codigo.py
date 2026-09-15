@@ -537,6 +537,7 @@ class TestIntegracionDuplicadoIdCodigo:
             responsables_map={"CAP491530": "RESP A"},
             fec_factura_map={"CAP491530": "2026-05-04"},
             fecha_cierre_vacia_map={"CAP491530": False},
+            use_grupo_mapping=False,
         )
         assert len(rows) == 2
         row = rows[0]

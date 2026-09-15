@@ -82,11 +82,27 @@ def _mock_session() -> MagicMock:
     return s
 
 
+def _served_resolver(*specs: tuple[str, str, str | None]) -> MagicMock:
+    """Fake RuleResolver serving (nombre, dominio, grupo_error) rules."""
+    from app.models import Regla
+
+    fake = MagicMock()
+    fake.resolve.return_value = [
+        Regla(
+            id=abs(hash(nombre)) % 10_000 + 1, nombre=nombre, dominio=dominio,
+            estado="active", version=1, prioridad=10, severidad="error",
+            activo=True, grupo_error=grupo,
+        )
+        for nombre, dominio, grupo in specs
+    ]
+    return fake
+
+
 class TestF3CentroCostoToggle:
     """T-F3.1: centro_costo_hospitalizacion → engine toggle."""
 
     def test_engine_path_routes_centro_costo(self):
-        """Engine path MUST call RuleBasedDetector for centro_costo_hospitalizacion_valido."""
+        """Dynamic discovery MUST evaluate the served centro_costo rule."""
         with patch("app.database.get_session") as m_gs:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = _mock_session()
@@ -100,7 +116,13 @@ class TestF3CentroCostoToggle:
                 wb, idx = _build_sheet()
                 restore = _env("true")
                 try:
-                    r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
+                    with patch(
+                        "app.services.engine.domain_detection.RuleResolver",
+                        return_value=_served_resolver(
+                            ("centro_costo_hospitalizacion_valido", "hospitalizacion", "Centros de Costo"),
+                        ),
+                    ):
+                        r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
                 finally:
                     restore()
 
@@ -163,7 +185,13 @@ class TestF3CentroCostoToggle:
                 wb, idx = _build_sheet()
                 restore = _env("true")
                 try:
-                    r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
+                    with patch(
+                        "app.services.engine.domain_detection.RuleResolver",
+                        return_value=_served_resolver(
+                            ("centro_costo_hospitalizacion_valido", "hospitalizacion", "Centros de Costo"),
+                        ),
+                    ):
+                        r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
                 finally:
                     restore()
 
@@ -171,6 +199,9 @@ class TestF3CentroCostoToggle:
         cc_calls = [c for c in m_dc.call_args_list
                     if c[0][0] == "centro_costo_hospitalizacion_valido"]
         assert len(cc_calls) == 1, "centro_costo_hospitalizacion_valido should be called exactly once"
+        assert cc_calls[0][1].get("dominio") == "hospitalizacion", (
+            f"detector must thread hospitalizacion dominio: {cc_calls[0]}"
+        )
         # centro_costo items should appear in centros_de_costos output
         assert len(r["problemas"]["centros_de_costos"]) >= 1
 
@@ -234,7 +265,7 @@ class TestF3CantidadesToggle:
         return wb, indices
 
     def test_engine_path_routes_cantidades_hospitalizacion(self):
-        """Engine path MUST call RuleBasedDetector for cantidades_hospitalizacion."""
+        """Dynamic discovery MUST evaluate the served cantidades rule."""
         with patch("app.database.get_session") as m_gs:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = _mock_session()
@@ -248,7 +279,13 @@ class TestF3CantidadesToggle:
                 wb, idx = _build_sheet()
                 restore = _env("true")
                 try:
-                    r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
+                    with patch(
+                        "app.services.engine.domain_detection.RuleResolver",
+                        return_value=_served_resolver(
+                            ("cantidades_hospitalizacion", "hospitalizacion", "Cantidades Hospitalización"),
+                        ),
+                    ):
+                        r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
                 finally:
                     restore()
 
@@ -259,7 +296,7 @@ class TestF3CantidadesToggle:
         assert "cantidades_hospitalizacion" in r["problemas"]
 
     def test_engine_path_routes_cantidades_soat(self):
-        """Engine path MUST call RuleBasedDetector for cantidades_soat_hospitalizacion."""
+        """Dynamic discovery MUST evaluate the served cantidades SOAT rule."""
         with patch("app.database.get_session") as m_gs:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = _mock_session()
@@ -273,7 +310,13 @@ class TestF3CantidadesToggle:
                 wb, idx = _build_sheet()
                 restore = _env("true")
                 try:
-                    r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
+                    with patch(
+                        "app.services.engine.domain_detection.RuleResolver",
+                        return_value=_served_resolver(
+                            ("cantidades_soat_hospitalizacion", "hospitalizacion", "Cantidades SOAT Hospitalización"),
+                        ),
+                    ):
+                        r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
                 finally:
                     restore()
 

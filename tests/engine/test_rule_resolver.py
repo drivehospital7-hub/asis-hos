@@ -17,6 +17,34 @@ def _mock_session_with_rules(rules: list):
     return session
 
 
+def _real_session(rowspec: list[tuple]):
+    """Real SQLite session with Regla rows: (nombre, dominio, estado, activo, version, prioridad)."""
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from app.database import Base
+    from app.models import Regla
+    import app.models  # noqa: F401
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    session = sessionmaker(bind=engine)()
+    for nombre, dominio, estado, activo, version, prioridad in rowspec:
+        session.add(
+            Regla(
+                nombre=nombre, dominio=dominio, estado=estado,
+                version=version, prioridad=prioridad, severidad="error",
+                activo=activo,
+            )
+        )
+    session.commit()
+    return session
+
+
 class TestRuleResolver:
     """Tests for RuleResolver.resolve(domain, session)."""
 
@@ -31,7 +59,7 @@ class TestRuleResolver:
         result = resolver.resolve("odontologia", session)
         assert result == []
 
-    def test_resolve_filters_by_domain_and_estado_active(self):
+    def test_resolve_filters_by_domain_and_activo_true(self):
         from app.services.engine.rule_resolver import RuleResolver
         from app.models import Regla
 
@@ -45,17 +73,32 @@ class TestRuleResolver:
         assert result[0].nombre == "r1"
         assert result[1].nombre == "r2"
 
-    def test_resolve_excludes_drafts(self):
+    def test_resolve_includes_retired_when_activo_true(self):
+        """Single-flag cutover: retired+activo=True still resolves (no estado filter)."""
         from app.services.engine.rule_resolver import RuleResolver
-        from app.models import Regla
 
-        r_active = Regla(nombre="active_rule", dominio="odontologia", estado="active", prioridad=10)
-        session = _mock_session_with_rules([r_active])
+        engine_session = _real_session([
+            ("drift_rule", "odontologia", "retired", True, 1, 10),
+        ])
+        try:
+            result = RuleResolver().resolve("odontologia", engine_session)
+        finally:
+            engine_session.close()
+        assert [r.nombre for r in result] == ["drift_rule"]
 
-        resolver = RuleResolver()
-        result = resolver.resolve("odontologia", session)
-        assert len(result) == 1
-        assert result[0].estado == "active"
+    def test_resolve_excludes_activo_false(self):
+        """Single-flag cutover: activo=False never resolves, whatever estado says."""
+        from app.services.engine.rule_resolver import RuleResolver
+
+        engine_session = _real_session([
+            ("off_rule", "odontologia", "active", False, 1, 10),
+            ("off_retired", "odontologia", "retired", False, 1, 20),
+        ])
+        try:
+            result = RuleResolver().resolve("odontologia", engine_session)
+        finally:
+            engine_session.close()
+        assert result == []
 
     def test_resolve_sorts_by_priority(self):
         from app.services.engine.rule_resolver import RuleResolver

@@ -1,6 +1,6 @@
-"""RuleResolver — loads active rules by domain, sorted by priority.
+"""RuleResolver — loads enabled rules by domain, sorted by priority.
 
-Filters: dominio match, estado='active', activo=True.
+Single-flag cutover: filters ONLY by activo (no estado filter).
 """
 
 from __future__ import annotations
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class RuleResolver:
-    """Loads active rules from the database for a given domain.
+    """Loads enabled rules from the database for a given domain.
 
     Usage:
         resolver = RuleResolver()
@@ -25,7 +25,7 @@ class RuleResolver:
     """
 
     def resolve(self, domain: str, session: "Session") -> list[Regla]:
-        """Load active rules matching the domain OR transversal, ordered by priority.
+        """Load enabled rules matching the domain OR transversal, ordered by priority.
 
         Transversal rules apply to ALL domains.
 
@@ -41,10 +41,9 @@ class RuleResolver:
             .filter(
                 (Regla.dominio == domain) | (Regla.dominio == "transversal")
             )
-            .filter(Regla.estado == "active")
             .filter(Regla.activo == True)  # noqa: E712
             .order_by(Regla.prioridad.asc())
             .all()
         )
-        logger.info("RuleResolver: loaded %d active rules for domain=%s", len(rules), domain)
+        logger.info("RuleResolver: loaded %d enabled rules for domain=%s", len(rules), domain)
         return rules

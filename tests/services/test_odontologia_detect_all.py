@@ -193,6 +193,17 @@ class TestDetectAllProblemsOdontologia:
         # Mock RuleBasedDetector to let engine return ruta_dup data
         from unittest.mock import MagicMock
 
+        from app.models import Regla
+
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = [
+            Regla(
+                id=1, nombre="ruta_duplicada", dominio="odontologia",
+                estado="active", version=1, prioridad=10, severidad="error",
+                activo=True, grupo_error="Ruta Duplicada",
+            )
+        ]
+
         def _mock_detector(name, session, **kwargs):
             d = MagicMock()
             if name == "ruta_duplicada":
@@ -219,7 +230,11 @@ class TestDetectAllProblemsOdontologia:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = MagicMock()
                 m_dc.side_effect = _mock_detector
-                result, _ = detect_all_problems_odontologia(ws, indices)
+                with patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ):
+                    result, _ = detect_all_problems_odontologia(ws, indices)
 
         ruta_dup = result["problemas"]["ruta_duplicada"]
         identificaciones = [r["identificacion"] for r in ruta_dup]
@@ -294,6 +309,17 @@ class TestDetectAllProblemsOdontologia:
         }
         from unittest.mock import MagicMock
 
+        from app.models import Regla
+
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = [
+            Regla(
+                id=1, nombre="ruta_duplicada", dominio="odontologia",
+                estado="active", version=1, prioridad=10, severidad="error",
+                activo=True, grupo_error="Ruta Duplicada",
+            )
+        ]
+
         def _mock_detector(name, session, **kwargs):
             d = MagicMock()
             if name == "ruta_duplicada":
@@ -315,7 +341,11 @@ class TestDetectAllProblemsOdontologia:
             with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
                 m_gs.return_value = MagicMock()
                 m_dc.side_effect = _mock_detector
-                result, _ = detect_all_problems_odontologia(ws, indices)
+                with patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ):
+                    result, _ = detect_all_problems_odontologia(ws, indices)
 
         ruta_dup = result["problemas"]["ruta_duplicada"]
         identificaciones = [r["identificacion"] for r in ruta_dup]

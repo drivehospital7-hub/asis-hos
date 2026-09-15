@@ -447,13 +447,14 @@ class TestRuleServiceVersionManagement:
         assert result[2]["version"] == 1
 
     def test_soft_delete_sets_estado_retired(self):
-        """delete_rule sets estado=retired on the rule."""
+        """delete_rule sets estado=retired AND activo=false (single-flag cutover)."""
         from app.services.reglas.rule_service import delete_rule
 
         mock_db = MagicMock()
         mock_rule = MagicMock()
         mock_rule.id = 1
         mock_rule.estado = "active"
+        mock_rule.activo = True
 
         mock_query = mock_db.query.return_value
         mock_filter = mock_query.filter.return_value
@@ -462,6 +463,7 @@ class TestRuleServiceVersionManagement:
         delete_rule(mock_db, 1)
 
         assert mock_rule.estado == "retired"
+        assert mock_rule.activo is False
         mock_db.commit.assert_called_once()
 
     def test_soft_delete_raises_on_already_retired(self):

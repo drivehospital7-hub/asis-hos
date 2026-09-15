@@ -69,57 +69,77 @@ def detect_all_problems_urgencias(
         (resultado_dict, responsables_map)
     """
     # ── Consolidated engine rule evaluation (single session + single collector) ──
+    # Descubrimiento dinámico por dominio (sin nombres fijos): las reglas
+    # habilitadas (dominio + transversales, solo activo) salen de la DB vía
+    # RuleResolver; transversales aplican a todos. Ref #1: ide_contrato_simple /
+    # simple_urgencias / sala_observacion_valido no existen en DB — el resolver
+    # nunca los sirve (adiós "Rule not found" silenciosos).
+    #
+    # Excepciones de presentación legacy (buckets, no descubrimiento):
+    # - IDE reverse y revision entidad/cantidad separan su grupo en 2 buckets.
+    # - Estancia: post-procesado bespoke sobre su regla (deduplin + catálogo).
+    # - Familia sala_obs_ sin grupo declarado: alimenta cups_equivalentes
+    #   (cuando el admin declare su grupo_error, entra por grupo).
     problemas_cups_equivalentes: list[dict[str, str]] = []
     if is_rule_engine_enabled():
         from app.services.engine.session_manager import SessionManager
         from app.services.engine.evidence_collector import EvidenceCollector
-        from app.services.engine.rule_based_detector import RuleBasedDetector
+        from app.services.engine.domain_detection import (
+            detect_domain_rules,
+            group_by_grupo,
+            items_by_nombre,
+            split_codigo_entidad,
+        )
         from app.models import Catalogo, Regla, ResultadoAuditoria
+
+        _IDE_REVERSE_RULE = "ide_contrato_reverse_urgencias_valido"
+        _REVISION_ENTIDAD_RULE = "revision_entidad_86"
+        _ESTANCIA_RULE = "sala_observacion_estancia_prolongada"
+        _SALA_OBS_PREFIX = "sala_obs_"
 
         with SessionManager("urgencias") as session:
             collector = EvidenceCollector(domain="urgencias")
 
-            # Centro Costo + IDE Contrato
-            problemas_centros = RuleBasedDetector("centro_costo_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
+            batches = detect_domain_rules(
+                session, AREA_URGENCIAS, data_sheet, indices,
+                persist=_PERSIST, evidence_collector=collector, rows=rows,
             )
-            problemas_centros += RuleBasedDetector("centro_costo_urgencias", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            grupos = group_by_grupo(batches)
+            por_nombre = items_by_nombre(batches)
+
+            # Centro Costo + IDE Contrato (IDE reverse va a su propio bucket).
+            problemas_centros = grupos.get("Centros de Costo", [])
             logger.info(
                 "detect_all_problems_urgencias - Centros Costo encontrados: %d",
                 len(problemas_centros),
             )
-            problemas_ide_contrato = RuleBasedDetector("ide_contrato_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
+            problemas_ide_contrato = [
+                item
+                for batch in batches
+                if batch.grupo == "IDE Contrato" and batch.nombre != _IDE_REVERSE_RULE
+                for item in batch.items
+            ]
+            ide_contrato_reverse = list(por_nombre.get(_IDE_REVERSE_RULE, []))
+            logger.info(
+                "detect_all_problems_urgencias - IDE Contrato REVERSE encontrados: %d",
+                len(ide_contrato_reverse),
             )
-            # Ref #1: the "ide_contrato_simple_urgencias" rule exists in no DB
-            # and its intent (codigo+entidad → IDE único) is already covered by
-            # ide_contrato_urgencias_valido above ("Cubre reglas simples,
-            # multiples y genericas de entidad"). The second evaluation was
-            # pure duplication, so it is removed, not renamed.
+            # Ref #1: ide_contrato_simple_urgencias no existe en DB y su intent
+            # ya lo cubre ide_contrato_urgencias_valido (evaluado exactamente
+            # una vez vía el batch de arriba).
 
-            # CUPS equivalentes + Sala observación
-            problemas_cups_equivalentes.extend(
-                RuleBasedDetector("cups_equivalentes", session, dominio=AREA_URGENCIAS).detect(
-                    data_sheet, indices, persist=_PERSIST,
-                    evidence_collector=collector, rows=rows,
+            # CUPS equivalentes + Sala observación (grupo + familia pre-taxonomía).
+            problemas_cups_equivalentes = [
+                item
+                for batch in batches
+                if (
+                    (batch.grupo == "Cups-Equivalentes" and batch.nombre != _ESTANCIA_RULE)
+                    or (batch.grupo == batch.nombre and batch.nombre.startswith(_SALA_OBS_PREFIX))
                 )
-            )
-            # Ref #1: "sala_observacion_valido" exists in no DB. The only
-            # executable, dev-live rule for the obligatorios slot is
-            # sala_obs_check_set (obligatorios 890701+890601 presence when
-            # sala codes present; the sala_observacion_entidad rule still runs
-            # the deregistered sala_obs_check evaluator and can never fire).
-            problemas_cups_equivalentes.extend(
-                RuleBasedDetector("sala_obs_check_set", session, dominio=AREA_URGENCIAS).detect(
-                    data_sheet, indices, persist=_PERSIST,
-                    evidence_collector=collector, rows=rows,
-                )
-            )
+                for item in batch.items
+            ]
+            # Ref #1: "sala_observacion_valido" no existe en DB; la regla
+            # ejecutable del slot es sala_obs_check_set (viene por grupo).
             # Rule 44: estancia > 6h en Urgencias sin código de sala de
             # observación. Explicit tree (gt(date.horas, 6) + eq Urgencias +
             # NOT(in(codigo, sala codes))) — no deregistered operators.
@@ -127,10 +147,7 @@ def detect_all_problems_urgencias(
             # códigos de sala. La lista vive en el catálogo 'sala_codes'
             # (misma que el árbol de la regla); si falta, fallback al set
             # del árbol. Uno por factura (la estancia es de la factura).
-            _estancia = RuleBasedDetector("sala_observacion_estancia_prolongada", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            _estancia = por_nombre.get(_ESTANCIA_RULE, [])
             _sala_codes: set[str] = {"5DSB01", "05DSB01", "129B02", "38114", "38915"}
             try:
                 _cat = session.query(Catalogo).filter(Catalogo.key == "sala_codes").first()
@@ -208,179 +225,81 @@ def detect_all_problems_urgencias(
                 if _est:
                     _item["estancia_str"] = _est
                 problemas_cups_equivalentes.append(_item)
-            for rule_name in [
-                "sala_obs_obligatorios",
-                "sala_obs_ess_129b02",
-                "sala_obs_soat_completo",
-                "sala_obs_soat_prohibido",
-                "sala_obs_890601h",
-                "sala_obs_05dsb01_no_ess",
-                "sala_obs_soat_39145_39131",
-            ]:
-                problemas_cups_equivalentes.extend(
-                    RuleBasedDetector(rule_name, session, dominio=AREA_URGENCIAS).detect(
-                        data_sheet, indices, persist=_PERSIST,
-                        evidence_collector=collector, rows=rows,
-                    )
-                )
+            # (Loop de 7 sala_obs_* eliminado: esas reglas — si existen en DB —
+            # entran por grupo o por familia pre-taxonomía en el bloque de arriba.)
 
-            # Decimales
-            decimales = RuleBasedDetector("valores_decimales", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
+            # Transversales por grupo (transversales aplican a todos los dominios).
+            decimales = grupos.get("Decimales", [])
+            tipo_identificacion_edad = grupos.get("Tipo Identificacion / Edad", [])
+            tipo_identificacion_entidad, codigo_entidad_afiliacion = (
+                split_codigo_entidad(grupos, batches)
             )
-
-            # tipo_documento_edad rules
-            r1 = RuleBasedDetector("tipo_documento_edad_menor_7", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r2 = RuleBasedDetector("tipo_documento_edad_mayor_18", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r3 = RuleBasedDetector("tipo_documento_edad_7_17", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r4 = RuleBasedDetector("tipo_documento_edad_as_menor", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r5 = RuleBasedDetector("tipo_documento_edad_ms_mayor", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r6 = RuleBasedDetector("tipo_documento_edad_cn_invalido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r7 = RuleBasedDetector("tipo_documento_edad_ce_invalido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            tipo_identificacion_edad = r1 + r2 + r3 + r4 + r5 + r6 + r7
-
-            # tipo_identificacion_entidad rules
-            r1_ent = RuleBasedDetector("tipo_id_requiere_entidad_86000", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            r2_ent = RuleBasedDetector("entidad_86000_requiere_as_ms", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            tipo_identificacion_entidad = r1_ent + r2_ent
-
-            # tipo_usuario
-            tipo_usuario = RuleBasedDetector("tipo_usuario_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-
-            # codigo_entidad
-            codigo_entidad_afiliacion = RuleBasedDetector("codigo_entidad", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            tipo_usuario = grupos.get("Tipo Usuario", [])
 
             # Profesionales urgencias
-            profesionales = RuleBasedDetector("profesional_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            profesionales = grupos.get("Profesionales", [])
             logger.info(
                 "detect_all_problems_urgencias - Profesionales encontrados: %d",
                 len(profesionales),
             )
 
             # Mal capitado
-            mal_capitado = RuleBasedDetector("mal_capitado", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # Mal capitado (grupo incluye transversales si el admin las habilita).
+            mal_capitado = grupos.get("MAL CAPITADO", [])
             logger.info(
                 "detect_all_problems_urgencias - MAL CAPITADO encontrados: %d",
                 len(mal_capitado),
             )
 
-            # Cantidades urgencias
-            cantidades_urgencias = RuleBasedDetector("cantidades_urgencias", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # Cantidades (grupo 'Cantidades': urgencias + transversales).
+            cantidades_urgencias = grupos.get("Cantidades", [])
             logger.info(
                 "detect_all_problems_urgencias - Cantidades Urgencias encontradas: %d",
                 len(cantidades_urgencias),
             )
 
-            # Cantidades SOAT urgencias
-            cantidades_soat_urgencias = RuleBasedDetector("cantidades_soat_urgencias", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # Cantidades SOAT urgencias.
+            cantidades_soat_urgencias = grupos.get("Cantidades SOAT", [])
             logger.info(
                 "detect_all_problems_urgencias - Cantidades SOAT Urgencias encontradas: %d",
                 len(cantidades_soat_urgencias),
             )
 
-            # IDE Contrato reverse
-            ide_contrato_reverse = RuleBasedDetector("ide_contrato_reverse_urgencias_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
-            logger.info(
-                "detect_all_problems_urgencias - IDE Contrato REVERSE encontrados: %d",
-                len(ide_contrato_reverse),
-            )
-
-            # Revision entidad 86
-            revision_entidad_86 = RuleBasedDetector("revision_entidad_86", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # Revision-Necesaria separada en sus 2 buckets legacy (Ref #1:
+            # "revision_cantidad_urgencias_valido" no existe en DB; la regla
+            # sembrada revision_cantidad_urgencias + v2 van al bucket cantidad).
+            revision_entidad_86 = []
+            revision_cantidad = []
+            for batch in batches:
+                if batch.grupo != "Revision-Necesaria":
+                    continue
+                if batch.nombre == _REVISION_ENTIDAD_RULE:
+                    revision_entidad_86.extend(batch.items)
+                else:
+                    revision_cantidad.extend(batch.items)
             logger.info(
                 "detect_all_problems_urgencias - Revision Entidad 86 encontradas: %d",
                 len(revision_entidad_86),
-            )
-
-            # Revision cantidad (Ref #1: "revision_cantidad_urgencias_valido"
-            # exists in no DB; the seeded revision_cantidad_urgencias rule
-            # covers the revisión-cantidad intent as group SUM > 1).
-            revision_cantidad = RuleBasedDetector("revision_cantidad_urgencias", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
             )
             logger.info(
                 "detect_all_problems_urgencias - Revision Cantidad encontradas: %d",
                 len(revision_cantidad),
             )
 
-            # Copago vs entidad
-            copago_entidad = RuleBasedDetector("copago_entidad_valido", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # Copago vs entidad + Duplicados farmacia (grupos, merge total).
+            copago_entidad = grupos.get("Copago vs Entidad", [])
             logger.info(
                 "detect_all_problems_urgencias - Copago vs Entidad encontrados: %d",
                 len(copago_entidad),
             )
-
-            # Duplicados farmacia
-            duplicados_farmacia = RuleBasedDetector("duplicados_farmacia", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            duplicados_farmacia = grupos.get("Duplicados-Farmacia", [])
             logger.info(
                 "detect_all_problems_urgencias - Duplicados Farmacia encontrados: %d",
                 len(duplicados_farmacia),
             )
 
-            # CUPS sin contrato
-            cups_sin_contrato = RuleBasedDetector("cups_sin_contrato", session, dominio=AREA_URGENCIAS).detect(
-                data_sheet, indices, persist=_PERSIST,
-                evidence_collector=collector, rows=rows,
-            )
+            # CUPS sin contrato.
+            cups_sin_contrato = grupos.get("Cups Sin Contrato", [])
             logger.info(
                 "detect_all_problems_urgencias - Cups Sin Contrato encontrados: %d",
                 len(cups_sin_contrato),
@@ -507,24 +426,37 @@ def detect_all_problems_urgencias(
             if val and factura not in fec_factura_map:
                 fec_factura_map[factura] = val
 
-    # 10. Build normalized rows (shared builder)
-    error_groups = {
-        "Centros de Costo": problemas_centros_filtrados,
-        "IDE Contrato": problemas_ide_contrato + ide_contrato_reverse,
-        "Cups Equivalentes": problemas_cups_equivalentes,
-        "MAL CAPITADO": mal_capitado,
-        "Cantidades": cantidades_urgencias,
-        "Cantidades SOAT": cantidades_soat_urgencias,
-        "Decimales": decimales,
-        "Tipo Identificación / Edad": tipo_identificacion_edad,
-        "Profesionales": profesionales,
-        "Código Entidad vs Afiliación": tipo_identificacion_entidad,
-        "Tipo Usuario": tipo_usuario,
-        "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
-        "Copago vs Entidad": copago_entidad,
-        "Duplicados Farmacia": duplicados_farmacia,
-        "Cups Sin Contrato": cups_sin_contrato,
-    }
+    # 10. Build normalized rows (shared builder). Engine: grupos por
+    # grupo_error (flag GRUPO_ERROR_MAPPING) con los merges legacy
+    # conservados (IDE base+reverse, revisión 86+cantidad, centros filtrados).
+    if is_rule_engine_enabled():
+        error_groups = dict(grupos)
+        error_groups["Centros de Costo"] = problemas_centros_filtrados
+        error_groups["IDE Contrato"] = (
+            problemas_ide_contrato + ide_contrato_reverse
+        )
+        error_groups["Cups-Equivalentes"] = problemas_cups_equivalentes
+        error_groups["Revision-Necesaria"] = (
+            revision_entidad_86 + revision_cantidad
+        )
+    else:
+        error_groups = {
+            "Centros de Costo": problemas_centros_filtrados,
+            "IDE Contrato": problemas_ide_contrato + ide_contrato_reverse,
+            "Cups Equivalentes": problemas_cups_equivalentes,
+            "MAL CAPITADO": mal_capitado,
+            "Cantidades": cantidades_urgencias,
+            "Cantidades SOAT": cantidades_soat_urgencias,
+            "Decimales": decimales,
+            "Tipo Identificación / Edad": tipo_identificacion_edad,
+            "Profesionales": profesionales,
+            "Código Entidad vs Afiliación": tipo_identificacion_entidad,
+            "Tipo Usuario": tipo_usuario,
+            "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
+            "Copago vs Entidad": copago_entidad,
+            "Duplicados Farmacia": duplicados_farmacia,
+            "Cups Sin Contrato": cups_sin_contrato,
+        }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
         responsables_map=responsable_cierra,

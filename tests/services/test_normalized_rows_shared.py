@@ -14,6 +14,7 @@ class TestBuildNormalizedRows:
     def test_empty_error_groups_returns_empty_list(self):
         """Given empty error_groups, returns []."""
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups={},
             responsables_map={},
         )
@@ -33,6 +34,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={},
         )
@@ -52,6 +54,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={},
             fec_factura_map={"FAC-001": "2024-01-15"},
@@ -66,6 +69,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={},
         )
@@ -79,6 +83,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={"FAC-001": "John Doe"},
         )
@@ -92,6 +97,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={},
             fecha_cierre_vacia_map={"FAC-001": True},
@@ -111,7 +117,7 @@ class TestBuildNormalizedRows:
                 }
             ]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert len(rows) == 1
         r = rows[0]
         assert r["tipo_error"] == "IDE Contrato"
@@ -130,7 +136,7 @@ class TestBuildNormalizedRows:
                 }
             ]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert rows[0]["descripcion"] == "Código no en DB"
 
     def test_decimales_row_format(self):
@@ -138,7 +144,7 @@ class TestBuildNormalizedRows:
         error_groups = {
             "Decimales": ["FAC-001", "FAC-002"]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert len(rows) == 2
         assert rows[0]["tipo_error"] == "Decimales"
         assert rows[0]["factura"] == "FAC-001"
@@ -154,7 +160,7 @@ class TestBuildNormalizedRows:
                 {"factura": "FAC-002", "codigo": "C002", "ide_contrato_actual": "X", "ide_contrato_deberia": "Y"}
             ],
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert len(rows) == 2
         tipos = {r["tipo_error"] for r in rows}
         assert tipos == {"Centros de Costo", "IDE Contrato"}
@@ -166,7 +172,7 @@ class TestBuildNormalizedRows:
                 {"factura": "FAC-001", "field_a": "val_a", "field_b": "val_b"}
             ]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         # Unknown keys produce no rows — only known tipo_error labels are processed
         assert rows == []
 
@@ -178,6 +184,7 @@ class TestBuildNormalizedRows:
             ]
         }
         rows = build_normalized_rows(
+            use_grupo_mapping=False,
             error_groups=error_groups,
             responsables_map={},
             fec_factura_map=None,
@@ -201,7 +208,7 @@ class TestBuildNormalizedRows:
                 }
             ]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert len(rows) == 1
         r = rows[0]
         assert r["tipo_error"] == "⚠️ Revisión Necesaria"
@@ -224,7 +231,7 @@ class TestBuildNormalizedRows:
                 }
             ]
         }
-        rows = build_normalized_rows(error_groups=error_groups, responsables_map={})
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups=error_groups, responsables_map={})
         assert len(rows) == 1
         r = rows[0]
         assert r["tipo_error"] == "⚠️ Revisión Necesaria"
@@ -241,7 +248,7 @@ class TestSharedHandlerConsistency:
 
     def test_centros_costo_engine_enriched(self):
         """Engine-enriched: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Centros de Costo": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "CONSULTA",
                 "centro_costo": "CC-A", "centro_actual": "CC-A", "centro_deberia": "CC-B",
@@ -255,7 +262,7 @@ class TestSharedHandlerConsistency:
 
     def test_centros_costo_legacy_format(self):
         """No problema: fallback to template."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Centros de Costo": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "P",
                 "centro_actual": "A", "centro_deberia": "B",
@@ -267,7 +274,7 @@ class TestSharedHandlerConsistency:
 
     def test_ide_contrato_engine_enriched(self):
         """Engine-enriched: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "IDE Contrato": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "P",
                 "ide_contrato_actual": "OLD", "ide_contrato_deberia": "NEW",
@@ -280,7 +287,7 @@ class TestSharedHandlerConsistency:
 
     def test_cups_equivalentes_engine_enriched(self):
         """Engine-enriched: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cups Equivalentes": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "EQUIV",
                 "estancia_str": "5 dias",
@@ -291,7 +298,7 @@ class TestSharedHandlerConsistency:
 
     def test_cups_equivalentes_legacy_format(self):
         """No problema: fallback to accion field."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cups Equivalentes": [{
                 "factura": "FAC-001", "codigo": "C001",
                 "accion": "Reemplazar cup",
@@ -304,7 +311,7 @@ class TestSharedHandlerConsistency:
 
     def test_mal_capitado_engine_enriched(self):
         """Engine-enriched: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "MAL CAPITADO": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "P",
                 "ide_contrato_actual": "IDE-X",
@@ -317,7 +324,7 @@ class TestSharedHandlerConsistency:
 
     def test_mal_capitado_legacy_format(self):
         """No problema: fallback to observacion field."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "MAL CAPITADO": [{
                 "factura": "FAC-001",
                 "observacion": "Capitado invalido",
@@ -330,7 +337,7 @@ class TestSharedHandlerConsistency:
 
     def test_cantidades_engine_enriched(self):
         """Engine provides cantidad, no cantidad_esperada."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cantidades": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "URG",
                 "cantidad": "3",
@@ -344,7 +351,7 @@ class TestSharedHandlerConsistency:
 
     def test_cantidades_legacy_con_cantidad_esperada(self):
         """Legacy: template with cantidad_esperada."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cantidades Hospitalización": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "HOSP",
                 "cantidad": "5", "cantidad_esperada": "1",
@@ -356,7 +363,7 @@ class TestSharedHandlerConsistency:
 
     def test_cantidades_sin_cantidad_esperada(self):
         """P0: no cantidad_esperada in engine output, must not crash."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cantidades Hospitalización": [{
                 "factura": "FAC-001", "codigo": "C001", "procedimiento": "HOSP",
                 "cantidad": "5",
@@ -371,7 +378,7 @@ class TestSharedHandlerConsistency:
 
     def test_decimales_string_list(self):
         """Decimales as string list: keep as-is."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Decimales": ["FAC-001"]
         }, responsables_map={})
         assert rows[0]["descripcion"] == "Valores con decimales"
@@ -382,7 +389,7 @@ class TestSharedHandlerConsistency:
 
     def test_tipo_id_edad_engine_enriched(self):
         """Engine-enriched: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Tipo Identificación / Edad": [{
                 "factura": "FAC-001",
                 "numero_identificacion": "12345",
@@ -395,7 +402,7 @@ class TestSharedHandlerConsistency:
 
     def test_tipo_id_edad_legacy_format(self):
         """No problema: fallback to tipo_deberia template."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Tipo Identificación / Edad": [{
                 "factura": "FAC-001",
                 "tipo_actual": "CC", "tipo_deberia": "TI",
@@ -407,7 +414,7 @@ class TestSharedHandlerConsistency:
 
     def test_profesionales_engine_enriched(self):
         """Profesionales: desc from problema, proc from _build_procedimiento."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Profesionales": [{
                 "factura": "FAC-001",
                 "codigo_profesional": "DOC123",
@@ -423,7 +430,7 @@ class TestSharedHandlerConsistency:
 
     def test_entidad_vs_afiliacion_engine_enriched(self):
         """Código Entidad vs Af.: desc from problema, already correct."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Código Entidad vs Afiliación": [{
                 "factura": "FAC-001",
                 "codigo_entidad_cobrar": "85700",
@@ -438,7 +445,7 @@ class TestSharedHandlerConsistency:
 
     def test_tipo_usuario_engine_enriched(self):
         """Tipo Usuario: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Tipo Usuario": [{
                 "factura": "FAC-001",
                 "codigo": "C001", "procedimiento": "P",
@@ -452,7 +459,7 @@ class TestSharedHandlerConsistency:
 
     def test_tipo_usuario_legacy_format(self):
         """No problema: hardcoded desc."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Tipo Usuario": [{
                 "factura": "FAC-001",
                 "tipo_actual": "BENEFICIARIO",
@@ -464,7 +471,7 @@ class TestSharedHandlerConsistency:
 
     def test_revision_necesaria_engine_enriched(self):
         """Revisión Necesaria: already correct."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "⚠️ Revisión Necesaria": [{
                 "factura": "FAC-001",
                 "codigo": "C001", "procedimiento": "P",
@@ -478,7 +485,7 @@ class TestSharedHandlerConsistency:
 
     def test_copago_entidad_enriched(self):
         """Copago vs Entidad: already correct with _build_procedimiento."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Copago vs Entidad": [{
                 "factura": "FAC-001",
                 "codigo": "C001", "procedimiento": "CONSULTA",
@@ -494,7 +501,7 @@ class TestSharedHandlerConsistency:
 
     def test_duplicados_farmacia_engine_enriched(self):
         """Engine provides codigo, cantidad in pares; must not crash."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Duplicados Farmacia": [{
                 "factura": "FAC-001",
                 "codigo_tipo_procedimiento": "12",
@@ -511,7 +518,7 @@ class TestSharedHandlerConsistency:
 
     def test_duplicados_farmacia_sin_pares(self):
         """P0: no pares_duplicados list, must not crash."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Duplicados Farmacia": [{
                 "factura": "FAC-001",
                 "problema": "Duplicados farmacia",
@@ -525,7 +532,7 @@ class TestSharedHandlerConsistency:
 
     def test_cups_sin_contrato_enriched(self):
         """Cups Sin Contrato: desc from problema, proc from _build_procedimiento."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cups Sin Contrato": [{
                 "factura": "FAC-001",
                 "codigo": "C001", "procedimiento": "CONSULTA",
@@ -542,7 +549,7 @@ class TestSharedHandlerConsistency:
 
     def test_cups_no_capita_engine_enriched(self):
         """Cups No CAPITA: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cups No CAPITA": [{
                 "factura": "FAC-001",
                 "codigo": "C001", "procedimiento": "P",
@@ -554,7 +561,7 @@ class TestSharedHandlerConsistency:
 
     def test_cups_no_capita_legacy_format(self):
         """No problema: fallback to observacion."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cups No CAPITA": [{
                 "factura": "FAC-001",
                 "observacion": "No cubierto",
@@ -566,7 +573,7 @@ class TestSharedHandlerConsistency:
 
     def test_duplicado_id_codigo_engine_enriched(self):
         """Duplicado ID+Código: desc from problema."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Duplicado ID+Código": [{
                 "factura": "FAC-001",
                 "identificacion": "ID-123",
@@ -581,7 +588,7 @@ class TestSharedHandlerConsistency:
 
     def test_duplicado_id_codigo_legacy_format(self):
         """No problema: fallback to template."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Duplicado ID+Código": [{
                 "factura": "FAC-001",
                 "identificacion": "ID-123",
@@ -595,7 +602,7 @@ class TestSharedHandlerConsistency:
 
     def test_generic_fallback_empty_proc_and_det(self):
         """Generic fallback: if proc AND det empty, first non-factura key used."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "MAL CAPITADO": [{
                 "factura": "FAC-001",
                 "problema": "Problema de capitado",
@@ -613,7 +620,7 @@ class TestSharedP0Fixes:
 
     def test_cantidades_soat_hospitalizacion_sin_cantidad_esperada(self):
         """P0: Cantidades SOAT Hospitalización sin cantidad_esperada no debe fallar."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Cantidades SOAT Hospitalización": [{
                 "factura": "FAC-001",
                 "codigo": "C001",
@@ -628,7 +635,7 @@ class TestSharedP0Fixes:
 
     def test_duplicados_farmacia_sin_pares_duplicados_key(self):
         """P0: no 'pares_duplicados' key at all, must not crash."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Duplicados Farmacia": [{
                 "factura": "FAC-001",
                 "codigo_tipo_procedimiento": "12",
@@ -653,7 +660,7 @@ class TestEdadDetalle:
 
     def test_ignora_meses_entrada_erroneos(self):
         """Aunque el detector/engine pase meses=0, se recomputa desde fechas."""
-        rows = build_normalized_rows(error_groups={
+        rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "Tipo Identificación / Edad": [{
                 "factura": "FAC-B",
                 "numero_identificacion": "999",

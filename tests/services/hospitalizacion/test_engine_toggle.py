@@ -14,6 +14,45 @@ from openpyxl import Workbook
 from app.constants import AREA_HOSPITALIZACION
 
 
+def _regla(nombre: str, dominio: str, grupo: str | None):
+    from app.models import Regla
+
+    return Regla(
+        id=abs(hash(nombre)) % 10_000 + 1, nombre=nombre, dominio=dominio,
+        estado="active", version=1, prioridad=10, severidad="error",
+        activo=True, grupo_error=grupo,
+    )
+
+
+class _RecordingDetector:
+    """Fake RuleBasedDetector: records requested names, serves payloads."""
+
+    instances: list[str] = []
+    payloads: dict[str, list[dict]] = {}
+
+    def __init__(self, name: str, session, **kwargs):
+        type(self).instances.append(name)
+        self._name = name
+
+    def detect(self, *args, **kwargs):
+        return [dict(p) for p in type(self).payloads.get(self._name, [])]
+
+    @classmethod
+    def reset(cls, payloads: dict | None = None) -> None:
+        cls.instances = []
+        cls.payloads = dict(payloads or {})
+
+
+_HOSP_KEYS = {
+    "normalizados", "centros_de_costos", "ide_contrato",
+    "cups_equivalentes", "decimales", "tipo_identificacion_edad",
+    "tipo_identificacion_entidad", "codigo_entidad_vs_afiliacion",
+    "tipo_usuario", "cantidades_hospitalizacion",
+    "cantidades_soat_hospitalizacion", "copago_entidad",
+    "profesionales", "cups_sin_contrato",
+}
+
+
 def _build_simple_sheet() -> tuple[Workbook, dict[str, int | None]]:
     """Build a workbook with minimal columns for testing."""
     wb = Workbook()
@@ -55,45 +94,49 @@ class TestHospitalizacionEngineToggle:
 
     @patch("app.database.get_session")
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
-    def test_engine_path_routes_to_rule_based_detector(
+    @patch("app.services.hospitalizacion.detect_all.is_rule_engine_enabled", return_value=True)
+    def test_engine_path_evaluates_resolver_rules_only(
         self, mock_enabled: MagicMock, mock_detector_cls: MagicMock,
         mock_get_session: MagicMock,
     ) -> None:
-        """Engine path must instantiate RuleBasedDetector for transversal rules.
-
-        This test FAILS if the toggle is not implemented (RuleBasedDetector
-        will never be called, and the assertion fails).
-        """
-        mock_session = self._make_mock_session()
-        mock_get_session.return_value = mock_session
-        mock_detector = MagicMock()
-        mock_detector.detect.return_value = []
-        mock_detector_cls.return_value = mock_detector
+        """Dynamic discovery: only resolver-served rules evaluate (no fixed list)."""
+        served = [
+            _regla("cantidades_hospitalizacion", "hospitalizacion", "Cantidades Hospitalización"),
+            _regla("nueva_regla_ui", "hospitalizacion", "Cantidades Hospitalización"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
+        _RecordingDetector.reset({
+            "cantidades_hospitalizacion": [{"factura": "FAC-001", "problema": "c"}],
+            "nueva_regla_ui": [{"factura": "FAC-001", "problema": "nuevo"}],
+        })
+        mock_get_session.return_value = MagicMock()
+        mock_detector_cls.side_effect = _RecordingDetector
 
         from app.services.hospitalizacion.detect_all import (
             detect_all_problems_hospitalizacion,
         )
-        wb, indices = _build_simple_sheet()
-        result, responsables = detect_all_problems_hospitalizacion(
-            wb.active, indices,
-        )
+        with patch(
+            "app.services.engine.domain_detection.RuleResolver",
+            return_value=fake_resolver,
+        ):
+            wb, indices = _build_simple_sheet()
+            result, responsables = detect_all_problems_hospitalizacion(
+                wb.active, indices,
+            )
 
-        # RuleBasedDetector must have been called multiple times for each
-        # transversal rule (>= 3 to distinguish from cups_sin_contrato's
-        # single internal call which also uses RuleBasedDetector).
-        assert mock_detector_cls.call_count >= 3, (
-            f"RuleBasedDetector called only {mock_detector_cls.call_count}x "
-            f"— toggle likely not implemented"
-        )
+        assert set(_RecordingDetector.instances) == {
+            "cantidades_hospitalizacion", "nueva_regla_ui",
+        }
 
         assert "problemas" in result
         assert isinstance(result["problemas"], dict)
         assert "totales" in result
         assert result["area"] == AREA_HOSPITALIZACION
+        assert len(result["problemas"]["cantidades_hospitalizacion"]) == 2
         assert responsables == {}
 
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
+    @patch("app.services.hospitalizacion.detect_all.is_rule_engine_enabled", return_value=False)
     def test_legacy_path_returns_valid_structure(
         self, mock_enabled: MagicMock,
     ) -> None:
@@ -114,41 +157,48 @@ class TestHospitalizacionEngineToggle:
 
     @patch("app.database.get_session")
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
+    @patch("app.services.hospitalizacion.detect_all.is_rule_engine_enabled", return_value=True)
     def test_engine_path_with_all_detectors(
         self, mock_enabled: MagicMock, mock_detector_cls: MagicMock,
         mock_get_session: MagicMock,
     ) -> None:
         """Engine path must produce problems dict with all keys present."""
-        mock_session = self._make_mock_session()
-        mock_get_session.return_value = mock_session
-        mock_detector = MagicMock()
-        mock_detector.detect.return_value = []
-        mock_detector_cls.return_value = mock_detector
+        served = [
+            _regla("centro_costo_hospitalizacion_valido", "hospitalizacion", "Centros de Costo"),
+            _regla("ide_contrato_hospitalizacion_valido", "hospitalizacion", "IDE Contrato"),
+            _regla("cantidades_hospitalizacion", "hospitalizacion", "Cantidades Hospitalización"),
+            _regla("cantidades_soat_hospitalizacion", "hospitalizacion", "Cantidades SOAT Hospitalización"),
+            _regla("valores_decimales", "transversal", "Decimales"),
+            _regla("codigo_entidad", "transversal", "Codigo-Entidad-vs-Afiliacion"),
+            _regla("tipo_usuario_valido", "transversal", "Tipo Usuario"),
+            _regla("copago_entidad_valido", "transversal", "Copago vs Entidad"),
+            _regla("profesional_hospitalizacion_valido", "hospitalizacion", "Profesionales"),
+            _regla("cups_sin_contrato", "transversal", "Cups Sin Contrato"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
+        _RecordingDetector.reset()
+        mock_get_session.return_value = MagicMock()
+        mock_detector_cls.side_effect = _RecordingDetector
 
         from app.services.hospitalizacion.detect_all import (
             detect_all_problems_hospitalizacion,
         )
-        wb, indices = _build_simple_sheet()
-        result, _ = detect_all_problems_hospitalizacion(wb.active, indices)
+        with patch(
+            "app.services.engine.domain_detection.RuleResolver",
+            return_value=fake_resolver,
+        ):
+            wb, indices = _build_simple_sheet()
+            result, _ = detect_all_problems_hospitalizacion(wb.active, indices)
 
-        # Verify engine path was used (>= 3 rules beyond cups_sin_contrato's 1)
-        assert mock_detector_cls.call_count >= 3
+        assert set(_RecordingDetector.instances) == {r.nombre for r in served}
 
         problemas = result["problemas"]
 
-        expected_keys = {
-            "normalizados", "centros_de_costos", "ide_contrato",
-            "cups_equivalentes", "decimales", "tipo_identificacion_edad",
-            "tipo_identificacion_entidad", "codigo_entidad_vs_afiliacion",
-            "tipo_usuario", "cantidades_hospitalizacion",
-            "cantidades_soat_hospitalizacion", "copago_entidad",
-            "profesionales", "cups_sin_contrato",
-        }
-        for key in expected_keys:
+        for key in _HOSP_KEYS:
             assert key in problemas, f"Missing key: {key}"
 
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
+    @patch("app.services.hospitalizacion.detect_all.is_rule_engine_enabled", return_value=False)
     def test_legacy_path_with_all_detectors(
         self, mock_enabled: MagicMock,
     ) -> None:
@@ -161,13 +211,5 @@ class TestHospitalizacionEngineToggle:
 
         problemas = result["problemas"]
 
-        expected_keys = {
-            "normalizados", "centros_de_costos", "ide_contrato",
-            "cups_equivalentes", "decimales", "tipo_identificacion_edad",
-            "tipo_identificacion_entidad", "codigo_entidad_vs_afiliacion",
-            "tipo_usuario", "cantidades_hospitalizacion",
-            "cantidades_soat_hospitalizacion", "copago_entidad",
-            "profesionales", "cups_sin_contrato",
-        }
-        for key in expected_keys:
+        for key in _HOSP_KEYS:
             assert key in problemas, f"Missing key: {key}"

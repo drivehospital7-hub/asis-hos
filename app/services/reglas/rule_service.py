@@ -376,7 +376,10 @@ def update_rule(
 
 
 def delete_rule(db_session, rule_id: int) -> None:
-    """Soft-delete a rule by setting estado=retired.
+    """Soft-delete a rule by setting estado=retired AND activo=false.
+
+    Single-flag cutover: the engine filters ONLY by activo, so deletion
+    must switch the flag off (estado stays as the lifecycle record).
 
     Args:
         db_session: SQLAlchemy Session
@@ -396,6 +399,7 @@ def delete_rule(db_session, rule_id: int) -> None:
         raise ValueError(f"Rule {rule_id} is already retired")
 
     rule.estado = "retired"
+    rule.activo = False
     db_session.commit()
 
 

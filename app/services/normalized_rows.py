@@ -247,8 +247,12 @@ GRUPO_FORMATTERS.update({
 
 
 def is_grupo_error_mapping_enabled() -> bool:
-    """Cutover flag: True routes build_normalized_rows through grupo mapping."""
-    return os.getenv("GRUPO_ERROR_MAPPING", "false").strip().lower() == "true"
+    """Cutover flag: True routes build_normalized_rows through grupo mapping.
+
+    Default ON (Cambio 2): /procesar grouping comes from rule-declared
+    grupo_error. Set GRUPO_ERROR_MAPPING=false to restore legacy blocks.
+    """
+    return os.getenv("GRUPO_ERROR_MAPPING", "true").strip().lower() == "true"
 
 
 def _combine_procedimiento(codigo: Any, procedimiento: Any) -> str:
@@ -935,4 +939,6 @@ def build_urgencias_normalized_rows(
         responsables_map=responsables_map,
         fec_factura_map=fec_factura_map,
         fecha_cierre_vacia_map=fecha_cierre_vacia_map,
+        # Legacy wrapper: etiquetas legacy → bloques legacy (no grupo mapping).
+        use_grupo_mapping=False,
     )

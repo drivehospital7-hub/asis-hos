@@ -133,6 +133,19 @@ class TestFarmaciaDuplicadosEngineToggle:
         session.query.return_value = mock_query
         return session
 
+    def _duplicados_resolver(self) -> MagicMock:
+        from app.models import Regla
+
+        fake = MagicMock()
+        fake.resolve.return_value = [
+            Regla(
+                id=1, nombre="duplicados_farmacia", dominio="farmacia",
+                estado="active", version=1, prioridad=10, severidad="error",
+                activo=True, grupo_error="Duplicados-Farmacia",
+            )
+        ]
+        return fake
+
     # ── Scenario 1: All pairs duplicated ──
 
     @patch("app.database.get_session")
@@ -140,7 +153,7 @@ class TestFarmaciaDuplicadosEngineToggle:
     def test_engine_path_routes_duplicados(
         self, mock_detector_cls, mock_get_session,
     ) -> None:
-        """Engine path must call RuleBasedDetector for duplicados_farmacia."""
+        """Dynamic discovery must evaluate the served duplicados rule only."""
         mock_session = self._make_mock_session()
         mock_get_session.return_value = mock_session
         mock_detector = MagicMock()
@@ -152,7 +165,11 @@ class TestFarmaciaDuplicadosEngineToggle:
         old_val = os.environ.get("USE_RULE_ENGINE")
         os.environ["USE_RULE_ENGINE"] = "true"
         try:
-            result, _ = detect_all_problems_farmacia(wb.active, indices)
+            with patch(
+                "app.services.engine.domain_detection.RuleResolver",
+                return_value=self._duplicados_resolver(),
+            ):
+                result, _ = detect_all_problems_farmacia(wb.active, indices)
         finally:
             if old_val is None:
                 del os.environ["USE_RULE_ENGINE"]
@@ -162,9 +179,8 @@ class TestFarmaciaDuplicadosEngineToggle:
         called_with_names = [
             args[0] for args, _ in mock_detector_cls.call_args_list
         ]
-        assert "duplicados_farmacia" in called_with_names, (
-            f"Rule 'duplicados_farmacia' was NOT routed to engine. "
-            f"Calls were: {called_with_names}"
+        assert called_with_names == ["duplicados_farmacia"], (
+            f"Only the resolver-served rule must evaluate. Calls: {called_with_names}"
         )
         # Ref #1: the suffixed dangling name must never be looked up.
         assert "duplicados_farmacia_farmacia" not in called_with_names
@@ -195,8 +211,12 @@ class TestFarmaciaDuplicadosEngineToggle:
 
                 m_dc.side_effect = _side_effect
 
-                wb, indices = _build_sheet_with_farmacia_rows(ALL_DUPLICATED)
-                result, _ = detect_all_problems_farmacia(wb.active, indices)
+                with patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=self._duplicados_resolver(),
+                ):
+                    wb, indices = _build_sheet_with_farmacia_rows(ALL_DUPLICATED)
+                    result, _ = detect_all_problems_farmacia(wb.active, indices)
 
         assert len(result["problemas"]["duplicados_farmacia"]) > 0, (
             "Engine should detect all-duplicated factura"
@@ -221,8 +241,14 @@ class TestFarmaciaDuplicadosEngineToggle:
 
                 m_dc.side_effect = _side_effect
 
-                wb, indices = _build_sheet_with_farmacia_rows(MIXED_DUPLICATES)
-                result, _ = detect_all_problems_farmacia(wb.active, indices)
+                empty_resolver = MagicMock()
+                empty_resolver.resolve.return_value = []
+                with patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=empty_resolver,
+                ):
+                    wb, indices = _build_sheet_with_farmacia_rows(MIXED_DUPLICATES)
+                    result, _ = detect_all_problems_farmacia(wb.active, indices)
 
         assert len(result["problemas"]["duplicados_farmacia"]) == 0, (
             "Engine should NOT flag factura with unique pairs"
@@ -246,8 +272,14 @@ class TestFarmaciaDuplicadosEngineToggle:
         wb, indices = _build_sheet_with_farmacia_rows(NO_DUPLICATES)
         old_val = os.environ.get("USE_RULE_ENGINE")
         os.environ["USE_RULE_ENGINE"] = "true"
+        empty_resolver = MagicMock()
+        empty_resolver.resolve.return_value = []
         try:
-            result, _ = detect_all_problems_farmacia(wb.active, indices)
+            with patch(
+                "app.services.engine.domain_detection.RuleResolver",
+                return_value=empty_resolver,
+            ):
+                result, _ = detect_all_problems_farmacia(wb.active, indices)
         finally:
             if old_val is None:
                 del os.environ["USE_RULE_ENGINE"]
@@ -276,8 +308,14 @@ class TestFarmaciaDuplicadosEngineToggle:
         )
         old_val = os.environ.get("USE_RULE_ENGINE")
         os.environ["USE_RULE_ENGINE"] = "true"
+        empty_resolver = MagicMock()
+        empty_resolver.resolve.return_value = []
         try:
-            result, _ = detect_all_problems_farmacia(wb.active, indices)
+            with patch(
+                "app.services.engine.domain_detection.RuleResolver",
+                return_value=empty_resolver,
+            ):
+                result, _ = detect_all_problems_farmacia(wb.active, indices)
             assert "duplicados_farmacia" in result["problemas"]
         except Exception as exc:
             pytest.fail(f"Engine path crashed with missing column: {exc}")
@@ -305,8 +343,14 @@ class TestFarmaciaDuplicadosEngineToggle:
                 wb, indices = _build_sheet_with_farmacia_rows(
                     NO_DUPLICATES, include_tipo_factura=False,
                 )
+                empty_resolver = MagicMock()
+                empty_resolver.resolve.return_value = []
                 try:
-                    result, _ = detect_all_problems_farmacia(wb.active, indices)
+                    with patch(
+                        "app.services.engine.domain_detection.RuleResolver",
+                        return_value=empty_resolver,
+                    ):
+                        result, _ = detect_all_problems_farmacia(wb.active, indices)
                     assert "duplicados_farmacia" in result["problemas"]
                 except Exception as exc:
                     pytest.fail(f"Engine path crashed with missing column: {exc}")

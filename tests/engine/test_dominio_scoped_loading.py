@@ -130,6 +130,67 @@ class TestDuplicateVersionRealDb:
         assert loaded.dominio == "transversal"
 
 
+class TestSingleFlagActivoRealDb:
+    """Single-flag cutover: engine loads by activo ONLY (no estado filter).
+
+    Regression: retired+activo=true (prod drift, fila #27) MUST load;
+    activo=false MUST NOT load, whatever estado says.
+    """
+
+    def _engine_with_state_rows(self, rowspec):
+        from sqlalchemy import create_engine
+        from sqlalchemy.orm import sessionmaker
+        from sqlalchemy.pool import StaticPool
+        from app.database import Base
+        from app.models import Regla
+        import app.models  # noqa: F401
+        from app.services.engine.engine import RuleEvaluationEngine
+
+        engine = create_engine(
+            "sqlite://",
+            connect_args={"check_same_thread": False},
+            poolclass=StaticPool,
+        )
+        Base.metadata.create_all(engine)
+        session = sessionmaker(bind=engine)()
+        for nombre, dominio, estado, activo in rowspec:
+            session.add(
+                Regla(
+                    nombre=nombre, dominio=dominio, estado=estado,
+                    version=1, prioridad=100, severidad="error",
+                    activo=activo,
+                )
+            )
+        session.commit()
+        return RuleEvaluationEngine(session)
+
+    def test_retired_activo_true_loads_by_name(self):
+        engine = self._engine_with_state_rows([
+            ("drift_rule", "odontologia", "retired", True),
+        ])
+        loaded = engine._load_rule_by_name("drift_rule", "odontologia")
+        assert loaded is not None
+        assert loaded.nombre == "drift_rule"
+
+    def test_retired_activo_true_loads_legacy(self):
+        engine = self._engine_with_state_rows([
+            ("drift_rule", "odontologia", "retired", True),
+        ])
+        loaded = engine._load_rule_legacy("drift_rule")
+        assert loaded is not None
+        assert loaded.nombre == "drift_rule"
+
+    def test_activo_false_never_loads(self):
+        engine = self._engine_with_state_rows([
+            ("off_active", "odontologia", "active", False),
+            ("off_retired", "odontologia", "retired", False),
+        ])
+        assert engine._load_rule_by_name("off_active", "odontologia") is None
+        assert engine._load_rule_by_name("off_retired", "odontologia") is None
+        assert engine._load_rule_legacy("off_active") is None
+        assert engine._load_rule_legacy("off_retired") is None
+
+
 class TestEvaluateSheetThreadsDominio:
     def test_evaluate_sheet_accepts_dominio_kwarg(self):
         from app.services.engine.engine import RuleEvaluationEngine

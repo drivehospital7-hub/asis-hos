@@ -9,6 +9,27 @@ import app.services.urgencias.detect_all as urgencias_detect_all
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
 
 
+def _patch_resolver(monkeypatch, *specs: tuple[str, str, str | None]):
+    """Serve fake resolver rules: (nombre, dominio, grupo) triples."""
+    from unittest.mock import MagicMock
+
+    from app.models import Regla
+
+    fake_resolver = MagicMock()
+    fake_resolver.resolve.return_value = [
+        Regla(
+            id=abs(hash(nombre)) % 10_000 + 1, nombre=nombre, dominio=dominio,
+            estado="active", version=1, prioridad=10, severidad="error",
+            activo=True, grupo_error=grupo,
+        )
+        for nombre, dominio, grupo in specs
+    ]
+    monkeypatch.setattr(
+        "app.services.engine.domain_detection.RuleResolver",
+        lambda: fake_resolver,
+    )
+
+
 @pytest.fixture
 def workbook_minimal() -> Workbook:
     """Crea un workbook con headers mínimos."""
@@ -166,6 +187,12 @@ class TestDetectAllProblemsUrgencias:
             FakeRuleBasedDetector,
         )
 
+        _patch_resolver(
+            monkeypatch,
+            ("centro_costo_urgencias_valido", "urgencias", "Centros de Costo"),
+            ("centro_costo_urgencias", "urgencias", "Centros de Costo"),
+        )
+
         result, _ = detect_all_problems_urgencias(
             ws, {"numero_factura": 0}
         )
@@ -225,6 +252,11 @@ class TestDetectAllProblemsUrgencias:
         monkeypatch.setattr(
             "app.services.engine.rule_based_detector.RuleBasedDetector",
             FakeRuleBasedDetector,
+        )
+
+        _patch_resolver(
+            monkeypatch,
+            ("cups_equivalentes", "urgencias", "Cups-Equivalentes"),
         )
 
         result, _ = detect_all_problems_urgencias(
@@ -299,6 +331,11 @@ class TestDetectAllProblemsUrgencias:
             FakeRuleBasedDetector,
         )
 
+        _patch_resolver(
+            monkeypatch,
+            ("sala_observacion_estancia_prolongada", "urgencias", "Cups-Equivalentes"),
+        )
+
         result, _ = detect_all_problems_urgencias(
             ws, {"numero_factura": 0}
         )
@@ -311,7 +348,7 @@ class TestDetectAllProblemsUrgencias:
 
         norm_estancia = [
             r for r in result["problemas"]["normalizados"]
-            if r.get("tipo_error") == "Cups Equivalentes"
+            if r.get("tipo_error") == "Cups-Equivalentes"
             and r.get("factura") == "FAC-EST-001"
         ]
         assert len(norm_estancia) == 1
@@ -401,6 +438,11 @@ class TestDetectAllProblemsUrgencias:
             FakeRuleBasedDetector,
         )
 
+        _patch_resolver(
+            monkeypatch,
+            ("sala_observacion_estancia_prolongada", "urgencias", "Cups-Equivalentes"),
+        )
+
         result, _ = detect_all_problems_urgencias(
             ws, {"numero_factura": 0, "codigo": 1}
         )
@@ -418,12 +460,12 @@ class TestDetectAllProblemsUrgencias:
 
         norm_a = [
             r for r in result["problemas"]["normalizados"]
-            if r.get("tipo_error") == "Cups Equivalentes"
+            if r.get("tipo_error") == "Cups-Equivalentes"
             and r.get("factura") == "FAC-EST-A"
         ]
         norm_b = [
             r for r in result["problemas"]["normalizados"]
-            if r.get("tipo_error") == "Cups Equivalentes"
+            if r.get("tipo_error") == "Cups-Equivalentes"
             and r.get("factura") == "FAC-EST-B"
         ]
         assert len(norm_a) == 1

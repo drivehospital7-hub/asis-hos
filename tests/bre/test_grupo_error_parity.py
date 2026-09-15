@@ -149,7 +149,8 @@ class TestGoldenFlagDiff:
         from app.services.normalized_rows import build_normalized_rows
 
         legacy = build_normalized_rows(
-            error_groups=self._legacy_groups(), responsables_map={}
+            error_groups=self._legacy_groups(), responsables_map={},
+            use_grupo_mapping=False,
         )
         mapped = build_normalized_rows(
             error_groups=self._mapped_groups(),
@@ -172,7 +173,8 @@ class TestGoldenFlagDiff:
         from app.services.normalized_rows import build_normalized_rows
 
         legacy = build_normalized_rows(
-            error_groups=self._legacy_groups(), responsables_map={}
+            error_groups=self._legacy_groups(), responsables_map={},
+            use_grupo_mapping=False,
         )
         mapped = build_normalized_rows(
             error_groups=self._mapped_groups(),

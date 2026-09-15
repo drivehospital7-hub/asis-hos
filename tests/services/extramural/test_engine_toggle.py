@@ -14,6 +14,35 @@ from openpyxl import Workbook
 from app.constants import AREA_EXTRAMURAL
 
 
+def _regla(nombre: str, dominio: str, grupo: str | None):
+    from app.models import Regla
+
+    return Regla(
+        id=abs(hash(nombre)) % 10_000 + 1, nombre=nombre, dominio=dominio,
+        estado="active", version=1, prioridad=10, severidad="error",
+        activo=True, grupo_error=grupo,
+    )
+
+
+class _RecordingDetector:
+    """Fake RuleBasedDetector: records requested names, serves payloads."""
+
+    instances: list[str] = []
+    payloads: dict[str, list[dict]] = {}
+
+    def __init__(self, name: str, session, **kwargs):
+        type(self).instances.append(name)
+        self._name = name
+
+    def detect(self, *args, **kwargs):
+        return [dict(p) for p in type(self).payloads.get(self._name, [])]
+
+    @classmethod
+    def reset(cls, payloads: dict | None = None) -> None:
+        cls.instances = []
+        cls.payloads = dict(payloads or {})
+
+
 def _build_simple_sheet() -> tuple[Workbook, dict[str, int | None]]:
     """Build a workbook with minimal columns for testing."""
     wb = Workbook()
@@ -52,40 +81,48 @@ class TestExtramuralEngineToggle:
 
     @patch("app.database.get_session")
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
-    def test_engine_path_routes_to_rule_based_detector(
+    @patch("app.services.extramural.detect_all.is_rule_engine_enabled", return_value=True)
+    def test_engine_path_evaluates_resolver_rules_only(
         self, mock_enabled: MagicMock, mock_detector_cls: MagicMock,
         mock_get_session: MagicMock,
     ) -> None:
-        """Engine path must instantiate RuleBasedDetector for transversal rules.
-
-        This test FAILS if the toggle is not implemented.
-        """
-        mock_session = self._make_mock_session()
-        mock_get_session.return_value = mock_session
-        mock_detector = MagicMock()
-        mock_detector.detect.return_value = []
-        mock_detector_cls.return_value = mock_detector
+        """Dynamic discovery: only resolver-served rules evaluate (no fixed list)."""
+        served = [
+            _regla("valores_decimales", "transversal", "Decimales"),
+            _regla("nueva_regla_ui", "extramural", "Decimales"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
+        _RecordingDetector.reset({
+            "valores_decimales": [{"factura": "FAC-001", "problema": "dec"}],
+            "nueva_regla_ui": [{"factura": "FAC-001", "problema": "nuevo"}],
+        })
+        mock_get_session.return_value = MagicMock()
+        mock_detector_cls.side_effect = _RecordingDetector
 
         from app.services.extramural.detect_all import (
             detect_all_problems_extramural,
         )
-        wb, indices = _build_simple_sheet()
-        result, responsables = detect_all_problems_extramural(
-            wb.active, indices,
-        )
+        with patch(
+            "app.services.engine.domain_detection.RuleResolver",
+            return_value=fake_resolver,
+        ):
+            wb, indices = _build_simple_sheet()
+            result, responsables = detect_all_problems_extramural(
+                wb.active, indices,
+            )
 
-        assert mock_detector_cls.call_count >= 3, (
-            f"RuleBasedDetector called only {mock_detector_cls.call_count}x "
-            f"— toggle likely not implemented"
-        )
+        assert set(_RecordingDetector.instances) == {
+            "valores_decimales", "nueva_regla_ui",
+        }
         assert "problemas" in result
         assert isinstance(result["problemas"], dict)
         assert "totales" in result
         assert result["area"] == AREA_EXTRAMURAL
+        assert len(result["problemas"]["decimales"]) == 2
         assert responsables == {}
 
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
+    @patch("app.services.extramural.detect_all.is_rule_engine_enabled", return_value=False)
     def test_legacy_path_returns_valid_structure(
         self, mock_enabled: MagicMock,
     ) -> None:
@@ -106,25 +143,37 @@ class TestExtramuralEngineToggle:
 
     @patch("app.database.get_session")
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=True)
+    @patch("app.services.extramural.detect_all.is_rule_engine_enabled", return_value=True)
     def test_engine_path_with_all_detectors(
         self, mock_enabled: MagicMock, mock_detector_cls: MagicMock,
         mock_get_session: MagicMock,
     ) -> None:
         """Engine path must produce problems dict with all keys present."""
-        mock_session = self._make_mock_session()
-        mock_get_session.return_value = mock_session
-        mock_detector = MagicMock()
-        mock_detector.detect.return_value = []
-        mock_detector_cls.return_value = mock_detector
+        served = [
+            _regla("valores_decimales", "transversal", "Decimales"),
+            _regla("tipo_documento_edad_menor_7", "transversal", "Tipo Identificacion / Edad"),
+            _regla("codigo_entidad", "transversal", "Codigo-Entidad-vs-Afiliacion"),
+            _regla("tipo_usuario_valido", "transversal", "Tipo Usuario"),
+            _regla("copago_entidad_valido", "transversal", "Copago vs Entidad"),
+            _regla("cups_sin_contrato", "transversal", "Cups Sin Contrato"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
+        _RecordingDetector.reset()
+        mock_get_session.return_value = MagicMock()
+        mock_detector_cls.side_effect = _RecordingDetector
 
         from app.services.extramural.detect_all import (
             detect_all_problems_extramural,
         )
-        wb, indices = _build_simple_sheet()
-        result, _ = detect_all_problems_extramural(wb.active, indices)
+        with patch(
+            "app.services.engine.domain_detection.RuleResolver",
+            return_value=fake_resolver,
+        ):
+            wb, indices = _build_simple_sheet()
+            result, _ = detect_all_problems_extramural(wb.active, indices)
 
-        assert mock_detector_cls.call_count >= 3
+        assert set(_RecordingDetector.instances) == {r.nombre for r in served}
 
         problemas = result["problemas"]
         expected_keys = {
@@ -136,7 +185,7 @@ class TestExtramuralEngineToggle:
         for key in expected_keys:
             assert key in problemas, f"Missing key: {key}"
 
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
+    @patch("app.services.extramural.detect_all.is_rule_engine_enabled", return_value=False)
     def test_legacy_path_with_all_detectors(
         self, mock_enabled: MagicMock,
     ) -> None:

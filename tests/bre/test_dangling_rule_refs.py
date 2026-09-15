@@ -319,11 +319,7 @@ DANGLING = frozenset({
     "ide_contrato_simple_urgencias",
     "pym_rutas_dx",
     "cups_equivalentes_transversal",
-    "centro_costo_intramural_valido",
-    "bacteriologas_cronograma",
-    "duplicado_id_codigo_05",
     "duplicado_id_codigo_02_lab",
-    "revision_cantidad_intramural",
     "revision_cantidad_urgencias_valido",
     "sala_observacion_valido",
     "duplicados_farmacia_farmacia",
@@ -363,10 +359,10 @@ def _engine_restore(old) -> None:
 
 
 class TestEquiposWiring:
-    """Equipos detect_all must request the 3 cantidad_* rules + the odonto
-    IDE rule, never the dangling names."""
+    """Dynamic discovery: equipos evaluates exactly the resolver-served rules
+    (incl. the 3 cantidad_* rules + the odonto IDE rule) — never dangling names."""
 
-    def test_mapped_names_requested_dangling_never(self):
+    def test_served_names_requested_dangling_never(self):
         from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 
         headers = ["numero_factura", "tipo_procedimiento", "cantidad", "convenio_facturado",
@@ -375,6 +371,15 @@ class TestEquiposWiring:
         wb = _wb(headers, [("E-001", "Consultas", 2, "Subsidiado",
                              "890203", "ESS118", "000", "Resp", "2024-01-15")])
         indices = {h: i for i, h in enumerate(headers)}
+        served = [
+            _regla("cantidad_consultas_anomalas", "transversal", "Cantidades"),
+            _regla("cantidad_general_anomalas", "transversal", "Cantidades"),
+            _regla("cantidad_pyp_anomalas", "transversal", "Cantidades"),
+            _regla("ide_contrato_odontologia_valido", "odontologia", "IDE Contrato"),
+            _regla("nueva_regla_ui", "equipos_basicos", "Cantidades"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
         fake = _RecordingDetector({
             "cantidad_consultas_anomalas": [{"factura": "E-001", "problema": "x"}],
             "ide_contrato_odontologia_valido": [{"factura": "E-001", "problema": "y"}],
@@ -386,6 +391,10 @@ class TestEquiposWiring:
                 patch("app.services.equipos_basicos.detect_all.is_rule_engine_enabled",
                       return_value=True),
                 patch("app.services.engine.session_manager.SessionManager") as m_sm,
+                patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ),
                 patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_rbd,
             ):
                 m_sm.return_value.__enter__.return_value = MagicMock()
@@ -393,9 +402,7 @@ class TestEquiposWiring:
                 resultado, _ = detect_all_problems_equipos_basicos(wb.active, indices)
         finally:
             _engine_restore(old)
-        for name in ("cantidad_consultas_anomalas", "cantidad_general_anomalas",
-                     "cantidad_pyp_anomalas", "ide_contrato_odontologia_valido"):
-            assert name in fake.instances, f"mapped rule {name} not requested: {fake.instances}"
+        assert set(fake.instances) == {r.nombre for r in served}
         assert not (set(fake.instances) & DANGLING), (
             f"dangling names still requested: {set(fake.instances) & DANGLING}"
         )
@@ -404,10 +411,10 @@ class TestEquiposWiring:
 
 
 class TestUrgenciasWiring:
-    """Urgencias detect_all: simple_urgencias removed (covered by the base
-    IDE rule — evaluated exactly once), sala + revision renamed."""
+    """Dynamic discovery: urgencias evaluates exactly the resolver-served
+    rules once each (base IDE rule exactly once) — never dangling names."""
 
-    def test_mapped_names_requested_dangling_never(self):
+    def test_served_names_requested_dangling_never(self):
         from app.services.urgencias.detect_all import detect_all_problems_urgencias
 
         headers = ["numero_factura", "codigo", "procedimiento", "cantidad",
@@ -420,6 +427,15 @@ class TestUrgenciasWiring:
                              "Subsidiado", "No", "CC",
                              "2024-01-15 16:30:00", "09")])
         indices = {h: i for i, h in enumerate(headers)}
+        served = [
+            _regla("centro_costo_urgencias_valido", "urgencias", "Centros de Costo"),
+            _regla("ide_contrato_urgencias_valido", "urgencias", "IDE Contrato"),
+            _regla("sala_obs_check_set", "urgencias", "Cups-Equivalentes"),
+            _regla("revision_cantidad_urgencias", "urgencias", "Revision-Necesaria"),
+            _regla("nueva_regla_ui", "urgencias", "Decimales"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
         fake = _RecordingDetector({
             "ide_contrato_urgencias_valido": [{"factura": "U-001", "codigo": "129B02",
                                                "procedimiento": "Proc", "entidad": "ESS118",
@@ -431,6 +447,7 @@ class TestUrgenciasWiring:
                                     "regla": "#1", "severidad": "error",
                                     "collect_set_codigo": ["129B02", "890701"]}],
             "revision_cantidad_urgencias": [{"factura": "U-001", "problema": "rev"}],
+            "nueva_regla_ui": [{"factura": "U-001", "problema": "nuevo"}],
         })
         fake.reset()
         old = _engine_on()
@@ -439,6 +456,10 @@ class TestUrgenciasWiring:
                 patch("app.services.urgencias.detect_all.is_rule_engine_enabled",
                       return_value=True),
                 patch("app.services.engine.session_manager.SessionManager") as m_sm,
+                patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ),
                 patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_rbd,
             ):
                 m_sm.return_value.__enter__.return_value = MagicMock()
@@ -446,55 +467,77 @@ class TestUrgenciasWiring:
                 resultado, _ = detect_all_problems_urgencias(wb.active, indices)
         finally:
             _engine_restore(old)
+        assert set(fake.instances) == {r.nombre for r in served}
         assert fake.instances.count("ide_contrato_urgencias_valido") == 1, (
             f"base IDE rule must be evaluated exactly once: {fake.instances}"
         )
-        for name in ("sala_obs_check_set", "revision_cantidad_urgencias"):
-            assert name in fake.instances, f"mapped rule {name} not requested"
         assert not (set(fake.instances) & DANGLING), (
             f"dangling names still requested: {set(fake.instances) & DANGLING}"
         )
         assert len(resultado["problemas"]["ide_contrato"]) == 1
         assert len(resultado["problemas"]["revision_cantidad"]) == 1
+        assert len(resultado["problemas"]["decimales"]) == 1
         cups = resultado["problemas"]["cups_equivalentes"]
         assert any(i["factura"] == "U-001" for i in cups)
 
 
+def _regla(nombre: str, dominio: str, grupo: str | None):
+    from app.models import Regla
+
+    return Regla(
+        id=abs(hash(nombre)) % 10_000 + 1, nombre=nombre, dominio=dominio,
+        estado="active", version=1, prioridad=10, severidad="error",
+        activo=True, grupo_error=grupo,
+    )
+
+
 class TestFarmaciaWiring:
-    def test_mapped_name_requested_dangling_never(self):
+    def test_dynamic_discovery_evaluates_served_rules_only(self):
         from app.services.farmacia.detect_all import detect_all_problems_farmacia
 
         headers = ["numero_factura", "tipo_factura_descripcion", "cantidad",
                    "responsable_cierra", "fec_factura", "fecha_cierre"]
         wb = _wb(headers, [("F-001", "FARMACIA", 2, "Resp", "2024-01-15", "")])
         indices = {h: i for i, h in enumerate(headers)}
+        served = [
+            _regla("duplicados_farmacia", "farmacia", "Duplicados-Farmacia"),
+            _regla("nueva_regla_ui", "farmacia", "Duplicados-Farmacia"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
         fake = _RecordingDetector({
             "duplicados_farmacia": [{"factura": "F-001", "problema": "dup"}],
+            "nueva_regla_ui": [{"factura": "F-001", "problema": "nuevo"}],
         })
         fake.reset()
         old = _engine_on()
         try:
             with (
                 patch("app.database.get_session", return_value=MagicMock()),
+                patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ),
                 patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_rbd,
             ):
                 m_rbd.side_effect = fake
                 resultado, _ = detect_all_problems_farmacia(wb.active, indices)
         finally:
             _engine_restore(old)
-        assert "duplicados_farmacia" in fake.instances
+        assert set(fake.instances) == {"duplicados_farmacia", "nueva_regla_ui"}
         assert not (set(fake.instances) & DANGLING), (
             f"dangling names still requested: {set(fake.instances) & DANGLING}"
         )
-        assert len(resultado["problemas"]["duplicados_farmacia"]) == 1
+        assert len(resultado["problemas"]["duplicados_farmacia"]) == 2
 
 
 class TestUnifiedProcessorCupsGap:
-    """GAP: no existing rule covers the transversal 906317/906249 mapping
-    (seeded cups_equivalentes is the urgencias code set). The engine override
-    is explicitly skipped; the legacy result stands (no silent [])."""
+    """LEGACY OFF (2026-09-09, deliberado): detect_cups_equivalentes_transversal
+    legacy anulado en process_unified — sin equivalente engine en DB. El
+    resultado transversal legacy ya no existe (cups_equiv = []); este test
+    fija ese comportamiento hasta que se siembre la rule (TODO engine)."""
 
-    def test_engine_path_keeps_legacy_transversal_result(self):
+    def test_engine_path_without_legacy_transversal_result(self):
         from app.services.unified_processor import process_unified
 
         headers = ["numero_factura", "codigo", "procedimiento", "tipo_factura_descripcion",
@@ -517,32 +560,24 @@ class TestUnifiedProcessorCupsGap:
             _engine_restore(old)
         assert "cups_equivalentes_transversal" not in fake.instances
         items = resultado["problemas"].get("cups_equivalentes", [])
-        assert any(i.get("codigo") == "906317" and i.get("codigo_equiv") == "1906317"
-                   for i in items), f"legacy transversal result lost: {items}"
+        assert not any(i.get("codigo") == "906317" and i.get("codigo_equiv") == "1906317"
+                       for i in items), f"legacy transversal result must stay off: {items}"
 
 
 class TestIntramuralGaps:
-    """GAPs: bacteriologas / centro_costo / ide_simple / pym_rutas_dx /
-    duplicado_05+02_lab / revision_cantidad intramural have no covering rule
-    in any DB. Engine evaluation is explicitly skipped ([] + no lookup).
+    """Dynamic discovery follow-up (Cambio 2): the 4 gaps seeded by 015 as
+    active v1 (bacteriologas, centro_costo, dup_05, revision) now evaluate
+    via RuleResolver — no hardcoded wiring. ide_simple / pym_rutas_dx /
+    dup_02_lab stay unseeded (need product input; see 015 header) so the
+    resolver never serves them; ide_contrato stays LEGACY OFF."""
 
-    NOTE (015): migrations/015_seed_intramural_gaps.sql seeds 4 of the 7 as
-    active v1 (bacteriologas, centro_costo, dup_05, revision) — still unwired
-    here, so the skip assertions below keep holding until the detect_all
-    wiring follow-up. ide_simple / pym_rutas_dx / dup_02_lab stay unseeded
-    (need product input; see 015 header)."""
-
-    GAP_NAMES = (
-        "bacteriologas_cronograma",
-        "centro_costo_intramural_valido",
+    STILL_UNSEEDED = (
         "ide_contrato_simple",
         "pym_rutas_dx",
-        "duplicado_id_codigo_05",
         "duplicado_id_codigo_02_lab",
-        "revision_cantidad_intramural",
     )
 
-    def test_gaps_skipped_no_dangling_lookup(self):
+    def test_seeded_gaps_evaluate_unseeded_never_requested(self):
         from app.services.intramural.detect_all import detect_all_problems_intramural
 
         headers = ["numero_factura", "codigo", "cantidad", "tipo_factura_descripcion",
@@ -550,21 +585,50 @@ class TestIntramuralGaps:
         wb = _wb(headers, [("I-001", "890201", 5, "Intramural", "Resp",
                              "2024-01-15", "2024-01-15")])
         indices = {h: i for i, h in enumerate(headers)}
-        fake = _RecordingDetector({})
+        served = [
+            _regla("valores_decimales", "transversal", "Decimales"),
+            _regla("bacteriologas_cronograma", "intramural", "Cronograma Bacteriologas"),
+            _regla("centro_costo_intramural_valido", "intramural", "Centros de Costo"),
+            _regla("duplicado_id_codigo_05", "intramural", "Duplicado ID-Codigo"),
+            _regla("revision_cantidad_intramural", "intramural", "Revision-Necesaria"),
+        ]
+        fake_resolver = MagicMock()
+        fake_resolver.resolve.return_value = served
+        fake = _RecordingDetector({
+            "bacteriologas_cronograma": [{"factura": "I-001", "problema": "crono"}],
+            "centro_costo_intramural_valido": [{
+                "factura": "I-001", "codigo": "890201", "problema": "cc",
+                "centro_actual": "X", "centro_costo": "X", "prioridad": 1,
+            }],
+            "duplicado_id_codigo_05": [{
+                "factura": "PAC1\t890201\tA00", "procedimiento": "Proc",
+                "facturas": ["I-001"], "count": 2, "regla": "#5",
+            }],
+            "revision_cantidad_intramural": [{"factura": "I-001", "problema": "rev"}],
+        })
         fake.reset()
         old = _engine_on()
         try:
             with (
                 patch("app.database.get_session", return_value=MagicMock()),
+                patch(
+                    "app.services.engine.domain_detection.RuleResolver",
+                    return_value=fake_resolver,
+                ),
                 patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_rbd,
             ):
                 m_rbd.side_effect = fake
                 resultado, _ = detect_all_problems_intramural(wb.active, indices)
         finally:
             _engine_restore(old)
-        for name in self.GAP_NAMES:
-            assert name not in fake.instances, f"gap rule {name} still evaluated"
-        assert resultado["problemas"]["profesionales"] == []
-        assert resultado["problemas"]["centros_de_costos"] == []
-        assert resultado["problemas"]["duplicado_id_codigo"] == []
-        assert resultado["problemas"]["revision_cantidad"] == []
+        assert set(fake.instances) == {r.nombre for r in served}
+        for name in self.STILL_UNSEEDED:
+            assert name not in fake.instances, f"unseeded gap {name} evaluated"
+        assert not (set(fake.instances) & DANGLING), (
+            f"dangling names still requested: {set(fake.instances) & DANGLING}"
+        )
+        assert len(resultado["problemas"]["profesionales"]) == 1
+        assert len(resultado["problemas"]["centros_de_costos"]) == 1
+        assert len(resultado["problemas"]["duplicado_id_codigo"]) == 1
+        assert len(resultado["problemas"]["revision_cantidad"]) == 1
+        assert resultado["problemas"]["ide_contrato"] == []
