@@ -85,3 +85,17 @@ REPORT_COLUMNS: list[str] = [
     "Carpeta Vacía",
     "Nombre Inválido",
 ]
+
+# =============================================================================
+# MOVE - Configuración de movimiento masivo de facturas
+# =============================================================================
+
+MOVE_MAX_BATCH: int = 50
+"""Máximo de facturas por solicitud de movimiento masivo."""
+
+MOVE_ERR_DEST_OUTSIDE_ROOTS: str = "Destination is outside configured roots."
+MOVE_ERR_TRAVERSAL: str = "Destination path is not allowed."
+MOVE_ERR_BATCH_LIMIT: str = "Batch exceeds maximum of 50 items."
+MOVE_ERR_SRC_OUTSIDE_ROOTS: str = "Source is outside configured roots."
+MOVE_ERR_SRC_MISSING: str = "Source does not exist."
+MOVE_ERR_COLLISION: str = "Target already exists."
