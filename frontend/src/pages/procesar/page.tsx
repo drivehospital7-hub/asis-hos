@@ -207,7 +207,7 @@ export function ProcesarPage({
     } else {
       if (
         !(await window.__showConfirm!(
-          `¿Enviar factura "${factura}" a Control de Errores como "Factura Abierta"?`,
+          `¿Enviar factura "${factura}" a Control de Errores como "Otros"?`,
         ))
       ) {
         return;
@@ -221,7 +221,7 @@ export function ProcesarPage({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          tipo_error: "Factura Abierta",
+          tipo_error: "Otros",
           factura,
           observacion,
           estado: "S",

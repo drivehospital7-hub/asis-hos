@@ -136,7 +136,7 @@ describe("envio a control (integration)", () => {
     expect(confirm).toHaveBeenCalledOnce();
     const body = JSON.parse(String(postCalls()[0][1]?.body));
     expect(body).toEqual({
-      tipo_error: "Factura Abierta",
+      tipo_error: "Otros",
       factura: "F123",
       observacion: "D",
       estado: "S",
@@ -152,7 +152,7 @@ describe("envio a control (integration)", () => {
     const confirm = vi.fn(async () => true);
     (window as unknown as Record<string, unknown>).__showConfirm = confirm;
     routeFetch(
-      [{ factura: "F123", tipo_error: "Factura Abierta" }],
+      [{ factura: "F123", tipo_error: "Otros" }],
       uploadResultFor([makeRow("f123 ")]),
     );
     render(<ProcesarPage can_write canControl />);
@@ -167,14 +167,14 @@ describe("envio a control (integration)", () => {
     expect(confirm).toHaveBeenCalledOnce();
     const body = JSON.parse(String(postCalls()[0][1]?.body));
     expect(body.factura).toBe("f123 ");
-    expect(body.tipo_error).toBe("Factura Abierta");
+    expect(body.tipo_error).toBe("Otros");
   });
 
   it("duplicado exige confirm: cancela → sin POST", async () => {
     const confirm = vi.fn(async () => false);
     (window as unknown as Record<string, unknown>).__showConfirm = confirm;
     routeFetch(
-      [{ factura: "F123", tipo_error: "Factura Abierta" }],
+      [{ factura: "F123", tipo_error: "Otros" }],
       uploadResultFor([makeRow("F123")]),
     );
     render(<ProcesarPage can_write canControl />);
@@ -244,7 +244,7 @@ describe("envio a control (integration)", () => {
 
     await waitFor(() => expect(postCalls().length).toBe(1));
     const body = JSON.parse(String(postCalls()[0][1]?.body));
-    expect(body.tipo_error).toBe("Factura Abierta");
+    expect(body.tipo_error).toBe("Otros");
     expect(body.factura).toBe("F123");
   });
 
@@ -252,7 +252,7 @@ describe("envio a control (integration)", () => {
     const confirm = vi.fn(async (_msg: string) => true);
     (window as unknown as Record<string, unknown>).__showConfirm = confirm;
     routeFetch(
-      [{ factura: "F123", tipo_error: "Factura Abierta" }],
+      [{ factura: "F123", tipo_error: "Otros" }],
       uploadResultFor([makeRow("F123", { _enviada: true })]),
     );
     render(<ProcesarPage can_write canControl />);

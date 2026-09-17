@@ -63,7 +63,7 @@ describe("buildObservacion", () => {
 describe("buildEnvioSet", () => {
   it("builds normalized Set from errores of any tipo_error", () => {
     const set = buildEnvioSet([
-      { factura: "f123 ", tipo_error: "Factura Abierta" },
+      { factura: "f123 ", tipo_error: "Otros" },
       { factura: "FEV1", tipo_error: "Otro Tipo" },
     ]);
     expect(set.has("F123")).toBe(true);
