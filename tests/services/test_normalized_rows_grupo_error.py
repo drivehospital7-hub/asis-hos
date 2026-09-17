@@ -38,19 +38,6 @@ CENTROS_MAPPINGS = {
     },
 }
 
-LEGACY_KEY_ORDER = (
-    "codigo",
-    "vlr_subsidiado",
-    "tipo_identificacion",
-    "cantidad",
-    "centro_costo",
-    "codigo_entidad_cobrar",
-    "observacion",
-    "accion",
-    "identificacion",
-)
-
-
 def _strip(row: dict) -> dict:
     return {k: v for k, v in row.items() if k != "mapping_completa"}
 
@@ -119,33 +106,60 @@ class TestGenericMapperParity:
         assert rows[0]["procedimiento"] == "c1 - p1"
 
 
-class TestKeyOrderStability:
-    def test_sparse_item_uses_legacy_key_order(self):
-        from app.services import normalized_rows as nr
+class TestLiveDetailContract:
+    """Live-DB detail contract: zero legacy invented text.
 
-        assert nr.GENERIC_FALLBACK_KEY_ORDER == LEGACY_KEY_ORDER
+    - Live detalle_b_campo (e.g. estancia_str) renders the live value.
+    - No a_campo/b_campo and no live template -> "", "", problema-or-"".
+    - Unrelated item keys (e.g. cantidad) never leak into procedimiento.
+    - No mapping_completa marker key is emitted anymore.
+    """
 
-    def test_fallback_picks_first_matching_key(self):
+    def _rows(self, grupo, item, mappings=None):
         from app.services.normalized_rows import build_normalized_rows
 
-        rows = build_normalized_rows(
-            error_groups={
-                "Ruta Duplicada": [
-                    {"factura": "F5", "problema": "ruta", "cantidad": 3, "accion": "x"}
-                ]
-            },
+        return build_normalized_rows(
+            error_groups={grupo: [dict(item)]},
             responsables_map={},
             use_grupo_mapping=True,
-            grupo_mappings={
-                "Ruta Duplicada": {
-                    "detalle_a_campo": None,
-                    "detalle_b_campo": None,
-                    "descripcion_template": None,
-                }
-            },
+            grupo_mappings=mappings or {grupo: {
+                "detalle_a_campo": None,
+                "detalle_b_campo": None,
+                "descripcion_template": None,
+            }},
         )
-        assert rows[0]["procedimiento"] == "3"
-        assert rows[0]["mapping_completa"] is False
+
+    def test_live_detalle_b_estancia_str_renders_value(self):
+        rows = self._rows("Estancias", {
+            "factura": "F74",
+            "problema": "Sala obs menor a 2 horas",
+            "regla": "#74",
+            "estancia_str": "1d 6h",
+            "detalle_b_campo": "estancia_str",
+        })
+        assert rows[0]["detalle"] == "1d 6h"
+        assert rows[0]["procedimiento"] == ""
+        assert rows[0]["descripcion"] == "Sala obs menor a 2 horas"
+        assert "mapping_completa" not in rows[0]
+
+    def test_empty_live_fields_yield_empty_strings(self):
+        rows = self._rows("Ruta Duplicada", {
+            "factura": "F5",
+            "problema": "ruta",
+            "cantidad": 3,
+            "accion": "x",
+        })
+        assert rows[0]["procedimiento"] == ""
+        assert rows[0]["detalle"] == ""
+        assert rows[0]["descripcion"] == "ruta"
+        assert "mapping_completa" not in rows[0]
+
+    def test_empty_live_fields_without_problema_yield_empty_descripcion(self):
+        rows = self._rows("Grupo Inventado", {"factura": "F7"})
+        assert rows[0]["procedimiento"] == ""
+        assert rows[0]["detalle"] == ""
+        assert rows[0]["descripcion"] == ""
+        assert "mapping_completa" not in rows[0]
 
 
 class TestCutoverFlag:
@@ -174,7 +188,7 @@ class TestCutoverFlag:
         assert legacy[0]["tipo_error"] == "Centros de Costo"
         assert "mapping_completa" not in legacy[0]
 
-    def test_unknown_group_empty_mapping_flagged(self):
+    def test_unknown_group_empty_mapping_stays_empty(self):
         from app.services.normalized_rows import build_normalized_rows
 
         rows = build_normalized_rows(
@@ -187,7 +201,9 @@ class TestCutoverFlag:
         )
         assert len(rows) == 1
         assert rows[0]["descripcion"] == "zzz"
-        assert rows[0]["mapping_completa"] is False
+        assert rows[0]["procedimiento"] == ""
+        assert rows[0]["detalle"] == ""
+        assert "mapping_completa" not in rows[0]
 
 
 class TestEstanciaItemDetalleFallback:

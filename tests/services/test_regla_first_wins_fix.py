@@ -42,7 +42,7 @@ def test_misma_factura_conserva_regla_propia_9_y_51():
 
 
 def test_attach_solo_fallback_cuando_row_sin_regla():
-    from app.services.normalized_rows import _attach_regla_and_fallback
+    from app.services.normalized_rows import _attach_regla
 
     rows = [
         {"factura": "F1", "tipo_error": "G", "regla": "#51",
@@ -56,6 +56,6 @@ def test_attach_solo_fallback_cuando_row_sin_regla():
             {"factura": "F1", "regla": "#51"},
         ]
     }
-    _attach_regla_and_fallback(rows, groups, {})
+    _attach_regla(rows, groups, {})
     assert rows[0]["regla"] == "#51", "no debe pisar regla ya presente"
     assert rows[1]["regla"] == "#9", "fallback first-wins solo si falta"

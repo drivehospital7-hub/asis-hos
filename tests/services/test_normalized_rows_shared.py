@@ -601,7 +601,11 @@ class TestSharedHandlerConsistency:
     # --- 2.17 Generic Fallback (shared) ---
 
     def test_generic_fallback_empty_proc_and_det(self):
-        """Generic fallback: if proc AND det empty, first non-factura key used."""
+        """Live contract: no live detail -> procedimiento/detalle stay empty.
+
+        The legacy key-order fill was removed: with no detalle_a/b_campo
+        and no live template, rows carry "" instead of invented text.
+        """
         rows = build_normalized_rows(use_grupo_mapping=False, error_groups={
             "MAL CAPITADO": [{
                 "factura": "FAC-001",
@@ -611,8 +615,8 @@ class TestSharedHandlerConsistency:
         }, responsables_map={})
         r = rows[0]
         assert r["descripcion"] == "Problema de capitado"
-        # Fallback should fill procedimiento or detalle from first non-factura key
-        assert r["procedimiento"] or r["detalle"]
+        assert r["procedimiento"] == ""
+        assert r["detalle"] == ""
 
 
 class TestSharedP0Fixes:

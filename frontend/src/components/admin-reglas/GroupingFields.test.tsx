@@ -29,13 +29,19 @@ describe("GroupingFields", () => {
     expect(DETALLE_FIELD_KEYS).toContain("procedimiento");
     expect(DETALLE_FIELD_KEYS).toContain("centro_costo");
     expect(DETALLE_FIELD_KEYS).toContain("date.edad");
-    // Formatter / detector extras
-    expect(DETALLE_FIELD_KEYS).toContain("ide_contrato_deberia");
-    expect(DETALLE_FIELD_KEYS).toContain("ide_contrato_actual");
-    expect(DETALLE_FIELD_KEYS).toContain("tipo_actual");
-    expect(DETALLE_FIELD_KEYS).toContain("tipo_deberia");
-    expect(DETALLE_FIELD_KEYS).toContain("centro_actual");
-    expect(DETALLE_FIELD_KEYS).toContain("edad_anios");
+    // Live group-level keys only
+    expect(DETALLE_FIELD_KEYS).toContain("count");
+    expect(DETALLE_FIELD_KEYS).toContain("facturas");
+    expect(DETALLE_FIELD_KEYS).toContain("estancia_str");
+    expect(DETALLE_FIELD_KEYS).toContain("codigo_profesional");
+    expect(DETALLE_FIELD_KEYS).toHaveLength(36);
+    // Pruned dead keys never surface as options (legacy path instead)
+    expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_actual");
+    expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_deberia");
+    expect(DETALLE_FIELD_KEYS).not.toContain("tipo_actual");
+    expect(DETALLE_FIELD_KEYS).not.toContain("tipo_deberia");
+    expect(DETALLE_FIELD_KEYS).not.toContain("centro_actual");
+    expect(DETALLE_FIELD_KEYS).not.toContain("edad_anios");
   });
 
   it("renders grupo_error as a select with auto option and canonical labels", () => {
@@ -78,7 +84,7 @@ describe("GroupingFields", () => {
       <GroupingFields
         grupoError="Centros de Costo"
         detalleACampo="codigo"
-        detalleBCampo="centro_actual"
+        detalleBCampo="centro_costo"
         descripcionTemplate=""
         disabled={false}
         onChange={vi.fn()}
@@ -95,8 +101,8 @@ describe("GroupingFields", () => {
     // Empty "auto" option + canonical keys are offered
     expect(html).toContain("— auto —");
     expect(html).toContain('value="codigo"');
-    expect(html).toContain('value="centro_actual"');
-    expect(html).toContain('value="ide_contrato_deberia"');
+    expect(html).toContain('value="centro_costo"');
+    expect(html).toContain('value="ide_contrato"');
     // Description template stays free text
     expect(html).toContain("Description template");
     expect(html).toContain('name="descripcion_template"');
@@ -114,9 +120,11 @@ describe("GroupingFields", () => {
       />,
     );
 
-    // Legacy compound / template values survive instead of breaking
+    // Legacy compound / template values survive instead of breaking.
+    // A pruned dead key degrades to the __legacy__ option, never silently dropped.
     expect(html).toContain("codigo,procedimiento");
     expect(html).toContain("{centro_actual}");
+    expect(html).toContain('value="__legacy__"');
   });
 
   it("notifies the parent on every field change", () => {

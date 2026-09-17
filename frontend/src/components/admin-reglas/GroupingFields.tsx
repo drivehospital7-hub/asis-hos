@@ -36,10 +36,11 @@ export const GRUPO_ERROR_LABELS: string[] = [
  * `detalle_a_campo` / `detalle_b_campo` can point to.
  *
  * Derived from `app/services/engine/engine.py` (base keys
- * factura/problema/regla/severidad/param_config_id + the ~30 row fields
- * copied into the problem dict) plus the extra keys produced by
- * formatters/detectors in `app/services/normalized_rows.py`
- * (`ide_contrato_deberia`, `tipo_actual`, `centro_actual`, ...).
+ * factura/problema/regla/severidad/param_config_id + the row fields
+ * copied into the problem dict) plus the group-level keys produced by
+ * `app/services/engine/group_evaluator.py` (`count`, `facturas`) and
+ * `app/services/normalized_rows.py` (`estancia_str`, plus
+ * `codigo_profesional` in group context only).
  *
  * `descripcion_template` stays free text — braces are documented
  * via its placeholder instead.
@@ -77,41 +78,13 @@ export const DETALLE_FIELD_KEYS: string[] = [
   "identificacion",
   "fec_nacimiento",
   "fec_factura",
-  "edad",
   "date.edad",
   "date.edad_meses",
-  "numero_identificacion",
-  // Extra keys added by formatters / detectors
-  "numero_factura",
-  "tipo_factura",
-  "entidad",
-  "entidad_cobrar_nombre",
-  "ide_contrato_actual",
-  "ide_contrato_deberia",
-  "ide_actual",
-  "ide_deberia",
-  "tipo_actual",
-  "tipo_deberia",
-  "centro_actual",
-  "centro_deberia",
-  "cod_entidad_actual",
-  "cod_entidad_esperado",
-  "edad_anios",
-  "edad_meses",
-  "cantidad_repeticiones",
-  "cantidad_esperada",
+  // Extra keys produced by group formatters (group context only)
   "count",
   "codigo_profesional",
-  "descripcion",
-  "detalle",
-  "nota",
-  "observacion",
   "estancia_str",
-  "valores",
-  "tipos",
   "facturas",
-  "pares_duplicados",
-  "total_pares",
 ];
 
 interface Props {
@@ -177,7 +150,7 @@ export function GroupingFields({
           name="descripcion_template"
           value={descripcionTemplate}
           onChange={(e) => onChange("descripcion_template", e.target.value)}
-          placeholder="e.g. Center {centro_actual}"
+          placeholder="e.g. Center {centro_costo}"
           className={inputClassName}
           style={inputStyle}
           disabled={disabled}

@@ -1,18 +1,21 @@
-"""Normalización de errores a filas de 6 columnas (genérico por tipo_factura).
+"""Normalize errors into 6-column rows (generic by tipo_factura).
 
-Reemplaza a urgencias/normalized_rows.py y odontologia/normalized_rows.py
-con un builder parametrizado por error_groups: dict que mapea tipo_error -> lista de dicts.
+Live-DB contract for the generic path: detalle / procedimiento /
+descripcion render exclusively from the rule's live detalle_a/b_campo
+and descripcion_template (carried on each item by the engine). When no
+live value exists the fields stay empty ("") with zero legacy text.
 """
 
 from __future__ import annotations
 
 import calendar
+import logging
 import os
 from datetime import datetime
 from string import Formatter
 from typing import Any
 
-from app.constants.grupo_error import NAMED_FORMATTER_GROUPS
+logger = logging.getLogger(__name__)
 
 
 def _parse_fecha_edad(value: Any) -> datetime | None:
@@ -104,14 +107,6 @@ def _build_edad_detalle(anios: int, meses_residuales: int,
         partes.append(f"{dias} días")
     return " ".join(partes)
 
-
-# Legacy generic-fallback group-by key order. The grupo_error generic mapper
-# replicates this exact order so sparse-dict groups stay byte-stable.
-GENERIC_FALLBACK_KEY_ORDER = (
-    "codigo", "vlr_subsidiado", "tipo_identificacion", "cantidad",
-    "centro_costo", "codigo_entidad_cobrar", "observacion", "accion",
-    "identificacion",
-)
 
 # Named-formatter registry keyed by grupo_error (populated with the 5 special
 # formatters). Unknown keys fall through to the generic mapper.
@@ -439,8 +434,9 @@ def _build_grupo_mapped_rows(
                 row["regla"] = item.get("regla", "") or ""
                 rows.append(row)
                 continue
-            # Fallback a nivel-item (el engine enriquece cada problem dict con
-            # detalle_a/b_campo de su regla): mapping de grupo primero, item despues.
+            # Item-level fallback (the engine enriches each problem dict
+            # with its rule's live detalle_a/b_campo): grupo mapping first,
+            # item second. No live value -> empty strings, never legacy text.
             a_campo = mapping.get("detalle_a_campo") or item.get("detalle_a_campo")
             b_campo = mapping.get("detalle_b_campo") or item.get("detalle_b_campo")
             resolved = _resolve_template_for(item, mapping)
@@ -454,23 +450,27 @@ def _build_grupo_mapped_rows(
             row["procedimiento"] = _resolve_procedimiento(item, a_campo)
             row["detalle"] = _resolve_detalle(item, b_campo)
             row["regla"] = item.get("regla", "") or ""
-            if grupo not in NAMED_FORMATTER_GROUPS and not any([a_campo, b_campo, resolved]):
-                row["mapping_completa"] = False
+            if not any([a_campo, b_campo, resolved]):
+                logger.debug(
+                    "No live detail for grupo=%s factura=%s; leaving empty",
+                    grupo, factura,
+                )
             rows.append(row)
 
-    _attach_regla_and_fallback(rows, error_groups, {"Duplicados-Farmacia": "Revision-Necesaria"})
+    _attach_regla(rows, error_groups, {"Duplicados-Farmacia": "Revision-Necesaria"})
     return rows
 
 
-def _attach_regla_and_fallback(
+def _attach_regla(
     rows: list[dict],
     error_groups: dict[str, list],
     key_to_tipo_remap: dict[str, str],
 ) -> None:
-    """Enrich rows with regla ids and fill empty procedimiento via key order.
+    """Backfill missing regla ids (first-wins, never overwrites).
 
-    Las rows construidas 1:1 en _build_grupo_mapped_rows ya traen su
-    propia regla; aqui solo se usa como fallback cuando la row no trae.
+    Rows built 1:1 in _build_grupo_mapped_rows already carry their own
+    regla; this only fills rows that lack one. It never invents display
+    text: empty procedimiento/detalle stay empty.
     """
     _item_reglas: dict[tuple[str, str], str] = {}
     for grupo_key, group_list in error_groups.items():
@@ -491,28 +491,6 @@ def _attach_regla_and_fallback(
         t = row.get("tipo_error", "")
         r = _item_reglas.get((f, t))
         row["regla"] = r if r else ""
-
-    if rows:
-        all_items: list[dict] = []
-        for group_list in error_groups.values():
-            if isinstance(group_list, list):
-                for item in group_list:
-                    if isinstance(item, dict):
-                        all_items.append(item)
-        factura_to_item = {}
-        for item in all_items:
-            f = item.get("factura", "")
-            if f:
-                factura_to_item[f] = item
-        for row in rows:
-            if not row.get("procedimiento") and not row.get("detalle"):
-                item = factura_to_item.get(row.get("factura", ""))
-                if item:
-                    for key in GENERIC_FALLBACK_KEY_ORDER:
-                        val = item.get(key, "")
-                        if val:
-                            row["procedimiento"] = str(val)
-                            break
 
 
 def build_normalized_rows(
@@ -965,10 +943,10 @@ def build_normalized_rows(
             "fecha_cierre_vacia": _get_fecha_cierre_vacia(primer_factura),
         })
 
-    # Enrich rows with rule identifier (regla) from original detection items.
-    # Some error_groups keys get remapped to a different tipo_error in the row
-    # (e.g. "Duplicados Farmacia" → "⚠️ Revisión Necesaria"). Map them explicitly.
-    _attach_regla_and_fallback(
+    # Attach the rule identifier (regla) from the original detection items.
+    # Some error_groups keys are remapped to a different tipo_error in the row
+    # (e.g. "Duplicados Farmacia" -> "⚠️ Revisión Necesaria"). Map them explicitly.
+    _attach_regla(
         rows, error_groups, {"Duplicados Farmacia": "⚠️ Revisión Necesaria"}
     )
 
