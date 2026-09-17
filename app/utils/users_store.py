@@ -19,6 +19,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.constants.base import (
     ALLOWED_PERMISOS,
+    LEGACY_PERMISO_MAP,
     PERMISO_MUTUAL_EXCLUSION,
     PERMISO_RESPONSABLE_FACTURACION,
     VALID_AREA_SLUGS,
@@ -48,6 +49,23 @@ def _to_dict(user: User, include_hash: bool = False) -> dict:
     if include_hash:
         data["password_hash"] = user.password_hash
     return data
+
+
+def _migrate_legacy_permisos(permisos: list) -> list:
+    """Map legacy permisos to their canonical replacement."""
+    migrated = [LEGACY_PERMISO_MAP.get(p, p) for p in permisos]
+    deduped = list(dict.fromkeys(migrated))
+    resolved = list(deduped)
+    for p in deduped:
+        conflicto = PERMISO_MUTUAL_EXCLUSION.get(p)
+        if conflicto and conflicto in resolved:
+            # Keep the :write variant; write implies read via
+            # permiso_requerido expansion.
+            drop = p if conflicto.endswith(":write") else conflicto
+            resolved = [x for x in resolved if x != drop]
+    if resolved != list(permisos):
+        logger.info("[BACK] Migrated legacy permisos %s -> %s", permisos, resolved)
+    return resolved
 
 
 def _check_mutual_exclusion(permisos: list[str]) -> tuple[bool, str]:
@@ -237,6 +255,7 @@ def create_user(
         if rol not in VALID_ROLES:
             return False, f"Rol inválido: {rol}"
 
+        permisos = _migrate_legacy_permisos(permisos)
         ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
         if not ok_exclusion:
             return False, msg_exclusion
@@ -306,6 +325,7 @@ def update_user(username: str, updates: dict) -> tuple:
             if not isinstance(nuevos_permisos, list):
                 return False, "Permisos debe ser una lista"
 
+            nuevos_permisos = _migrate_legacy_permisos(nuevos_permisos)
             for p in nuevos_permisos:
                 if p not in ALLOWED_PERMISOS:
                     return False, f"Permiso inválido: {p}"

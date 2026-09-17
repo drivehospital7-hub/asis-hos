@@ -165,6 +165,12 @@ GENDER_CACHE_MAP: dict[str, str] = {
 GENDER_VALID_SHORT = frozenset({"F", "M", "L", "U"})
 GENDER_VALID_LONG = frozenset({"female", "male", "lastname", "undefined"})
 
+# Legacy permission aliases migrated to the unified /procesar module.
+# Users persisted with bare "urgencias" are transparently mapped to "procesar".
+LEGACY_PERMISO_MAP: dict[str, str] = {
+    "urgencias": "procesar",
+}
+
 # Pares de permisos que NO pueden convivir en el mismo usuario.
 # Si se asigna uno, el otro debe estar ausente.
 # Formato: {permiso: su_conflictivo}
