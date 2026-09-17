@@ -46,7 +46,7 @@ function makeRow(factura: string, over: Partial<Row> = {}) {
   };
 }
 
-function uploadResultFor(rows: ReturnType<typeof makeRow>) {
+function uploadResultFor(rows: ReturnType<typeof makeRow>[]) {
   return {
     errores: [
       {
@@ -79,19 +79,23 @@ function routeFetch(preload: unknown[], uploadData: unknown) {
 }
 
 function postCalls() {
-  return fetchMock.mock.calls.filter(
-    ([url, init]: [string, RequestInit | undefined]) =>
+  return fetchMock.mock.calls.filter((call: unknown[]) => {
+    const [url, init] = call as [string, RequestInit | undefined];
+    return (
       url === "/api/control-errores" &&
-      (init?.method ?? "").toUpperCase() === "POST",
-  );
+      (init?.method ?? "").toUpperCase() === "POST"
+    );
+  });
 }
 
 function getCalls() {
-  return fetchMock.mock.calls.filter(
-    ([url, init]: [string, RequestInit | undefined]) =>
+  return fetchMock.mock.calls.filter((call: unknown[]) => {
+    const [url, init] = call as [string, RequestInit | undefined];
+    return (
       url === "/api/control-errores" &&
-      (init?.method ?? "GET").toUpperCase() === "GET",
-  );
+      (init?.method ?? "GET").toUpperCase() === "GET"
+    );
+  });
 }
 
 async function uploadAndExpand() {
