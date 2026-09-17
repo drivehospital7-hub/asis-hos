@@ -100,7 +100,7 @@ function esVencida(
     }
   }
 
-  // Fallback: >4 calendar days (unchanged)
+  // Fallback: >=4 calendar days
   const egreso = parseFecha(fechaEgreso);
   if (!egreso) return false;
   const hoy = new Date();
@@ -108,7 +108,7 @@ function esVencida(
   const diff = Math.floor(
     (hoyInicio.getTime() - egreso.getTime()) / 86400000,
   );
-  return diff > 4;
+  return diff >= 4;
 }
 
 // ─── Component ────────────────────────────────────────────────────────
