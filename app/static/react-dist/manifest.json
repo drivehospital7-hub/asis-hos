@@ -30,6 +30,13 @@
       "_eye-rX9dfGmL.js"
     ]
   },
+  "_check-DEZMmikv.js": {
+    "file": "assets/check-DEZMmikv.js",
+    "name": "check",
+    "imports": [
+      "_createLucideIcon-IEYCF5gg.js"
+    ]
+  },
   "_chevron-down-BGA8Tm_F.js": {
     "file": "assets/chevron-down-BGA8Tm_F.js",
     "name": "chevron-down",
@@ -182,7 +189,7 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-elePGqun.js",
+    "file": "assets/index-BCqjC3_9.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
@@ -196,12 +203,13 @@
       "_clipboard-copy-BBR4lVwK.js",
       "_plus-Yje7e_oO.js",
       "_trash-2-B_HF-4H9.js",
+      "_check-DEZMmikv.js",
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js"
     ]
   },
   "src/pages/admin-reglas/index.html": {
-    "file": "assets/index-BTeUNtz7.js",
+    "file": "assets/index-Gj3noSEV.js",
     "name": "index",
     "src": "src/pages/admin-reglas/index.html",
     "isEntry": true,
@@ -441,7 +449,7 @@
     ]
   },
   "src/pages/procesar/index.html": {
-    "file": "assets/index-Bz58RiC0.js",
+    "file": "assets/index-BPHL8uYN.js",
     "name": "index",
     "src": "src/pages/procesar/index.html",
     "isEntry": true,
@@ -456,6 +464,8 @@
       "_arrow-right-C3omlvKg.js",
       "_chevron-down-BGA8Tm_F.js",
       "_chevron-right-CMbuKBFd.js",
+      "_check-DEZMmikv.js",
+      "_plus-Yje7e_oO.js",
       "_eye-rX9dfGmL.js"
     ]
   },

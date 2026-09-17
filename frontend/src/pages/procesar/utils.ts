@@ -16,7 +16,7 @@ export function buildObservacion(
 }
 
 export function buildEnvioSet(
-  errores: Array<{ factura?: string }> | null | undefined,
+  errores: Array<{ factura?: string; tipo_error?: string }> | null | undefined,
 ): Set<string> {
   const set = new Set<string>();
   if (!Array.isArray(errores)) return set;
