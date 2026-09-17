@@ -241,7 +241,9 @@ export function ProcesarPage({
                   tipos: fg.tipos.map((tg) => ({
                     ...tg,
                     facturas: tg.facturas.map((x) =>
-                      x.factura === factura ? { ...x, _enviada: true } : x,
+                      norm(x.factura) === norm(factura)
+                        ? { ...x, _enviada: true }
+                        : x,
                     ),
                   })),
                 })),

@@ -31,8 +31,8 @@ export function getEnvioEstado(
   enviada: boolean,
   existentes: Set<string>,
 ): EnvioEstado {
-  if (enviada) return "enviada";
   if (existentes?.has(norm(factura))) return "duplicada";
+  if (enviada) return "enviada";
   return "nueva";
 }
 

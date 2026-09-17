@@ -94,8 +94,8 @@ describe("buildEnvioSet", () => {
 // ─── getEnvioEstado ─────────────────────────────────────────────────────
 
 describe("getEnvioEstado", () => {
-  it("returns enviada (✓) when _enviada is true even if in Set", () => {
-    expect(getEnvioEstado("F123", true, new Set(["F123"]))).toBe("enviada");
+  it("returns duplicada (⚠) when in Set even if _enviada is true", () => {
+    expect(getEnvioEstado("F123", true, new Set(["F123"]))).toBe("duplicada");
   });
 
   it("returns duplicada (⚠) when normalized factura is in Set", () => {

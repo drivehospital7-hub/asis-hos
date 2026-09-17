@@ -30,6 +30,7 @@ interface Row {
   regla?: string;
   responsable_cierra?: string;
   tipo_error?: string;
+  _enviada?: boolean;
 }
 
 function makeRow(factura: string, over: Partial<Row> = {}) {
@@ -121,7 +122,7 @@ afterEach(() => {
 });
 
 describe("envio a control (integration)", () => {
-  it("POST nuevo crea registro: fila nueva + → POST exacto → toast + ✓", async () => {
+  it("POST nuevo crea registro: fila nueva + → POST exacto → toast + ⚠", async () => {
     const confirm = vi.fn(async () => true);
     (window as unknown as Record<string, unknown>).__showConfirm = confirm;
     routeFetch([], uploadResultFor([makeRow("F123")]));
@@ -143,7 +144,8 @@ describe("envio a control (integration)", () => {
     });
     expect("validador" in body).toBe(false);
     await screen.findByText('✅ Factura "F123" enviada a Control de Errores');
-    await screen.findByTitle("Enviada a Control");
+    // Tras el envío la factura queda en control → ⚠ clicable (permite duplicar)
+    await screen.findByTitle("Ya está en Control — Click para duplicar");
   });
 
   it("duplicado exige confirm: acepta → POST", async () => {
@@ -244,5 +246,46 @@ describe("envio a control (integration)", () => {
     const body = JSON.parse(String(postCalls()[0][1]?.body));
     expect(body.tipo_error).toBe("Factura Abierta");
     expect(body.factura).toBe("F123");
+  });
+
+  it("pre-existente con _enviada muestra ⚠ (no ✓) y acepta confirm → POST", async () => {
+    const confirm = vi.fn(async (_msg: string) => true);
+    (window as unknown as Record<string, unknown>).__showConfirm = confirm;
+    routeFetch(
+      [{ factura: "F123", tipo_error: "Factura Abierta" }],
+      uploadResultFor([makeRow("F123", { _enviada: true })]),
+    );
+    render(<ProcesarPage can_write canControl />);
+    await uploadAndExpand();
+
+    // No debe mostrar chulito aunque la fila venga marcada como enviada
+    expect(screen.queryByTitle("Enviada a Control")).toBeNull();
+    const dupBtn = await screen.findByTitle(
+      "Ya está en Control — Click para duplicar",
+    );
+    fireEvent.click(dupBtn);
+
+    await waitFor(() => expect(postCalls().length).toBe(1));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm.mock.calls[0][0]).toMatch(/ya existe/i);
+  });
+
+  it("tras enviar nueva, la fila pasa a ⚠ y un segundo envío pide confirm duplicada → POST", async () => {
+    const confirm = vi.fn(async (_msg: string) => true);
+    (window as unknown as Record<string, unknown>).__showConfirm = confirm;
+    routeFetch([], uploadResultFor([makeRow("F123")]));
+    render(<ProcesarPage can_write canControl />);
+    await uploadAndExpand();
+
+    fireEvent.click(await screen.findByTitle("Enviar a Control de Errores"));
+    await waitFor(() => expect(postCalls().length).toBe(1));
+    const dupBtn = await screen.findByTitle(
+      "Ya está en Control — Click para duplicar",
+    );
+    fireEvent.click(dupBtn);
+
+    await waitFor(() => expect(postCalls().length).toBe(2));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(confirm.mock.calls[1][0]).toMatch(/ya existe/i);
   });
 });
