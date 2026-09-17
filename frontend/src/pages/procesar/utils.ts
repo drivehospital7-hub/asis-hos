@@ -6,13 +6,9 @@ export function norm(s: string | null | undefined): string {
 
 export function buildObservacion(
   descripcion: string,
-  detalle: string,
+  _detalle?: string,
 ): string {
-  const desc = (descripcion ?? "").trim();
-  const det = (detalle ?? "").trim();
-  const full =
-    det.length > 0 ? `[Procesar] ${desc} | ${det}` : `[Procesar] ${desc}`;
-  return full.slice(0, 500);
+  return (descripcion ?? "").trim().slice(0, 500);
 }
 
 export function buildEnvioSet(

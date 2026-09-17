@@ -33,30 +33,28 @@ describe("norm", () => {
 // ─── buildObservacion ───────────────────────────────────────────────────
 
 describe("buildObservacion", () => {
-  it("formats [Procesar] desc | regla/detalle", () => {
-    expect(buildObservacion("Duplicada", "R1")).toBe(
-      "[Procesar] Duplicada | R1",
-    );
+  it("returns only descripcion without prefix or detalle", () => {
+    expect(buildObservacion("Duplicada", "R1")).toBe("Duplicada");
   });
 
-  it("trims descripcion and detalle", () => {
-    expect(buildObservacion("  D  ", "  R  ")).toBe("[Procesar] D | R");
+  it("trims descripcion and ignores detalle", () => {
+    expect(buildObservacion("  D  ", "  R  ")).toBe("D");
   });
 
-  it("omits separator when detalle is empty", () => {
-    expect(buildObservacion("Solo desc", "")).toBe("[Procesar] Solo desc");
-    expect(buildObservacion("Solo desc", "   ")).toBe("[Procesar] Solo desc");
+  it("ignores detalle even when empty", () => {
+    expect(buildObservacion("Solo desc", "")).toBe("Solo desc");
+    expect(buildObservacion("Solo desc", "   ")).toBe("Solo desc");
   });
 
   it("caps output at 500 chars", () => {
     const long = "x".repeat(600);
     const out = buildObservacion(long, "detalle");
     expect(out.length).toBeLessThanOrEqual(500);
-    expect(out.startsWith("[Procesar]")).toBe(true);
+    expect(out).toBe("x".repeat(500));
   });
 
   it("handles empty descripcion", () => {
-    expect(buildObservacion("", "R1")).toBe("[Procesar]  | R1");
+    expect(buildObservacion("", "R1")).toBe("");
   });
 });
 
