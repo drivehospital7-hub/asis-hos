@@ -18,6 +18,7 @@ export const GRUPO_ERROR_LABELS: string[] = [
   "Cantidades SOAT",
   "Cantidades Hospitalización",
   "Cantidades SOAT Hospitalización",
+  "Estancias",
   "Decimales",
   "Tipo Usuario",
   "Copago vs Entidad",

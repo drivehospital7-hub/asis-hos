@@ -14,6 +14,7 @@ describe("GroupingFields", () => {
     expect(GRUPO_ERROR_LABELS).toContain("Cups-Equivalentes");
     expect(GRUPO_ERROR_LABELS).toContain("Revision-Necesaria");
     expect(GRUPO_ERROR_LABELS).toContain("Centros de Costo");
+    expect(GRUPO_ERROR_LABELS).toContain("Estancias");
   });
 
   it("exposes the canonical detalle field keys", () => {

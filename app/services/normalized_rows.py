@@ -429,9 +429,6 @@ def _build_grupo_mapped_rows(
     for grupo, group_list in error_groups.items():
         formatter = GRUPO_FORMATTERS.get(grupo)
         mapping = grupo_mappings.get(grupo, {})
-        a_campo = mapping.get("detalle_a_campo")
-        b_campo = mapping.get("detalle_b_campo")
-        template = mapping.get("descripcion_template")
         for raw in group_list or []:
             item = {"factura": str(raw)} if isinstance(raw, str) else dict(raw)
             factura = str(item.get("factura", ""))
@@ -442,6 +439,10 @@ def _build_grupo_mapped_rows(
                 row["regla"] = item.get("regla", "") or ""
                 rows.append(row)
                 continue
+            # Fallback a nivel-item (el engine enriquece cada problem dict con
+            # detalle_a/b_campo de su regla): mapping de grupo primero, item despues.
+            a_campo = mapping.get("detalle_a_campo") or item.get("detalle_a_campo")
+            b_campo = mapping.get("detalle_b_campo") or item.get("detalle_b_campo")
             resolved = _resolve_template_for(item, mapping)
             if not resolved and regla_templates:
                 candidate = regla_templates.get(str(item.get("regla", "")).strip(), "")
@@ -453,7 +454,7 @@ def _build_grupo_mapped_rows(
             row["procedimiento"] = _resolve_procedimiento(item, a_campo)
             row["detalle"] = _resolve_detalle(item, b_campo)
             row["regla"] = item.get("regla", "") or ""
-            if grupo not in NAMED_FORMATTER_GROUPS and not any([a_campo, b_campo, template]):
+            if grupo not in NAMED_FORMATTER_GROUPS and not any([a_campo, b_campo, resolved]):
                 row["mapping_completa"] = False
             rows.append(row)
 

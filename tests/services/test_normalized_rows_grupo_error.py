@@ -188,3 +188,109 @@ class TestCutoverFlag:
         assert len(rows) == 1
         assert rows[0]["descripcion"] == "zzz"
         assert rows[0]["mapping_completa"] is False
+
+
+class TestEstanciaItemDetalleFallback:
+    """Regla 74 y hermanas: el engine enriquece el item con detalle_b_campo.
+
+    El mapper generico debe leer el fallback a nivel-item cuando el mapping
+    de grupo viene vacio (caso prod: detect_all no pasa grupo_mappings).
+    """
+
+    def _rows(self, grupo, item):
+        from app.services.normalized_rows import build_normalized_rows
+
+        return build_normalized_rows(
+            error_groups={grupo: [dict(item)]},
+            responsables_map={},
+            use_grupo_mapping=True,
+            grupo_mappings={},
+        )
+
+    def test_item_detalle_b_estancia_en_grupo_estancias(self):
+        rows = self._rows("Estancias", {
+            "factura": "F74",
+            "problema": "Sala obs menor a 2 horas",
+            "regla": "#74",
+            "estancia_str": "1d 6h",
+            "detalle_b_campo": "estancia_str",
+        })
+        assert rows[0]["tipo_error"] == "Estancias"
+        assert rows[0]["detalle"] == "1d 6h"
+        assert rows[0]["regla"] == "#74"
+        assert "mapping_completa" not in rows[0]
+
+    def test_item_detalle_b_estancia_en_cantidades(self):
+        rows = self._rows("Cantidades", {
+            "factura": "F72",
+            "problema": "Estancia anomala",
+            "regla": "#72",
+            "codigo": "5DSB01",
+            "estancia_str": "5h",
+            "detalle_b_campo": "estancia_str",
+        })
+        assert rows[0]["detalle"] == "5h"
+        assert "mapping_completa" not in rows[0]
+
+    def test_resolve_detalle_estancia_str_directo(self):
+        from app.services.normalized_rows import _resolve_detalle
+
+        assert _resolve_detalle({"estancia_str": "2 días 3 horas"}, "estancia_str") == "2 días 3 horas"
+        assert _resolve_detalle({}, "estancia_str") == ""
+
+    def test_mapping_de_grupo_gana_sobre_item(self):
+        from app.services.normalized_rows import build_normalized_rows
+
+        rows = build_normalized_rows(
+            error_groups={"Estancias": [{
+                "factura": "F1",
+                "problema": "p",
+                "codigo": "C9",
+                "estancia_str": "9h",
+                "detalle_b_campo": "estancia_str",
+            }]},
+            responsables_map={},
+            use_grupo_mapping=True,
+            grupo_mappings={"Estancias": {
+                "detalle_a_campo": None,
+                "detalle_b_campo": "codigo",
+                "descripcion_template": None,
+            }},
+        )
+        assert rows[0]["detalle"] == "C9"
+
+    def test_estancias_es_grupo_generico_sin_formatter(self):
+        from app.constants.grupo_error import (
+            ALL_GRUPO_ERROR_LABELS,
+            GRUPO_ESTANCIAS,
+            NAMED_FORMATTER_GROUPS,
+        )
+        from app.services.normalized_rows import GRUPO_FORMATTERS
+
+        assert GRUPO_ESTANCIAS == "Estancias"
+        assert GRUPO_ESTANCIAS in ALL_GRUPO_ERROR_LABELS
+        assert GRUPO_ESTANCIAS not in NAMED_FORMATTER_GROUPS
+        assert GRUPO_ESTANCIAS not in GRUPO_FORMATTERS
+
+
+class TestEstanciasMigration:
+    """Contrato minimo de migrations/020_grupo_error_estancias.sql."""
+
+    def _sql(self):
+        from pathlib import Path
+
+        migration = Path(__file__).parents[2] / "migrations" / "020_grupo_error_estancias.sql"
+        assert migration.exists(), "falta migrations/020_grupo_error_estancias.sql"
+        return " ".join(migration.read_text(encoding="utf-8").split()).lower()
+
+    def test_mueve_regla_74_y_hermanas_a_estancias(self):
+        sql = self._sql()
+        assert "grupo_error = 'estancias'" in sql
+        assert "urg_sala_obs_menor_2_horas" in sql
+        assert "detalle_b_campo = 'estancia_str'" in sql
+        assert "cantidades" in sql
+
+    def test_no_mueve_regla_61_ni_cups_equivalentes(self):
+        sql = self._sql()
+        assert "id <> 61" in sql
+        assert "cups-equivalentes" in sql

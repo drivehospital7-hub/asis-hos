@@ -22,6 +22,7 @@ from flask import (
 
 from app.constants import AREA_UNIFICADA
 from app.services.exporter import detect_problems_only
+from app.services.procesar_dedup import dedup_procesar_items
 from app.services.processor_gate import rate_limit
 from app.utils.auth import permiso_requerido
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
@@ -29,6 +30,20 @@ from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 logger = logging.getLogger(__name__)
 
 procesar_bp = Blueprint("procesar", __name__)
+
+#: Live detail keys forwarded dynamically from normalized_rows.
+#: Engine/DB-driven values (detalle_a/b_campo, grupo_error, prioridad,
+#: severidad, estancia_*) travel here when present; "" fallback otherwise
+#: so future DB details are never dropped by a fixed allow-list.
+LIVE_DETAIL_DEFAULTS: dict[str, object] = {
+    "estancia_str": "",
+    "estancia_horas": "",
+    "detalle_a_campo": "",
+    "detalle_b_campo": "",
+    "grupo_error": "",
+    "prioridad": "",
+    "severidad": "",
+}
 
 
 def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
@@ -157,7 +172,7 @@ def procesar_unificado_api():
 
     all_items = []
     for row in normalized_rows:
-        all_items.append({
+        item = {
             "tipo_error": row.get("tipo_error", ""),
             "tipo_factura": row.get("tipo_factura", "Sin tipo"),
             "factura": row.get("factura", ""),
@@ -168,10 +183,30 @@ def procesar_unificado_api():
             "detalle": row.get("detalle", ""),
             "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
             "regla": row.get("regla", ""),
-        })
+        }
+        for live_key, live_default in LIVE_DETAIL_DEFAULTS.items():
+            live_value = row.get(live_key, live_default)
+            item[live_key] = live_default if live_value is None else live_value
+        all_items.append(item)
+
+    estancia_forwarded = sum(
+        1 for item in all_items if item.get("estancia_str")
+    )
+    logger.info(
+        "Procesar live details forwarded: %d/%d with estancia",
+        estancia_forwarded,
+        len(all_items),
+    )
+
+    # Dedup display-only: 1 fila por (factura, grupo_error), gana menor
+    # prioridad. Excel/evidencia/auditoría intactos (normalized_rows previo).
+    deduped_items = dedup_procesar_items(all_items)
+    logger.info(
+        "Procesar display dedup: %d -> %d filas", len(all_items), len(deduped_items)
+    )
 
     sorted_by_factura = sorted(
-        all_items, key=lambda r: (r["tipo_factura"], r["tipo_error"])
+        deduped_items, key=lambda r: (r["tipo_factura"], r["tipo_error"])
     )
     for tipo_factura, factura_group in groupby(
         sorted_by_factura, key=lambda r: r["tipo_factura"]

@@ -41,6 +41,7 @@ GRUPO_DOBLE_TIPO = "Doble Tipo Procedimiento"
 GRUPO_CODIGOS_HOSP = "Codigos Hospitalizacion"
 GRUPO_CRONOGRAMA = "Cronograma Bacteriologas"
 GRUPO_DUPLICADO_ID_CODIGO = "Duplicado ID-Codigo"
+GRUPO_ESTANCIAS = "Estancias"
 
 ALL_GRUPO_ERROR_LABELS = frozenset({
     GRUPO_TIPO_ID_EDAD,
@@ -65,4 +66,5 @@ ALL_GRUPO_ERROR_LABELS = frozenset({
     GRUPO_CODIGOS_HOSP,
     GRUPO_CRONOGRAMA,
     GRUPO_DUPLICADO_ID_CODIGO,
+    GRUPO_ESTANCIAS,
 })
