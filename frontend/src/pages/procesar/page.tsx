@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import {
   Upload,
   Info,
@@ -7,6 +7,8 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronRight,
+  Check,
+  Plus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
@@ -14,6 +16,15 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
+import {
+  norm,
+  buildObservacion,
+  buildEnvioSet,
+  getEnvioEstado,
+  canShowEnvio,
+} from "./utils";
+
+const TOAST_DURATION = 2500;
 
 // ---------------------------------------------------------------------------
 // Tipos
@@ -29,6 +40,7 @@ interface FacturaItem {
   detalle: string;
   fecha_cierre_vacia?: boolean;
   regla?: string;
+  _enviada?: boolean;
 }
 
 interface TipoGroup {
@@ -46,13 +58,42 @@ interface FacturaGroup {
 
 interface ProcesarPageProps {
   can_write?: boolean;
+  canControl?: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// Toast (clon abiertas-urgencias/page.tsx L56-75)
+// ---------------------------------------------------------------------------
+
+function Toast({
+  message,
+  onDone,
+}: {
+  message: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDone, TOAST_DURATION);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <div className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
+        {message}
+      </div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Componente
 // ---------------------------------------------------------------------------
 
-export function ProcesarPage(_props: ProcesarPageProps) {
+export function ProcesarPage({
+  can_write = false,
+  canControl = false,
+}: ProcesarPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{
@@ -64,6 +105,39 @@ export function ProcesarPage(_props: ProcesarPageProps) {
   const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
+
+  // ── Envío a Control state (clon abiertas-urgencias) ──
+  const envioExistentes = useRef<Set<string>>(new Set());
+  const envioEnviadas = useRef<Set<string>>(new Set());
+  const [envioVersion, setEnvioVersion] = useState(0);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = useCallback((msg: string) => {
+    setToastMessage(msg);
+  }, []);
+
+  const showEnvio = canShowEnvio(can_write, canControl);
+
+  // Preload único: GET /api/control-errores → Set global normalizado
+  useEffect(() => {
+    if (!showEnvio) return;
+    fetch("/api/control-errores")
+      .then((res) => res.json())
+      .then((data) => {
+        const errores =
+          data.status === "success" && data.data?.errores
+            ? (data.data.errores as Array<{
+                factura?: string;
+                tipo_error?: string;
+              }>)
+            : [];
+        envioExistentes.current = buildEnvioSet(errores);
+        setEnvioVersion((v) => v + 1);
+      })
+      .catch(() => {
+        envioExistentes.current = new Set();
+      });
+  }, [showEnvio]);
 
   const toggleArea = (tipo_factura: string) => {
     const isCurrentlyOpen = expandedAreas.has(tipo_factura);
@@ -109,10 +183,92 @@ export function ProcesarPage(_props: ProcesarPageProps) {
     }
   };
 
+  const handleSendToControl = async (
+    factura: string,
+    descripcion: string,
+    responsable: string,
+    reglaDetalle = "",
+  ) => {
+    if (!can_write || !canControl) {
+      showToast("Iniciá sesión para enviar");
+      return;
+    }
+    if (!factura) return;
+
+    const alreadyExists = envioExistentes.current.has(norm(factura));
+    if (alreadyExists) {
+      if (
+        !(await window.__showConfirm!(
+          `La factura "${factura}" ya existe en la tabla de Control de Errores.\n¿Querés duplicarla de todas formas?`,
+        ))
+      ) {
+        return;
+      }
+    } else {
+      if (
+        !(await window.__showConfirm!(
+          `¿Enviar factura "${factura}" a Control de Errores como "Factura Abierta"?`,
+        ))
+      ) {
+        return;
+      }
+    }
+
+    const observacion = buildObservacion(descripcion, reglaDetalle);
+
+    try {
+      const res = await fetch("/api/control-errores", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tipo_error: "Factura Abierta",
+          factura,
+          observacion,
+          estado: "S",
+          responsable: responsable || "",
+        }),
+      });
+      const json = await res.json();
+      if (json.status === "success") {
+        envioEnviadas.current.add(norm(factura));
+        envioExistentes.current.add(norm(factura));
+        setResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                errores: prev.errores.map((fg) => ({
+                  ...fg,
+                  tipos: fg.tipos.map((tg) => ({
+                    ...tg,
+                    facturas: tg.facturas.map((x) =>
+                      x.factura === factura ? { ...x, _enviada: true } : x,
+                    ),
+                  })),
+                })),
+              }
+            : prev,
+        );
+        setEnvioVersion((v) => v + 1);
+        showToast(`✅ Factura "${factura}" enviada a Control de Errores`);
+      } else {
+        const errs = json.errors || ["Error desconocido"];
+        showToast("Error: " + errs.join(", "));
+      }
+    } catch {
+      showToast("Error de conexión al enviar");
+    }
+  };
+
   const allFacturas = result?.errores?.flatMap((fg) => fg.tipos.flatMap((tg) => tg.facturas)) ?? [];
+
+  // Referencia envioVersion para re-render tras preload/envío (refs no disparan render)
+  void envioVersion;
 
   return (
     <div className="mx-auto max-w-6xl">
+      {toastMessage && (
+        <Toast message={toastMessage} onDone={() => setToastMessage(null)} />
+      )}
       <Breadcrumbs items={[{ label: "Procesar" }]} />
       <PageTitle
         eyebrow="Procesamiento Unificado"
@@ -262,10 +418,71 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                                 <th className="text-left font-medium px-4 py-3">Descripción</th>
                                 <th className="text-left font-medium px-4 py-3">Detalle A</th>
                                 <th className="text-left font-medium px-4 py-3">Detalle B</th>
+                                {showEnvio && (
+                                  <th className="text-center font-medium px-4 py-3">Envío</th>
+                                )}
                               </tr>
                             </thead>
                             <tbody className="divide-y divide-border">
-                              {tg.facturas.slice(0, 50).map((f: FacturaItem, i: number) => (
+                              {tg.facturas.slice(0, 50).map((f: FacturaItem, i: number) => {
+                                  const estado = getEnvioEstado(
+                                    f.factura,
+                                    Boolean(
+                                      f._enviada ||
+                                        envioEnviadas.current.has(
+                                          norm(f.factura),
+                                        ),
+                                    ),
+                                    envioExistentes.current,
+                                  );
+                                  let envioCell: React.ReactNode;
+                                  if (estado === "enviada") {
+                                    envioCell = (
+                                      <span
+                                        className="inline-flex items-center justify-center rounded-sm bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success"
+                                        title="Enviada a Control"
+                                      >
+                                        <Check className="h-3 w-3" />
+                                      </span>
+                                    );
+                                  } else if (!showEnvio) {
+                                    envioCell = null;
+                                  } else if (estado === "duplicada") {
+                                    envioCell = (
+                                      <button
+                                        className="inline-flex items-center justify-center rounded-sm bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground hover:bg-warning/20 transition-colors w-full"
+                                        title="Ya está en Control — Click para duplicar"
+                                        onClick={() =>
+                                          handleSendToControl(
+                                            f.factura,
+                                            f.descripcion,
+                                            f.responsable_cierra || "",
+                                            f.regla || f.detalle || "",
+                                          )
+                                        }
+                                      >
+                                        ⚠
+                                      </button>
+                                    );
+                                  } else {
+                                    envioCell = (
+                                      <button
+                                        className="inline-flex items-center justify-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary w-full hover:bg-primary/20 transition-colors"
+                                        title="Enviar a Control de Errores"
+                                        onClick={() =>
+                                          handleSendToControl(
+                                            f.factura,
+                                            f.descripcion,
+                                            f.responsable_cierra || "",
+                                            f.regla || f.detalle || "",
+                                          )
+                                        }
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                      </button>
+                                    );
+                                  }
+                                  return (
                                   <tr
                                     key={`${f.factura}-${i}`}
                                     className={cn(
@@ -280,8 +497,12 @@ export function ProcesarPage(_props: ProcesarPageProps) {
                                     <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
                                     <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
                                     <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.detalle || "-"}</td>
+                                    {showEnvio && (
+                                      <td className="px-4 py-3 text-center">{envioCell}</td>
+                                    )}
                                   </tr>
-                              ))}
+                                  );
+                              })}
                             </tbody>
                           </table>
                           {tg.facturas.length > 50 && (
