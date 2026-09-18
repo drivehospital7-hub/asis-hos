@@ -89,6 +89,12 @@ export function useMoveFacturas(options?: UseMoveFacturasOptions): UseMoveFactur
         body: JSON.stringify({ sources: selectedPaths, dest_dir: destDir }),
       });
       const data = await res.json();
+      if (!res.ok || data?.status === "error") {
+        const errs = Array.isArray(data?.errors) ? data.errors.join("; ") : null;
+        setToast(errs ? `Move failed: ${errs}` : "Move failed: validation error");
+        console.error("[FRONT][ERROR] Move rejected:", data?.errors ?? res.status);
+        return;
+      }
       const moved = (data?.data?.moved ?? []) as string[];
       const failed = (data?.data?.failed ?? []) as MoveFailure[];
       setToast(buildMoveToast(moved, failed));
