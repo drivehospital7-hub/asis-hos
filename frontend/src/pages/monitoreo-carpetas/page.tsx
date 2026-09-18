@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageTitle } from "@/components/page-title";
 import { StatusBadge } from "@/components/status-badge";
+import { useMoveFacturas } from "@/hooks/useMoveFacturas";
 
 interface InvoiceData {
   filename: string;
@@ -58,11 +59,58 @@ interface ScanResponse {
   errors: string[];
 }
 
+const MOVE_TOAST_DURATION = 2500;
+
+// Toast (clon abiertas-urgencias/page.tsx L56-75)
+function MoveToast({
+  message,
+  onDone,
+}: {
+  message: string;
+  onDone: () => void;
+}) {
+  useEffect(() => {
+    const t = setTimeout(onDone, MOVE_TOAST_DURATION);
+    return () => clearTimeout(t);
+  }, [onDone]);
+
+  return (
+    <div className="fixed bottom-6 right-6 z-50">
+      <div className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
+        {message}
+      </div>
+    </div>
+  );
+}
+
 export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boolean }) {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ScanResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [facturadorFilter, setFacturadorFilter] = useState<string>("");
+
+  // Bulk move (monitoreo-mover-facturas): string-key selection + dest + toast
+  const {
+    selectedPaths,
+    destDir,
+    toast: moveToast,
+    moving: moveMoving,
+    togglePath,
+    toggleAll,
+    clear: clearMoveSelection,
+    setDestDir,
+    dismissToast,
+    confirmAndMove,
+  } = useMoveFacturas({
+    onRefreshed: (data) => setResult(data as ScanResponse["data"]),
+  });
+
+  // Prefill dest from first scanned root once results arrive
+  useEffect(() => {
+    if (!destDir && result?.scanned_roots?.length) {
+      setDestDir(result.scanned_roots[0]);
+    }
+  }, [destDir, result, setDestDir]);
 
   // Config state
   const [configRoots, setConfigRoots] = useState<string[]>([]);
@@ -189,6 +237,11 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
   const filteredFacturas = result?.facturas?.filter(
     (inv) => !facturadorFilter || inv.facturador === facturadorFilter,
   ) ?? [];
+
+  // Derived: visible full_paths for filter-aware select-all
+  const visiblePaths = filteredFacturas.map((inv) => inv.full_path);
+  const allVisibleSelected =
+    visiblePaths.length > 0 && visiblePaths.every((p) => selectedPaths.includes(p));
 
   const statusBadge = (status: string) => {
     switch (status) {
@@ -473,6 +526,38 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
             </Card>
           )}
 
+          {/* Bulk move bar (can_write only) */}
+          {can_write && (
+            <Card className="p-4 border-border bg-card shadow-none mb-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-muted-foreground">
+                  {selectedPaths.length} selected
+                </span>
+                {selectedPaths.length > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearMoveSelection}>
+                    Clear
+                  </Button>
+                )}
+                <Input
+                  value={destDir}
+                  onChange={(e) => setDestDir(e.target.value)}
+                  placeholder="Destination folder"
+                  className="flex-1 min-w-[200px] font-mono text-xs"
+                />
+                <Button
+                  size="sm"
+                  disabled={moveMoving || selectedPaths.length === 0 || !destDir.trim()}
+                  onClick={() => {
+                    console.log("[FRONT] Move button clicked");
+                    void confirmAndMove();
+                  }}
+                >
+                  {moveMoving ? "Moving..." : `Move ${selectedPaths.length}`}
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {/* Results table */}
           {result.facturas && result.facturas.length > 0 && (
             <Card className="p-6 border-border bg-card shadow-none">
@@ -510,6 +595,16 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                 <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-border">
+                      {can_write && (
+                        <th className="pb-2 pr-3">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={() => toggleAll(visiblePaths)}
+                            aria-label="Select all visible"
+                          />
+                        </th>
+                      )}
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Código</th>
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Tipo</th>
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Estado</th>
@@ -520,6 +615,16 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                   <tbody>
                     {filteredFacturas.map((inv, idx) => (
                       <tr key={idx} className="border-b border-border/50 last:border-0">
+                        {can_write && (
+                          <td className="py-1.5 pr-3">
+                            <input
+                              type="checkbox"
+                              checked={selectedPaths.includes(inv.full_path)}
+                              onChange={() => togglePath(inv.full_path)}
+                              aria-label={`Select ${inv.filename}`}
+                            />
+                          </td>
+                        )}
                         <td className="py-1.5 pr-3 text-foreground/90 font-medium">
                           {inv.invoice_code}
                         </td>
@@ -542,6 +647,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
           )}
         </>
       )}
+      {moveToast && <MoveToast message={moveToast} onDone={dismissToast} />}
     </div>
   );
 }

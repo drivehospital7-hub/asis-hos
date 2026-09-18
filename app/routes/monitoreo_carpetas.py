@@ -18,7 +18,14 @@ from pathlib import Path
 
 from flask import Blueprint, current_app, jsonify, render_template, request, send_file, session
 
-from app.constants.monitoreo_carpetas import ENV_MONITOREO_ROOTS
+from app.constants.monitoreo_carpetas import (
+    ENV_MONITOREO_ROOTS,
+    MOVE_ERR_TRAVERSAL,
+)
+from app.services.monitoreo_carpetas.move_service import (
+    execute_move,
+    validate_move_request,
+)
 from app.services.monitoreo_carpetas.watcher import FolderWatcher
 from app.utils.auth import permiso_requerido
 from app.utils.input_data import output_data_directory
@@ -307,6 +314,60 @@ def get_cached_data():
     return jsonify({
         "status": "success",
         "data": response_data,
+        "errors": [],
+    }), 200
+
+
+@monitoreo_carpetas_bp.post("/move")
+@permiso_requerido("monitoreo_carpetas:write")
+def move_facturas():
+    """Move invoice folders in bulk to a destination under configured roots.
+
+    Body: {"sources": ["<full_path>", ...], "dest_dir": "<dir>"}.
+    Delegates to move_service; this route only parses and envelopes.
+    """
+    body = request.get_json(silent=True)
+    if (
+        not body
+        or not isinstance(body.get("sources"), list)
+        or not isinstance(body.get("dest_dir"), str)
+    ):
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Body must contain 'sources' list and 'dest_dir' string."],
+        }), 422
+
+    sources = body["sources"]
+    dest_dir = body["dest_dir"]
+    roots, _fuente, _ultima = get_roots()
+    if not roots:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["No configured roots to validate destination against."],
+        }), 422
+
+    error = validate_move_request(sources, dest_dir, roots)
+    if error is not None:
+        code = 400 if error == MOVE_ERR_TRAVERSAL else 422
+        logger.warning("[BACK] Move request rejected: %s", error)
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [error],
+        }), code
+
+    moved, failed = execute_move(sources, dest_dir, _watcher)
+    if not moved and failed:
+        return jsonify({
+            "status": "error",
+            "data": {"moved": moved, "failed": failed},
+            "errors": [f"{item['src']}: {item['error']}" for item in failed],
+        }), 200
+    return jsonify({
+        "status": "success",
+        "data": {"moved": moved, "failed": failed},
         "errors": [],
     }), 200
 
