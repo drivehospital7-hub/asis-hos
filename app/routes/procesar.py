@@ -17,13 +17,19 @@ from flask import (
     jsonify,
     render_template,
     request,
+    send_file,
     session,
 )
 
 from app.constants import AREA_UNIFICADA
 from app.services.exporter import detect_problems_only
 from app.services.procesar_dedup import dedup_procesar_items
+from app.services.procesar_export import (
+    build_procesar_export_workbook,
+    filename_procesar_export,
+)
 from app.services.processor_gate import rate_limit
+from app.utils import procesar_export_store as export_store
 from app.utils.auth import permiso_requerido
 from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 
@@ -205,6 +211,15 @@ def procesar_unificado_api():
         "Procesar display dedup: %d -> %d filas", len(all_items), len(deduped_items)
     )
 
+    # Best-effort disk cache of the FULL deduped list for GET export.
+    # Never breaks the main JSON flow: on disk failure the response
+    # simply omits export_id (frontend disables the Exportar button).
+    try:
+        export_id: str | None = export_store.put(deduped_items)
+    except Exception:
+        logger.exception("[BACK][ERROR] Procesar export cache write failed")
+        export_id = None
+
     sorted_by_factura = sorted(
         deduped_items, key=lambda r: (r["tipo_factura"], r["tipo_error"])
     )
@@ -232,27 +247,81 @@ def procesar_unificado_api():
             "tipos": tipos,
         })
 
+    response_data: dict = {
+        "errores": errores,
+        "total_errores": sum(
+            sum(t["cantidad"] for t in f["tipos"]) for f in errores
+        ),
+        "tipos_procesados": problemas_data.get(
+            "tipos_procesados",
+            export_result["data"].get("tipos_procesados", []),
+        ),
+        "columnas": [
+            "Fec. Factura",
+            "Tipo de error",
+            "Número Factura",
+            "Regla",
+            "Responsable Cierra",
+            "Descripción",
+            "Procedimiento",
+            "Detalle",
+        ],
+    }
+    if export_id is not None:
+        response_data["export_id"] = export_id
+
     return jsonify({
         "status": "success",
-        "data": {
-            "errores": errores,
-            "total_errores": sum(
-                sum(t["cantidad"] for t in f["tipos"]) for f in errores
-            ),
-            "tipos_procesados": problemas_data.get(
-                "tipos_procesados",
-                export_result["data"].get("tipos_procesados", []),
-            ),
-            "columnas": [
-                "Fec. Factura",
-                "Tipo de error",
-                "Número Factura",
-                "Regla",
-                "Responsable Cierra",
-                "Descripción",
-                "Procedimiento",
-                "Detalle",
-            ],
-        },
+        "data": response_data,
         "errors": [],
     })
+
+
+@procesar_bp.get("/export")
+@permiso_requerido("procesar")
+def procesar_export_api():
+    """Download the cached full-list .xlsx for a previous POST /procesar.
+
+    Thin handler: resolves ``?id=`` from the disk cache and streams the
+    styled workbook. Failures use the error envelope (no bytes).
+    """
+    export_id = (request.args.get("id") or "").strip()
+    if not export_id:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Falta el parámetro id de exportación"],
+        }), 400
+
+    rows = export_store.get(export_id)
+    if rows is None:
+        logger.warning("[BACK] Procesar export id unknown or expired")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Exportación no encontrada o expirada"],
+        }), 400
+
+    if (
+        len(rows) > export_store.PROCESAR_EXPORT_MAX_ROWS
+        or len(json.dumps(rows, default=str))
+        > export_store.PROCESAR_EXPORT_MAX_ENTRY_BYTES
+    ):
+        logger.warning("[BACK] Procesar export over cap: %d rows", len(rows))
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Exportación excede el tamaño máximo permitido"],
+        }), 413
+
+    buffer = build_procesar_export_workbook(rows)
+    logger.info("[BACK] Procesar export download: %d rows", len(rows))
+    return send_file(
+        buffer,
+        as_attachment=True,
+        download_name=filename_procesar_export(),
+        mimetype=(
+            "application/vnd.openxmlformats-officedocument."
+            "spreadsheetml.sheet"
+        ),
+    )

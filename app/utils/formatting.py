@@ -58,6 +58,18 @@ def to_title_case(value: str | None) -> str:
     return " ".join(out)
 
 
+def to_upper_safe(value: Any) -> str:
+    """Convierte a UPPER preservando Ñ y tildes (paridad display export).
+
+    None y no-strings retornan "". Colapsa whitespace igual que
+    ``normalize_text`` y normaliza a NFC para no descomponer la Ñ.
+    """
+    if not isinstance(value, str):
+        return ""
+    collapsed = " ".join(value.replace("\r\n", " ").replace("\r", " ").replace("\n", " ").split())
+    return unicodedata.normalize("NFC", collapsed.upper())
+
+
 def create_header_style() -> dict:
     """
     Crea un diccionario de estilos para encabezados.

@@ -95,4 +95,34 @@ URGENCIA_REVISION_HEADERS: dict[int, str] = {
     6: "Detalle",
 }
 
+# =============================================================================
+# PROCESAR EXPORT - Export formateado de /procesar (8 columnas exactas)
+# =============================================================================
+
+#: Headers del export .xlsx de /procesar (orden byte-identical, NO reordenar).
+PROCESAR_EXPORT_HEADERS: list[str] = [
+    "Fec. Factura",
+    "Tipo de error",
+    "Número Factura",
+    "Regla",
+    "Responsable Cierra",
+    "Descripción",
+    "Procedimiento",
+    "Detalle",
+]
+
+#: Casing por columna del export: title solo nombres de persona (via
+#: ``to_title_case`` NFKD-safe); upper factura/descripción/detalle;
+#: passthrough códigos/fechas/etiquetas. Sin blanket Title.
+PROCESAR_CASING_MAP: dict[str, str] = {
+    "Fec. Factura": "passthrough",
+    "Tipo de error": "passthrough",
+    "Número Factura": "upper",
+    "Regla": "passthrough",
+    "Responsable Cierra": "title",
+    "Descripción": "upper",
+    "Procedimiento": "passthrough",
+    "Detalle": "upper",
+}
+
 
