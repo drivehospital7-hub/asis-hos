@@ -3,6 +3,7 @@ import {
   Upload,
   Info,
   FileSpreadsheet,
+  FileDown,
   ArrowRight,
   AlertTriangle,
   ChevronDown,
@@ -102,6 +103,7 @@ export function ProcesarPage({
     tipos_procesados: string[];
   } | null>(null);
   const [error, setError] = useState("");
+  const [exportId, setExportId] = useState<string | null>(null);
   const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -163,6 +165,7 @@ export function ProcesarPage({
     setLoading(true);
     setError("");
     setResult(null);
+    setExportId(null);
 
     const fd = new FormData();
     fd.append("file_upload", file);
@@ -175,6 +178,7 @@ export function ProcesarPage({
         setError(json.errors?.[0] || "Error al procesar el archivo");
       } else {
         setResult(json.data);
+        setExportId(json.data?.export_id ?? null);
       }
     } catch {
       setError("Error de conexión con el servidor");
@@ -367,6 +371,18 @@ export function ProcesarPage({
               <div className="text-xs text-muted-foreground">total</div>
             </div>
           </div>
+
+          {/* Exportar tabla completa a Excel (backend: GET /procesar/export?id=) */}
+          {exportId && (
+            <div className="mb-5">
+              <a href={`/procesar/export?id=${exportId}`} download>
+                <Button variant="outline">
+                  <FileDown className="h-4 w-4" />
+                  Exportar Excel
+                </Button>
+              </a>
+            </div>
+          )}
 
           {result?.errores?.map((fg: FacturaGroup) => {
             const isOpen = expandedAreas.has(fg.tipo_factura);
