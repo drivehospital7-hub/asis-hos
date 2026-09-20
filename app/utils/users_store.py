@@ -35,11 +35,16 @@ def _new_session():
 
 
 def _to_dict(user: User, include_hash: bool = False) -> dict:
-    """Convierte un User ORM a dict (sin password_hash por defecto)."""
+    """Convierte un User ORM a dict (sin password_hash por defecto).
+
+    Aplica _migrate_legacy_permisos para que permisos legacy persistidos
+    en DB (p. ej. "urgencias") se expongan como su reemplazo canónico
+    ("procesar") en sesión/listados. Solo lectura: no persiste en DB.
+    """
     data = {
         "username": user.username,
         "rol": user.rol,
-        "permisos": user.permisos or [],
+        "permisos": _migrate_legacy_permisos(user.permisos or []),
         "primer_nombre": user.primer_nombre or "",
         "segundo_nombre": user.segundo_nombre or "",
         "apellido_1": user.apellido_1 or "",
