@@ -1,7 +1,8 @@
 """Bulk move service for Monitoreo de Carpetas.
 
-Validates a bulk move request (dest under configured roots, traversal
-guard, batch cap) and executes per-item moves with watcher resync.
+Validates a bulk move request (free destination, traversal guard,
+batch cap, sources under configured roots) and executes per-item
+moves with watcher resync.
 """
 
 from __future__ import annotations
@@ -13,7 +14,6 @@ from pathlib import Path
 from app.constants.monitoreo_carpetas import (
     MOVE_ERR_BATCH_LIMIT,
     MOVE_ERR_COLLISION,
-    MOVE_ERR_DEST_OUTSIDE_ROOTS,
     MOVE_ERR_SRC_MISSING,
     MOVE_ERR_SRC_OUTSIDE_ROOTS,
     MOVE_ERR_TRAVERSAL,
@@ -38,19 +38,25 @@ def _is_under_roots(path: Path, roots: list[str]) -> bool:
 def validate_move_request(
     sources: list[str], dest_dir: str, roots: list[str]
 ) -> str | None:
-    """Validate a bulk move request. Returns error message or None."""
+    """Validate a bulk move request. Returns error message or None.
+
+    Destination may be any absolute local or UNC path (inside or outside
+    the configured roots). Sources must still live under the roots.
+    """
     if not sources:
         return "No sources provided."
     if len(sources) > MOVE_MAX_BATCH:
         logger.warning("[BACK] Move rejected: %d items over limit", len(sources))
         return MOVE_ERR_BATCH_LIMIT
+    if not dest_dir or not dest_dir.strip():
+        return MOVE_ERR_TRAVERSAL
     if ".." in dest_dir.replace("\\", "/").split("/"):
         logger.warning("[BACK] Move rejected: traversal in dest %s", dest_dir)
         return MOVE_ERR_TRAVERSAL
     dest = Path(dest_dir)
-    if not _is_under_roots(dest, roots):
-        logger.warning("[BACK] Move rejected: dest outside roots %s", dest_dir)
-        return MOVE_ERR_DEST_OUTSIDE_ROOTS
+    if not dest.is_absolute():
+        logger.warning("[BACK] Move rejected: dest not absolute %s", dest_dir)
+        return MOVE_ERR_TRAVERSAL
     for src in sources:
         if ".." in src.replace("\\", "/").split("/"):
             logger.warning("[BACK] Move rejected: traversal in src %s", src)
@@ -80,8 +86,25 @@ def _move_one(src: str, dest: Path) -> str | None:
 def execute_move(
     sources: list[str], dest_dir: str, watcher
 ) -> tuple[list[str], list[dict]]:
-    """Execute per-item moves, resync watcher, return (moved, failed)."""
+    """Execute per-item moves, resync watcher, return (moved, failed).
+
+    Destination may live outside the watched roots. The watcher only
+    resyncs the destination subtree when it falls under the watched
+    roots; otherwise the source entries are simply removed.
+    """
     dest = Path(dest_dir)
+    try:
+        dest.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.error("[BACK][ERROR] Move failed: cannot create dest %s: %s", dest, exc)
+        return [], [{"src": src, "error": str(exc)} for src in sources]
+    try:
+        watched_roots: list[str] = watcher.get_roots()
+    except AttributeError:
+        watched_roots = []
+    # Unknown roots (empty) default to resync to preserve legacy behavior;
+    # when roots are known, only resync destinations under watch.
+    dest_watched = not watched_roots or _is_under_roots(dest, watched_roots)
     moved: list[str] = []
     failed: list[dict] = []
     for src in sources:
@@ -90,7 +113,8 @@ def execute_move(
             moved.append(src)
             logger.info("[BACK] Moved %s -> %s", src, dest / Path(src).name)
             watcher.remove_subtree(src)
-            watcher.update_subtree(str(dest))
+            if dest_watched:
+                watcher.update_subtree(str(dest))
         else:
             failed.append({"src": src, "error": error})
     logger.info("[BACK] Bulk move done: %d moved, %d failed", len(moved), len(failed))

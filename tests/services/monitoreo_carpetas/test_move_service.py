@@ -44,9 +44,14 @@ class TestValidateMoveRequest:
         err = validate_move_request(sources, evil, roots)
         assert err is not None
 
-    def test_dest_outside_roots_rejected(self, tmp_path: Path) -> None:
+    def test_dest_outside_roots_allowed(self, tmp_path: Path) -> None:
         _src, _dest, sources, roots = _make_tree(tmp_path)
-        err = validate_move_request(sources, "/elsewhere/dest", roots)
+        outside = str(tmp_path / "elsewhere" / "dest")
+        assert validate_move_request(sources, outside, roots) is None
+
+    def test_dest_must_be_absolute(self, tmp_path: Path) -> None:
+        _src, _dest, sources, roots = _make_tree(tmp_path)
+        err = validate_move_request(sources, "relative/dest", roots)
         assert err is not None
 
     def test_over_limit_rejected(self, tmp_path: Path) -> None:
