@@ -4,8 +4,20 @@ export function norm(s: string | null | undefined): string {
   return (s ?? "").trim().toUpperCase();
 }
 
-export function buildObservacion(descripcion: string, _detalle?: string): string {
-  return (descripcion ?? "").trim().slice(0, 500);
+function isOmittableLine(value: string): boolean {
+  const t = value.trim();
+  return t === "" || t === "-" || t === "—";
+}
+
+export function buildObservacion(
+  descripcion: string,
+  detalleA?: string,
+  detalleB?: string,
+): string {
+  const lines = [descripcion ?? "", detalleA ?? "", detalleB ?? ""]
+    .map((s) => (s ?? "").trim())
+    .filter((t) => !isOmittableLine(t));
+  return lines.join("\n").slice(0, 500);
 }
 
 export function buildEnvioSet(
