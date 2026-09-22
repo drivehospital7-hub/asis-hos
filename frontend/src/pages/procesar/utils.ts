@@ -4,22 +4,8 @@ export function norm(s: string | null | undefined): string {
   return (s ?? "").trim().toUpperCase();
 }
 
-function isDetalleReal(value: string | null | undefined): boolean {
-  const v = (value ?? "").trim();
-  return v !== "" && v !== "-" && v !== "—";
-}
-
-export function buildObservacion(
-  descripcion: string,
-  detalleA?: string,
-  detalleB?: string,
-): string {
-  const base = (descripcion ?? "").trim();
-  const lines: string[] = [];
-  if (base) lines.push(base);
-  if (isDetalleReal(detalleA)) lines.push(`Detalle A: ${(detalleA ?? "").trim()}`);
-  if (isDetalleReal(detalleB)) lines.push(`Detalle B: ${(detalleB ?? "").trim()}`);
-  return lines.join("\n").slice(0, 500);
+export function buildObservacion(descripcion: string, _detalle?: string): string {
+  return (descripcion ?? "").trim().slice(0, 500);
 }
 
 export function buildEnvioSet(

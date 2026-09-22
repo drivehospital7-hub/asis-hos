@@ -138,7 +138,7 @@ describe("envio a control (integration)", () => {
     expect(body).toEqual({
       tipo_error: "Otros",
       factura: "F123",
-      observacion: "D\nDetalle A: P\nDetalle B: DET",
+      observacion: "D",
       estado: "S",
       responsable: "R",
     });
