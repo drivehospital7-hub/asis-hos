@@ -1,9 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
+  composeDetalle,
   DETALLE_FIELD_KEYS,
   GRUPO_ERROR_LABELS,
   GroupingFields,
+  parseDetalle,
 } from "./GroupingFields";
 
 describe("GroupingFields", () => {
@@ -108,7 +110,7 @@ describe("GroupingFields", () => {
     expect(html).toContain('name="descripcion_template"');
   });
 
-  it("preserves legacy values not in the key list as an extra option", () => {
+  it("routes unparseable stored values to template mode instead of a legacy option", () => {
     const html = renderToStaticMarkup(
       <GroupingFields
         grupoError=""
@@ -120,10 +122,11 @@ describe("GroupingFields", () => {
       />,
     );
 
-    // Legacy compound / template values survive instead of breaking.
-    // A pruned dead key degrades to the __legacy__ option, never silently dropped.
+    // Compound raw value survives in the free-text template input.
     expect(html).toContain("codigo,procedimiento");
-    expect(html).toContain("{centro_actual}");
+    expect(html).toContain("Volver a campos");
+    // Single-brace structured value keeps its inner key in the builder.
+    expect(html).toContain("centro_actual");
     expect(html).toContain('value="__legacy__"');
   });
 
@@ -146,5 +149,76 @@ describe("GroupingFields", () => {
     expect(html).toContain('name="detalle_b_campo"');
     expect(html).toContain('name="descripcion_template"');
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("composeDetalle builds the stored string", () => {
+    expect(composeDetalle("Procedimiento", "codigo", "")).toBe(
+      "Procedimiento: {codigo}",
+    );
+    expect(composeDetalle("Procedimiento", "codigo", "procedimiento")).toBe(
+      "Procedimiento: {codigo} - {procedimiento}",
+    );
+    expect(composeDetalle("", "codigo", "")).toBe("codigo");
+    expect(composeDetalle("", "", "")).toBe("");
+    expect(composeDetalle("Procedimiento", "", "procedimiento")).toBe("");
+    expect(composeDetalle("", "codigo", "procedimiento")).toBe(
+      "{codigo} - {procedimiento}",
+    );
+  });
+
+  it("parseDetalle round-trips composed forms and flags raw templates", () => {
+    expect(parseDetalle("codigo")).toMatchObject({
+      mode: "simple",
+      field1: "codigo",
+    });
+    expect(parseDetalle(composeDetalle("Procedimiento", "codigo", ""))).toMatchObject({
+      mode: "template",
+      label: "Procedimiento",
+      field1: "codigo",
+      field2: "",
+    });
+    expect(
+      parseDetalle(composeDetalle("Procedimiento", "codigo", "procedimiento")),
+    ).toMatchObject({
+      mode: "template",
+      label: "Procedimiento",
+      field1: "codigo",
+      field2: "procedimiento",
+    });
+    expect(parseDetalle("{codigo} - {procedimiento}")).toMatchObject({
+      mode: "template",
+      field1: "codigo",
+      field2: "procedimiento",
+    });
+    expect(parseDetalle("{codigo}")).toMatchObject({
+      mode: "template",
+      field1: "codigo",
+    });
+    expect(parseDetalle("codigo,procedimiento").mode).toBe("template");
+    expect(parseDetalle("codigo,procedimiento").raw).toBe(
+      "codigo,procedimiento",
+    );
+    expect(parseDetalle("=X").mode).toBe("template");
+    expect(parseDetalle("Ent: {entidad}, Copago: {x}").mode).toBe("template");
+  });
+
+  it("renders label + campo2 controls plus the template toggle per detail", () => {
+    const html = renderToStaticMarkup(
+      <GroupingFields
+        grupoError=""
+        detalleACampo="codigo"
+        detalleBCampo=""
+        descripcionTemplate=""
+        disabled={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(html).toContain('name="detalle_a_label"');
+    expect(html).toContain('name="detalle_a_campo2"');
+    expect(html).toContain('name="detalle_b_label"');
+    expect(html).toContain('name="detalle_b_campo2"');
+    expect(html).toContain("Label ej. Procedimiento");
+    expect(html).toContain("Usar plantilla");
   });
 });
