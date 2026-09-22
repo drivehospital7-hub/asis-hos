@@ -274,12 +274,35 @@ class _DefaultDict(dict):
         return ""
 
 
+def _template_placeholders_empty(template: str, item: dict) -> bool:
+    """True cuando todos los placeholders de un template estan vacios (pure)."""
+    try:
+        names = [
+            field_name
+            for _, field_name, _, _ in Formatter().parse(template)
+            if field_name
+        ]
+    except (ValueError, TypeError):
+        return False
+    if not names:
+        return False
+    for name in names:
+        value = item.get(name, "")
+        if value is not None and str(value).strip():
+            return False
+    return True
+
+
 def _resolve_procedimiento(item: dict, a_campo: str | None) -> str:
-    """Resolve procedimiento from detalle_a_campo: '=literal', 'f1,f2' pair, field."""
+    """Resolve procedimiento from detalle_a_campo: '=literal', template, 'f1,f2' pair, field."""
     if not a_campo:
         return ""
     if a_campo.startswith("="):
         return a_campo[1:]
+    if "{" in a_campo:
+        if _template_placeholders_empty(a_campo, item):
+            return ""
+        return _safe_format(a_campo, item)
     if "," in a_campo:
         first, second = (p.strip() for p in a_campo.split(",", 1))
         return _combine_procedimiento(item.get(first, ""), item.get(second, ""))
@@ -294,6 +317,8 @@ def _resolve_detalle(item: dict, b_campo: str | None) -> str:
     if b_campo.startswith("="):
         return b_campo[1:]
     if "{" in b_campo:
+        if _template_placeholders_empty(b_campo, item):
+            return ""
         return _safe_format(b_campo, item)
     if "," in b_campo:
         for name in (p.strip() for p in b_campo.split(",")):

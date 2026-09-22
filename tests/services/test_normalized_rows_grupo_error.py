@@ -310,3 +310,59 @@ class TestEstanciasMigration:
         sql = self._sql()
         assert "id <> 61" in sql
         assert "cups-equivalentes" in sql
+
+
+class TestDetalleTemplateGuard:
+    """Detalle A acepta templates `{...}` y ambas ramas vacian si todo placeholder vacio."""
+
+    def test_a_template_single_placeholder(self):
+        from app.services.normalized_rows import _resolve_procedimiento
+
+        assert (
+            _resolve_procedimiento({"codigo": "123"}, "Procedimiento: {codigo}")
+            == "Procedimiento: 123"
+        )
+
+    def test_a_template_union_with_label(self):
+        from app.services.normalized_rows import _resolve_procedimiento
+
+        assert (
+            _resolve_procedimiento(
+                {"codigo": "123", "procedimiento": "Limpieza"},
+                "Procedimiento: {codigo} - {procedimiento}",
+            )
+            == "Procedimiento: 123 - Limpieza"
+        )
+
+    def test_a_template_all_empty_returns_empty(self):
+        from app.services.normalized_rows import _resolve_procedimiento
+
+        assert _resolve_procedimiento({}, "Procedimiento: {codigo}") == ""
+        assert _resolve_procedimiento({"codigo": "  "}, "{codigo}") == ""
+
+    def test_b_template_all_empty_returns_empty(self):
+        from app.services.normalized_rows import _resolve_detalle
+
+        assert _resolve_detalle({}, "Detalle: {codigo}") == ""
+        assert _resolve_detalle({"codigo": ""}, "{codigo}") == ""
+
+    def test_regression_legacy_branches_untouched(self):
+        from app.services.normalized_rows import (
+            _resolve_detalle,
+            _resolve_procedimiento,
+        )
+
+        item = {"codigo": "123", "procedimiento": "Limpieza"}
+        assert (
+            _resolve_procedimiento(item, "codigo,procedimiento")
+            == "123 - Limpieza"
+        )
+        assert _resolve_procedimiento(item, "=literal") == "literal"
+        assert _resolve_procedimiento(item, "codigo") == "123"
+        assert (
+            _resolve_detalle(
+                {"centro_actual": "", "centro_costo": "PISO"},
+                "centro_actual,centro_costo",
+            )
+            == "PISO"
+        )
