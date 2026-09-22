@@ -57,11 +57,15 @@
           'procesar.procesar_react':       {'label': 'Procesar',        'icon': 'FileText'},
           'control_errores.control_errores_page': {'label': 'Control de Novedades', 'icon': 'ClipboardCheck'},
           'abiertas_urgencias.abiertas_urgencias_react': {'label': 'Abiertas Urgencias', 'icon': 'CalendarClock'},
+          'busqueda_pdf.react_shell':      {'label': 'Búsqueda PDF',    'icon': 'Search'},
+          'cronograma_urgencias.cronograma_urgencias_react': {'label': 'Cronograma Urgencias', 'icon': 'CalendarClock'},
+          'cronograma_bacteriologas.cronograma_react': {'label': 'Cronograma Bacteriólogas', 'icon': 'CalendarClock'},
           'ordenado_facturado.ordenado_facturado_react': {'label': 'Ordenado y Facturado', 'icon': 'FileSpreadsheet'},
           'derechos.derechos_react':       {'label': 'Derechos',        'icon': 'Scale'},
           'monitoreo_carpetas.index':      {'label': 'Monitoreo de Carpetas', 'icon': 'FolderSearch'},
           'examenes.examenes_react':       {'label': 'Exámenes',        'icon': 'FlaskConical'},
           'auth.usuarios_react':           {'label': 'Usuarios',        'icon': 'Users'},
+          'catalogo.catalogo_react':       {'label': 'Catálogos',       'icon': 'BookType'},
         } %}
 
         {# ── "Áreas de trabajo" label (matches React sidebar) ── #}
@@ -99,8 +103,12 @@
             {# Map permiso key → Flask endpoint. Iterated once (unique keys) to
                avoid duplicating nav items when user has both X and X:write. #}
             {% set _ep_map = {
+              'procesar':                     'procesar.procesar_react',
               'control_urgencias':            'control_errores.control_errores_page',
               'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
+              'busqueda_pdf':                 'busqueda_pdf.react_shell',
+              'cronograma_urgencias':         'cronograma_urgencias.cronograma_urgencias_react',
+              'cronograma_bacteriologas':     'cronograma_bacteriologas.cronograma_react',
               'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
               'derechos':                     'derechos.derechos_react',
               'monitoreo_carpetas':           'monitoreo_carpetas.index',
