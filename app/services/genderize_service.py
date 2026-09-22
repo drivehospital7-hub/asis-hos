@@ -21,14 +21,90 @@ CACHE_FILE = Path(os.getenv("GENDERIZE_CACHE_FILE") or _CACHE_FILE_DEFAULT)
 _RE_HIJO = re.compile(r"^Hijo de\s+", re.IGNORECASE)
 _RE_HIJA = re.compile(r"^Hija de\s+", re.IGNORECASE)
 
+# Separadores de bloques en carga masiva: coma, punto y coma o salto de línea.
+_RE_BULK_SPLIT = re.compile(r"[,;\n]+")
+
 
 def _normalize(name: str) -> str:
     """Normaliza nombre: mayúsculas → minúsculas, quitar tildes."""
     # Quitar tildes
     nfd = unicodedata.normalize("NFD", name)
     sin_tilde = "".join(c for c in nfd if unicodedata.category(c) != "Mn")
-    # A minúsculas
-    return sin_tilde.lower().strip()
+    # A minúsculas + colapsar espacios múltiples
+    return re.sub(r"\s+", " ", sin_tilde.lower().strip())
+
+
+def parse_bulk_text(raw: str) -> tuple[list[dict], list[str]]:
+    """Parsea cadena masiva 'nombre GENERO, nombre GENERO, ...'.
+
+    Última palabra de cada bloque = género (F/M/L/U, case-insensitive).
+    Resto del bloque = nombre (se normaliza: minúsculas, sin tildes).
+    Retorna (items, errores). items: {nombre_normalizado, gender, gender_short}.
+    """
+    items: list[dict] = []
+    errores: list[str] = []
+    for block in _RE_BULK_SPLIT.split(raw or ""):
+        block = block.strip()
+        if not block:
+            continue
+        parts = block.split()
+        if len(parts) < 2:
+            errores.append(f"Bloque sin género: '{block}' (formato: 'nombre F/M/L/U')")
+            continue
+        gender_code = parts[-1].upper()
+        if gender_code not in GENDER_DISPLAY_MAP:
+            errores.append(f"Género inválido en '{block}' (usar F/M/L/U)")
+            continue
+        nombre = _normalize(" ".join(parts[:-1]))
+        if not nombre:
+            errores.append(f"Nombre vacío en '{block}'")
+            continue
+        gender_long = GENDER_DISPLAY_MAP[gender_code]
+        items.append({
+            "nombre_normalizado": nombre,
+            "gender": gender_long,
+            "gender_short": gender_code,
+        })
+    return items, errores
+
+
+def bulk_add_names(raw: str) -> dict:
+    """Agrega nombres masivos al cache. Omite duplicados (cache + lote) y reporta.
+
+    Raises:
+        ValueError: si el texto está vacío o no hay bloques válidos.
+    """
+    if not raw or not raw.strip():
+        raise ValueError("Texto vacío: pegá nombres con formato 'nombre F/M/L/U, ...'")
+    items, errores = parse_bulk_text(raw)
+    if not items:
+        raise ValueError(errores[0] if errores else "Sin bloques válidos")
+    cache = _load_cache()
+    agregados: list[dict] = []
+    omitidos: list[dict] = []
+    seen: set[str] = set()
+    for it in items:
+        key = it["nombre_normalizado"]
+        if key in seen:
+            omitidos.append({**it, "motivo": "duplicado_en_lote"})
+            continue
+        seen.add(key)
+        if key in cache:
+            omitidos.append({**it, "motivo": "existe_en_cache"})
+            continue
+        cache[key] = {"gender": it["gender"], "probability": 1.0}
+        agregados.append(it)
+    if agregados:
+        _save_cache(cache)
+        logger.info("Bulk add: %d agregados, %d omitidos", len(agregados), len(omitidos))
+    return {
+        "agregados": agregados,
+        "omitidos": omitidos,
+        "errores": errores,
+        "total_procesados": len(items),
+        "total_agregados": len(agregados),
+        "total_omitidos": len(omitidos),
+    }
 
 
 def _load_cache() -> dict[str, dict]:

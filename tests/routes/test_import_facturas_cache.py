@@ -211,3 +211,89 @@ class TestCacheCorregirEditPersistence:
                 resp = app_client.post("/api/import/cache-corregir", json={"nombre_normalizado": "jose", "genero": code}, headers={"X-Requested-With": "XMLHttpRequest"})
                 assert resp.status_code == 200
                 assert json.loads(cache_file.read_text(encoding="utf-8"))["jose"]["gender"] == expected
+
+
+class TestCacheBulkAddGuard:
+    def test_admin_200(self, app_client):
+        _admin_session(app_client)
+        payload = {
+            "agregados": [{"nombre_normalizado": "maria", "gender": "female", "gender_short": "F"}],
+            "omitidos": [],
+            "errores": [],
+            "total_procesados": 1,
+            "total_agregados": 1,
+            "total_omitidos": 0,
+        }
+        with patch("app.services.genderize_service.bulk_add_names", return_value=payload):
+            resp = app_client.post(
+                "/api/import/cache-bulk-add",
+                json={"text": "maria F"},
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert data["data"] == payload
+        assert data["errors"] == []
+        assert data["status"] != "warning"
+
+    def test_json_invalido_400(self, app_client):
+        _admin_session(app_client)
+        resp = app_client.post(
+            "/api/import/cache-bulk-add",
+            data="not-json",
+            content_type="text/plain",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert data["status"] != "warning"
+        assert any("JSON invalido" in e for e in data["errors"])
+
+    def test_vacio_400(self, app_client):
+        _admin_session(app_client)
+        resp = app_client.post(
+            "/api/import/cache-bulk-add",
+            json={"text": "   "},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 400
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert data["status"] != "warning"
+        assert len(data["errors"]) > 0
+
+    def test_non_admin_403(self, app_client):
+        _non_admin_session(app_client)
+        resp = app_client.post(
+            "/api/import/cache-bulk-add",
+            json={"text": "maria F"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 403
+        assert resp.get_json()["status"] == "error"
+        assert resp.get_json()["status"] != "warning"
+
+    def test_unauth_401(self, app_client):
+        resp = app_client.post(
+            "/api/import/cache-bulk-add",
+            json={"text": "maria F"},
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 401
+        assert resp.get_json()["status"] == "error"
+
+    def test_nunca_warning(self, app_client):
+        _admin_session(app_client)
+        with patch(
+            "app.services.genderize_service.bulk_add_names",
+            side_effect=ValueError("Texto vacío"),
+        ):
+            resp = app_client.post(
+                "/api/import/cache-bulk-add",
+                json={"text": ""},
+                headers={"X-Requested-With": "XMLHttpRequest"},
+            )
+        assert resp.status_code == 400
+        assert resp.get_json()["status"] != "warning"

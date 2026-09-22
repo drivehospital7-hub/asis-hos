@@ -274,6 +274,41 @@ def cache_alerts():
 
 
 # ============================================================================
+# CARGA MASIVA — Agregar Nombres al JSON
+# ============================================================================
+
+@import_facturas_bp.route("/api/import/cache-bulk-add", methods=["POST"])
+@admin_requerido
+def cache_bulk_add():
+    """Agrega nombres masivos al cache."""
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["JSON invalido"]
+        }), 400
+
+    try:
+        result = genderize_service.bulk_add_names(data.get("text") or "")
+    except ValueError as exc:
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": [str(exc)]
+        }), 400
+    except Exception:
+        logger.exception("[BACK][ERROR] Error en cache-bulk-add")
+        return jsonify({
+            "status": "error",
+            "data": {},
+            "errors": ["Error interno"]
+        }), 500
+
+    return jsonify({"status": "success", "data": result, "errors": []})
+
+
+# ============================================================================
 # VERIFICAR Y COMPARAR - CON USO DE TOKENS
 # ============================================================================
 

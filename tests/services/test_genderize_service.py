@@ -503,3 +503,97 @@ class TestGetCacheAlerts:
             mock_file.read_text.return_value = raw_text
             result = get_cache_alerts()
         assert "angela\u200b" in result["cleaned_keys"]
+
+
+# ── bulk_add_names / parse_bulk_text ─────────────────────────────────────
+
+class TestBulkAddNames:
+    """Tests for parse_bulk_text + bulk_add_names (carga masiva)."""
+
+    def test_parse_user_example(self):
+        """GIVEN 'maria F, jose M; garcia L\nana U', THEN 4 items with long genders."""
+        from app.services.genderize_service import parse_bulk_text
+
+        items, errores = parse_bulk_text("maria F, jose M; garcia L\nana U")
+        assert errores == []
+        assert [(i["nombre_normalizado"], i["gender"], i["gender_short"]) for i in items] == [
+            ("maria", "female", "F"),
+            ("jose", "male", "M"),
+            ("garcia", "lastname", "L"),
+            ("ana", "undefined", "U"),
+        ]
+
+    def test_parse_tildes_mayusculas(self):
+        """GIVEN 'MARÍA F, JOSÉ m', THEN normalized lowercase without tildes."""
+        from app.services.genderize_service import parse_bulk_text
+
+        items, errores = parse_bulk_text("MARÍA F, JOSÉ m")
+        assert errores == []
+        assert items[0]["nombre_normalizado"] == "maria"
+        assert items[0]["gender_short"] == "F"
+        assert items[1]["nombre_normalizado"] == "jose"
+        assert items[1]["gender_short"] == "M"
+
+    def test_parse_genero_invalido(self):
+        """GIVEN 'maria X', THEN no items and one error mentioning F/M/L/U."""
+        from app.services.genderize_service import parse_bulk_text
+
+        items, errores = parse_bulk_text("maria X")
+        assert items == []
+        assert len(errores) == 1
+        assert "F/M/L/U" in errores[0]
+
+    def test_bulk_duplicado_en_lote(self):
+        """GIVEN 'ana F, ana F' with empty cache, THEN 1 agregado + 1 omitido duplicado_en_lote."""
+        from app.services import genderize_service
+
+        with (
+            patch.object(genderize_service, "_load_cache", return_value={}),
+            patch.object(genderize_service, "_save_cache") as mock_save,
+        ):
+            result = genderize_service.bulk_add_names("ana F, ana F")
+        assert result["total_agregados"] == 1
+        assert result["total_omitidos"] == 1
+        assert result["omitidos"][0]["motivo"] == "duplicado_en_lote"
+        mock_save.assert_called_once()
+
+    def test_bulk_duplicado_en_cache(self):
+        """GIVEN 'ana F' already cached, THEN 0 agregados + 1 omitido existe_en_cache."""
+        from app.services import genderize_service
+
+        cache = {"ana": {"gender": "female", "probability": 1.0}}
+        with (
+            patch.object(genderize_service, "_load_cache", return_value=dict(cache)),
+            patch.object(genderize_service, "_save_cache") as mock_save,
+        ):
+            result = genderize_service.bulk_add_names("ana F, pedro M")
+        assert result["total_agregados"] == 1
+        assert result["total_omitidos"] == 1
+        assert result["omitidos"][0]["motivo"] == "existe_en_cache"
+        assert result["agregados"][0]["nombre_normalizado"] == "pedro"
+        mock_save.assert_called_once()
+
+    def test_bulk_texto_vacio_raises(self):
+        """GIVEN '' / whitespace, THEN ValueError."""
+        import pytest
+
+        from app.services import genderize_service
+
+        with pytest.raises(ValueError):
+            genderize_service.bulk_add_names("")
+        with pytest.raises(ValueError):
+            genderize_service.bulk_add_names("   ")
+
+    def test_bulk_save_solo_si_hay_agregados(self):
+        """GIVEN all omitted (existe_en_cache), THEN _save_cache NOT called."""
+        from app.services import genderize_service
+
+        cache = {"ana": {"gender": "female", "probability": 1.0}}
+        with (
+            patch.object(genderize_service, "_load_cache", return_value=dict(cache)),
+            patch.object(genderize_service, "_save_cache") as mock_save,
+        ):
+            result = genderize_service.bulk_add_names("ana F")
+        assert result["total_agregados"] == 0
+        assert result["total_omitidos"] == 1
+        mock_save.assert_not_called()

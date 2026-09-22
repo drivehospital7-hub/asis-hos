@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 import { CacheNombresTab } from "./components/cache-nombres-tab";
+import { BulkAddTab } from "./components/bulk-add-tab";
 
 interface StatsData {
   total_excel: number;
@@ -186,6 +187,7 @@ export function GenderizePage() {
           <TabsList className="mb-4">
             <TabsTrigger value="verificar">Verificar</TabsTrigger>
             <TabsTrigger value="cache">Nombres Cacheados</TabsTrigger>
+            <TabsTrigger value="agregar">Agregar Nombres</TabsTrigger>
           </TabsList>
 
           <TabsContent value="verificar">
@@ -429,6 +431,10 @@ export function GenderizePage() {
 
           <TabsContent value="cache">
             <CacheNombresTab />
+          </TabsContent>
+
+          <TabsContent value="agregar">
+            <BulkAddTab />
           </TabsContent>
         </Tabs>
 
