@@ -262,9 +262,20 @@ def _combine_procedimiento(codigo: Any, procedimiento: Any) -> str:
 def _safe_format(template: str, item: dict) -> str:
     """Format a template with item fields; missing keys render as ''."""
     try:
+        if "." in template:
+            template = _expand_dotted_keys(template, item)
         return Formatter().vformat(template, (), _DefaultDict(item))
-    except (ValueError, IndexError, KeyError):
+    except (ValueError, IndexError, KeyError, AttributeError, TypeError):
         return ""
+
+
+def _expand_dotted_keys(template: str, item: dict) -> str:
+    """Sustituye '{a.b}' plano desde claves flat (Formatter lo veria como atributo)."""
+    for key, val in item.items():
+        if "." in key and ("{" + key + "}") in template:
+            template = template.replace(
+                "{" + key + "}", str(val) if val is not None else "")
+    return template
 
 
 class _DefaultDict(dict):
@@ -453,8 +464,27 @@ def _build_grupo_mapped_rows(
             item = {"factura": str(raw)} if isinstance(raw, str) else dict(raw)
             factura = str(item.get("factura", ""))
             if formatter is not None:
+                formatted = formatter(item, mapping)
                 row = _row_base(grupo, factura)
-                row.update(formatter(item, mapping))
+                row["descripcion"] = formatted.get("descripcion", "")
+                if formatted.get("tipo_error"):
+                    row["tipo_error"] = formatted["tipo_error"]
+                if "_header_override" in formatted:
+                    row["_header_override"] = formatted["_header_override"]
+                # Strict semantics: vacio declarado => blanco en todos los
+                # grupos. Procedimiento/detalle vienen exclusivamente del
+                # detalle_a/b live (mapping primero, item despues); sin
+                # declarado quedan en "". Nada del formatter legacy se hereda.
+                a_campo = (mapping or {}).get("detalle_a_campo") or item.get(
+                    "detalle_a_campo"
+                )
+                b_campo = (mapping or {}).get("detalle_b_campo") or item.get(
+                    "detalle_b_campo"
+                )
+                row["procedimiento"] = (
+                    _resolve_procedimiento(item, a_campo) if a_campo else ""
+                )
+                row["detalle"] = _resolve_detalle(item, b_campo) if b_campo else ""
                 _apply_template_override(row, item, mapping, regla_templates)
                 row["regla"] = item.get("regla", "") or ""
                 rows.append(row)

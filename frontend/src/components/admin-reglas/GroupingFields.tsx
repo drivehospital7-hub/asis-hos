@@ -82,6 +82,8 @@ export const DETALLE_FIELD_KEYS: string[] = [
   "fec_factura",
   "date.edad",
   "date.edad_meses",
+  "edad_anios_meses",
+  "edad_meses_dias",
   // Extra keys produced by group formatters (group context only)
   "count",
   "codigo_profesional",
@@ -224,7 +226,7 @@ function DetalleEditor({
         style={inputStyle}
         disabled={disabled}
       >
-        <option value="">— auto —</option>
+        <option value="">— none —</option>
         {DETALLE_FIELD_KEYS.map((key) => (
           <option key={key} value={key}>
             {key}

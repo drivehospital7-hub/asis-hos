@@ -173,12 +173,12 @@ class RuleEvaluationEngine:
                     params=params if isinstance(params, dict) else None,
                 )
 
-                # Pre-resolve common computed fields (only when tree references them)
-                if needs_edad:
+                # Pre-resolve computed edad (ambos cuando alguno se usa:
+                # regla #33 B='Edad: {date.edad}' solo referencia meses).
+                if needs_edad or needs_edad_meses:
                     date_edad = self._resolve_computed("date.edad", eval_ctx)
                     if date_edad is not None:
                         eval_ctx.invoice_data["date.edad"] = date_edad
-                if needs_edad_meses:
                     date_edad_meses = self._resolve_computed("date.edad_meses", eval_ctx)
                     if date_edad_meses is not None:
                         eval_ctx.invoice_data["date.edad_meses"] = date_edad_meses
@@ -252,6 +252,7 @@ class RuleEvaluationEngine:
                         elif field in eval_ctx.invoice_data:
                             problem[field] = eval_ctx.invoice_data[field]
                     _enrich_estancia_str(problem, eval_ctx.invoice_data, row_data, rule=rule)
+                    _enrich_edad_detalle(problem, eval_ctx.invoice_data, row_data, rule=rule)
                     results.append(problem)
 
         if persist:
@@ -543,11 +544,16 @@ def _rule_requests_estancia_str(
 ) -> bool:
     """Opt-in: True solo si la regla referencia estancia_str.
 
-    La regla lo pide con detalle_a/b_campo == 'estancia_str' o con
-    descripcion_template que contenga '{estancia_str}'.
+    La regla lo pide con detalle_a/b_campo que contenga
+    '{estancia_str}' (igualdad exacta legacy o plantilla con label
+    tipo 'Estancia: {estancia_str}') o con descripcion_template que
+    contenga '{estancia_str}'.
     """
-    if detalle_a == "estancia_str" or detalle_b == "estancia_str":
-        return True
+    for candidate in (detalle_a, detalle_b):
+        if candidate == "estancia_str":
+            return True
+        if isinstance(candidate, str) and "{estancia_str}" in candidate:
+            return True
     return isinstance(template, str) and "{estancia_str}" in template
 
 
@@ -582,6 +588,69 @@ def _enrich_estancia_str(
             return
     problem.setdefault("estancia_horas", horas)
     problem["estancia_str"] = _format_estancia(horas)
+
+
+def _rule_requests_edad_detalle(
+    detalle_a: Any | None,
+    detalle_b: Any | None,
+    template: Any | None,
+) -> tuple[bool, bool]:
+    """Opt-in: que claves de detalle de edad pide la regla.
+
+    Retorna (quiere_anios_meses, quiere_meses_dias). Cada clave se
+    pide con detalle_a/b_campo exacto o plantilla '{clave}', o con
+    descripcion_template que contenga '{clave}'.
+    """
+    def _wants(key: str) -> bool:
+        for candidate in (detalle_a, detalle_b):
+            if candidate == key:
+                return True
+            if isinstance(candidate, str) and ("{" + key + "}") in candidate:
+                return True
+        return isinstance(template, str) and (("{" + key + "}") in template)
+
+    return (_wants("edad_anios_meses"), _wants("edad_meses_dias"))
+
+
+def _enrich_edad_detalle(
+    problem: dict[str, Any],
+    *sources: dict[str, Any] | None,
+    rule: Any | None = None,
+) -> None:
+    """Agrega edad_anios_meses / edad_meses_dias solo si la regla las pide.
+
+    Calcula desde fec_nacimiento + fec_factura de fila. Sin fechas
+    validas no setea nada. Solo setea las claves pedidas.
+    """
+    if rule is None:
+        return
+    quiere_anios, quiere_meses_dias = _rule_requests_edad_detalle(
+        getattr(rule, "detalle_a_campo", None),
+        getattr(rule, "detalle_b_campo", None),
+        getattr(rule, "descripcion_template", None),
+    )
+    if not (quiere_anios or quiere_meses_dias):
+        return
+    from app.services.engine.providers import format_anios_meses, format_meses_dias
+    fec_nac = problem.get("fec_nacimiento")
+    fec_fact = problem.get("fec_factura")
+    if fec_nac is None or fec_fact is None:
+        for source in sources:
+            data = source or {}
+            if fec_nac is None and data.get("fec_nacimiento") is not None:
+                fec_nac = data.get("fec_nacimiento")
+            if fec_fact is None and data.get("fec_factura") is not None:
+                fec_fact = data.get("fec_factura")
+            if fec_nac is not None and fec_fact is not None:
+                break
+    if quiere_anios and not problem.get("edad_anios_meses"):
+        valor = format_anios_meses(fec_nac, fec_fact)
+        if valor:
+            problem["edad_anios_meses"] = valor
+    if quiere_meses_dias and not problem.get("edad_meses_dias"):
+        valor = format_meses_dias(fec_nac, fec_fact)
+        if valor:
+            problem["edad_meses_dias"] = valor
 
 
 def _extract_factura(row_data: dict[str, Any]) -> str | None:

@@ -52,14 +52,21 @@ def _format_estancia(horas: float | None) -> str:
 def _rule_requests_estancia_str(rule_info: dict[str, Any] | None) -> bool:
     """Opt-in: True solo si la regla referencia estancia_str.
 
-    La regla lo pide con detalle_a/b_campo == 'estancia_str' o con
-    descripcion_template que contenga '{estancia_str}'.
+    La regla lo pide con detalle_a/b_campo que contenga
+    '{estancia_str}' (igualdad exacta legacy o plantilla con label
+    tipo 'Estancia: {estancia_str}') o con descripcion_template que
+    contenga '{estancia_str}'.
     """
     if not rule_info:
         return False
-    if (rule_info.get("detalle_a_campo") == "estancia_str"
-            or rule_info.get("detalle_b_campo") == "estancia_str"):
-        return True
+    for candidate in (
+        rule_info.get("detalle_a_campo"),
+        rule_info.get("detalle_b_campo"),
+    ):
+        if isinstance(candidate, str) and "{estancia_str}" in candidate:
+            return True
+        if candidate == "estancia_str":
+            return True
     template = rule_info.get("descripcion_template")
     return isinstance(template, str) and "{estancia_str}" in template
 
@@ -81,6 +88,85 @@ def _enrich_estancia_str(
     if isinstance(horas, bool) or not isinstance(horas, (int, float)):
         return
     problem["estancia_str"] = _format_estancia(horas)
+
+
+def _rule_requests_edad_detalle(
+    rule_info: dict[str, Any] | None,
+) -> tuple[bool, bool]:
+    """Opt-in: que claves de detalle de edad pide la regla (group path)."""
+    if not rule_info:
+        return (False, False)
+    detalle_a = rule_info.get("detalle_a_campo")
+    detalle_b = rule_info.get("detalle_b_campo")
+    template = rule_info.get("descripcion_template")
+
+    def _wants(key: str) -> bool:
+        for candidate in (detalle_a, detalle_b):
+            if candidate == key:
+                return True
+            if isinstance(candidate, str) and (("{" + key + "}") in candidate):
+                return True
+        return isinstance(template, str) and (("{" + key + "}") in template)
+
+    return (_wants("edad_anios_meses"), _wants("edad_meses_dias"))
+
+
+def _enrich_edad_detalle(
+    problem: dict[str, Any],
+    group_data: dict[str, Any] | None = None,
+    rule_info: dict[str, Any] | None = None,
+) -> None:
+    """Agrega edad_anios_meses / edad_meses_dias solo si la regla las pide.
+
+    Lee fec_nacimiento + fec_factura del group_data (parity bridge de
+    primera fila). Sin fechas validas no setea nada.
+    """
+    quiere_anios, quiere_meses_dias = _rule_requests_edad_detalle(rule_info)
+    if not (quiere_anios or quiere_meses_dias):
+        return
+    from app.services.engine.providers import format_anios_meses, format_meses_dias
+    source = group_data or {}
+    fec_nac = source.get("fec_nacimiento", problem.get("fec_nacimiento"))
+    fec_fact = source.get("fec_factura", problem.get("fec_factura"))
+    if quiere_anios and not problem.get("edad_anios_meses"):
+        valor = format_anios_meses(fec_nac, fec_fact)
+        if valor:
+            problem["edad_anios_meses"] = valor
+    if quiere_meses_dias and not problem.get("edad_meses_dias"):
+        valor = format_meses_dias(fec_nac, fec_fact)
+        if valor:
+            problem["edad_meses_dias"] = valor
+
+
+def _first_valid_horas(row_dicts: list[dict[str, Any]]) -> float | None:
+    """Primer par valido fec_factura/fecha_cierre en horas (None si no hay)."""
+    from datetime import datetime, timedelta
+
+    def _parse(value: Any) -> datetime | None:
+        if isinstance(value, datetime):
+            return value
+        if isinstance(value, str):
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%d/%m/%Y %H:%M:%S"):
+                try:
+                    return datetime.strptime(value, fmt)
+                except ValueError:
+                    continue
+        if isinstance(value, (int, float)):
+            serial = value
+            if serial > 59:
+                serial -= 1
+            try:
+                return datetime(1899, 12, 30) + timedelta(days=serial)
+            except (ValueError, OverflowError):
+                pass
+        return None
+
+    for row in row_dicts:
+        dt1 = _parse(row.get("fec_factura"))
+        dt2 = _parse(row.get("fecha_cierre"))
+        if dt1 is not None and dt2 is not None:
+            return abs((dt2 - dt1).total_seconds()) / 3600.0
+    return None
 
 
 class GroupEvaluator:
@@ -162,6 +248,8 @@ class GroupEvaluator:
                 campo == "estancia_horas"
                 and fuente.split(".")[0] in ("invoice", "group")
             ):
+                uses_horas = True
+            if operador == "hospi_sala_obs_cantidad_check":
                 uses_horas = True
             if fuente in ("group.collect_set_codigo", "invoice.collect_set_codigo"):
                 uses_codigo_set = True
@@ -771,6 +859,16 @@ class GroupEvaluator:
             )
             GroupEvaluator._apply_row_parity_bridge(group_data, row_dicts)
 
+            # Fallback estancia: si la regla la pide pero no hay
+            # estancia_horas agregada, computar del primer par valido.
+            horas = group_data.get("estancia_horas")
+            if _rule_requests_estancia_str(rule_info) and (
+                isinstance(horas, bool) or not isinstance(horas, (int, float))
+            ):
+                fallback = _first_valid_horas(row_dicts)
+                if fallback is not None:
+                    group_data["estancia_horas"] = fallback
+
             # 2. Build evaluation context with aggregated data.
             # group_rows marks group mode for providers (row path untouched).
             # param_config (rule.parametros[0]) travels as ctx.params so
@@ -828,6 +926,7 @@ class GroupEvaluator:
                     if key not in ("numero_factura",) and val is not None:
                         problem[key] = val
                 _enrich_estancia_str(problem, rule_info)
+                _enrich_edad_detalle(problem, group_data, rule_info)
                 results.append(problem)
 
         return results

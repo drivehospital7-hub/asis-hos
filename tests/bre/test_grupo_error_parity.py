@@ -186,7 +186,11 @@ class TestGoldenFlagDiff:
         mapped_f3 = next(r for r in mapped if r["factura"] == "F3")
         assert legacy_f3["tipo_error"] == "⚠️ Revisión Necesaria"
         assert mapped_f3["tipo_error"] == "Revision-Necesaria"
-        assert mapped_f3["detalle"] == legacy_f3["detalle"]
+        # Decision usuario sin automaticos: vacio en Detalle A/B muestra blanco
+        # en todos los grupos. F3 Duplicados-Farmacia no declara A/B, asi que el
+        # diff legacy "1 pares" -> mapped "" es intendido, no regresion.
+        assert legacy_f3["detalle"] == "1 pares"
+        assert mapped_f3["detalle"] == ""
 
 
 class TestAdminRoundTrip:

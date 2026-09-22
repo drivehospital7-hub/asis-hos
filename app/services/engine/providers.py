@@ -6,15 +6,99 @@ the EvaluationContext. Matched by prefix ("invoice" → InvoiceProvider).
 
 from __future__ import annotations
 
+import calendar
 import logging
 from abc import ABC, abstractmethod
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from app.services.engine.context import EvaluationContext
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_fecha_detalle(value: Any) -> datetime | None:
+    """Parsea fecha para detalle de edad (mismos formatos que DateProvider)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day)
+    text = str(value).strip()
+    if not text:
+        return None
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d", "%Y-%m-%d %H:%M:%S.%f",
+                "%d/%m/%Y", "%d/%m/%Y %H:%M:%S", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, fmt)
+        except (ValueError, TypeError):
+            continue
+    return None
+
+
+def _add_meses_clamp_detalle(nac_day: int, base_y: int, base_m: int, meses: int) -> datetime:
+    """Suma meses a (base_y, base_m) clampando el dia al fin de mes."""
+    total = (base_m - 1) + meses
+    y = base_y + total // 12
+    m = total % 12 + 1
+    d = min(nac_day, calendar.monthrange(y, m)[1])
+    return datetime(y, m, d)
+
+
+def format_anios_meses(fec_nacimiento: Any, fec_factura: Any) -> str:
+    """Detalle largo 'X años Y meses' (omite partes en cero, '0 días' si iguales)."""
+    fec_nac = _parse_fecha_detalle(fec_nacimiento)
+    fec_fact = _parse_fecha_detalle(fec_factura)
+    if fec_nac is None or fec_fact is None:
+        return ""
+    nac_d = fec_nac.date()
+    fact_d = fec_fact.date()
+    if fact_d < nac_d:
+        return ""
+    anios = fact_d.year - nac_d.year
+    aniversario = _add_meses_clamp_detalle(nac_d.day, nac_d.year, nac_d.month, anios * 12)
+    if fact_d < aniversario.date():
+        anios -= 1
+        aniversario = _add_meses_clamp_detalle(nac_d.day, nac_d.year, nac_d.month, anios * 12)
+    meses = (fact_d.year - aniversario.year) * 12 + (fact_d.month - aniversario.month)
+    anchor = _add_meses_clamp_detalle(nac_d.day, aniversario.year, aniversario.month, meses)
+    if fact_d < anchor.date():
+        meses -= 1
+    partes = []
+    if anios > 0:
+        partes.append(f"{anios} años")
+    if meses > 0:
+        partes.append(f"{meses} meses")
+    if not partes:
+        return "0 días"
+    return " ".join(partes)
+
+
+def format_meses_dias(fec_nacimiento: Any, fec_factura: Any) -> str:
+    """Detalle largo 'X meses Y días' (omite partes en cero, '0 días' si iguales)."""
+    fec_nac = _parse_fecha_detalle(fec_nacimiento)
+    fec_fact = _parse_fecha_detalle(fec_factura)
+    if fec_nac is None or fec_fact is None:
+        return ""
+    nac_d = fec_nac.date()
+    fact_d = fec_fact.date()
+    if fact_d < nac_d:
+        return ""
+    meses = (fact_d.year - nac_d.year) * 12 + (fact_d.month - nac_d.month)
+    if fact_d.day < nac_d.day:
+        meses -= 1
+    anchor = _add_meses_clamp_detalle(nac_d.day, nac_d.year, nac_d.month, meses)
+    dias = (fact_d - anchor.date()).days
+    if dias < 0:
+        dias = 0
+    partes = []
+    if meses > 0:
+        partes.append(f"{meses} meses")
+    if dias > 0 or not partes:
+        partes.append(f"{dias} días")
+    return " ".join(partes)
 
 
 class ContextProvider(ABC):

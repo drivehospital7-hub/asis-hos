@@ -39,7 +39,7 @@ def test_cups_equivalentes_muestra_template_regla_60():
     assert rows[0]["descripcion"] == SOAT_TEMPLATE
 
 
-def test_formatter_sin_template_mantiene_comportamiento():
+def test_formatter_sin_template_da_blanco_cuando_no_declarado():
     from app.services.normalized_rows import build_normalized_rows
 
     rows = build_normalized_rows(
@@ -59,8 +59,10 @@ def test_formatter_sin_template_mantiene_comportamiento():
         grupo_mappings={},
     )
     assert rows[0]["descripcion"] == "equiv"
-    assert rows[0]["procedimiento"] == "a1, a2"
-    assert rows[0]["detalle"] == "Estancia: 2 días 3 horas"
+    # Semantica sin automaticos: sin A/B declarado no se hereda nada del
+    # formatter legacy (antes: procedimiento "a1, a2" y detalle con estancia).
+    assert rows[0]["procedimiento"] == ""
+    assert rows[0]["detalle"] == ""
 
 
 def test_template_con_placeholder_resuelve():
@@ -112,3 +114,94 @@ def test_item_template_viaja_en_item_sin_grupo_mapping():
         grupo_mappings={},
     )
     assert rows[0]["descripcion"] == SOAT_TEMPLATE
+    # Sin A/B declarado el formatter no hereda procedimiento/detalle.
+    assert rows[0]["procedimiento"] == ""
+    assert rows[0]["detalle"] == ""
+
+
+def test_cups_con_a_declarado_y_b_none_da_detalle_blanco():
+    """Caso testigo regla #9 Cups-Equivalentes: A con label, B None => blanco."""
+    from app.services.normalized_rows import build_normalized_rows
+
+    rows = build_normalized_rows(
+        error_groups={
+            "Cups-Equivalentes": [
+                {
+                    "factura": "F9",
+                    "codigo": "C001",
+                    "procedimiento": "PROC",
+                    "estancia_str": "5h",
+                    "problema": "equiv #9",
+                    "regla": "#9",
+                }
+            ]
+        },
+        responsables_map={},
+        use_grupo_mapping=True,
+        grupo_mappings={
+            "Cups-Equivalentes": {
+                "detalle_a_campo": "Procedimiento: {codigo}",
+                "detalle_b_campo": None,
+            }
+        },
+    )
+    assert rows[0]["procedimiento"] == "Procedimiento: C001"
+    assert rows[0]["detalle"] == ""
+
+
+def test_tipo_edad_sin_a_ni_b_da_ambos_blancos():
+    from app.services.normalized_rows import build_normalized_rows
+
+    rows = build_normalized_rows(
+        error_groups={
+            "Tipo Identificacion / Edad": [
+                {
+                    "factura": "F1",
+                    "identificacion": "123",
+                    "tipo_actual": "TI",
+                    "tipo_deberia": "CC",
+                    "problema": "Tipo mal",
+                    "fec_nacimiento": "2000-01-01",
+                    "fec_factura": "2026-01-01",
+                    "date.edad": 26,
+                }
+            ]
+        },
+        responsables_map={},
+        use_grupo_mapping=True,
+        grupo_mappings={},
+    )
+    assert rows[0]["descripcion"] == "Tipo mal"
+    assert rows[0]["procedimiento"] == ""
+    assert rows[0]["detalle"] == ""
+
+
+def test_tipo_edad_con_a_b_declarado_respeta_label():
+    from app.services.normalized_rows import build_normalized_rows
+
+    rows = build_normalized_rows(
+        error_groups={
+            "Tipo Identificacion / Edad": [
+                {
+                    "factura": "F1",
+                    "identificacion": "123",
+                    "tipo_actual": "TI",
+                    "tipo_deberia": "CC",
+                    "problema": "Tipo mal",
+                    "fec_nacimiento": "2000-01-01",
+                    "fec_factura": "2026-01-01",
+                    "date.edad": 26,
+                }
+            ]
+        },
+        responsables_map={},
+        use_grupo_mapping=True,
+        grupo_mappings={
+            "Tipo Identificacion / Edad": {
+                "detalle_a_campo": "Doc: {identificacion}",
+                "detalle_b_campo": "Edad: {date.edad}",
+            }
+        },
+    )
+    assert rows[0]["procedimiento"] == "Doc: 123"
+    assert rows[0]["detalle"] == "Edad: 26"

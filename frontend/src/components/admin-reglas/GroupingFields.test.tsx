@@ -31,12 +31,15 @@ describe("GroupingFields", () => {
     expect(DETALLE_FIELD_KEYS).toContain("procedimiento");
     expect(DETALLE_FIELD_KEYS).toContain("centro_costo");
     expect(DETALLE_FIELD_KEYS).toContain("date.edad");
+    expect(DETALLE_FIELD_KEYS).toContain("date.edad_meses");
+    expect(DETALLE_FIELD_KEYS).toContain("edad_anios_meses");
+    expect(DETALLE_FIELD_KEYS).toContain("edad_meses_dias");
     // Live group-level keys only
     expect(DETALLE_FIELD_KEYS).toContain("count");
     expect(DETALLE_FIELD_KEYS).toContain("facturas");
     expect(DETALLE_FIELD_KEYS).toContain("estancia_str");
     expect(DETALLE_FIELD_KEYS).toContain("codigo_profesional");
-    expect(DETALLE_FIELD_KEYS).toHaveLength(36);
+    expect(DETALLE_FIELD_KEYS).toHaveLength(38);
     // Pruned dead keys never surface as options (legacy path instead)
     expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_actual");
     expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_deberia");
@@ -100,8 +103,9 @@ describe("GroupingFields", () => {
     // Selects carry the field names
     expect(html).toContain('name="detalle_a_campo"');
     expect(html).toContain('name="detalle_b_campo"');
-    // Empty "auto" option + canonical keys are offered
+    // Empty options: grupo_error offers "auto", details offer "none"
     expect(html).toContain("— auto —");
+    expect(html).toContain("— none —");
     expect(html).toContain('value="codigo"');
     expect(html).toContain('value="centro_costo"');
     expect(html).toContain('value="ide_contrato"');
