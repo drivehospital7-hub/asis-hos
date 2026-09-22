@@ -33,22 +33,49 @@ describe("norm", () => {
 // ─── buildObservacion ───────────────────────────────────────────────────
 
 describe("buildObservacion", () => {
-  it("returns trimmed descripcion", () => {
-    expect(buildObservacion("  D  ")).toBe("D");
+  it("joins descripcion + ambos detalles con salto de línea", () => {
+    expect(buildObservacion("D", "P", "DET")).toBe("D\nP\nDET");
   });
 
-  it("ignores detalle", () => {
-    expect(buildObservacion("D", "DET")).toBe("D");
+  it("solo detalle A", () => {
+    expect(buildObservacion("D", "P")).toBe("D\nP");
+  });
+
+  it("solo detalle B", () => {
+    expect(buildObservacion("D", "", "DET")).toBe("D\nDET");
+  });
+
+  it("sin detalles retorna solo descripcion", () => {
+    expect(buildObservacion("D")).toBe("D");
+    expect(buildObservacion("D", "", "")).toBe("D");
+  });
+
+  it("trimmea cada línea", () => {
+    expect(buildObservacion("  D  ", "  P  ", "  DET  ")).toBe("D\nP\nDET");
+  });
+
+  it("omite vacíos y guiones", () => {
+    expect(buildObservacion("D", "-", "—")).toBe("D");
+    expect(buildObservacion("D", "  ", "-")).toBe("D");
+    expect(buildObservacion("-", "P", "DET")).toBe("P\nDET");
+  });
+
+  it("descripcion vacía con detalles retorna solo detalles", () => {
+    expect(buildObservacion("", "P", "DET")).toBe("P\nDET");
+    expect(buildObservacion("   ", "P", "")).toBe("P");
   });
 
   it("truncates to 500 chars", () => {
     const long = "x".repeat(600);
     expect(buildObservacion(long).length).toBe(500);
+    expect(buildObservacion("D", "P", "DET").length).toBeLessThanOrEqual(500);
   });
 
-  it("returns empty string for empty descripcion", () => {
+  it("returns empty string when everything is empty", () => {
     expect(buildObservacion("")).toBe("");
     expect(buildObservacion("   ")).toBe("");
+    expect(buildObservacion("", "", "")).toBe("");
+    expect(buildObservacion("-", "-", "—")).toBe("");
   });
 });
 
