@@ -4,7 +4,7 @@ Catálogo por defecto (DEFAULT_EXAMENES), nombres de archivos de datos y
 encabezados CSV.
 
 DEFAULT_EXAMENES se copia VERBATIM desde ``D:\\CODE\\examenes\\examenes.json``
-(66 entradas; los artefactos SDD mencionan 54 — discrepancia documentada en
+(67 entradas; los artefactos SDD mencionan 54 — discrepancia documentada en
 apply-progress; la fuente es la verdad). Las escrituras del store respetan la
 convención ``FLASK_DATA_SUFFIX`` del app standalone.
 """
@@ -40,7 +40,7 @@ CSV_HEADERS: list[str] = [
 ]
 
 # =============================================================================
-# CATÁLOGO POR DEFECTO — 66 entradas verbatim de la fuente (EX-5)
+# CATÁLOGO POR DEFECTO — 67 entradas verbatim de la fuente (EX-5)
 # =============================================================================
 
 DEFAULT_EXAMENES: list[dict] = [
@@ -110,4 +110,5 @@ DEFAULT_EXAMENES: list[dict] = [
     { "cod": "873210", "emss": "X", "mall": "X", "neps": "X", "nom": "RADIOGRAF\u00cdA DE MANO" },
     { "cod": "903856", "emss": "X", "mall": "", "neps": "", "nom": "NITROGENO UREICO ( BUN )" },
     { "cod": "903833", "nom": "FOSFATASA ALCALINA", "neps": "", "mall": "", "emss": "" },
+    { "cod": "903809", "emss": "", "mall": "", "neps": "", "nom": "BILIRRUBINAS TOTAL Y DIRECTA" },
 ]
