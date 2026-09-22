@@ -248,13 +248,13 @@ def _do_detect_problems(
         "tipo_usuario": "Tipo Usuario",
         "vlr_copago": "Vlr. Copago",
         "numero_reingreso": "Nº Reingreso",
-        "codigo_dx_principal": "Cód. Dx Principal",
     }
 
-    # --- Auto-detección de fila de headers ---
+    # --- Auto-detección de fila de headers (best-match, 5 filas) ---
     # Algunos Excel tienen filas de título antes de los encabezados reales.
-    # Escanea las primeras filas buscando una que contenga TODOS los names requeridos.
-    MAX_SCAN_ROWS = 20
+    # Escanea las primeras 5 filas y se queda con la de mayor coincidencia
+    # con los names requeridos (best-match). Empates → primera fila.
+    MAX_SCAN_ROWS = 5
     nombres_requeridos: set[str] = set()
     for name in required_headers.values():
         name_norm = (
@@ -263,6 +263,7 @@ def _do_detect_problems(
         nombres_requeridos.add(name_norm)
 
     detected_row = 1  # default: fila 1
+    best_score = -1
     for check_row in range(1, min(len(rows), MAX_SCAN_ROWS + 1)):
         valores_fila: set[str] = set()
         for col in range(1, len(rows[check_row])):
@@ -274,12 +275,14 @@ def _do_detect_problems(
                     .replace("\u00a0", " ")
                 )
                 valores_fila.add(norm)
-        if nombres_requeridos.issubset(valores_fila):
+        score = len(nombres_requeridos & valores_fila)
+        if score > best_score:
+            best_score = score
             detected_row = check_row
-            logger.info(
-                "Headers detectados automáticamente en fila %d", detected_row
-            )
-            break
+    logger.info(
+        "Headers best-match en fila %d (%d/%d coincidencias)",
+        detected_row, best_score, len(nombres_requeridos),
+    )
 
     # Reubicar headers en row=1 si se detectaron más abajo
     # (todos los detectores asumen headers en row=1, datos desde row=2)
