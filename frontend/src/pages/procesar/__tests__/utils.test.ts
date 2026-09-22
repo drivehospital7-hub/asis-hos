@@ -33,28 +33,50 @@ describe("norm", () => {
 // ─── buildObservacion ───────────────────────────────────────────────────
 
 describe("buildObservacion", () => {
-  it("returns only descripcion without prefix or detalle", () => {
-    expect(buildObservacion("Duplicada", "R1")).toBe("Duplicada");
+  it("combines descripcion with both details", () => {
+    expect(buildObservacion("D", "P", "DET")).toBe(
+      "D\nDetalle A: P\nDetalle B: DET",
+    );
   });
 
-  it("trims descripcion and ignores detalle", () => {
-    expect(buildObservacion("  D  ", "  R  ")).toBe("D");
+  it("includes only Detalle A when B is missing", () => {
+    expect(buildObservacion("D", "P", "")).toBe("D\nDetalle A: P");
   });
 
-  it("ignores detalle even when empty", () => {
-    expect(buildObservacion("Solo desc", "")).toBe("Solo desc");
-    expect(buildObservacion("Solo desc", "   ")).toBe("Solo desc");
+  it("includes only Detalle B when A is missing", () => {
+    expect(buildObservacion("D", "", "DET")).toBe("D\nDetalle B: DET");
   });
 
-  it("caps output at 500 chars", () => {
+  it("returns only descripcion when neither detail is real", () => {
+    expect(buildObservacion("D", "", "")).toBe("D");
+    expect(buildObservacion("D", "-", "—")).toBe("D");
+    expect(buildObservacion("D", "   ", "-")).toBe("D");
+  });
+
+  it("trims inputs", () => {
+    expect(buildObservacion("  D  ", "  P  ", "  DET  ")).toBe(
+      "D\nDetalle A: P\nDetalle B: DET",
+    );
+  });
+
+  it("caps output at 500 chars total", () => {
     const long = "x".repeat(600);
-    const out = buildObservacion(long, "detalle");
+    const out = buildObservacion(long, "P", "DET");
     expect(out.length).toBeLessThanOrEqual(500);
     expect(out).toBe("x".repeat(500));
   });
 
-  it("handles empty descripcion", () => {
-    expect(buildObservacion("", "R1")).toBe("");
+  it("returns only detail lines when descripcion is empty", () => {
+    expect(buildObservacion("", "P", "")).toBe("Detalle A: P");
+    expect(buildObservacion("", "", "DET")).toBe("Detalle B: DET");
+    expect(buildObservacion("", "P", "DET")).toBe(
+      "Detalle A: P\nDetalle B: DET",
+    );
+  });
+
+  it("returns empty string when everything is empty", () => {
+    expect(buildObservacion("", "", "")).toBe("");
+    expect(buildObservacion("   ", "-", "—")).toBe("");
   });
 });
 

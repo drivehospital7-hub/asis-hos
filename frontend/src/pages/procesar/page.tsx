@@ -191,7 +191,8 @@ export function ProcesarPage({
     factura: string,
     descripcion: string,
     responsable: string,
-    reglaDetalle = "",
+    detalleA = "",
+    detalleB = "",
   ) => {
     if (!can_write || !canControl) {
       showToast("Iniciá sesión para enviar");
@@ -218,7 +219,7 @@ export function ProcesarPage({
       }
     }
 
-    const observacion = buildObservacion(descripcion, reglaDetalle);
+    const observacion = buildObservacion(descripcion, detalleA, detalleB);
 
     try {
       const res = await fetch("/api/control-errores", {
@@ -475,7 +476,8 @@ export function ProcesarPage({
                                             f.factura,
                                             f.descripcion,
                                             f.responsable_cierra || "",
-                                            f.regla || f.detalle || "",
+                                            f.procedimiento || "",
+                                            f.detalle || "",
                                           )
                                         }
                                       >
@@ -492,7 +494,8 @@ export function ProcesarPage({
                                             f.factura,
                                             f.descripcion,
                                             f.responsable_cierra || "",
-                                            f.regla || f.detalle || "",
+                                            f.procedimiento || "",
+                                            f.detalle || "",
                                           )
                                         }
                                       >
