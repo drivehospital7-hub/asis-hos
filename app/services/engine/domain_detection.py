@@ -52,7 +52,7 @@ def detect_domain_rules(
     data_sheet: "Worksheet | None" = None,
     indices: dict[str, int | None] | None = None,
     rows: list[dict[str, Any]] | None = None,
-    persist: bool = True,
+    persist: bool = False,
     evidence_collector: "EvidenceCollector | None" = None,
 ) -> list[RuleBatch]:
     """Evaluate every enabled rule for a domain exactly once per nombre.
@@ -64,7 +64,8 @@ def detect_domain_rules(
         data_sheet: openpyxl Worksheet with invoice data.
         indices: Column name → 0-based column index mapping.
         rows: Optional RowStore precargados (fast path).
-        persist: Forwarded to detectors (False skips evidence/audit writes).
+        persist: Forwarded to detectors (defaults to False: no evidence/audit
+            writes unless the caller opts in explicitly).
         evidence_collector: Shared collector, or None for per-rule default.
 
     Returns:

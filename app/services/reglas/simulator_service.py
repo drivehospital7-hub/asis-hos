@@ -135,7 +135,8 @@ def simulate(
         else ENGINE_DOMAIN_TRANSVERSAL
     )
     detector = RuleBasedDetector(rule_name_to_use, db_session, dominio=_dominio)
-    engine_results = detector.detect(ws, indices)
+    # El simulador nunca persiste: solo compara engine vs legacy en memoria.
+    engine_results = detector.detect(ws, indices, persist=False)
 
     # Run legacy detectors
     legacy_results: list[dict] = []

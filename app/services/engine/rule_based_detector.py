@@ -52,7 +52,7 @@ class RuleBasedDetector:
         self,
         data_sheet: "Worksheet | None" = None,
         indices: dict[str, int | None] | None = None,
-        persist: bool = True,
+        persist: bool = False,
         rows: list[dict[str, Any]] | None = None,
         evidence_collector: "EvidenceCollector | None" = None,
     ) -> list[dict[str, Any]]:
@@ -64,8 +64,8 @@ class RuleBasedDetector:
         Args:
             data_sheet: openpyxl Worksheet with invoice data.
             indices: Column name → 0-based column index mapping.
-            persist: If True (default), record evidence and audit. If False,
-                     skip DB writes — only return detection results.
+            persist: If True, record evidence and audit. Defaults to False
+                     (no DB writes) — callers must opt in explicitly.
             rows: Optional list of dicts (RowStore) for O(1) dict access.
             evidence_collector: Optional external EvidenceCollector.
 

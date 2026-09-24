@@ -57,6 +57,34 @@ class TestSimulatorService:
         assert "diff" in result
         assert len(result["engine_results"]) == 1
 
+    def test_simulate_never_persists_evidence(self):
+        """simulate MUST call detector.detect with persist=False (no DB writes)."""
+        from app.services.reglas.simulator_service import simulate
+
+        mock_db = MagicMock()
+        mock_df = MagicMock()
+        mock_df.head.return_value = mock_df
+        mock_df.to_dicts.return_value = [{"NUMERO_FACTURA": "F001"}]
+        mock_df.columns = ["NUMERO_FACTURA"]
+
+        with patch("app.services.reglas.simulator_service.pl") as mock_pl:
+            mock_pl.read_excel.return_value = mock_df
+            mock_engine = MagicMock()
+            mock_engine.detect.return_value = []
+            with patch("app.services.reglas.simulator_service.RuleBasedDetector", return_value=mock_engine):
+                with patch("app.services.reglas.simulator_service.detect_decimales", return_value=[]):
+                    with patch("app.services.reglas.simulator_service.detect_ruta_duplicada", return_value=[]):
+                        with patch("app.services.reglas.simulator_service._excel_to_sheet",
+                                  return_value=(MagicMock(), {})):
+                            file_mock = MagicMock()
+                            file_mock.filename = "test.xlsx"
+                            file_mock.read.return_value = b"fake"
+                            simulate(mock_db, file_mock)
+
+        mock_engine.detect.assert_called_once()
+        _, kwargs = mock_engine.detect.call_args
+        assert kwargs.get("persist") is False
+
     def test_simulate_truncates_to_100_rows(self):
         """simulate processes only first 100 rows from Excel."""
         from app.services.reglas.simulator_service import simulate
