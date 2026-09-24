@@ -14,9 +14,13 @@ lives in detectors/engine); results bucket by rule-declared grupo_error so
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from contextvars import ContextVar
 from app.services.engine.rule_resolver import RuleResolver
 
 if TYPE_CHECKING:
@@ -35,6 +39,16 @@ GRUPO_CODIGO_ENTIDAD = "Codigo-Entidad-vs-Afiliacion"
 #: every other grupo batch feeds the tipo_identificacion_entidad bucket.
 REGLA_CODIGO_ENTIDAD = "codigo_entidad"
 
+#: Request-scoped simulator override (set only by simulation_scope).
+#: When not None, detect_domain_rules evaluates ONLY these rule ids.
+_SIM_ONLY_RULE_IDS: ContextVar[frozenset[int] | None] = ContextVar(
+    "sim_only_rule_ids", default=None
+)
+
+#: Request-scoped simulator override. When True, evidence/audit persistence
+#: is forced off even if the caller passed persist=True (dry-run).
+_SIM_NO_PERSIST: ContextVar[bool] = ContextVar("sim_no_persist", default=False)
+
 
 @dataclass
 class RuleBatch:
@@ -44,6 +58,26 @@ class RuleBatch:
     grupo: str
     dominio: str
     items: list[dict[str, Any]] = field(default_factory=list)
+
+
+@contextmanager
+def simulation_scope(rule_ids: set[int] | frozenset[int] | None) -> Iterator[None]:
+    """Scope the engine to a rule subset with persistence forced off.
+
+    Used ONLY by the /admin/reglas simulator (dry-run): rules outside
+    ``rule_ids`` are skipped and no evidence/audit rows are written.
+    ``None`` means "all enabled rules" (still no persistence).
+    Resets both overrides on exit; safe for nested/concurrent requests
+    via ContextVar.
+    """
+    only = None if rule_ids is None else frozenset(rule_ids)
+    token_ids = _SIM_ONLY_RULE_IDS.set(only)
+    token_persist = _SIM_NO_PERSIST.set(True)
+    try:
+        yield
+    finally:
+        _SIM_ONLY_RULE_IDS.reset(token_ids)
+        _SIM_NO_PERSIST.reset(token_persist)
 
 
 def detect_domain_rules(
@@ -77,12 +111,20 @@ def detect_domain_rules(
     # app.services.engine.rule_based_detector.RuleBasedDetector stable.
     from app.services.engine.rule_based_detector import RuleBasedDetector
 
+    # Simulator scope (ContextVar): restrict to selected rule ids and
+    # never persist evidence/audit (dry-run). Default: current behavior.
+    only_ids = _SIM_ONLY_RULE_IDS.get()
+    if _SIM_NO_PERSIST.get():
+        persist = False
+
     batches: list[RuleBatch] = []
     seen: set[str] = set()
     for rule in RuleResolver().resolve(domain, session):
         if rule.nombre in seen:
             continue
         seen.add(rule.nombre)
+        if only_ids is not None and rule.id not in only_ids:
+            continue
         items = RuleBasedDetector(rule.nombre, session, dominio=domain).detect(
             data_sheet, indices, persist=persist, rows=rows,
             evidence_collector=evidence_collector,

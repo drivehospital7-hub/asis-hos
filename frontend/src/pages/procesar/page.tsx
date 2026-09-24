@@ -1,90 +1,23 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import {
   Upload,
   Info,
   FileSpreadsheet,
-  FileDown,
   ArrowRight,
-  AlertTriangle,
-  ChevronDown,
-  ChevronRight,
-  Check,
-  Plus,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageTitle } from "@/components/page-title";
-import { StatusBadge } from "@/components/status-badge";
-import {
-  norm,
-  buildObservacion,
-  buildEnvioSet,
-  getEnvioEstado,
-  canShowEnvio,
-} from "./utils";
-
-const TOAST_DURATION = 2500;
-
-// ---------------------------------------------------------------------------
-// Tipos
-// ---------------------------------------------------------------------------
-
-interface FacturaItem {
-  tipo_error: string;
-  factura: string;
-  fec_factura: string;
-  responsable_cierra: string;
-  descripcion: string;
-  procedimiento: string;
-  detalle: string;
-  fecha_cierre_vacia?: boolean;
-  regla?: string;
-  _enviada?: boolean;
-}
-
-interface TipoGroup {
-  tipo: string;
-  tipo_key: string;
-  cantidad: number;
-  facturas: FacturaItem[];
-}
-
-interface FacturaGroup {
-  tipo_factura: string;
-  total: number;
-  tipos: TipoGroup[];
-}
+import { ResultadosProcesar } from "@/components/procesar/ResultadosProcesar";
+import type { ProcesarResultData } from "@/components/procesar/types";
+import { useEnvioControl } from "@/hooks/useEnvioControl";
+import { Toast } from "@/components/procesar/Toast";
+import { norm } from "./utils";
 
 interface ProcesarPageProps {
   can_write?: boolean;
   canControl?: boolean;
-}
-
-// ---------------------------------------------------------------------------
-// Toast (clon abiertas-urgencias/page.tsx L56-75)
-// ---------------------------------------------------------------------------
-
-function Toast({
-  message,
-  onDone,
-}: {
-  message: string;
-  onDone: () => void;
-}) {
-  useEffect(() => {
-    const t = setTimeout(onDone, TOAST_DURATION);
-    return () => clearTimeout(t);
-  }, [onDone]);
-
-  return (
-    <div className="fixed bottom-6 right-6 z-50">
-      <div className="rounded-lg bg-foreground px-4 py-2.5 text-sm font-medium text-background shadow-lg">
-        {message}
-      </div>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -97,66 +30,43 @@ export function ProcesarPage({
 }: ProcesarPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<{
-    errores: FacturaGroup[];
-    total_errores: number;
-    tipos_procesados: string[];
-  } | null>(null);
+  const [result, setResult] = useState<ProcesarResultData | null>(null);
   const [error, setError] = useState("");
   const [exportId, setExportId] = useState<string | null>(null);
-  const [expandedAreas, setExpandedAreas] = useState<Set<string>>(new Set());
   const inputRef = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
 
-  // ── Envío a Control state (clon abiertas-urgencias) ──
-  const envioExistentes = useRef<Set<string>>(new Set());
-  const envioEnviadas = useRef<Set<string>>(new Set());
-  const [envioVersion, setEnvioVersion] = useState(0);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const showToast = useCallback((msg: string) => {
-    setToastMessage(msg);
+  // ── Envío a Control (hook compartido con el simulador) ──
+  const markEnviada = useCallback((factura: string) => {
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            errores: prev.errores.map((fg) => ({
+              ...fg,
+              tipos: fg.tipos.map((tg) => ({
+                ...tg,
+                facturas: tg.facturas.map((x) =>
+                  norm(x.factura) === norm(factura)
+                    ? { ...x, _enviada: true }
+                    : x,
+                ),
+              })),
+            })),
+          }
+        : prev,
+    );
   }, []);
 
-  const showEnvio = canShowEnvio(can_write, canControl);
-
-  // Preload único: GET /api/control-errores → Set global normalizado
-  useEffect(() => {
-    if (!showEnvio) return;
-    fetch("/api/control-errores")
-      .then((res) => res.json())
-      .then((data) => {
-        const errores =
-          data.status === "success" && data.data?.errores
-            ? (data.data.errores as Array<{
-                factura?: string;
-                tipo_error?: string;
-              }>)
-            : [];
-        envioExistentes.current = buildEnvioSet(errores);
-        setEnvioVersion((v) => v + 1);
-      })
-      .catch(() => {
-        envioExistentes.current = new Set();
-      });
-  }, [showEnvio]);
-
-  const toggleArea = (tipo_factura: string) => {
-    const isCurrentlyOpen = expandedAreas.has(tipo_factura);
-    setExpandedAreas((prev) => {
-      const next = new Set(prev);
-      if (next.has(tipo_factura)) next.delete(tipo_factura);
-      else next.add(tipo_factura);
-      return next;
-    });
-    // Scroll al centro de la pantalla al abrir
-    if (!isCurrentlyOpen) {
-      setTimeout(() => {
-        const el = document.getElementById(`area-${tipo_factura}`);
-        el?.scrollIntoView({ behavior: "smooth", block: "center" });
-      }, 50);
-    }
-  };
+  const {
+    showEnvio,
+    envioExistentes,
+    envioEnviadas,
+    envioVersion,
+    toastMessage,
+    setToastMessage,
+    handleSendToControl,
+  } = useEnvioControl({ can_write, canControl, onEnviada: markEnviada });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -186,90 +96,6 @@ export function ProcesarPage({
       setLoading(false);
     }
   };
-
-  const handleSendToControl = async (
-    factura: string,
-    descripcion: string,
-    responsable: string,
-    detalleA = "",
-    detalleB = "",
-  ) => {
-    if (!can_write || !canControl) {
-      showToast("Iniciá sesión para enviar");
-      return;
-    }
-    if (!factura) return;
-
-    const alreadyExists = envioExistentes.current.has(norm(factura));
-    if (alreadyExists) {
-      if (
-        !(await window.__showConfirm!(
-          `La factura "${factura}" ya existe en la tabla de Control de Errores.\n¿Querés duplicarla de todas formas?`,
-        ))
-      ) {
-        return;
-      }
-    } else {
-      if (
-        !(await window.__showConfirm!(
-          `¿Enviar factura "${factura}" a Control de Errores como "Otros"?`,
-        ))
-      ) {
-        return;
-      }
-    }
-
-    const observacion = buildObservacion(descripcion, detalleA, detalleB);
-
-    try {
-      const res = await fetch("/api/control-errores", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipo_error: "Otros",
-          factura,
-          observacion,
-          estado: "S",
-          responsable: responsable || "",
-        }),
-      });
-      const json = await res.json();
-      if (json.status === "success") {
-        envioEnviadas.current.add(norm(factura));
-        envioExistentes.current.add(norm(factura));
-        setResult((prev) =>
-          prev
-            ? {
-                ...prev,
-                errores: prev.errores.map((fg) => ({
-                  ...fg,
-                  tipos: fg.tipos.map((tg) => ({
-                    ...tg,
-                    facturas: tg.facturas.map((x) =>
-                      norm(x.factura) === norm(factura)
-                        ? { ...x, _enviada: true }
-                        : x,
-                    ),
-                  })),
-                })),
-              }
-            : prev,
-        );
-        setEnvioVersion((v) => v + 1);
-        showToast(`✅ Factura "${factura}" enviada a Control de Errores`);
-      } else {
-        const errs = json.errors || ["Error desconocido"];
-        showToast("Error: " + errs.join(", "));
-      }
-    } catch {
-      showToast("Error de conexión al enviar");
-    }
-  };
-
-  const allFacturas = result?.errores?.flatMap((fg) => fg.tipos.flatMap((tg) => tg.facturas)) ?? [];
-
-  // Referencia envioVersion para re-render tras preload/envío (refs no disparan render)
-  void envioVersion;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -354,192 +180,18 @@ export function ProcesarPage({
         </form>
       </Card>
 
-      {/* Resultados */}
-      {allFacturas.length > 0 && (
-        <Card className="p-6 border-border bg-card shadow-none">
-          <div className="flex items-center justify-between mb-5 pb-4 border-b border-border">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-md bg-danger/10 text-danger">
-                <AlertTriangle className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="font-display font-semibold text-foreground">Errores detectados</h2>
-                <p className="text-xs text-muted-foreground">Inconsistencias identificadas en el reporte</p>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="font-display text-2xl font-semibold text-danger">{result?.total_errores ?? allFacturas.length}</div>
-              <div className="text-xs text-muted-foreground">total</div>
-            </div>
-          </div>
-
-          {/* Exportar tabla completa a Excel (backend: GET /procesar/export?id=) */}
-          {exportId && (
-            <div className="mb-5">
-              <a href={`/procesar/export?id=${exportId}`} download>
-                <Button variant="outline">
-                  <FileDown className="h-4 w-4" />
-                  Exportar Excel
-                </Button>
-              </a>
-            </div>
-          )}
-
-          {result?.errores?.map((fg: FacturaGroup) => {
-            const isOpen = expandedAreas.has(fg.tipo_factura);
-            const tiposResumen = fg.tipos.map((t) => `${t.tipo}: ${t.cantidad}`).join(" · ");
-            return (
-              <div key={fg.tipo_factura} className="mb-3 rounded-md border border-border overflow-hidden">
-                {/* Area header — collapsible card header */}
-                <button
-                  id={`area-${fg.tipo_factura}`}
-                  onClick={() => toggleArea(fg.tipo_factura)}
-                  className="w-full flex items-center justify-between px-4 py-3 bg-muted/40 hover:bg-muted/70 transition-colors text-left"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    {isOpen ? (
-                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-                    )}
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-display text-sm font-semibold text-foreground">{fg.tipo_factura}</h3>
-                        <StatusBadge tone="danger">{fg.total} registros</StatusBadge>
-                      </div>
-                      {!isOpen && tiposResumen && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{tiposResumen}</p>
-                      )}
-                    </div>
-                  </div>
-                  {isOpen && (
-                    <span className="text-xs text-muted-foreground shrink-0">ocultar</span>
-                  )}
-                </button>
-
-                {/* Area content — tables by tipo_error */}
-                {isOpen && (
-                  <div className="p-4 space-y-4 border-t border-border">
-                    {fg.tipos?.map((tg: TipoGroup) => (
-                      <div key={tg.tipo_key}>
-                        <div className="flex items-center gap-2 mb-2">
-                          <span className="text-xs font-semibold text-foreground">{tg.tipo}</span>
-                          <StatusBadge tone="danger">{tg.cantidad} registros</StatusBadge>
-                        </div>
-                        <div className="overflow-x-auto rounded-md border border-border">
-                          <table className="w-full text-sm">
-                            <thead className="bg-muted/60 text-xs uppercase tracking-wider text-muted-foreground">
-                              <tr>
-                                <th className="text-left font-medium px-4 py-3">Fec. Factura</th>
-                                <th className="text-left font-medium px-4 py-3">Factura</th>
-                                <th className="text-left font-medium px-4 py-3">Regla</th>
-                                <th className="text-left font-medium px-4 py-3">Responsable cierre</th>
-                                <th className="text-left font-medium px-4 py-3">Descripción</th>
-                                <th className="text-left font-medium px-4 py-3">Detalle A</th>
-                                <th className="text-left font-medium px-4 py-3">Detalle B</th>
-                                {showEnvio && (
-                                  <th className="text-center font-medium px-4 py-3">Envío</th>
-                                )}
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-border">
-                              {tg.facturas.slice(0, 50).map((f: FacturaItem, i: number) => {
-                                  const estado = getEnvioEstado(
-                                    f.factura,
-                                    Boolean(
-                                      f._enviada ||
-                                        envioEnviadas.current.has(
-                                          norm(f.factura),
-                                        ),
-                                    ),
-                                    envioExistentes.current,
-                                  );
-                                  let envioCell: React.ReactNode;
-                                  if (estado === "enviada") {
-                                    envioCell = (
-                                      <span
-                                        className="inline-flex items-center justify-center rounded-sm bg-success/10 px-1.5 py-0.5 text-[10px] font-medium text-success"
-                                        title="Enviada a Control"
-                                      >
-                                        <Check className="h-3 w-3" />
-                                      </span>
-                                    );
-                                  } else if (!showEnvio) {
-                                    envioCell = null;
-                                  } else if (estado === "duplicada") {
-                                    envioCell = (
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-sm bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning-foreground hover:bg-warning/20 transition-colors w-full"
-                                        title="Ya está en Control — Click para duplicar"
-                                        onClick={() =>
-                                          handleSendToControl(
-                                            f.factura,
-                                            f.descripcion,
-                                            f.responsable_cierra || "",
-                                            f.procedimiento || "",
-                                            f.detalle || "",
-                                          )
-                                        }
-                                      >
-                                        ⚠
-                                      </button>
-                                    );
-                                  } else {
-                                    envioCell = (
-                                      <button
-                                        className="inline-flex items-center justify-center rounded-sm bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium text-primary w-full hover:bg-primary/20 transition-colors"
-                                        title="Enviar a Control de Errores"
-                                        onClick={() =>
-                                          handleSendToControl(
-                                            f.factura,
-                                            f.descripcion,
-                                            f.responsable_cierra || "",
-                                            f.procedimiento || "",
-                                            f.detalle || "",
-                                          )
-                                        }
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </button>
-                                    );
-                                  }
-                                  return (
-                                  <tr
-                                    key={`${f.factura}-${i}`}
-                                    className={cn(
-                                      "hover:bg-muted/30 transition-colors",
-                                      f.fecha_cierre_vacia && "bg-amber-50"
-                                    )}
-                                  >
-                                    <td className="px-4 py-3 text-xs text-foreground/80">{f.fec_factura || "-"}</td>
-                                    <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
-                                    <td className="px-4 py-3 font-mono text-xs text-foreground/70">{f.regla || "-"}</td>
-                                    <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra || "-"}</td>
-                                    <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
-                                    <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
-                                    <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.detalle || "-"}</td>
-                                    {showEnvio && (
-                                      <td className="px-4 py-3 text-center">{envioCell}</td>
-                                    )}
-                                  </tr>
-                                  );
-                              })}
-                            </tbody>
-                          </table>
-                          {tg.facturas.length > 50 && (
-                            <div className="px-4 py-2 text-xs text-muted-foreground bg-muted/30 border-t border-border">
-                              Mostrando 50 de {tg.cantidad} registros
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </Card>
+      {/* Resultados (componente compartido con el simulador) */}
+      {result && (
+        <ResultadosProcesar
+          errores={result.errores}
+          totalErrores={result.total_errores}
+          exportHref={exportId ? `/procesar/export?id=${exportId}` : null}
+          showEnvio={showEnvio}
+          envioExistentes={envioExistentes}
+          envioEnviadas={envioEnviadas}
+          envioVersion={envioVersion}
+          onSendToControl={handleSendToControl}
+        />
       )}
     </div>
   );

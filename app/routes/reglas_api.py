@@ -25,6 +25,7 @@ from app.services.reglas.rule_service import (
 from app.services.reglas.exception_service import list_exceptions, create_exception
 from app.services.reglas.evidence_service import query_evidence
 from app.services.reglas.audit_service import query_audit
+from app.services.processor_gate import rate_limit
 from app.services.reglas.simulator_service import simulate
 from app.services.reglas.catalogos_service import (
     list_catalogos,
@@ -328,10 +329,16 @@ def api_query_audit():
 
 
 @reglas_api_bp.route("/reglas/simular", methods=["POST"])
+@rate_limit(1, 120, admin_exempt=True)
 @admin_requerido
 def api_simulate():
-    """Dry-run: compare engine vs legacy detectors on uploaded Excel."""
-    db = next(get_db())
+    """Dry-run: real /procesar pipeline on uploaded Excel, filtered by rules.
+
+    Multipart fields: ``file`` (Excel, required), ``rule_ids`` (JSON array
+    of rule ids, optional — empty/absent runs all enabled rules),
+    ``sheet_name`` (optional). NEVER persists evidence/audit.
+    Response shape matches POST /procesar plus ``reglas_aplicadas``.
+    """
     try:
         if "file" not in request.files:
             return jsonify({
@@ -346,17 +353,47 @@ def api_simulate():
                 "errors": ["Archivo no seleccionado"],
             }), 400
 
-        rule_name = request.form.get("rule_name")
+        rule_ids = _parse_simulate_rule_ids(request.form.get("rule_ids"))
+        if rule_ids is None:
+            return jsonify({
+                "status": "error", "data": {},
+                "errors": ["Campo inválido: rule_ids debe ser un array JSON de ids"],
+            }), 400
+        sheet_name = request.form.get("sheet_name") or None
 
-        result = simulate(db, file_storage, rule_name=rule_name)
+        result = simulate(None, file_storage, rule_ids=rule_ids, sheet_name=sheet_name)
         return jsonify({"status": "success", "data": result, "errors": []})
     except ValueError as e:
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
         logger.exception("Error running simulator")
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
-    finally:
-        db.close()
+
+
+def _parse_simulate_rule_ids(raw: str | None) -> list[int] | None:
+    """Parse the optional ``rule_ids`` form field (JSON array of ints).
+
+    Returns [] when absent/blank (all rules), or None when malformed.
+    """
+    if not raw or not raw.strip():
+        return []
+    import json as _json
+
+    try:
+        parsed = _json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(parsed, list):
+        return None
+    ids: list[int] = []
+    for value in parsed:
+        if isinstance(value, bool):
+            return None
+        try:
+            ids.append(int(value))
+        except (ValueError, TypeError):
+            return None
+    return ids
 
 
 # ─── Catálogos CRUD ────────────────────────────────────────────────────

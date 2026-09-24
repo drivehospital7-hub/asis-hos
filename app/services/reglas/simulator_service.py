@@ -1,156 +1,124 @@
-"""Simulator service — dry-run comparison between engine and legacy detectors.
+"""Simulator service — dry-run of the real pipeline with a rule subset.
 
-Parses an uploaded Excel file (max 100 rows), runs both the DB-backed
-RuleBasedDetector and legacy Python detectors, and returns a diff comparison.
+Uploads an Excel, runs the SAME detection pipeline as POST /procesar
+(area unificada, ALL rows), and returns the SAME shaped payload, optionally
+filtered to a selected set of rule ids.
+
+The simulator NEVER persists evidence/audit rows: evaluation runs inside
+``domain_detection.simulation_scope``. No legacy Python detectors are used.
 """
 
 from __future__ import annotations
 
 import logging
-from io import BytesIO
 from typing import Any
 
-import polars as pl
-from openpyxl import load_workbook
-
-from app.services.engine.rule_based_detector import RuleBasedDetector
-from app.services.transversales.decimales import detect_decimales
-from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
+from app.constants import AREA_UNIFICADA
+from app.services.engine.domain_detection import simulation_scope
+from app.services.exporter import detect_problems_only
+from app.services.procesar_response import build_procesar_response_data
+from app.utils import procesar_export_store as export_store
+from app.utils.input_data import cleanup_temp_excel, save_temp_excel
 
 logger = logging.getLogger(__name__)
 
-_MAX_ROWS = 100
-_ALLOWED_EXTENSIONS = {".xlsx", ".xls"}
 
-
-def _excel_to_sheet(file_bytes: bytes) -> tuple[Any, dict[str, int | None]]:
-    """Convert uploaded Excel bytes to openpyxl Worksheet + column indices.
-
-    Returns:
-        (worksheet, indices_dict)
-    """
-    wb = load_workbook(BytesIO(file_bytes), read_only=True, data_only=True)
-    ws = wb.active
-    if ws is None:
-        raise ValueError("El archivo Excel no tiene hojas activas")
-
-    # Build indices from header row
-    indices: dict[str, int | None] = {}
-    header_row = next(ws.iter_rows(min_row=1, max_row=1, values_only=True), [])
-    for col_idx, cell_value in enumerate(header_row):
-        if cell_value is not None:
-            indices[str(cell_value)] = col_idx
-
-    return ws, indices
-
-
-def _build_diff(
-    engine_results: list[dict],
-    legacy_results: list[dict],
-) -> dict:
-    """Build a comparison diff between engine and legacy results.
-
-    Compares results by (factura, problema) tuple.
-    Returns matched, engine-only, and legacy-only counts with details.
-    """
-    engine_set = {
-        (r.get("factura"), r.get("problema"))
-        for r in engine_results
-    }
-    legacy_set = {
-        (r.get("factura"), r.get("problema"))
-        for r in legacy_results
-    }
-
-    matched = engine_set & legacy_set
-    engine_only = engine_set - legacy_set
-    legacy_only = legacy_set - engine_set
-
-    return {
-        "matched": sorted([{"factura": f, "problema": p} for f, p in matched], key=lambda x: x["factura"]),
-        "engine_only": sorted([{"factura": f, "problema": p} for f, p in engine_only], key=lambda x: x["factura"]),
-        "legacy_only": sorted([{"factura": f, "problema": p} for f, p in legacy_only], key=lambda x: x["factura"]),
-        "matched_count": len(matched),
-        "engine_only_count": len(engine_only),
-        "legacy_only_count": len(legacy_only),
-        "engine_total": len(engine_results),
-        "legacy_total": len(legacy_results),
-    }
+def _parse_regla_id(value: object) -> int | None:
+    """Parse normalized-row regla ('#33') to int id. None when absent."""
+    text = str(value or "").strip().lstrip("#").strip()
+    return int(text) if text.isdigit() else None
 
 
 def simulate(
     db_session,
     file_storage,
-    rule_name: str | None = None,
-) -> dict:
-    """Run a dry-run simulation comparing engine vs legacy detectors.
+    rule_ids: list[int] | set[int] | None = None,
+    sheet_name: str | None = None,
+) -> dict[str, Any]:
+    """Run a dry-run simulation of /procesar restricted to selected rules.
 
     Args:
-        db_session: SQLAlchemy Session for DB access
-        file_storage: werkzeug FileStorage (uploaded Excel)
-        rule_name: Optional rule name to filter engine evaluation
+        db_session: Unused (kept for backward compatibility). Engine sessions
+            are owned by each detect_all orchestrator via SessionManager.
+        file_storage: werkzeug FileStorage (uploaded Excel).
+        rule_ids: Rule ids to evaluate. None or empty = all enabled rules.
+        sheet_name: Excel sheet name (None = active sheet).
 
     Returns:
-        dict with engine_results, legacy_results, diff, and metadata
+        /procesar-shaped payload (errores, total_errores, tipos_procesados,
+        columnas, export_id) plus ``reglas_aplicadas`` (sorted ids, empty
+        means "all enabled rules").
 
     Raises:
-        ValueError: If file format is invalid
+        ValueError: If the file format is invalid or required columns
+            are missing.
     """
-    # Validate file extension
-    filename = file_storage.filename or ""
-    ext = "." + filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
-    if ext not in _ALLOWED_EXTENSIONS:
+    del db_session  # engine owns its sessions; simulator never persists
+    selected: set[int] | None = (
+        {int(r) for r in rule_ids} if rule_ids else None
+    )
+
+    temp_path, error = save_temp_excel(file_storage)
+    if error or temp_path is None:
+        raise ValueError(error or "No se pudo guardar el archivo Excel")
+    filename = str(temp_path)
+
+    try:
+        with simulation_scope(selected):
+            export_result, _status_code = detect_problems_only(
+                filename=filename,
+                sheet_name=sheet_name,
+                area=AREA_UNIFICADA,
+            )
+    finally:
+        cleanup_temp_excel(temp_path)
+
+    if export_result["status"] != "success":
         raise ValueError(
-            "Formato no válido. Seleccioná un archivo Excel (.xlsx o .xls)."
+            "; ".join(export_result.get("errors", ["Error desconocido"]))
         )
 
-    # Read Excel with Polars (limit to first 100 rows)
-    file_bytes = file_storage.read()
+    problemas_data = export_result["data"].get("problemas", {})
+    missing_columns = problemas_data.get("missing_columns", [])
+    if missing_columns:
+        raise ValueError(
+            "Columnas no encontradas en el Excel: "
+            + ", ".join(missing_columns)
+            + ". Verifica que el archivo tenga los encabezados correctos."
+        )
+
+    problemas_dict = problemas_data.get("problemas", {})
+    normalized_rows = problemas_dict.get("normalizados", [])
+
+    # Filter to the selected rules BEFORE display dedup, so winners are
+    # chosen among the selected rules only (same as if only those rules
+    # existed). Normalized rows carry regla as "#<id>".
+    if selected is not None:
+        before = len(normalized_rows)
+        normalized_rows = [
+            row for row in normalized_rows
+            if _parse_regla_id(row.get("regla")) in selected
+        ]
+        logger.info(
+            "Simulator rule filter: %d -> %d rows (%d rules selected)",
+            before, len(normalized_rows), len(selected),
+        )
+
+    response_data, deduped_items = build_procesar_response_data(
+        normalized_rows=normalized_rows,
+        problemas_data=problemas_data,
+        tipos_procesados_fallback=export_result["data"].get("tipos_procesados", []),
+    )
+
+    # Same best-effort export cache as /procesar: the simulator result
+    # downloads through GET /procesar/export?id= (admin-only anyway).
     try:
-        df = pl.read_excel(BytesIO(file_bytes))
-    except Exception as exc:
-        raise ValueError(f"No se pudo leer el archivo Excel: {exc}") from exc
+        export_id: str | None = export_store.put(deduped_items)
+    except Exception:
+        logger.exception("[BACK][ERROR] Simulator export cache write failed")
+        export_id = None
+    if export_id is not None:
+        response_data["export_id"] = export_id
 
-    total_rows = len(df)
-    df_limited = df.head(_MAX_ROWS)
-    truncated = total_rows > _MAX_ROWS
-
-    # Convert to openpyxl worksheet for legacy detectors
-    ws, indices = _excel_to_sheet(file_bytes)
-
-    # Run engine detector (resolve dominio from the rule row; transversal fallback)
-    from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL
-    from app.models import Regla
-
-    rule_name_to_use = rule_name or "valores_decimales"
-    _row = (
-        db_session.query(Regla)
-        .filter(Regla.nombre == rule_name_to_use)
-        .order_by(Regla.version.desc())
-        .first()
-    )
-    _dominio = (
-        _row.dominio
-        if _row is not None and getattr(_row, "dominio", None)
-        else ENGINE_DOMAIN_TRANSVERSAL
-    )
-    detector = RuleBasedDetector(rule_name_to_use, db_session, dominio=_dominio)
-    # El simulador nunca persiste: solo compara engine vs legacy en memoria.
-    engine_results = detector.detect(ws, indices, persist=False)
-
-    # Run legacy detectors
-    legacy_results: list[dict] = []
-    legacy_results.extend(detect_decimales(ws, indices) or [])
-    legacy_results.extend(detect_ruta_duplicada(ws, indices) or [])
-
-    # Build diff
-    diff = _build_diff(engine_results, legacy_results)
-
-    return {
-        "engine_results": engine_results,
-        "legacy_results": legacy_results,
-        "diff": diff,
-        "total_rows": total_rows,
-        "rows_processed": min(total_rows, _MAX_ROWS),
-        "truncated": truncated,
-    }
+    response_data["reglas_aplicadas"] = sorted(selected) if selected else []
+    return response_data

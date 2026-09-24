@@ -148,6 +148,24 @@ class TestReglasApiSimulator:
         response = app_client.post("/api/reglas/simular")
         assert response.status_code == 401
 
+    def test_simulate_rejects_malformed_rule_ids(self, app_client):
+        """Malformed rule_ids form field returns 400 with canonical envelope."""
+        import io
+
+        app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
+        response = app_client.post(
+            "/api/reglas/simular",
+            data={
+                "file": (io.BytesIO(b"fake"), "test.xlsx"),
+                "rule_ids": "not-json",
+            },
+            content_type="multipart/form-data",
+        )
+        assert response.status_code == 400
+        data = response.get_json()
+        assert data["status"] == "error"
+        assert data["errors"] == ["Campo inválido: rule_ids debe ser un array JSON de ids"]
+
 
 class TestReglasApiExceptions:
     """Tests for GET /api/reglas/<id>/excepciones"""

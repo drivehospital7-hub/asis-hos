@@ -23,10 +23,13 @@ from flask import (
 
 from app.constants import AREA_UNIFICADA
 from app.services.exporter import detect_problems_only
-from app.services.procesar_dedup import dedup_procesar_items
 from app.services.procesar_export import (
     build_procesar_export_workbook,
     filename_procesar_export,
+)
+from app.services.procesar_response import (
+    LIVE_DETAIL_DEFAULTS,
+    build_procesar_response_data,
 )
 from app.services.processor_gate import rate_limit
 from app.utils import procesar_export_store as export_store
@@ -37,19 +40,7 @@ logger = logging.getLogger(__name__)
 
 procesar_bp = Blueprint("procesar", __name__)
 
-#: Live detail keys forwarded dynamically from normalized_rows.
-#: Engine/DB-driven values (detalle_a/b_campo, grupo_error, prioridad,
-#: severidad, estancia_*) travel here when present; "" fallback otherwise
-#: so future DB details are never dropped by a fixed allow-list.
-LIVE_DETAIL_DEFAULTS: dict[str, object] = {
-    "estancia_str": "",
-    "estancia_horas": "",
-    "detalle_a_campo": "",
-    "detalle_b_campo": "",
-    "grupo_error": "",
-    "prioridad": "",
-    "severidad": "",
-}
+__all__ = ["procesar_bp", "LIVE_DETAIL_DEFAULTS"]
 
 
 def _get_manifest_asset(manifest_path: Path, entry_key: str, field: str) -> str:
@@ -169,46 +160,14 @@ def procesar_unificado_api():
     problemas_dict = problemas_data.get("problemas", {})
 
     normalized_rows = problemas_dict.get("normalizados", [])
-    total_errores = len(normalized_rows)
 
-    from itertools import groupby
-
-    errores = []
-    MAX_POR_TIPO = 50
-
-    all_items = []
-    for row in normalized_rows:
-        item = {
-            "tipo_error": row.get("tipo_error", ""),
-            "tipo_factura": row.get("tipo_factura", "Sin tipo"),
-            "factura": row.get("factura", ""),
-            "fec_factura": row.get("fec_factura", ""),
-            "responsable_cierra": row.get("responsable_cierra", ""),
-            "descripcion": row.get("descripcion", ""),
-            "procedimiento": row.get("procedimiento", ""),
-            "detalle": row.get("detalle", ""),
-            "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
-            "regla": row.get("regla", ""),
-        }
-        for live_key, live_default in LIVE_DETAIL_DEFAULTS.items():
-            live_value = row.get(live_key, live_default)
-            item[live_key] = live_default if live_value is None else live_value
-        all_items.append(item)
-
-    estancia_forwarded = sum(
-        1 for item in all_items if item.get("estancia_str")
-    )
-    logger.info(
-        "Procesar live details forwarded: %d/%d with estancia",
-        estancia_forwarded,
-        len(all_items),
-    )
-
-    # Dedup display-only: 1 fila por (factura, grupo_error), gana menor
-    # prioridad. Excel/evidencia/auditoría intactos (normalized_rows previo).
-    deduped_items = dedup_procesar_items(all_items)
-    logger.info(
-        "Procesar display dedup: %d -> %d filas", len(all_items), len(deduped_items)
+    # Shared builder (also used by the /admin/reglas simulator): display
+    # items + dedup + grouping. Returns payload without export_id plus the
+    # full deduped list for the GET export cache.
+    response_data, deduped_items = build_procesar_response_data(
+        normalized_rows=normalized_rows,
+        problemas_data=problemas_data,
+        tipos_procesados_fallback=export_result["data"].get("tipos_procesados", []),
     )
 
     # Best-effort disk cache of the FULL deduped list for GET export.
@@ -220,53 +179,6 @@ def procesar_unificado_api():
         logger.exception("[BACK][ERROR] Procesar export cache write failed")
         export_id = None
 
-    sorted_by_factura = sorted(
-        deduped_items, key=lambda r: (r["tipo_factura"], r["tipo_error"])
-    )
-    for tipo_factura, factura_group in groupby(
-        sorted_by_factura, key=lambda r: r["tipo_factura"]
-    ):
-        factura_items = list(factura_group)
-        tipos = []
-        total_factura = 0
-        for tipo_error, error_group in groupby(
-            factura_items, key=lambda r: r["tipo_error"]
-        ):
-            items = list(error_group)
-            tipos.append({
-                "tipo": tipo_error,
-                "tipo_key": "norm_" + tipo_error.lower().replace(" ", "_"),
-                "cantidad": len(items),
-                "cantidad_mostradas": min(len(items), MAX_POR_TIPO),
-                "facturas": items[:MAX_POR_TIPO],
-            })
-            total_factura += len(items)
-        errores.append({
-            "tipo_factura": tipo_factura,
-            "total": total_factura,
-            "tipos": tipos,
-        })
-
-    response_data: dict = {
-        "errores": errores,
-        "total_errores": sum(
-            sum(t["cantidad"] for t in f["tipos"]) for f in errores
-        ),
-        "tipos_procesados": problemas_data.get(
-            "tipos_procesados",
-            export_result["data"].get("tipos_procesados", []),
-        ),
-        "columnas": [
-            "Fec. Factura",
-            "Tipo de error",
-            "Número Factura",
-            "Regla",
-            "Responsable Cierra",
-            "Descripción",
-            "Procedimiento",
-            "Detalle",
-        ],
-    }
     if export_id is not None:
         response_data["export_id"] = export_id
 

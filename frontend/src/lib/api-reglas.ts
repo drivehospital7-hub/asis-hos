@@ -97,22 +97,41 @@ export interface AuditResult {
   offset: number;
 }
 
+export interface SimulateFacturaItem {
+  tipo_error: string;
+  factura: string;
+  fec_factura: string;
+  responsable_cierra: string;
+  descripcion: string;
+  procedimiento: string;
+  detalle: string;
+  fecha_cierre_vacia?: boolean;
+  regla?: string;
+  _enviada?: boolean;
+}
+
+export interface SimulateTipoGroup {
+  tipo: string;
+  tipo_key: string;
+  cantidad: number;
+  cantidad_mostradas?: number;
+  facturas: SimulateFacturaItem[];
+}
+
+export interface SimulateFacturaGroup {
+  tipo_factura: string;
+  total: number;
+  tipos: SimulateTipoGroup[];
+}
+
+/** Same shape as POST /procesar, plus which rules ran (empty = all). */
 export interface SimulateResult {
-  engine_results: Array<Record<string, unknown>>;
-  legacy_results: Array<Record<string, unknown>>;
-  diff: {
-    matched: Array<{ factura: string; problema: string }>;
-    engine_only: Array<{ factura: string; problema: string }>;
-    legacy_only: Array<{ factura: string; problema: string }>;
-    matched_count: number;
-    engine_only_count: number;
-    legacy_only_count: number;
-    engine_total: number;
-    legacy_total: number;
-  };
-  total_rows: number;
-  rows_processed: number;
-  truncated: boolean;
+  errores: SimulateFacturaGroup[];
+  total_errores: number;
+  tipos_procesados: string[];
+  columnas?: string[];
+  export_id?: string | null;
+  reglas_aplicadas: number[];
 }
 
 interface ApiResponse<T> {
@@ -371,14 +390,17 @@ export async function fetchCatalogoReglas(key: string): Promise<ReglaRef[]> {
 
 // ─── Simulator ───────────────────────────────────────────────────────
 
-/** Run a dry-run simulation comparing engine vs legacy detectors. */
+/** Dry-run the real /procesar pipeline restricted to selected rule ids. */
 export async function simulateReglas(
   file: File,
-  ruleName?: string,
+  ruleIds?: number[],
+  sheetName?: string,
 ): Promise<SimulateResult> {
   const formData = new FormData();
   formData.append("file", file);
-  if (ruleName) formData.append("rule_name", ruleName);
+  if (ruleIds && ruleIds.length > 0)
+    formData.append("rule_ids", JSON.stringify(ruleIds));
+  if (sheetName) formData.append("sheet_name", sheetName);
 
   const res = await fetch("/api/reglas/simular", {
     method: "POST",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 
 declare global {
   interface Window {
@@ -59,7 +59,11 @@ import {
 } from "@/lib/api-reglas";
 import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
 import { GroupingFields } from "@/components/admin-reglas/GroupingFields";
+import { ResultadosProcesar } from "@/components/procesar/ResultadosProcesar";
+import { Toast } from "@/components/procesar/Toast";
 import { useBulkActivacion } from "@/hooks/useBulkActivacion";
+import { useEnvioControl } from "@/hooks/useEnvioControl";
+import { hasControlWrite, norm } from "@/pages/procesar/utils";
 
 // ─── Types ──────────────────────────────────────────────────────────
 
@@ -1973,26 +1977,123 @@ function EvidenceDashboard() {
 // ═════════════════════════════════════════════════════════════════════
 
 function SimulatorView() {
+  // Solo admin llega acá (@admin_requerido). can_write/canControl se derivan
+  // de los permisos igual que en /procesar (admin trae "*").
+  const initialData = (
+    window as unknown as {
+      __INITIAL_DATA__?: { permisos?: string[] };
+    }
+  ).__INITIAL_DATA__;
+  const permisos = initialData?.permisos ?? [];
+  const canControl = hasControlWrite(permisos);
+  const can_write = permisos.includes("*");
+
+  const [rules, setRules] = useState<Regla[]>([]);
+  const [rulesLoading, setRulesLoading] = useState(true);
+  const [rulesError, setRulesError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [dominioFilter, setDominioFilter] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [file, setFile] = useState<File | null>(null);
-  const [ruleName, setRuleName] = useState("");
   const [result, setResult] = useState<SimulateResult | null>(null);
+  const [exportId, setExportId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const isExcel = (f: File) => f.name.endsWith(".xlsx") || f.name.endsWith(".xls");
+  // Reglas activas (las únicas que el motor evalúa).
+  useEffect(() => {
+    fetchReglas({ activo: "true" })
+      .then((items) => {
+        setRules(items);
+        setSelected(new Set(items.map((r) => r.id)));
+      })
+      .catch((e) =>
+        setRulesError(e instanceof Error ? e.message : "Error cargando reglas"),
+      )
+      .finally(() => setRulesLoading(false));
+  }, []);
+
+  const filteredRules = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rules.filter((r) => {
+      if (dominioFilter && r.dominio !== dominioFilter) return false;
+      if (!q) return true;
+      return (
+        r.nombre.toLowerCase().includes(q) ||
+        (r.descripcion ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [rules, search, dominioFilter]);
+
+  const toggleRule = (id: number) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const selectAll = () => setSelected(new Set(rules.map((r) => r.id)));
+  const selectNone = () => setSelected(new Set());
+  const selectVisible = () =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      for (const r of filteredRules) next.add(r.id);
+      return next;
+    });
+
+  // ── Envío a Control (mismo hook que /procesar) ──
+  const markEnviada = useCallback((factura: string) => {
+    setResult((prev) =>
+      prev
+        ? {
+            ...prev,
+            errores: prev.errores.map((fg) => ({
+              ...fg,
+              tipos: fg.tipos.map((tg) => ({
+                ...tg,
+                facturas: tg.facturas.map((x) =>
+                  norm(x.factura) === norm(factura)
+                    ? { ...x, _enviada: true }
+                    : x,
+                ),
+              })),
+            })),
+          }
+        : prev,
+    );
+  }, []);
+
+  const {
+    showEnvio,
+    envioExistentes,
+    envioEnviadas,
+    envioVersion,
+    toastMessage,
+    setToastMessage,
+    handleSendToControl,
+  } = useEnvioControl({ can_write, canControl, onEnviada: markEnviada });
+
+  const isExcel = (f: File) =>
+    f.name.endsWith(".xlsx") || f.name.endsWith(".xls") || f.name.endsWith(".xlsm");
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0];
-    if (!f) { setFile(null); return; }
+    if (!f) {
+      setFile(null);
+      return;
+    }
     if (!isExcel(f)) {
-      setError("Formato no válido. Seleccioná un archivo Excel.");
+      setError("Formato no válido. Seleccioná un archivo Excel (.xlsx, .xls, .xlsm).");
       setFile(null);
       return;
     }
     setError(null);
     setFile(f);
     setResult(null);
+    setExportId(null);
   };
 
   const handleSimulate = async () => {
@@ -2000,11 +2101,16 @@ function SimulatorView() {
       setError("Seleccioná un archivo Excel primero");
       return;
     }
+    if (selected.size === 0) {
+      setError("Elegí al menos una regla para probar");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const data = await simulateReglas(file, ruleName || undefined);
+      const data = await simulateReglas(file, [...selected]);
       setResult(data);
+      setExportId(data.export_id ?? null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al simular");
     } finally {
@@ -2013,153 +2119,184 @@ function SimulatorView() {
   };
 
   return (
-    <Card className="p-6 border shadow-none" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)", background: "white" }}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
-          Simulador de Reglas
-        </h2>
-      </div>
-
-      <p className="text-sm text-muted-foreground mb-4">
-        Subí un archivo Excel para comparar los resultados del motor de reglas (DB) contra los detectores legacy (Python).
-        Se procesarán hasta 100 filas.
-      </p>
-
-      {/* File upload */}
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <div
-          className="flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
-          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-          onClick={() => fileInputRef.current?.click()}
-        >
-          <Upload className="h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />
-          <span className="text-sm">{file ? file.name : "Seleccionar Excel"}</span>
-        </div>
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".xlsx,.xls"
-          onChange={handleFileChange}
-          className="hidden"
-        />
-        <input
-          type="text"
-          placeholder="Nombre de regla (opcional)"
-          value={ruleName}
-          onChange={(e) => setRuleName(e.target.value)}
-          className="rounded-lg border px-3 py-2 text-sm outline-none flex-1 max-w-xs"
-          style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-        />
-        <Button size="sm" onClick={handleSimulate} disabled={loading || !file}>
-          {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Play className="h-3.5 w-3.5 mr-1" />}
-          Simular
-        </Button>
-      </div>
-
-      {file && file.name.endsWith(".xls") && (
-        <div className="flex items-center gap-2 p-2 mb-4 rounded-md text-xs"
-          style={{ background: "oklch(0.6 0.2 55 / 0.1)", color: "oklch(0.6 0.2 55)" }}>
-          <AlertTriangle className="h-3.5 w-3.5" />
-          Solo se procesarán las primeras 100 filas.
-        </div>
+    <div className="space-y-6">
+      {toastMessage && (
+        <Toast message={toastMessage} onDone={() => setToastMessage(null)} />
       )}
+      <Card
+        className="p-6 border shadow-none"
+        style={{
+          borderColor: "oklch(0.55 0.04 160 / 0.1)",
+          background: "white",
+        }}
+      >
+        <div className="flex items-center justify-between mb-4">
+          <h2
+            className="font-display font-semibold"
+            style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}
+          >
+            Simulador de Reglas
+          </h2>
+        </div>
 
-      {error && (
-        <p className="text-sm mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>{error}</p>
-      )}
+        <p className="text-sm text-muted-foreground mb-4">
+          Corre el pipeline real de /procesar sobre todo el archivo (sin límite
+          de filas) pero solo con las reglas que selecciones. No guarda
+          evidencia ni envía nada solo: el envío a Control es por fila, igual
+          que en /procesar.
+        </p>
 
-      {result && (
-        <div className="space-y-4">
-          {/* Diff summary */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="p-3 rounded-lg border text-center" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-              <p className="text-2xl font-bold" style={{ color: "oklch(0.4 0.2 145)" }}>{result.diff.matched_count}</p>
-              <p className="text-xs text-muted-foreground">Coincidencias</p>
-            </div>
-            <div className="p-3 rounded-lg border text-center" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-              <p className="text-2xl font-bold" style={{ color: "oklch(0.6 0.2 55)" }}>{result.diff.engine_only_count}</p>
-              <p className="text-xs text-muted-foreground">Solo Engine</p>
-            </div>
-            <div className="p-3 rounded-lg border text-center" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-              <p className="text-2xl font-bold" style={{ color: "oklch(0.6 0.2 25)" }}>{result.diff.legacy_only_count}</p>
-              <p className="text-xs text-muted-foreground">Solo Legacy</p>
-            </div>
-            <div className="p-3 rounded-lg border text-center" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-              <p className="text-2xl font-bold" style={{ color: "oklch(0.15 0.02 160)" }}>{result.total_rows}</p>
-              <p className="text-xs text-muted-foreground">Filas procesadas</p>
-            </div>
+        {/* File upload */}
+        <div className="flex flex-wrap items-center gap-3 mb-6">
+          <div
+            className="flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer hover:bg-gray-50 transition-colors"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <Upload className="h-4 w-4" style={{ color: "oklch(0.55 0.04 160)" }} />
+            <span className="text-sm">{file ? file.name : "Seleccionar Excel"}</span>
           </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.xlsm"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <Button size="sm" onClick={handleSimulate} disabled={loading || !file || selected.size === 0}>
+            {loading ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+            ) : (
+              <Play className="h-3.5 w-3.5 mr-1" />
+            )}
+            Simular ({selected.size} {selected.size === 1 ? "regla" : "reglas"})
+          </Button>
+        </div>
 
-          {/* Side-by-side results */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Engine Results ({result.engine_results.length})
-              </h3>
-              {result.engine_results.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin resultados</p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border max-h-60 overflow-y-auto" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 font-semibold" style={{ color: "oklch(0.55 0.04 160)" }}>
-                        {Object.keys(result.engine_results[0]).map((k) => (
-                          <th key={k} className="py-1.5 px-2 text-left">{k}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.engine_results.map((r, i) => (
-                        <tr key={i} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                          {Object.values(r).map((v, j) => (
-                            <td key={j} className="py-1.5 px-2">{String(v ?? "")}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+        {error && (
+          <p className="text-sm mb-3" style={{ color: "oklch(0.6 0.2 25)" }}>
+            {error}
+          </p>
+        )}
 
-            <div>
-              <h3 className="text-sm font-semibold mb-2" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Legacy Results ({result.legacy_results.length})
-              </h3>
-              {result.legacy_results.length === 0 ? (
-                <p className="text-xs text-muted-foreground">Sin resultados</p>
-              ) : (
-                <div className="overflow-x-auto rounded-lg border max-h-60 overflow-y-auto" style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}>
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-gray-50 font-semibold" style={{ color: "oklch(0.55 0.04 160)" }}>
-                        {Object.keys(result.legacy_results[0]).map((k) => (
-                          <th key={k} className="py-1.5 px-2 text-left">{k}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {result.legacy_results.map((r, i) => (
-                        <tr key={i} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
-                          {Object.values(r).map((v, j) => (
-                            <td key={j} className="py-1.5 px-2">{String(v ?? "")}</td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+        {/* Rule selector */}
+        <div className="mb-2 flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-52">
+            <Search className="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              placeholder="Buscar regla por nombre o descripción…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full rounded-lg border pl-8 pr-3 py-2 text-sm outline-none"
+              style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+            />
           </div>
+          <select
+            value={dominioFilter}
+            onChange={(e) => setDominioFilter(e.target.value)}
+            className="rounded-lg border px-3 py-2 text-sm outline-none bg-white"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+          >
+            <option value="">Todos los dominios</option>
+            {DOMINIOS.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <Button size="sm" variant="outline" onClick={selectAll}>
+            Todas
+          </Button>
+          <Button size="sm" variant="outline" onClick={selectVisible}>
+            Visibles
+          </Button>
+          <Button size="sm" variant="outline" onClick={selectNone}>
+            Ninguna
+          </Button>
+        </div>
 
-          {result.truncated && (
-            <p className="text-xs text-muted-foreground">
-              ⚠️ El archivo original tiene {result.total_rows} filas. Solo se procesaron las primeras {result.rows_processed}.
-            </p>
+        <p className="text-xs text-muted-foreground mb-2">
+          {selected.size} de {rules.length} reglas seleccionadas
+          {result && result.reglas_aplicadas.length > 0 && (
+            <> · última simulación: {result.reglas_aplicadas.length} reglas</>
           )}
-        </div>
+        </p>
+
+        {rulesLoading ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Cargando reglas…
+          </div>
+        ) : rulesError ? (
+          <p className="text-sm py-4" style={{ color: "oklch(0.6 0.2 25)" }}>
+            {rulesError}
+          </p>
+        ) : (
+          <div
+            className="overflow-y-auto rounded-lg border max-h-72"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.1)" }}
+          >
+            {filteredRules.length === 0 ? (
+              <p className="text-xs text-muted-foreground p-4">
+                Sin reglas para este filtro.
+              </p>
+            ) : (
+              filteredRules.map((r) => (
+                <label
+                  key={r.id}
+                  className="flex items-center gap-3 px-3 py-2 border-b cursor-pointer hover:bg-gray-50"
+                  style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.has(r.id)}
+                    onChange={() => toggleRule(r.id)}
+                    className="h-4 w-4 accent-emerald-700"
+                  />
+                  <span className="font-mono text-xs font-medium flex-1 truncate" title={r.descripcion ?? r.nombre}>
+                    {r.nombre}
+                  </span>
+                  <DominioBadge dominio={r.dominio} />
+                  <span className="text-[11px] text-muted-foreground shrink-0">
+                    #{r.id} · v{r.version}
+                  </span>
+                </label>
+              ))
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* Results — same component as /procesar */}
+      {result && result.total_errores > 0 && (
+        <ResultadosProcesar
+          errores={result.errores}
+          totalErrores={result.total_errores}
+          exportHref={exportId ? `/procesar/export?id=${exportId}` : null}
+          showEnvio={showEnvio}
+          envioExistentes={envioExistentes}
+          envioEnviadas={envioEnviadas}
+          envioVersion={envioVersion}
+          onSendToControl={handleSendToControl}
+        />
       )}
-    </Card>
+
+      {result && result.total_errores === 0 && (
+        <Card
+          className="p-6 border shadow-none text-center"
+          style={{
+            borderColor: "oklch(0.55 0.04 160 / 0.1)",
+            background: "white",
+          }}
+        >
+          <p className="text-sm font-medium" style={{ color: "oklch(0.4 0.2 145)" }}>
+            Sin errores para las reglas seleccionadas ✅
+          </p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Tipos procesados: {result.tipos_procesados.join(", ") || "—"}
+          </p>
+        </Card>
+      )}
+    </div>
   );
 }
