@@ -243,7 +243,7 @@ class RuleEvaluationEngine:
                                   "entidad_afiliacion", "tipo_usuario", "vlr_copago",
                                   "codigo_tipo_procedimiento", "laboratorio", "tarifario",
                                   "tipo_factura_descripcion", "responsable_cierra",
-                                  "profesional_atiende", "identificacion",
+                                  "codigo_profesional", "profesional_atiende", "identificacion",
                                   "fec_nacimiento", "fec_factura", "edad",
                                   "date.edad", "date.edad_meses", "numero_identificacion",
                                   "estancia_horas", "estancia_str"):
