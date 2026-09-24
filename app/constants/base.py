@@ -244,7 +244,15 @@ def is_evidence_audit_enabled() -> bool:
     Only relevant when USE_RULE_ENGINE=true.
     """
     from dotenv import load_dotenv
-    load_dotenv()
+    from pathlib import Path
+    # Ruta explicita a la raiz del proyecto: bare load_dotenv() depende del
+    # CWD del proceso y un prod lanzado desde otro directorio jamas ve el .env
+    # (flag ausente -> default enabled -> escribe evidencias sin querer).
+    _root_env = Path(__file__).resolve().parents[2] / ".env"
+    if _root_env.is_file():
+        load_dotenv(dotenv_path=_root_env)
+    else:
+        load_dotenv()
     return _os.getenv("SKIP_EVIDENCE_AUDIT", "false").lower() != "true"
 
 # =============================================================================
