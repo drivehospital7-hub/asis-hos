@@ -278,6 +278,12 @@ class Regla(Base):
     excepciones = relationship("Excepcion", back_populates="regla")
     evidencias = relationship("Evidencia", back_populates="regla")
     resultados = relationship("ResultadoAuditoria", back_populates="regla")
+    dominios = relationship(
+        "ReglaDominio",
+        back_populates="regla",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+    )
 
     def to_dict(self):
         return {
@@ -302,6 +308,31 @@ class Regla(Base):
             "detalle_a_campo": self.detalle_a_campo,
             "detalle_b_campo": self.detalle_b_campo,
             "descripcion_template": self.descripcion_template,
+            "dominios": sorted([d.dominio for d in self.dominios or []]),
+        }
+
+
+class ReglaDominio(Base):
+    """Bridge row: explicit multi-dominio scope of one rule (sdd reglas-multi-dominio).
+
+    Source of truth for scope; ``reglas.dominio`` stays as a legacy mirror.
+    """
+    __tablename__ = "regla_dominios"
+
+    __table_args__ = (
+        Index("ix_regla_dominios_dominio", "dominio", "regla_id"),
+    )
+
+    regla_id = Column(Integer, ForeignKey("reglas.id", ondelete="CASCADE"), primary_key=True)
+    dominio = Column(String(50), primary_key=True, nullable=False)
+
+    # Relationships
+    regla = relationship("Regla", back_populates="dominios")
+
+    def to_dict(self):
+        return {
+            "regla_id": self.regla_id,
+            "dominio": self.dominio,
         }
 
 

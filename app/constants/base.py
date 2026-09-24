@@ -220,6 +220,14 @@ DEFAULT_TEMPLATES = [
 # =============================================================================
 
 ENGINE_DOMAIN_TRANSVERSAL = "transversal"
+
+# Canonical regla scope vocabulary (sdd reglas-multi-dominio, D4). Single
+# source of truth for bridge-table validation; frontend DOMINIOS mirrors
+# this ordered content.
+REGLA_DOMINIOS_VALIDOS: frozenset[str] = frozenset({
+    "urgencias", "hospitalizacion", "odontologia", "equipos_basicos",
+    "transversal", "farmacia", "intramural", "ambulatoria",
+})
 RULE_STATES: frozenset[str] = frozenset({"active", "retired"})
 DEFAULT_SEVERITY = "error"
 

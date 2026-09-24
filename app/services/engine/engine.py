@@ -9,9 +9,8 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 
-from sqlalchemy import case, or_
+from sqlalchemy import case
 
-from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL
 from app.models import Regla, Condicion, ResultadoAuditoria
 from app.services.engine.context import EvaluationContext
 from app.services.engine.condition_evaluator import ConditionEvaluator
@@ -444,21 +443,32 @@ class RuleEvaluationEngine:
         """Load the highest-version active rule for (nombre, dominio).
 
         Single-flag cutover: filters ONLY by activo (no estado filter).
-        Matches the requested dominio plus transversal rules; exact-dominio
-        hits sort first, then highest version wins. A NULL dominio row never
-        matches (SQL equality against the requested value).
+        Matches bridge scope (requested dominio plus transversal wildcard)
+        with exact-dominio hits first, then highest version wins;
+        scope-less rows fall back to the legacy single-column semantics.
+        A NULL dominio row never matches.
         """
-        exact_first = case((Regla.dominio == dominio, 0), else_=1)
+        from sqlalchemy import exists, or_, select
+
+        from app.models import ReglaDominio
+        from app.services.engine.rule_resolver import (
+            rule_has_no_scope,
+            rule_matches_domain_or_legacy,
+        )
+
+        exact_hit = exists(
+            select(1)
+            .where(ReglaDominio.regla_id == Regla.id)
+            .where(ReglaDominio.dominio == dominio)
+        )
+        # Scope-less rows keep the legacy exact-first semantics.
+        legacy_exact = (rule_has_no_scope(Regla.id)) & (Regla.dominio == dominio)
+        exact_first = case((or_(exact_hit, legacy_exact), 0), else_=1)
         return (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
             .filter(Regla.activo == True)  # noqa: E712
-            .filter(
-                or_(
-                    Regla.dominio == dominio,
-                    Regla.dominio == ENGINE_DOMAIN_TRANSVERSAL,
-                )
-            )
+            .filter(rule_matches_domain_or_legacy(Regla.id, dominio))
             .order_by(exact_first, Regla.version.desc())
             .first()
         )

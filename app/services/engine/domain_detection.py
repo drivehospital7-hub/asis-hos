@@ -90,11 +90,13 @@ def _load_selected_rules(session: "Session", domain: str, only_ids: frozenset[in
     """
     from app.models import Regla  # lazy: avoid import cycle
 
+    from app.services.engine.rule_resolver import rule_matches_domain_or_legacy
+
     try:
         rows = (
             session.query(Regla)
             .filter(Regla.id.in_(sorted(only_ids)))
-            .filter((Regla.dominio == domain) | (Regla.dominio == "transversal"))
+            .filter(rule_matches_domain_or_legacy(Regla.id, domain))
             .order_by(Regla.prioridad.asc())
             .all()
         )

@@ -10,7 +10,8 @@ import copy
 import logging
 from typing import Any
 
-from app.models import Condicion, Excepcion, Regla
+from app.constants.base import ENGINE_DOMAIN_TRANSVERSAL, REGLA_DOMINIOS_VALIDOS
+from app.models import Condicion, Excepcion, Regla, ReglaDominio
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +80,50 @@ def _build_condition_tree(regla: Regla) -> list[dict[str, Any]] | None:
     return roots
 
 
+def _validate_dominios(dominios: Any) -> list[str]:
+    """Validate a scope list against the canonical vocabulary.
+
+    Returns the canonical sorted list.
+
+    Raises:
+        ValueError: If empty or any value is outside REGLA_DOMINIOS_VALIDOS.
+    """
+    if not isinstance(dominios, list) or not dominios:
+        raise ValueError("dominios must be a non-empty list")
+    invalid = [d for d in dominios if d not in REGLA_DOMINIOS_VALIDOS]
+    if invalid:
+        raise ValueError(f"dominios invalidos: {sorted(set(str(d) for d in invalid))}")
+    return sorted(set(dominios))
+
+
+def _current_scope(rule: Regla) -> list[str]:
+    """Current bridge scope of a rule, sorted (empty for scope-less rows)."""
+    return sorted([d.dominio for d in rule.dominios or []])
+
+
+def _write_scope(db_session, rule: Regla, dominios: list[str]) -> None:
+    """Rewrite bridge scope + legacy mirror atomically (caller commits).
+
+    Relationship assignment (no extra session.add/query calls): the
+    delete-orphan cascade removes replaced rows on flush and the FK is
+    wired from the parent.
+    """
+    rule.dominios = [ReglaDominio(dominio=d) for d in dominios]
+    rule.dominio = dominios[0]
+    db_session.flush()
+
+
+def _copy_scope(db_session, source: Regla, target_id: int) -> None:
+    """Copy bridge scope rows from a loaded rule to another id.
+
+    Iterates the source relationship (no session.query call) so
+    mock-session callers keep their query accounting.
+    """
+    for row in list(source.dominios or []):
+        db_session.add(ReglaDominio(regla_id=target_id, dominio=row.dominio))
+    db_session.flush()
+
+
 def _has_changes(rule: Regla, data: dict) -> bool:
     """Check if any mutable field actually changed."""
     for field in _MUTABLE_FIELDS:
@@ -87,6 +132,9 @@ def _has_changes(rule: Regla, data: dict) -> bool:
             new_val = data[field]
             if current != new_val:
                 return True
+    if "dominios" in data:
+        if _validate_dominios(data["dominios"]) != _current_scope(rule):
+            return True
     if "condiciones" in data:
         current_tree = _build_condition_tree(rule) or []
         submitted_tree = _condition_nodes(data["condiciones"])
@@ -183,12 +231,22 @@ def create_rule(db_session, data: dict) -> dict:
     data = dict(data)
     condiciones_data = data.pop("condiciones", None)
     excepciones_data = data.pop("excepciones", None)
+    dominios_data = data.pop("dominios", None)
+
+    if dominios_data is not None:
+        scope = _validate_dominios(dominios_data)
+        legacy_dominio = scope[0]
+    else:
+        # Legacy single-dominio callers: mirror as a 1-entry scope as-is
+        # (no vocabulary validation on this path — caller compat).
+        legacy_dominio = data.get("dominio", "")
+        scope = [legacy_dominio] if legacy_dominio else []
 
     rule = Regla(
         rule_base_id=None,  # Will be set after insert
         nombre=data.get("nombre", ""),
         descripcion=data.get("descripcion"),
-        dominio=data.get("dominio", ""),
+        dominio=legacy_dominio,
         estado="active",
         version=1,
         prioridad=data.get("prioridad", 100),
@@ -206,6 +264,11 @@ def create_rule(db_session, data: dict) -> dict:
 
     # Set rule_base_id = id for the first version
     rule.rule_base_id = rule.id
+
+    # Bridge scope + legacy mirror (dominios validated above; legacy path
+    # mirrors the single dominio value as-is for caller compat).
+    if scope:
+        _write_scope(db_session, rule, scope)
 
     # Store condiciones tree
     if condiciones_data:
@@ -304,7 +367,26 @@ def list_rules(
     query = db_session.query(Regla)
 
     if dominio is not None:
-        query = query.filter(Regla.dominio == dominio)
+        # ∈ semantics: scope contains the domain or the transversal
+        # wildcard; scope-less rows fall back to the legacy column.
+        from sqlalchemy import and_, exists, or_, select
+
+        from app.services.engine.rule_resolver import rule_matches_domain
+
+        query = query.filter(
+            or_(
+                rule_matches_domain(Regla.id, dominio),
+                and_(
+                    ~exists(
+                        select(1).where(ReglaDominio.regla_id == Regla.id)
+                    ),
+                    or_(
+                        Regla.dominio == dominio,
+                        Regla.dominio == ENGINE_DOMAIN_TRANSVERSAL,
+                    ),
+                ),
+            )
+        )
     if estado is not None:
         query = query.filter(Regla.estado == estado)
     if activo is not None:
@@ -345,6 +427,15 @@ def update_rule(
 
     if "condiciones" in data:
         _validate_condition_tree(_condition_nodes(data["condiciones"]))
+    if "dominios" in data or "dominio" in data:
+        # Validate before the no-op guard so invalid scopes always raise.
+        # A legacy single-dominio update rewrites the 1-entry scope so the
+        # bridge and the mirror never diverge (D2 write-through).
+        data = dict(data)
+        if "dominios" in data:
+            data["dominios"] = _validate_dominios(data["dominios"])
+        else:
+            data["dominios"] = [data["dominio"]]
 
     # No-op guard: avoid unnecessary writes.
     if not _has_changes(rule, data):
@@ -354,6 +445,8 @@ def update_rule(
 
     try:
         _apply_updates(rule, data)
+        if "dominios" in data:
+            _write_scope(db_session, rule, data["dominios"])
         if "cambio_que" in data:
             rule.cambio_que = str(data["cambio_que"]).strip() or None
         if "cambio_por_que" in data:
@@ -430,6 +523,11 @@ def duplicate_rule(db_session, rule_id: int) -> dict:
     db_session.add(duplicate)
     db_session.flush()
     duplicate.rule_base_id = duplicate.id
+    _copy_scope(db_session, rule, duplicate.id)
+    # Mirror the full scope list on the duplicate row (D2 write-through).
+    dup_scope = _current_scope(rule)
+    if dup_scope:
+        duplicate.dominio = dup_scope[0]
     _clone_conditions(db_session, rule.id, duplicate.id)
     for exception in rule.excepciones or []:
         db_session.add(Excepcion(
@@ -520,6 +618,9 @@ def create_version(db_session, rule_id: int) -> dict:
     )
     db_session.add(new_rule)
     db_session.flush()
+
+    # Clone scope (duplicate/version copy scope — spec scenario).
+    _copy_scope(db_session, rule, new_rule.id)
 
     # Clone conditions
     _clone_conditions(db_session, rule.id, new_rule.id)
