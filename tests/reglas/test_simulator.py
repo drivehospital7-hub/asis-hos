@@ -194,6 +194,39 @@ class TestSimulationScope:
         _, kwargs = m_det.return_value.detect.call_args
         assert kwargs["persist"] is False
 
+    def test_scope_evaluates_selected_inactive_rules(self):
+        """Selected ids run even when the rule is inactive (dry-run)."""
+        from app.services.engine import domain_detection as dd
+
+        rule_a = MagicMock()
+        rule_a.nombre = "regla_a"
+        rule_a.id = 5
+        rule_a.grupo_error = "G"
+        rule_c = MagicMock()
+        rule_c.nombre = "regla_c"
+        rule_c.id = 9
+        rule_c.dominio = "urgencias"
+        rule_c.grupo_error = "G"
+
+        session = MagicMock()
+        mock_q = MagicMock()
+        session.query.return_value = mock_q
+        mock_q.filter.return_value = mock_q
+        mock_q.order_by.return_value = mock_q
+        mock_q.all.return_value = [rule_c]
+
+        with patch.object(dd.RuleResolver, "resolve",
+                          return_value=[rule_a]), \
+             patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_det:
+            m_det.return_value.detect.return_value = []
+            with dd.simulation_scope({5, 9}):
+                batches = dd.detect_domain_rules(
+                    session, "urgencias", persist=True)
+
+        assert [b.nombre for b in batches] == ["regla_a", "regla_c"]
+        _, kwargs = m_det.return_value.detect.call_args
+        assert kwargs["persist"] is False
+
     def test_scope_resets_after_exit(self):
         """ContextVar overrides do not leak outside the scope."""
         from app.services.engine import domain_detection as dd

@@ -20,7 +20,6 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
-from contextvars import ContextVar
 from app.services.engine.rule_resolver import RuleResolver
 
 if TYPE_CHECKING:
@@ -67,6 +66,8 @@ def simulation_scope(rule_ids: set[int] | frozenset[int] | None) -> Iterator[Non
     Used ONLY by the /admin/reglas simulator (dry-run): rules outside
     ``rule_ids`` are skipped and no evidence/audit rows are written.
     ``None`` means "all enabled rules" (still no persistence).
+    Selected ids evaluate even when the rule is inactive, so admins can
+    dry-run disabled rules without enabling them in production.
     Resets both overrides on exit; safe for nested/concurrent requests
     via ContextVar.
     """
@@ -78,6 +79,29 @@ def simulation_scope(rule_ids: set[int] | frozenset[int] | None) -> Iterator[Non
     finally:
         _SIM_ONLY_RULE_IDS.reset(token_ids)
         _SIM_NO_PERSIST.reset(token_persist)
+
+
+def _load_selected_rules(session: "Session", domain: str, only_ids: frozenset[int]) -> list:
+    """Load selected rules by id for a domain, regardless of activo flag.
+
+    Simulator-only helper: mirrors the resolver domain semantics (exact
+    domain OR transversal) so a disabled rule can be dry-run without
+    enabling it. Best-effort: [] on any failure.
+    """
+    from app.models import Regla  # lazy: avoid import cycle
+
+    try:
+        rows = (
+            session.query(Regla)
+            .filter(Regla.id.in_(sorted(only_ids)))
+            .filter((Regla.dominio == domain) | (Regla.dominio == "transversal"))
+            .order_by(Regla.prioridad.asc())
+            .all()
+        )
+        return list(rows or [])
+    except Exception:
+        logger.warning("simulation_scope: could not load selected rules", exc_info=True)
+        return []
 
 
 def detect_domain_rules(
@@ -119,12 +143,13 @@ def detect_domain_rules(
 
     batches: list[RuleBatch] = []
     seen: set[str] = set()
-    for rule in RuleResolver().resolve(domain, session):
+
+    def _evaluate(rule) -> None:
         if rule.nombre in seen:
-            continue
+            return
         seen.add(rule.nombre)
         if only_ids is not None and rule.id not in only_ids:
-            continue
+            return
         items = RuleBasedDetector(rule.nombre, session, dominio=domain).detect(
             data_sheet, indices, persist=persist, rows=rows,
             evidence_collector=evidence_collector,
@@ -135,6 +160,15 @@ def detect_domain_rules(
             dominio=rule.dominio,
             items=items,
         ))
+
+    for rule in RuleResolver().resolve(domain, session):
+        _evaluate(rule)
+    if only_ids is not None:
+        # Selected but inactive rules never come from the resolver
+        # (activo-only): load them explicitly so the simulator can
+        # dry-run disabled rules without enabling them in production.
+        for rule in _load_selected_rules(session, domain, only_ids):
+            _evaluate(rule)
     logger.info(
         "domain_detection: evaluated %d rule(s) for domain=%s: %s",
         len(batches), domain, [b.nombre for b in batches],

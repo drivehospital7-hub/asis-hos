@@ -1993,6 +1993,7 @@ function SimulatorView() {
   const [rulesError, setRulesError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dominioFilter, setDominioFilter] = useState("");
+  const [showInactive, setShowInactive] = useState(false);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [file, setFile] = useState<File | null>(null);
   const [result, setResult] = useState<SimulateResult | null>(null);
@@ -2001,12 +2002,13 @@ function SimulatorView() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Reglas activas (las únicas que el motor evalúa).
+  // Todas las reglas (activas preseleccionadas). Las inactivas también se
+  // pueden simular: el scope del simulador las evalúa sin activarlas.
   useEffect(() => {
-    fetchReglas({ activo: "true" })
+    fetchReglas()
       .then((items) => {
         setRules(items);
-        setSelected(new Set(items.map((r) => r.id)));
+        setSelected(new Set(items.filter((r) => r.activo).map((r) => r.id)));
       })
       .catch((e) =>
         setRulesError(e instanceof Error ? e.message : "Error cargando reglas"),
@@ -2017,6 +2019,7 @@ function SimulatorView() {
   const filteredRules = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rules.filter((r) => {
+      if (!showInactive && !r.activo) return false;
       if (dominioFilter && r.dominio !== dominioFilter) return false;
       if (!q) return true;
       return (
@@ -2024,7 +2027,7 @@ function SimulatorView() {
         (r.descripcion ?? "").toLowerCase().includes(q)
       );
     });
-  }, [rules, search, dominioFilter]);
+  }, [rules, search, dominioFilter, showInactive]);
 
   const toggleRule = (id: number) => {
     setSelected((prev) => {
@@ -2035,7 +2038,8 @@ function SimulatorView() {
     });
   };
 
-  const selectAll = () => setSelected(new Set(rules.map((r) => r.id)));
+  const selectAll = () =>
+    setSelected(new Set(rules.filter((r) => r.activo).map((r) => r.id)));
   const selectNone = () => setSelected(new Set());
   const selectVisible = () =>
     setSelected((prev) => {
@@ -2205,6 +2209,15 @@ function SimulatorView() {
               </option>
             ))}
           </select>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={showInactive}
+              onChange={(e) => setShowInactive(e.target.checked)}
+              className="h-3.5 w-3.5 accent-emerald-700"
+            />
+            Mostrar inactivas
+          </label>
           <Button size="sm" variant="outline" onClick={selectAll}>
             Todas
           </Button>
@@ -2256,6 +2269,7 @@ function SimulatorView() {
                   <span className="font-mono text-xs font-medium flex-1 truncate" title={r.descripcion ?? r.nombre}>
                     {r.nombre}
                   </span>
+                  {!r.activo && <EstadoBadge estado={r.estado} activo={r.activo} />}
                   <DominioBadge dominio={r.dominio} />
                   <span className="text-[11px] text-muted-foreground shrink-0">
                     #{r.id} · v{r.version}
