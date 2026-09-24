@@ -14,7 +14,10 @@ export interface Regla {
   rule_base_id: number | null;
   nombre: string;
   descripcion: string | null;
+  /** Legacy single-value mirror (first sorted scope value). Kept for compat. */
   dominio: string;
+  /** Canonical scope: explicit list of one or more dominios (sorted). */
+  dominios: string[];
   estado: string;
   version: number;
   prioridad: number;
@@ -140,6 +143,14 @@ interface ApiResponse<T> {
   errors: string[];
 }
 
+/** Dominios payload may be absent in old responses — default to `[]`. */
+type WithScope<T> = T & { dominio: string; dominios?: string[] };
+
+function withDominios<T extends WithScope<unknown>>(rule: T): T & { dominios: string[] } {
+  if (Array.isArray(rule.dominios)) return { ...rule, dominios: rule.dominios };
+  return { ...rule, dominios: rule.dominio ? [rule.dominio] : [] };
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────
 
 async function apiGet<T>(url: string): Promise<T> {
@@ -198,22 +209,26 @@ export async function fetchReglas(params?: {
   if (params?.estado) searchParams.set("estado", params.estado);
   if (params?.activo) searchParams.set("activo", params.activo);
   const qs = searchParams.toString();
-  return apiGet<Regla[]>(`/api/reglas${qs ? `?${qs}` : ""}`);
+  const items = await apiGet<Regla[]>(`/api/reglas${qs ? `?${qs}` : ""}`);
+  return items.map(withDominios);
 }
 
 /** Get a single rule with conditions and exceptions. */
 export async function fetchRegla(id: number): Promise<Regla> {
-  return apiGet<Regla>(`/api/reglas/${id}`);
+  const item = await apiGet<Regla>(`/api/reglas/${id}`);
+  return withDominios(item);
 }
 
-/** Create a new rule. */
+/** Create a new rule. Accepts `dominios: string[]` (multi-domain scope). */
 export async function createRegla(data: Partial<Regla> & { condiciones?: unknown }): Promise<Regla> {
-  return apiPost<Regla>("/api/reglas", data);
+  const item = await apiPost<Regla>("/api/reglas", data);
+  return withDominios(item);
 }
 
-/** Update a rule in place. */
+/** Update a rule in place. Accepts `dominios: string[]` (absent = unchanged). */
 export async function updateRegla(id: number, data: Partial<Regla>): Promise<Regla> {
-  return apiPut<Regla>(`/api/reglas/${id}`, data);
+  const item = await apiPut<Regla>(`/api/reglas/${id}`, data);
+  return withDominios(item);
 }
 
 /** Soft-delete a rule. */
@@ -223,7 +238,8 @@ export async function deleteRegla(id: number): Promise<void> {
 
 /** Duplicate a rule as an independent active rule. */
 export async function duplicarRegla(reglaId: number): Promise<Regla> {
-  return apiPost<Regla>(`/api/reglas/${reglaId}/duplicar`, {});
+  const item = await apiPost<Regla>(`/api/reglas/${reglaId}/duplicar`, {});
+  return withDominios(item);
 }
 
 export interface DesactivarTodasResult {
@@ -334,6 +350,7 @@ export interface ReglaRef {
   id: number;
   nombre: string;
   dominio: string;
+  dominios?: string[];
   estado: string;
   activo: boolean;
 }

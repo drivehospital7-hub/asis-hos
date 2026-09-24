@@ -83,7 +83,40 @@ const TABS: Tab[] = [
   { id: "catalogos", label: "Catálogos" },
 ];
 
-const DOMINIOS = ["odontologia", "urgencias", "equipos_basicos", "transversal", "farmacia", "intramural", "hospitalizacion", "ambulatoria"];
+/** Canonical dominio order — mirror of backend REGLA_DOMINIOS_VALIDOS
+ *  (app/constants/base.py). Single shared definition for every view below. */
+const DOMINIOS = ["urgencias", "hospitalizacion", "odontologia", "equipos_basicos", "transversal", "farmacia", "intramural", "ambulatoria"];
+const DOMINIO_TRANSVERSAL = "transversal";
+
+/** Minimal scope shape shared by Regla and ReglaRef. */
+interface RuleScope {
+  dominio?: string | null;
+  dominios?: string[];
+}
+
+/** Scoped dominios for a rule. Falls back to the legacy `dominio` mirror,
+ *  then to `[]` when the scope is absent (old payloads). */
+export function getRuleDominios(rule: RuleScope): string[] {
+  if (Array.isArray(rule.dominios)) return rule.dominios;
+  return rule.dominio ? [rule.dominio] : [];
+}
+
+/** Single-select filter match: the rule applies when the selected dominio
+ *  belongs to its scope. Transversal rules apply everywhere, so they stay
+ *  visible under every filter (mirrors the backend list ∈ semantics). */
+export function ruleMatchesDominio(rule: RuleScope, filtro: string): boolean {
+  if (!filtro) return true;
+  const scope = getRuleDominios(rule);
+  return scope.includes(filtro) || scope.includes(DOMINIO_TRANSVERSAL);
+}
+
+/** Scope payload for create/update: canonical sorted array plus the legacy
+ *  single-value mirror (first sorted value) for old readers. */
+export function buildDominiosPayload(selected: string[]): { dominios: string[]; dominio: string } {
+  const dominios = [...selected].sort();
+  return { dominios, dominio: dominios[0] };
+}
+
 const SEVERIDADES = ["error", "warning", "info"];
 
 // ─── Badge helpers ──────────────────────────────────────────────────
@@ -109,6 +142,95 @@ function EstadoBadge({ estado, activo }: EstadoBadgeProps) {
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${colors[estado] ?? "bg-gray-100 text-gray-600"}`}>
       {estado}
     </span>
+  );
+}
+
+const DOMINIO_COLORS: Record<string, string> = {
+  odontologia: "bg-emerald-100 text-emerald-700",
+  urgencias: "bg-red-100 text-red-700",
+  equipos_basicos: "bg-purple-100 text-purple-700",
+  transversal: "bg-amber-100 text-amber-700",
+  farmacia: "bg-cyan-100 text-cyan-700",
+  intramural: "bg-indigo-100 text-indigo-700",
+  hospitalizacion: "bg-pink-100 text-pink-700",
+  ambulatoria: "bg-orange-100 text-orange-700",
+};
+
+/** Stacked badges for every scoped dominio. Stored values outside the known
+ *  list render as-is (plain gray badge) and are never hidden or dropped. */
+export function DominiosBadges({ dominios }: { dominios: string[] }) {
+  if (dominios.length === 0) return <span className="text-xs text-muted-foreground">—</span>;
+  return (
+    <span className="inline-flex flex-wrap gap-1">
+      {dominios.map((d) => (
+        <span
+          key={d}
+          className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${DOMINIO_COLORS[d] ?? "bg-gray-100 text-gray-600"}`}
+        >
+          {d}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+interface DominioScopeEditorProps {
+  selected: string[];
+  onChange: (next: string[]) => void;
+  disabled?: boolean;
+}
+
+/** Checkbox group over the shared DOMINIOS order. Stored values outside the
+ *  option list render as checked custom badges so they survive save untouched. */
+export function DominioScopeEditor({ selected, onChange, disabled }: DominioScopeEditorProps) {
+  const unknown = selected.filter((d) => !DOMINIOS.includes(d));
+  const toggle = (dominio: string) => {
+    onChange(
+      selected.includes(dominio)
+        ? selected.filter((d) => d !== dominio)
+        : [...selected, dominio],
+    );
+  };
+  return (
+    <fieldset>
+      <div className="flex flex-wrap gap-2">
+        {DOMINIOS.map((d) => (
+          <label
+            key={d}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border cursor-pointer"
+            style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(d)}
+              onChange={() => toggle(d)}
+              disabled={disabled}
+              aria-label={`Dominio ${d}`}
+              className="h-3.5 w-3.5"
+              style={{ accentColor: "oklch(0.55 0.04 160)" }}
+            />
+            {d}
+          </label>
+        ))}
+        {unknown.map((d) => (
+          <label
+            key={d}
+            title="Valor guardado fuera de la lista actual — se conserva al guardar"
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border border-dashed bg-gray-50 text-gray-600 cursor-pointer"
+          >
+            <input
+              type="checkbox"
+              checked={selected.includes(d)}
+              onChange={() => toggle(d)}
+              disabled={disabled}
+              aria-label={`Dominio personalizado ${d}`}
+              className="h-3.5 w-3.5"
+            />
+            {d}
+          </label>
+        ))}
+      </div>
+    </fieldset>
   );
 }
 
@@ -199,7 +321,7 @@ function RulesListView() {
   const [showCreate, setShowCreate] = useState(false);
   const [createFormNombre, setCreateFormNombre] = useState("");
   const [createFormDesc, setCreateFormDesc] = useState("");
-  const [createFormDominio, setCreateFormDominio] = useState("odontologia");
+  const [createFormDominios, setCreateFormDominios] = useState<string[]>(["odontologia"]);
   const [createFormSev, setCreateFormSev] = useState("baja");
   const [createFormPrio, setCreateFormPrio] = useState("50");
   const [createError, setCreateError] = useState<string | null>(null);
@@ -536,7 +658,7 @@ function RulesListView() {
                       title={item.grupo_error ?? ""}>
                     {item.grupo_error ?? "—"}
                   </td>
-                  <td className="py-2 px-2 whitespace-normal break-words align-top" style={{ color: "oklch(0.55 0.04 160)" }}>{item.dominio}</td>
+                  <td className="py-2 px-2 whitespace-normal break-words align-top" style={{ color: "oklch(0.55 0.04 160)" }}><DominiosBadges dominios={getRuleDominios(item)} /></td>
                   <td className="py-2 px-2 align-top"><EstadoBadge estado={item.estado} activo={item.activo} /></td>
                   <td className="py-2 px-2 align-top">{item.prioridad}</td>
                   <td className="py-2 px-2 align-top"><SeveridadBadge severidad={item.severidad} /></td>
@@ -589,18 +711,20 @@ function RulesListView() {
               e.preventDefault();
               setCreateError(null);
               if (!createFormNombre.trim()) { setCreateError("El nombre es obligatorio"); return; }
+              if (createFormDominios.length === 0) { setCreateError("Seleccioná al menos un dominio"); return; }
               setCreateSaving(true);
               try {
                 await createRegla({
                   nombre: createFormNombre.trim(),
                   descripcion: createFormDesc.trim() || null,
-                  dominio: createFormDominio,
+                  ...buildDominiosPayload(createFormDominios),
                   severidad: createFormSev,
                   prioridad: Number(createFormPrio),
                 });
                 setShowCreate(false);
                 setCreateFormNombre("");
                 setCreateFormDesc("");
+                setCreateFormDominios(["odontologia"]);
                 await load();
               } catch (err) {
                 setCreateError(err instanceof Error ? err.message : "Error al crear");
@@ -620,13 +744,9 @@ function RulesListView() {
                 style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }} />
 
               <div className="grid grid-cols-2 gap-3 mb-4">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Dominio</label>
-                  <select value={createFormDominio} onChange={(e) => setCreateFormDominio(e.target.value)}
-                    className="w-full rounded-lg border px-3 py-2 text-sm outline-none"
-                    style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}>
-                    {DOMINIOS.map((d) => <option key={d} value={d}>{d}</option>)}
-                  </select>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Dominios</label>
+                  <DominioScopeEditor selected={createFormDominios} onChange={setCreateFormDominios} />
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>Severidad</label>
@@ -672,7 +792,7 @@ interface RuleDetailFormProps {
 function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [nombre, setNombre] = useState(rule.nombre);
   const [descripcion, setDescripcion] = useState(rule.descripcion ?? "");
-  const [dominio, setDominio] = useState(rule.dominio);
+  const [dominios, setDominios] = useState<string[]>(() => getRuleDominios(rule));
   const [severidad, setSeveridad] = useState(rule.severidad);
   const [prioridad, setPrioridad] = useState(String(rule.prioridad));
   const [grupoError, setGrupoError] = useState(rule.grupo_error ?? "");
@@ -716,6 +836,10 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
       setFormError("El nombre no puede estar vacío");
       return;
     }
+    if (dominios.length === 0) {
+      setFormError("Seleccioná al menos un dominio");
+      return;
+    }
     const conditionError = validateConditionTree(tree);
     if (conditionError) {
       setFormError(conditionError);
@@ -737,7 +861,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
       await updateRegla(rule.id, {
         nombre: nombre.trim(),
         descripcion: descripcion.trim() || null,
-        dominio,
+        ...buildDominiosPayload(dominios),
         severidad,
         prioridad: Number(prioridad),
           grupo_error: grupoError.trim() || null,
@@ -792,19 +916,11 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
                 required
               />
             </div>
-            <div>
+            <div className="md:col-span-2">
               <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-                Dominio
+                Dominios
               </label>
-              <select
-                value={dominio}
-                onChange={(e) => setDominio(e.target.value)}
-                className="w-full rounded-lg border px-4 py-2.5 text-sm outline-none"
-                style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-                disabled={isReadOnly}
-              >
-                {DOMINIOS.map((d) => <option key={d} value={d}>{d}</option>)}
-              </select>
+              <DominioScopeEditor selected={dominios} onChange={setDominios} disabled={isReadOnly} />
             </div>
             <div>
               <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
@@ -914,17 +1030,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
 
 function DominioBadge({ dominio }: { dominio: string | null }) {
   if (!dominio) return <span className="text-xs text-muted-foreground">—</span>;
-  const colors: Record<string, string> = {
-    odontologia: "bg-emerald-100 text-emerald-700",
-    urgencias: "bg-red-100 text-red-700",
-    equipos_basicos: "bg-purple-100 text-purple-700",
-    transversal: "bg-amber-100 text-amber-700",
-    farmacia: "bg-cyan-100 text-cyan-700",
-    intramural: "bg-indigo-100 text-indigo-700",
-    hospitalizacion: "bg-pink-100 text-pink-700",
-    ambulatoria: "bg-orange-100 text-orange-700",
-  };
-  const color = colors[dominio] ?? "bg-gray-100 text-gray-600";
+  const color = DOMINIO_COLORS[dominio] ?? "bg-gray-100 text-gray-600";
   return (
     <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
       {dominio}
@@ -1472,7 +1578,7 @@ function ReglasVinculadas({ catalogKey, onClose }: ReglasVinculadasProps) {
                   <tr key={r.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
                     <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{r.id}</td>
                     <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{r.nombre}</td>
-                    <td className="py-2 px-3"><DominioBadge dominio={r.dominio} /></td>
+                    <td className="py-2 px-3"><DominiosBadges dominios={getRuleDominios(r)} /></td>
                     <td className="py-2 px-3"><EstadoBadge estado={r.estado} /></td>
                   </tr>
                 ))}
@@ -2020,7 +2126,7 @@ function SimulatorView() {
     const q = search.trim().toLowerCase();
     return rules.filter((r) => {
       if (!showInactive && !r.activo) return false;
-      if (dominioFilter && r.dominio !== dominioFilter) return false;
+      if (dominioFilter && !ruleMatchesDominio(r, dominioFilter)) return false;
       if (!q) return true;
       return (
         r.nombre.toLowerCase().includes(q) ||
@@ -2270,7 +2376,7 @@ function SimulatorView() {
                     {r.nombre}
                   </span>
                   {!r.activo && <EstadoBadge estado={r.estado} activo={r.activo} />}
-                  <DominioBadge dominio={r.dominio} />
+                  <DominiosBadges dominios={getRuleDominios(r)} />
                   <span className="text-[11px] text-muted-foreground shrink-0">
                     #{r.id} · v{r.version}
                   </span>
