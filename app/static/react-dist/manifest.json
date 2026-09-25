@@ -431,7 +431,7 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-5lXsYJrm.js",
+    "file": "assets/index-sIlIfDGE.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
@@ -444,12 +444,12 @@
       "_page-title-pBIOg9dW.js",
       "_status-badge-BTEsVPQc.js",
       "_plus-Yje7e_oO.js",
+      "_folder-open-D2gyyT5p.js",
       "_trash-2-B_HF-4H9.js",
       "_circle-alert-DOvSSKHQ.js",
       "_save-Bs2hw3Wq.js",
       "_play-Dpt2ANAv.js",
       "_circle-x-DWHZiwFP.js",
-      "_folder-open-D2gyyT5p.js",
       "_file-down-Dts3xMzS.js",
       "_circle-check-CRdT4vUM.js",
       "_eye-rX9dfGmL.js",
@@ -524,7 +524,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-D07Hu22M.css",
+    "file": "assets/style-DO_qYgqP.css",
     "src": "style.css"
   }
 }
