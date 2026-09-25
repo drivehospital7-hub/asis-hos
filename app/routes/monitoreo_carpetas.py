@@ -20,6 +20,7 @@ from flask import Blueprint, current_app, jsonify, render_template, request, sen
 
 from app.constants.monitoreo_carpetas import (
     ENV_MONITOREO_ROOTS,
+    EXCEL_REGEN_THROTTLE_SECS,
     MOVE_ERR_TRAVERSAL,
 )
 from app.services.monitoreo_carpetas.move_service import (
@@ -142,13 +143,33 @@ def put_config():
     }), 200
 
 
-@monitoreo_carpetas_bp.post("/scan")
-def trigger_scan():
-    """Ejecuta escaneo completo (1ra vez) o health check del watchdog (subsiguientes).
+def _try_ensure_fresh_excel() -> None:
+    """Best-effort throttled Excel regen — never breaks the API response."""
+    try:
+        _watcher.ensure_fresh_excel(throttle_secs=EXCEL_REGEN_THROTTLE_SECS)
+    except Exception:
+        logger.exception("ensure_fresh_excel falló (best-effort, respuesta intacta)")
 
-    Primera llamada: escaneo completo + arranque watchdog observer.
-    Llamadas subsiguientes: verifica salud del watchdog.
-    Si watchdog murió, ejecuta escaneo completo de respaldo.
+
+def _excel_name(excel_path: str | None) -> str | None:
+    """Filename of an Excel path (or None)."""
+    return Path(excel_path).name if excel_path else None
+
+
+@monitoreo_carpetas_bp.post("/scan")
+@permiso_requerido("monitoreo_carpetas:write")
+def trigger_scan():
+    """Ejecuta escaneo completo (1ra vez / ?force=true) o health check.
+
+    Requiere permiso monitoreo_carpetas:write — dispara scans (mutación).
+    Lectura (carpetas/last/next/tabla/export) va por GET /data y /download.
+
+    Primera llamada: escaneo completo (el Observer solo arranca si
+    ``ENABLE_WATCHDOG_OBSERVER`` está activo; la fuente de verdad es el
+    escaneo programado cada 15 min). Llamadas subsiguientes: health
+    check liviano del scheduler. `?force=true`: fuerza `first_scan`
+    completo ignorando el cache. Sin cache, ejecuta escaneo completo
+    de respaldo.
     """
     roots, _fuente, _ultima_actualizacion = get_roots()
 
@@ -165,8 +186,11 @@ def trigger_scan():
         logger.info("Roots changed (%s → %s), resetting watcher", cached_roots, roots)
         _watcher.reset()
 
-    # --- First call (or after reset): full scan + observer start ---
-    if _watcher.get_result() is None:
+    # --- First call (or after reset) or explicit ?force=true: full scan ---
+    force = request.args.get("force", "").lower() == "true"
+    if _watcher.get_result() is None or force:
+        if force:
+            logger.info("POST /scan?force=true — full scan bajo demanda")
         try:
             scan_result, excel_filename = _watcher.first_scan(roots)
         except Exception as exc:
@@ -178,14 +202,25 @@ def trigger_scan():
             }), 500
 
         facturas_data = _build_facturas_data(scan_result)
+        health = _watcher.get_health_snapshot()
         response_data = {
+            "monitoring": health["monitoring"],
+            "message": health["message"],
+            "events_count": health.get("events_count", 0),
+            "observer_alive": health.get("observer_alive", True),
             "facturas": facturas_data,
             "indicadores": dict(scan_result.indicadores),
             "duplicados": scan_result.duplicados,
             "vacias": scan_result.vacias,
             "errores_scan": scan_result.errores_scan,
             "excel_download": excel_filename,
+            "excel_stale": False,
             "scanned_roots": roots,
+            "degraded_roots": health.get("degraded_roots", []),
+            "last_event_at": health.get("last_event_at"),
+            "last_reconcile_at": health.get("last_reconcile_at"),
+            "last_scan_at": health.get("last_scan_at"),
+            "next_scan_at": health.get("next_scan_at"),
         }
         return jsonify({
             "status": "success",
@@ -205,7 +240,8 @@ def trigger_scan():
         }), 500
 
     if health.get("monitoring"):
-        # Watchdog alive — return cached data + monitoring flag
+        # Watchdog alive + roots accesibles — Excel fresco throttled + cache
+        _try_ensure_fresh_excel()
         cached = _watcher.get_result()
         if cached is not None:
             facturas_data = _build_facturas_data(cached)
@@ -214,12 +250,18 @@ def trigger_scan():
                 "message": health["message"],
                 "events_count": health.get("events_count", 0),
                 "observer_alive": health.get("observer_alive", True),
+                "degraded_roots": health.get("degraded_roots", []),
+                "last_event_at": health.get("last_event_at"),
+                "last_reconcile_at": health.get("last_reconcile_at"),
+                "last_scan_at": health.get("last_scan_at"),
+                "next_scan_at": health.get("next_scan_at"),
                 "facturas": facturas_data,
                 "indicadores": dict(cached.indicadores),
                 "duplicados": cached.duplicados,
                 "vacias": cached.vacias,
                 "errores_scan": cached.errores_scan,
-                "excel_download": Path(cached.excel_path).name if cached.excel_path else None,
+                "excel_download": _excel_name(cached.excel_path),
+                "excel_stale": _watcher.excel_stale,
                 "scanned_roots": _watcher.get_roots(),
             }
             return jsonify({
@@ -228,6 +270,62 @@ def trigger_scan():
                 "errors": [],
             }), 200
 
+    if "result" not in health:
+        # Degraded roots (SMB desconectado): reportar cache existente
+        # como no monitoreado, SIN fallback full scan automático.
+        # Excel fresco throttled (best-effort) antes de responder.
+        _try_ensure_fresh_excel()
+        cached = _watcher.get_result()
+        if cached is not None:
+            facturas_data = _build_facturas_data(cached)
+            response_data = {
+                "monitoring": False,
+                "message": health.get("message", ""),
+                "events_count": health.get("events_count", 0),
+                "observer_alive": health.get("observer_alive", False),
+                "degraded_roots": health.get("degraded_roots", []),
+                "last_event_at": health.get("last_event_at"),
+                "last_reconcile_at": health.get("last_reconcile_at"),
+                "last_scan_at": health.get("last_scan_at"),
+                "next_scan_at": health.get("next_scan_at"),
+                "facturas": facturas_data,
+                "indicadores": dict(cached.indicadores),
+                "duplicados": cached.duplicados,
+                "vacias": cached.vacias,
+                "errores_scan": cached.errores_scan,
+                "excel_download": _excel_name(cached.excel_path),
+                "excel_stale": _watcher.excel_stale,
+                "scanned_roots": _watcher.get_roots(),
+            }
+            return jsonify({
+                "status": "success",
+                "data": response_data,
+                "errors": [],
+            }), 200
+        return jsonify({
+            "status": "success",
+            "data": {
+                "monitoring": False,
+                "message": health.get("message", ""),
+                "events_count": health.get("events_count", 0),
+                "observer_alive": health.get("observer_alive", False),
+                "degraded_roots": health.get("degraded_roots", []),
+                "last_event_at": health.get("last_event_at"),
+                "last_reconcile_at": health.get("last_reconcile_at"),
+                "last_scan_at": health.get("last_scan_at"),
+                "next_scan_at": health.get("next_scan_at"),
+                "facturas": [],
+                "indicadores": {},
+                "duplicados": [],
+                "vacias": [],
+                "errores_scan": [],
+                "excel_download": None,
+                "excel_stale": False,
+                "scanned_roots": _watcher.get_roots(),
+            },
+            "errors": [],
+        }), 200
+
     # Watchdog dead or no cache — fallback full scan was already executed
     result = health["result"]
     excel_filename = health.get("excel_filename")
@@ -235,12 +333,20 @@ def trigger_scan():
     response_data = {
         "monitoring": False,
         "message": health.get("message", ""),
+        "events_count": health.get("events_count", 0),
+        "observer_alive": health.get("observer_alive", False),
+        "degraded_roots": health.get("degraded_roots", []),
+        "last_event_at": health.get("last_event_at"),
+        "last_reconcile_at": health.get("last_reconcile_at"),
+        "last_scan_at": health.get("last_scan_at"),
+        "next_scan_at": health.get("next_scan_at"),
         "facturas": facturas_data,
         "indicadores": dict(result.indicadores),
         "duplicados": result.duplicados,
         "vacias": result.vacias,
         "errores_scan": result.errores_scan,
         "excel_download": excel_filename,
+        "excel_stale": False,
         "scanned_roots": roots,
     }
     return jsonify({
@@ -300,15 +406,29 @@ def get_cached_data():
         }), 200
 
     facturas_data = _build_facturas_data(result)
+    # Excel fresco throttled (best-effort) — único side-effect permitido aquí.
+    _try_ensure_fresh_excel()
+    result = _watcher.get_result() or result
+    facturas_data = _build_facturas_data(result)
+    health = _watcher.get_health_snapshot()
     response_data = {
         "cached": True,
-        "monitoring": True,
+        "monitoring": health["monitoring"],
+        "message": health["message"],
+        "degraded_roots": health["degraded_roots"],
+        "observer_alive": health["observer_alive"],
+        "events_count": health["events_count"],
+        "last_event_at": health["last_event_at"],
+        "last_reconcile_at": health["last_reconcile_at"],
+        "last_scan_at": health["last_scan_at"],
+        "next_scan_at": health["next_scan_at"],
         "facturas": facturas_data,
         "indicadores": dict(result.indicadores),
         "duplicados": result.duplicados,
         "vacias": result.vacias,
         "errores_scan": result.errores_scan,
-        "excel_download": Path(result.excel_path).name if result.excel_path else None,
+        "excel_download": _excel_name(result.excel_path),
+        "excel_stale": _watcher.excel_stale,
         "scanned_roots": cached_roots,
     }
     return jsonify({

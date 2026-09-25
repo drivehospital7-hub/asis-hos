@@ -330,6 +330,173 @@ class TestMonitoreoE2E:
                 os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
 
 
+class TestForceScanAndExcelContract:
+    """Task 3: POST /scan?force=true + contrato degradado-sin-cache."""
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = ["*"]
+
+    def _scan_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "scan_root"
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True)
+        (fact / "FEV001").mkdir()
+        (fact / "FEV001" / "dummy.txt").write_text("x")
+        return root
+
+    def test_scan_exposes_excel_stale_flag(self, app_client, tmp_path: Path) -> None:
+        """POST /scan y GET /data exponen excel_download + excel_stale."""
+        self._authenticate(app_client)
+        root = self._scan_root(tmp_path)
+        os.environ["MONITOREO_CARPETAS_ROOTS"] = json.dumps([str(root)])
+        try:
+            scan_data = app_client.post("/monitoreo-carpetas/scan").get_json()["data"]
+            assert scan_data["excel_download"] is not None
+            assert scan_data["excel_stale"] is False
+
+            data = app_client.get("/monitoreo-carpetas/data").get_json()["data"]
+            assert data["cached"] is True
+            assert data["excel_download"] is not None
+            assert data["excel_stale"] is False
+        finally:
+            os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
+
+    def test_force_true_triggers_full_scan_despite_cache(
+        self, app_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """?force=true ejecuta first_scan aunque haya cache; sin force no."""
+        import app.routes.monitoreo_carpetas as route_mod
+
+        self._authenticate(app_client)
+        root = self._scan_root(tmp_path)
+        os.environ["MONITOREO_CARPETAS_ROOTS"] = json.dumps([str(root)])
+        try:
+            first = app_client.post("/monitoreo-carpetas/scan").get_json()
+            assert first["status"] == "success"
+            assert len(first["data"]["facturas"]) == 1
+
+            calls: list[list[str]] = []
+            real_first_scan = route_mod._watcher.first_scan
+
+            def _counting_first_scan(roots: list[str]):
+                calls.append(list(roots))
+                return real_first_scan(roots)
+
+            monkeypatch.setattr(
+                route_mod._watcher, "first_scan", _counting_first_scan
+            )
+
+            # Sin force: health check, sin full scan
+            cached = app_client.post("/monitoreo-carpetas/scan").get_json()
+            assert cached["status"] == "success"
+            assert calls == []
+
+            # Con force: full scan + excel fresco + monitoring presente
+            forced = app_client.post("/monitoreo-carpetas/scan?force=true").get_json()
+            assert forced["status"] == "success"
+            assert len(calls) == 1
+            assert forced["data"]["excel_download"] is not None
+            assert forced["data"]["excel_stale"] is False
+            assert "monitoring" in forced["data"]
+            assert len(forced["data"]["facturas"]) == 1
+        finally:
+            os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
+
+    def test_degraded_no_cache_payload_completo(
+        self, app_client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Degradado-sin-cache incluye claves del contrato frontend (vacías)."""
+        import app.routes.monitoreo_carpetas as route_mod
+
+        self._authenticate(app_client)
+        missing = "/no/existe/smb"
+        monkeypatch.setattr(
+            "app.routes.monitoreo_carpetas.get_roots",
+            mock.Mock(return_value=([missing], "manual", None)),
+        )
+        degraded = {
+            "monitoring": False,
+            "message": "Carpetas no accesibles",
+            "events_count": 0,
+            "observer_alive": False,
+            "degraded_roots": [missing],
+            "last_event_at": None,
+        }
+        monkeypatch.setattr(
+            route_mod._watcher, "health_check", mock.Mock(return_value=degraded)
+        )
+        # Primera lectura (branch) ve cache; segunda (rama degradada) ve None
+        monkeypatch.setattr(
+            route_mod._watcher,
+            "get_result",
+            mock.Mock(side_effect=[ScanResult(), None]),
+        )
+        resp = app_client.post("/monitoreo-carpetas/scan")
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        assert data["monitoring"] is False
+        for key in (
+            "indicadores", "duplicados", "vacias",
+            "errores_scan", "excel_download", "scanned_roots",
+        ):
+            assert key in data, f"falta clave de contrato: {key}"
+        assert data["facturas"] == []
+        assert data["indicadores"] == {}
+        assert data["duplicados"] == []
+        assert data["vacias"] == []
+        assert data["errores_scan"] == []
+        assert data["excel_download"] is None
+
+
+class TestReconcilerContract:
+    """Task 4: /scan y /data exponen last_reconcile_at."""
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = ["*"]
+
+    def test_scan_y_data_exponen_last_reconcile_at(
+        self, app_client, tmp_path: Path
+    ) -> None:
+        """POST /scan y GET /data incluyen la clave last_reconcile_at."""
+        import app.routes.monitoreo_carpetas as route_mod
+
+        self._authenticate(app_client)
+        root = tmp_path / "scan_root"
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True)
+        (fact / "FEV001").mkdir()
+        (fact / "FEV001" / "dummy.txt").write_text("x")
+        os.environ["MONITOREO_CARPETAS_ROOTS"] = json.dumps([str(root)])
+        try:
+            scan_data = app_client.post("/monitoreo-carpetas/scan").get_json()["data"]
+            assert "last_reconcile_at" in scan_data
+            # Tras un ciclo manual, el timestamp se expone en ambas rutas
+            route_mod._watcher.reconcile_once()
+            scan_data = app_client.post("/monitoreo-carpetas/scan").get_json()["data"]
+            assert scan_data["last_reconcile_at"] is not None
+            data = app_client.get("/monitoreo-carpetas/data").get_json()["data"]
+            assert data["cached"] is True
+            assert data["last_reconcile_at"] is not None
+        finally:
+            os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
+
+
 class TestConfigEndpoints:
     """Integration tests for config endpoints (tasks 2.2-2.4)."""
 
@@ -500,3 +667,144 @@ class TestScanWithStore:
             assert data["status"] == "success"
             assert len(data["data"]["facturas"]) == 1
             assert data["data"]["facturas"][0]["filename"] == "FEV001"
+
+
+class TestScanPermissions:
+    """Task 8: POST /scan requiere monitoreo_carpetas:write; GET /data es lectura.
+
+    Nota: permiso_requerido (app/utils/auth.py) solo devuelve 403 JSON
+    cuando el request es JSON o lleva header X-Requested-With; por eso
+    los POST /scan de estos tests mandan ese header (el scan real no
+    lleva body JSON).
+    """
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client, permisos: list[str]) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = permisos
+
+    def test_scan_sin_write_retorna_403(self, app_client) -> None:
+        """POST /scan con solo lectura → 403 con envelope de error."""
+        self._authenticate(app_client, ["monitoreo_carpetas"])
+        resp = app_client.post(
+            "/monitoreo-carpetas/scan",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 403
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert data["data"] == {}
+        assert "Permiso denegado" in data["errors"]
+
+    def test_scan_force_sin_write_retorna_403(self, app_client) -> None:
+        """POST /scan?force=true con solo lectura → 403 con envelope."""
+        self._authenticate(app_client, ["monitoreo_carpetas"])
+        resp = app_client.post(
+            "/monitoreo-carpetas/scan?force=true",
+            headers={"X-Requested-With": "XMLHttpRequest"},
+        )
+        assert resp.status_code == 403
+        data = resp.get_json()
+        assert data["status"] == "error"
+        assert "Permiso denegado" in data["errors"]
+
+    def test_scan_con_write_retorna_200(
+        self, app_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """POST /scan con :write → 200 success (escaneo real)."""
+        root = tmp_path / "scan_root"
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True)
+        (fact / "FEV001").mkdir()
+        (fact / "FEV001" / "dummy.txt").write_text("x")
+        monkeypatch.setattr(
+            "app.routes.monitoreo_carpetas.get_roots",
+            mock.Mock(return_value=([str(root)], "manual", None)),
+        )
+        self._authenticate(app_client, ["monitoreo_carpetas:write"])
+        resp = app_client.post("/monitoreo-carpetas/scan")
+        assert resp.status_code == 200
+        data = resp.get_json()
+        assert data["status"] == "success"
+        assert len(data["data"]["facturas"]) == 1
+
+    def test_get_data_sin_write_retorna_200(self, app_client) -> None:
+        """GET /data sigue abierto para lectura (sin :write → 200)."""
+        self._authenticate(app_client, ["monitoreo_carpetas"])
+        resp = app_client.get("/monitoreo-carpetas/data")
+        assert resp.status_code == 200
+        assert resp.get_json()["status"] == "success"
+
+
+class TestScheduledScanContract:
+    """Task 7: /scan y /data exponen last_scan_at/next_scan_at (ISO)."""
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = ["*"]
+
+    def _scan_root(self, tmp_path: Path) -> Path:
+        root = tmp_path / "scan_root"
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True)
+        (fact / "FEV001").mkdir()
+        (fact / "FEV001" / "dummy.txt").write_text("x")
+        return root
+
+    @staticmethod
+    def _iso_diff_secs(last_iso: str, next_iso: str) -> float:
+        from datetime import datetime
+
+        return (
+            datetime.fromisoformat(next_iso) - datetime.fromisoformat(last_iso)
+        ).total_seconds()
+
+    def test_scan_y_data_exponen_last_next_scan_at(
+        self, app_client, tmp_path: Path
+    ) -> None:
+        """POST /scan (1°, cache y ?force=true) y GET /data: contrato ISO."""
+        self._authenticate(app_client)
+        root = self._scan_root(tmp_path)
+        os.environ["MONITOREO_CARPETAS_ROOTS"] = json.dumps([str(root)])
+        try:
+            first = app_client.post("/monitoreo-carpetas/scan").get_json()["data"]
+            assert first["last_scan_at"] is not None
+            assert first["next_scan_at"] is not None
+            assert self._iso_diff_secs(
+                first["last_scan_at"], first["next_scan_at"]
+            ) == 900.0
+
+            # Rama health (con cache): mismo contrato
+            cached = app_client.post("/monitoreo-carpetas/scan").get_json()["data"]
+            assert cached["last_scan_at"] == first["last_scan_at"]
+            assert cached["next_scan_at"] is not None
+
+            # GET /data: mismo contrato
+            data = app_client.get("/monitoreo-carpetas/data").get_json()["data"]
+            assert data["cached"] is True
+            assert data["last_scan_at"] == first["last_scan_at"]
+            assert data["next_scan_at"] is not None
+
+            # ?force=true: full scan bajo demanda, actualiza last_scan_at
+            forced = app_client.post(
+                "/monitoreo-carpetas/scan?force=true"
+            ).get_json()["data"]
+            assert forced["last_scan_at"] is not None
+            assert forced["last_scan_at"] >= first["last_scan_at"]
+            assert forced["next_scan_at"] is not None
+            assert len(forced["facturas"]) == 1
+        finally:
+            os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
