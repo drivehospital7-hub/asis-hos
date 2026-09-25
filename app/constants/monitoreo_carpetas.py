@@ -43,7 +43,16 @@ ENV_MONITOREO_ROOTS: str = "MONITOREO_CARPETAS_ROOTS"
 # =============================================================================
 
 SCAN_TIMEOUT_PER_FACTURADOR: int = 120
-"""Tiempo máximo en segundos para escanear un solo facturador."""
+"""Tiempo máximo en segundos para escanear un solo facturador.
+
+NOTA (2026-09): 120s puede ser poco para un root UNC grande con miles de
+carpetas en SMB lento — se evaluó subirlo a 300s o hacerlo configurable
+por env var. Se MANTIENE en 120 a propósito: con el pre-probe acotado por
+`ROOT_PROBE_TIMEOUT` + el guard anti-solapamiento del scheduler, un root
+que excede este timeout genera una entrada de error acotada en vez de
+colgar el request/scheduler. Si hay evidencia de timeouts legítimos (roots
+accesibles pero lentos que siempre caen en timeout), subir a 300 o leer de
+env var es el cambio previsto — ningún test actual lo exige."""
 
 MAX_CONCURRENT_SCANS: int = 3
 """Máximo de escaneos simultáneos (semáforo de concurrencia)."""

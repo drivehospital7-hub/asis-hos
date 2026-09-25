@@ -109,3 +109,61 @@ class TestScanAll:
         result = scan_all([str(temp_scan_root)])
         for rec in result.facturas:
             assert rec.invoice_code == rec.filename
+
+
+class TestScanAllAntiHang:
+    """Regresión: scan SMB colgado/lento no cuelga el request."""
+
+    def test_hung_root_returns_fast_with_error(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Root colgado en scandir → error inmediato, sin escanear."""
+        import time
+
+        import app.services.monitoreo_carpetas.folder_scanner as scanner_mod
+
+        monkeypatch.setattr(scanner_mod, "ROOT_PROBE_TIMEOUT", 0.1)
+        monkeypatch.setattr(scanner_mod, "SCAN_TIMEOUT_PER_FACTURADOR", 1)
+
+        def _blocking_scandir(_path):
+            time.sleep(10)  # SMB colgado: nunca responde
+            raise AssertionError("no debería llegar acá")
+
+        monkeypatch.setattr(scanner_mod.os, "scandir", _blocking_scandir)
+
+        start = time.time()
+        result = scan_all([r"\\colgado\share"])
+        elapsed = time.time() - start
+
+        assert result.facturas == []
+        assert len(result.errores_scan) == 1
+        assert result.errores_scan[0]["root"] == r"\\colgado\share"
+        # Probe acotado (~0.1s), muy lejos de colgarse en el scan
+        assert elapsed < 5, f"scan colgado tardó {elapsed:.1f}s"
+
+    def test_empty_detected_without_full_listdir(
+        self, temp_scan_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Vacías detectadas con scandir de 1 entrada, sin listdir completo."""
+        import app.services.monitoreo_carpetas.folder_scanner as scanner_mod
+
+        calls: list[str] = []
+        real_listdir = scanner_mod.os.listdir
+
+        def _counting_listdir(path):
+            calls.append(str(path))
+            return real_listdir(path)
+
+        monkeypatch.setattr(scanner_mod.os, "listdir", _counting_listdir)
+
+        result = scan_all([str(temp_scan_root)])
+
+        # FEV99999 vacía se sigue detectando...
+        assert any(
+            v.get("folder", "").endswith("FEV99999") for v in result.vacias
+        )
+        # ...y las 3 facturas no vacías se siguen encontrando...
+        assert len(result.facturas) == 3
+        # ...sin enumerar carpetas completas con listdir.
+        assert calls == [], f"os.listdir no debe usarse: {calls}"
+

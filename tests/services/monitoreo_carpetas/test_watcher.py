@@ -742,3 +742,64 @@ class TestScheduledMode:
             assert response["next_scan_at"] is None
         finally:
             watcher.reset()
+
+
+class TestSchedulerNoOverlap:
+    """Regresión: el scheduler nunca apila ciclos solapados (SMB lento)."""
+
+    def test_reconcile_skips_overlapping_cycle(self, tmp_path: Path) -> None:
+        """Ciclo en curso + segundo ciclo → skip inmediato con log."""
+        import threading
+        import time
+
+        import app.services.monitoreo_carpetas.watcher as watcher_mod
+
+        watcher = FolderWatcher()
+        watcher.reset()
+        try:
+            watcher._roots = [str(tmp_path)]
+            watcher.set_result(
+                ScanResult(facturas=[], vacias=[], errores_scan=[], indicadores={})
+            )
+
+            entered = threading.Event()
+            release = threading.Event()
+            calls: list[list[str]] = []
+
+            def _blocking_detect_all(roots: list[str]):
+                calls.append(list(roots))
+                entered.set()
+                assert release.wait(timeout=10), "el ciclo se quedó colgado"
+                return ScanResult(
+                    facturas=[], vacias=[], errores_scan=[], indicadores={}
+                )
+
+            watcher_done: list[bool] = []
+
+            def _run_first() -> None:
+                watcher_done.append(watcher.reconcile_once())
+
+            with mock.patch.object(
+                watcher_mod, "detect_all", side_effect=_blocking_detect_all
+            ):
+                first = threading.Thread(target=_run_first, daemon=True)
+                first.start()
+                assert entered.wait(timeout=10), "el primer ciclo no arrancó"
+
+                start = time.time()
+                skipped = watcher.reconcile_once()
+                elapsed = time.time() - start
+
+                assert skipped is False, "el ciclo solapado debe saltearse"
+                assert elapsed < 2, f"el skip debe ser inmediato ({elapsed:.1f}s)"
+                assert len(calls) == 1, "no debe lanzar un segundo detect_all"
+
+                release.set()
+                first.join(timeout=10)
+                assert watcher_done == [False]  # sin diff → False, pero sin error
+
+                # Lock liberado: el próximo ciclo corre normal.
+                assert watcher.reconcile_once() is False
+                assert len(calls) == 2
+        finally:
+            watcher.reset()

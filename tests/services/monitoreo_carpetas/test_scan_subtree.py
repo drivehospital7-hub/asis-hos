@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from app.services.monitoreo_carpetas import InvoiceRecord
 from app.services.monitoreo_carpetas.folder_scanner import scan_subtree
 
@@ -53,3 +55,26 @@ class TestScanSubtree:
         scan_subtree(subpath, str(temp_scan_root), 0, invoices, empty_folders, errors)
 
         assert len(invoices) == 0
+
+    def test_scan_subtree_empty_check_without_listdir(
+        self, temp_scan_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """El chequeo de vacías no enumera la carpeta completa (single-entry)."""
+        import app.services.monitoreo_carpetas.folder_scanner as scanner_mod
+
+        def _forbidden_listdir(_path):
+            raise AssertionError("os.listdir no debe usarse para chequeo-vacío")
+
+        monkeypatch.setattr(scanner_mod.os, "listdir", _forbidden_listdir)
+
+        invoices: list[InvoiceRecord] = []
+        empty_folders: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        scan_subtree(str(temp_scan_root), str(temp_scan_root), 0, invoices, empty_folders, errors)
+
+        assert len(invoices) == 3
+        assert any(
+            v.get("folder", "").endswith("FEV99999") for v in empty_folders
+        )
+        assert errors == []

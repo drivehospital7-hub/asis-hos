@@ -102,6 +102,7 @@ class FolderWatcher:
         self._last_scan_at: float | None = None  # epoch s of last full/scheduler scan
         self._reconciler_thread: threading.Thread | None = None
         self._reconciler_stop = threading.Event()
+        self._reconcile_lock = threading.Lock()  # guard anti-solapamiento
         self._excel_stale: bool = False  # True si el Excel no refleja el ScanResult
         self._excel_generated_at: float | None = None  # epoch s última generación Excel
         self._load_snapshot()
@@ -338,8 +339,25 @@ que escanea actualiza ``last_scan_at`` y ``last_reconcile_at``; con
 diff, además marca ``excel_stale`` y persiste el snapshot.
 
         Returns:
-            True if the cache was updated, False otherwise.
+            True if the cache was updated, False otherwise. If a previous
+            scheduler cycle is still running (SMB scan lento/colgado), the
+            overlapping cycle is SKIPPED (logged) instead of piling up.
         """
+        # Guard anti-solapamiento: un ciclo lento (SMB colgado) no debe
+        # apilar otro `detect_all` encima. Non-blocking: si el ciclo
+        # anterior sigue corriendo, saltear y loguear.
+        if not self._reconcile_lock.acquire(blocking=False):
+            logger.warning(
+                "Reconciliador: ciclo anterior en curso, salteando ciclo solapado"
+            )
+            return False
+        try:
+            return self._reconcile_once_locked()
+        finally:
+            self._reconcile_lock.release()
+
+    def _reconcile_once_locked(self) -> bool:
+        """Cuerpo del ciclo del scheduler (llamar con `_reconcile_lock`)."""
         from app.constants import monitoreo_carpetas as mc
 
         with self._lock:
