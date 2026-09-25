@@ -25,9 +25,7 @@ describe("ValueInput catalog keys", () => {
       onChange,
     });
 
-    element.type({ ...element.props }).props.onChange({
-      target: { value: "catalog_a" },
-    });
+    element.type({ ...element.props }).props.onChange("catalog_a");
 
     expect(onChange).toHaveBeenCalledWith("catalog_a");
   });

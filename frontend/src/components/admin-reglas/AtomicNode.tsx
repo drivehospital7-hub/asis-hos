@@ -4,6 +4,7 @@ import type { CondicionTree } from "@/lib/api-reglas";
 import { fetchCatalogo } from "@/lib/api-reglas";
 import { FUENTES_DATOS, getValueTypeForOperator } from "./operators";
 import { OperatorSelector } from "./OperatorSelector";
+import { SearchableSelect } from "./SearchableSelect";
 import { ValueInput } from "./ValueInput";
 
 // ─── Props ─────────────────────────────────────────────────────────
@@ -85,18 +86,15 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove 
         borderLeft: "3px solid oklch(0.6 0.2 25 / 0.3)",
       }}
     >
-      {/* FUENTES_DATOS select */}
-      <select
+      {/* FUENTES_DATOS searchable select */}
+      <SearchableSelect
         value={node.fuente_datos ?? ""}
-        onChange={(e) => onUpdate(node.id, "fuente_datos", e.target.value)}
-        className="text-xs border rounded px-2 py-1 outline-none min-w-[180px]"
-        style={{ borderColor: "oklch(0.6 0.2 25 / 0.2)" }}
-      >
-        <option value="">-- fuente --</option>
-        {FUENTES_DATOS.map((f) => (
-          <option key={f} value={f}>{f}</option>
-        ))}
-      </select>
+        options={FUENTES_DATOS}
+        onChange={(v) => onUpdate(node.id, "fuente_datos", v)}
+        ariaLabel="Fuente de datos"
+        placeholder="-- fuente -- (escribí para buscar)"
+        minWidth="180px"
+      />
 
       {/* Operator selector */}
       <OperatorSelector
@@ -129,7 +127,7 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove 
           {/* Popover */}
           {catalogOpen && (
             <div
-              className="absolute top-full left-0 mt-1 z-40 bg-white rounded-lg border shadow-lg p-3 min-w-[280px] max-w-[400px]"
+              className="absolute top-full right-0 mt-1 z-40 bg-white rounded-lg border shadow-lg p-3 min-w-[280px] max-w-[400px] max-w-[calc(100vw-2rem)]"
               style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
             >
               <div className="flex items-center justify-between mb-2">

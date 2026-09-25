@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { Plus, X } from "lucide-react";
 import type { ValueType } from "./operators";
+import { SearchableSelect } from "./SearchableSelect";
 
 // ─── Props ─────────────────────────────────────────────────────────
 
@@ -70,18 +71,14 @@ function CatalogSelect({
     : options;
 
   return (
-    <select
-      aria-label="Catalog key"
+    <SearchableSelect
       value={String(value ?? "")}
-      onChange={(e) => onChange(e.target.value)}
-      className="text-xs font-mono border rounded px-2 py-1 outline-none flex-1 min-w-[160px]"
-      style={{ borderColor: "oklch(0.6 0.2 25 / 0.2)" }}
-    >
-      <option value="">-- catalog key --</option>
-      {selectOptions.map((key) => (
-        <option key={key} value={key}>{key}</option>
-      ))}
-    </select>
+      options={selectOptions}
+      onChange={onChange}
+      ariaLabel="Catalog key"
+      placeholder="-- catalog key -- (escribí para buscar)"
+      minWidth="160px"
+    />
   );
 }
 
