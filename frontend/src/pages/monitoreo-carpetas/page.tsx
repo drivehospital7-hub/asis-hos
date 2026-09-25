@@ -55,11 +55,34 @@ interface ScanResponse {
     errores_scan: Array<{ root: string; error: string }>;
     excel_download: string | null;
     scanned_roots: string[];
+    degraded_roots?: string[];
+    last_reconcile_at?: string | null;
+    last_event_at?: string | null;
+    last_scan_at?: string | null;
+    next_scan_at?: string | null;
+    excel_stale?: boolean;
   };
   errors: string[];
 }
 
+const DATA_POLL_INTERVAL_MS = 30000;
+
 const MOVE_TOAST_DURATION = 2500;
+
+// Header XHR: el decorador de permisos hace redirect al login en POST
+// sin X-Requested-With; con el header devuelve 403 JSON.
+const XHR_HEADERS = { "X-Requested-With": "XMLHttpRequest" };
+
+// showDirectoryPicker solo existe en navegadores Chromium; fallback = input textual.
+const supportsDirectoryPicker =
+  typeof window !== "undefined" && "showDirectoryPicker" in window;
+
+function formatScanDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleString();
+}
 
 // Toast (clon abiertas-urgencias/page.tsx L56-75)
 function MoveToast({
@@ -85,6 +108,7 @@ function MoveToast({
 
 export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boolean }) {
   const [loading, setLoading] = useState(false);
+  const [forceLoading, setForceLoading] = useState(false);
   const [result, setResult] = useState<ScanResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [facturadorFilter, setFacturadorFilter] = useState<string>("");
@@ -153,14 +177,39 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
       });
   }, []);
 
+  // Polling liviano a GET /data: solo con resultado previo, pausa en pestaña oculta.
+  // Solo setResult — no pisa selección de move ni filtro de facturador.
+  const hasResult = result !== null;
+  useEffect(() => {
+    if (!hasResult) return;
+    const id = setInterval(async () => {
+      if (document.hidden) return;
+      try {
+        const res = await fetch("/monitoreo-carpetas/data");
+        const data: ScanResponse = await res.json();
+        if (data.status === "success" && data.data) {
+          setResult(data.data);
+        }
+      } catch {
+        // Silently fail — próximo tick reintenta
+      }
+    }, DATA_POLL_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [hasResult]);
+
   const handleAddRoot = () => {
     setConfigRoots((prev) => [...prev, ""]);
   };
 
   const handleRemoveRoot = (idx: number) => {
+    // Solo alcanzable con can_write: el botón Eliminar solo se renderiza con permiso.
+    if (!can_write) return;
     setConfigRoots((prev) => prev.filter((_, i) => i !== idx));
     // Al eliminar una ruta el snapshot queda inválido — lo borramos
-    fetch("/monitoreo-carpetas/clear-snapshot", { method: "POST" })
+    fetch("/monitoreo-carpetas/clear-snapshot", {
+      method: "POST",
+      headers: XHR_HEADERS,
+    })
       .then((res) => res.json())
       .then((data) => {
         if (data.status === "success") {
@@ -178,6 +227,23 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
       next[idx] = cleaned;
       return next;
     });
+  };
+
+  // Picker de carpetas (solo Chromium): la web no expone la ruta UNC
+  // absoluta, así que se sugiere el nombre elegido y se confirma como texto.
+  const handleBrowseRoot = async (idx: number) => {
+    try {
+      const dirHandle = await (
+        window as unknown as {
+          showDirectoryPicker: () => Promise<{ name?: string }>;
+        }
+      ).showDirectoryPicker();
+      if (dirHandle?.name) {
+        handleRootChange(idx, dirHandle.name);
+      }
+    } catch {
+      // Usuario canceló o picker no disponible — se mantiene el input textual.
+    }
   };
 
   const handleSaveConfig = async () => {
@@ -213,7 +279,10 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
     setError(null);
 
     try {
-      const res = await fetch("/monitoreo-carpetas/scan", { method: "POST" });
+      const res = await fetch("/monitoreo-carpetas/scan", {
+        method: "POST",
+        headers: XHR_HEADERS,
+      });
       const data: ScanResponse = await res.json();
 
       if (data.status === "success") {
@@ -225,6 +294,29 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
       setError("Error de conexión: " + (err as Error).message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForceScan = async () => {
+    setForceLoading(true);
+    setError(null);
+
+    try {
+      const res = await fetch("/monitoreo-carpetas/scan?force=true", {
+        method: "POST",
+        headers: XHR_HEADERS,
+      });
+      const data: ScanResponse = await res.json();
+
+      if (data.status === "success") {
+        setResult(data.data);
+      } else {
+        setError(data.errors?.join(", ") || "Error al ejecutar escaneo forzado");
+      }
+    } catch (err) {
+      setError("Error de conexión: " + (err as Error).message);
+    } finally {
+      setForceLoading(false);
     }
   };
 
@@ -303,6 +395,18 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                     placeholder="\\\\servidor\\ruta"
                     className="flex-1 font-mono text-xs"
                   />
+                  {supportsDirectoryPicker && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleBrowseRoot(idx)}
+                      className="shrink-0"
+                      title="Examinar carpetas (se sugiere el nombre; confirmar como texto)"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" />
+                      Examinar
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="icon"
@@ -355,7 +459,21 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                 Escanear Carpetas de Red
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                La primera vez ejecuta un escaneo completo. Luego watchdog monitorea cambios en tiempo real.
+                Escaneo automático programado cada 15 minutos. Último y próximo escaneo:
+              </p>
+              <p className="text-xs text-foreground/80 mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                <span>
+                  Último escaneo:{" "}
+                  <span className="font-medium">
+                    {formatScanDateTime(result?.last_scan_at)}
+                  </span>
+                </span>
+                <span>
+                  Próximo escaneo:{" "}
+                  <span className="font-medium">
+                    {formatScanDateTime(result?.next_scan_at)}
+                  </span>
+                </span>
               </p>
             </div>
             {result?.monitoring && (
@@ -367,18 +485,47 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                 )}
               </span>
             )}
+            {result?.degraded_roots && result.degraded_roots.length > 0 && (
+              <span
+                className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 px-3 py-1 text-xs font-medium text-warning-foreground shrink-0"
+                title={result.degraded_roots.join(", ")}
+              >
+                <AlertCircle className="h-3 w-3" />
+                Degradado: {result.degraded_roots.length} ruta(s) no disponible(s)
+              </span>
+            )}
           </div>
-          <Button onClick={handleScan} disabled={loading}>
-              {loading ? (
-                "Verificando..."
-              ) : (
-                <>
-                  <Play className="h-4 w-4" />
-                  Verificar
-                </>
-              )}
-            </Button>
+          {can_write && (
+            <div className="flex items-center gap-2 shrink-0">
+              <Button onClick={handleForceScan} disabled={forceLoading || loading} variant="outline">
+                {forceLoading ? "Forzando..." : "Forzar escaneo"}
+              </Button>
+              <Button onClick={handleScan} disabled={loading || forceLoading}>
+                {loading ? (
+                  "Verificando..."
+                ) : (
+                  <>
+                    <Play className="h-4 w-4" />
+                    Verificar
+                  </>
+                )}
+              </Button>
+            </div>
+          )}
         </div>
+        {result?.degraded_roots && result.degraded_roots.length > 0 && (
+          <p className="text-xs text-warning-foreground mt-3 flex items-start gap-1">
+            <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+            <span>
+              Monitoreo degradado — no se puede acceder a: {result.degraded_roots.join(", ")}
+            </span>
+          </p>
+        )}
+        {result?.last_reconcile_at && (
+          <p className="text-[11px] text-muted-foreground mt-2">
+            Última reconciliación: {result.last_reconcile_at}
+          </p>
+        )}
       </Card>
 
       {/* Error */}
@@ -451,7 +598,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
 
           {/* Download button */}
           {result.excel_download && (
-            <div className="mb-6">
+            <div className="mb-6 flex items-center gap-3">
               <a
                 href={`/monitoreo-carpetas/download/${result.excel_download}`}
                 download
@@ -461,6 +608,11 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                   Exportar Excel
                 </Button>
               </a>
+              {result.excel_stale && (
+                <span className="text-xs text-warning-foreground">
+                  Excel desactualizado — se regenerará en el próximo escaneo.
+                </span>
+              )}
             </div>
           )}
 

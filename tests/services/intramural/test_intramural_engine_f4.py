@@ -1,8 +1,10 @@
 """Strict TDD F4: Tests for Intramural-specific engine toggles.
 
-Covers T-F4.1 (CentroCostoIntramuralEvaluator), T-F4.2 (ide_contrato legacy),
+Covers T-F4.1 (CentroCostoIntramuralEvaluator),
 T-F4.3 (RevisionCantidadIntramuralEvaluator), T-F4.4 (detect_all integration),
 T-F4.5 (snapshot structure).
+NOTE (legacy purge): T-F4.2 (ide_contrato legacy) removed with
+app/services/intramural/ide_contrato_intramural.py.
 """
 from __future__ import annotations
 
@@ -576,7 +578,9 @@ class TestIntramuralF4Integration:
 
     T-F4.4: centro_costo_intramural and revision_cantidad_intramural are Ref #1
     GAPs (dangling rule names — engine evaluation explicitly skipped).
-    ide_contrato_intramural stays legacy (too complex for row-by-row engine).
+    NOTE (legacy purge): app/services/intramural/ide_contrato_intramural.py
+    + ide_contrato_rules.py deleted — ide_contrato is [] until DB rules are
+    seeded and a RuleBasedDetector is wired in intramural/detect_all.py.
 
     T-F4.5: snapshot structure matching between engine and legacy paths.
     """
@@ -707,54 +711,10 @@ class TestIntramuralF4Integration:
         assert "revision_cantidad" in r["problemas"]
         assert r["problemas"]["revision_cantidad"] == []
 
-    # ── IDE Contrato LEGACY OFF (2026-09-09, usuario eligió "Actualizar tests") ──
-
-    def test_ide_contrato_stays_legacy(self):
-        """LEGACY OFF (2026-09-09): detect_ide_contrato_intramural legacy ya NO
-        se llama en ningún path — ide_contrato es [] hasta reactivar rules.
-
-        TODO(engine): sembrar rules ide_contrato_simple + pym_rutas_dx y
-        cablear RuleBasedDetector en app/services/intramural/detect_all.py.
-        Revertir con git revert. Ver comentario LEGACY OFF en detect_all.py.
-        """
-        import os
-        from app.services.intramural import ide_contrato_intramural as ide_module
-        original_fn = ide_module.detect_ide_contrato_intramural
-        call_log: list[str] = []
-
-        def tracking_fn(ds, idx):
-            call_log.append("called")
-            return original_fn(ds, idx)
-
-        try:
-            ide_module.detect_ide_contrato_intramural = tracking_fn
-            with patch("app.database.get_session") as m_gs:
-                with patch("app.services.engine.rule_based_detector.RuleBasedDetector") as m_dc:
-                    m_gs.return_value = self._mock_session()
-                    md = MagicMock()
-                    md.detect.return_value = []
-                    m_dc.return_value = md
-                    from app.services.intramural.detect_all import (
-                        detect_all_problems_intramural,
-                    )
-                    wb, idx = self._build_sheet()
-                    old = os.environ.pop("USE_RULE_ENGINE", None)
-                    os.environ["USE_RULE_ENGINE"] = "true"
-                    try:
-                        r, _ = detect_all_problems_intramural(wb.active, idx)
-                    finally:
-                        if old is not None:
-                            os.environ["USE_RULE_ENGINE"] = old
-                        else:
-                            os.environ.pop("USE_RULE_ENGINE", None)
-        finally:
-            ide_module.detect_ide_contrato_intramural = original_fn
-
-        assert not call_log, (
-            "LEGACY OFF: legacy detect_ide_contrato_intramural NO debe llamarse"
-        )
-        assert "ide_contrato" in r["problemas"]
-        assert r["problemas"]["ide_contrato"] == []
+    # NOTE (legacy purge): test_ide_contrato_stays_legacy removed with the
+    # deleted app/services/intramural/ide_contrato_intramural.py — it asserted
+    # the legacy detector was NOT called. ide_contrato is [] until DB rules
+    # are seeded and a RuleBasedDetector is wired in intramural/detect_all.py.
 
     # ── Snapshot: keys present in both paths ──
 
@@ -829,40 +789,9 @@ class TestIntramuralF4Integration:
         for k in total_keys:
             assert k in r["totales"], f"Engine totales missing: {k}"
 
-    def test_centros_de_costos_format_resilient(self):
-        """centros_de_costos formatter must not crash when engine items lack
-        centro_actual/centro_deberia (engine output doesn't have these keys)."""
-        import os
-        from app.services.intramural import centro_costo_intramural as cc_module
-        engine_like_output = [
-            {"factura": "INTRA-001", "problema": "CC invalid",
-             "regla": "#1", "severidad": "error",
-             "codigo": "", "procedimiento": ""}
-        ]
-        original_fn = cc_module.detect_centro_costo_intramural
-        cc_module.detect_centro_costo_intramural = lambda ds, idx: engine_like_output
-
-        try:
-            from app.services.intramural.detect_all import (
-                detect_all_problems_intramural,
-            )
-            wb, idx = self._build_sheet()
-            old = os.environ.pop("USE_RULE_ENGINE", None)
-            os.environ["USE_RULE_ENGINE"] = "false"
-            try:
-                r, _ = detect_all_problems_intramural(wb.active, idx)
-            finally:
-                if old is not None:
-                    os.environ["USE_RULE_ENGINE"] = old
-                else:
-                    os.environ.pop("USE_RULE_ENGINE", None)
-        finally:
-            cc_module.detect_centro_costo_intramural = original_fn
-
-        assert "centros_de_costos" in r["problemas"]
-        for item in r["problemas"]["centros_de_costos"]:
-            assert "centro_actual" in item
-            assert "centro_deberia" in item
+    # NOTE (remate borrado fase 3): test_centros_de_costos_format_resilient
+    # eliminado — importaba el módulo legacy borrado
+    # app/services/intramural/centro_costo_intramural.py (vía package intramural).
 
 
 # ═══════════════════════════════════════════════════════════════════════════

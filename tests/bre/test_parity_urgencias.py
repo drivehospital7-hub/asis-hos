@@ -101,43 +101,8 @@ def _forbidden_session(*args, **kwargs):  # pragma: no cover
     raise AssertionError("parity harness must not open a DB connection")
 
 
+# NOTE (remate legacy fase 2): OFF-path/módulos borrados eliminados; solo parity engine-ON.
 class TestUrgParity:
-    def test_unified_matches_legacy_order_insensitive(self) -> None:
-        """Engine (flag OFF, no DB) unified output == legacy detect_all."""
-        from app.services.unified_processor import process_unified
-        from app.services.urgencias.detect_all import detect_all_problems_urgencias
-
-        wb = _build_urg_workbook()
-        indices = _indices(wb)
-        with (
-            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
-            patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
-            patch("app.database.get_session", _forbidden_session),
-        ):
-            legacy, _ = detect_all_problems_urgencias(wb.active, indices)
-            unified, _ = process_unified(wb.active, indices)
-        assert unified["area"] == "unificada"
-        assert legacy["area"] == "urgencias"
-        assert unified["tipos_procesados"] == ["Urgencias"]
-        assert sorted(map(_norm_key, unified["problemas"]["normalizados"])) == sorted(
-            map(_norm_key, legacy["problemas"]["normalizados"])
-        )
-
-    def test_ide_centro_costo_detector_paths(self) -> None:
-        """Legacy IDE/centro-costo detectors flag wrong rows, spare clean row."""
-        from app.services.urgencias.centro_costo_urgencias import detect_centro_costo_urgencias
-        from app.services.urgencias.ide_contrato_urgencias import detect_ide_contrato_urgencias
-
-        wb = _build_urg_workbook()
-        indices = _indices(wb)
-        ide = detect_ide_contrato_urgencias(wb.active, indices)
-        centros = detect_centro_costo_urgencias(wb.active, indices)
-        ide_facturas = {item["factura"] for item in ide}
-        centros_facturas = {item["factura"] for item in centros}
-        assert "FAC-URG-003" in ide_facturas
-        assert "FAC-URG-004" not in ide_facturas
-        assert "FAC-URG-002" in centros_facturas
-
     def test_engine_mocked_ide_centro_parity(self) -> None:
         """Engine ON (mocked RuleBasedDetector): IDE/centro sets match legacy."""
         from app.models import Regla
@@ -202,31 +167,6 @@ class TestUrgParity:
             map(_norm_key, legacy["problemas"]["normalizados"])
         )
 
-    def test_missing_column_tolerance(self) -> None:
-        """Fixture without Cantidad/IDE: affected detectors return [], never raise."""
-        from app.services.unified_processor import process_unified
-        from app.services.urgencias.cantidades_urgencias import detect_cantidades_urgencias
-        from app.services.urgencias.detect_all import detect_all_problems_urgencias
-        from app.services.urgencias.ide_contrato_urgencias import detect_ide_contrato_urgencias
-
-        wb = _build_urg_workbook()
-        indices = _indices(wb)
-        indices["cantidad"] = None
-        indices["ide_contrato"] = None
-        with (
-            patch("app.services.urgencias.detect_all.is_rule_engine_enabled", return_value=False),
-            patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
-            patch("app.database.get_session", _forbidden_session),
-        ):
-            assert detect_cantidades_urgencias(wb.active, indices) == []
-            assert detect_ide_contrato_urgencias(wb.active, indices) == []
-            legacy, _ = detect_all_problems_urgencias(wb.active, indices)
-            unified, _ = process_unified(wb.active, indices)
-        assert legacy["problemas"]["cantidades_urgencias"] == []
-        assert sorted(map(_norm_key, unified["problemas"]["normalizados"])) == sorted(
-            map(_norm_key, legacy["problemas"]["normalizados"])
-        )
-
     def test_exact_header_matching(self) -> None:
         """Near-miss 'Codigo' must NOT map; exact 'Código' must map."""
         required = {"codigo": "Código"}
@@ -238,8 +178,7 @@ class TestUrgParity:
         assert missing == []
 
 
-# ── Detallado parity (Strict TDD RED — oracle builders land in GREEN) ──
-
+# NOTE (remate legacy fase 2): paridad detallado vs centro_costo_urgencias borrado.
 DETALLADO_HEADERS: dict[str, str] = {
     "numero_factura": "Número Factura",
     "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
@@ -322,30 +261,5 @@ def _build_detallado_workbook() -> Workbook:
 
 
 class TestUrgenciasDetalladoParity:
-    def test_legacy_vs_engine_snapshot_diff_empty(self) -> None:
-        """Legacy detector fire-set == (p1 or p2) tree fire-set over 17 branches."""
-        from app.services.urgencias.centro_costo_urgencias import detect_centro_costo_urgencias
-
-        oracle = _load_tree_oracle()
-        wb = _build_detallado_workbook()
-        headers = [wb.active.cell(row=1, column=c).value for c in range(1, wb.active.max_column + 1)]
-        indices, _ = get_column_indices(headers, DETALLADO_HEADERS)
-
-        legacy = detect_centro_costo_urgencias(wb.active, indices)
-        legacy_fired = {item["factura"] for item in legacy}
-
-        tree_fired: set[str] = set()
-        for (fact, ct, cod, lab, centro, ent, tipo, tar, tid) in DETALLADO_FIXTURES:
-            row = {
-                "codigo_tipo_procedimiento": ct, "codigo": cod, "laboratorio": lab,
-                "centro_costo": centro, "codigo_entidad_cobrar": ent,
-                "tipo_factura_descripcion": tipo, "tarifario": tar,
-                "tipo_identificacion": tid,
-            }
-            p1 = oracle._run_tree(oracle._build_urgencias_detallado_tree(), row)
-            p2 = oracle._run_tree(oracle._build_urgencias_cross_tree(), row)
-            if p1 or p2:
-                tree_fired.add(fact)
-
-        assert BRANCH_FACTURAS <= legacy_fired, f"fixtures must fire legacy: {BRANCH_FACTURAS - legacy_fired}"
-        assert tree_fired == legacy_fired, f"parity diff: legacy-only={legacy_fired - tree_fired} tree-only={tree_fired - legacy_fired}"
+    pass  # NOTE (remate legacy fase 2): test_legacy_vs_engine_snapshot_diff_empty
+    # eliminado — importaba centro_costo_urgencias (borrado).

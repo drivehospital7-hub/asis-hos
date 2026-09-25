@@ -93,28 +93,8 @@ def _forbidden_session(*args, **kwargs):  # pragma: no cover
 
 
 class TestEquiParity:
-    def test_unified_matches_legacy_order_insensitive(self) -> None:
-        """Engine (flag OFF, no DB) unified output == legacy equipos detect_all."""
-        from app.services.equipos_basicos.detect_all import (
-            detect_all_problems_equipos_basicos,
-        )
-        from app.services.unified_processor import process_unified
-
-        wb = _build_equi_workbook()
-        indices = _indices(wb)
-        with (
-            patch("app.services.equipos_basicos.detect_all.is_rule_engine_enabled", return_value=False),
-            patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
-            patch("app.database.get_session", _forbidden_session),
-        ):
-            legacy, _ = detect_all_problems_equipos_basicos(wb.active, indices)
-            unified, _ = process_unified(wb.active, indices)
-        assert unified["area"] == "unificada"
-        assert legacy["area"] == "equipos_basicos"
-        assert sorted(map(_norm_key, unified["problemas"]["normalizados"])) == sorted(
-            map(_norm_key, legacy["problemas"]["normalizados"])
-        )
-        assert unified["tipos_procesados"] == ["Odontología"]
+    # NOTE (engine hardcodeado ON): test_unified_matches_legacy_order_insensitive
+    # eliminado — mockeaba is_rule_engine_enabled → False (path inexistente).
 
     def test_engine_mocked_ruta_exception_parity(self) -> None:
         """Engine ON (mocked RuleBasedDetector): ruta_duplicada sets match legacy."""
@@ -150,29 +130,9 @@ class TestEquiParity:
         unified_ids = {r["identificacion"] for r in unified["problemas"]["ruta_duplicada"]}
         assert unified_ids == legacy_ids
 
-    def test_missing_column_tolerance(self) -> None:
-        """Fixture without Cantidad: affected detectors return [], never raise."""
-        from app.services.equipos_basicos.detect_all import (
-            detect_all_problems_equipos_basicos,
-        )
-        from app.services.transversales.cantidades_anomalas import detect_cantidades_anomalas
-        from app.services.unified_processor import process_unified
-
-        wb = _build_equi_workbook()
-        indices = _indices(wb)
-        indices["cantidad"] = None
-        with (
-            patch("app.services.equipos_basicos.detect_all.is_rule_engine_enabled", return_value=False),
-            patch("app.services.unified_processor.is_rule_engine_enabled", return_value=False),
-            patch("app.database.get_session", _forbidden_session),
-        ):
-            assert detect_cantidades_anomalas(wb.active, indices) == []
-            legacy, _ = detect_all_problems_equipos_basicos(wb.active, indices)
-            unified, _ = process_unified(wb.active, indices)
-        assert legacy["problemas"]["cantidades_anomalas"] == []
-        assert sorted(map(_norm_key, unified["problemas"]["normalizados"])) == sorted(
-            map(_norm_key, legacy["problemas"]["normalizados"])
-        )
+    # NOTE (remate borrado fase 3): test_missing_column_tolerance eliminado —
+    # importaba el módulo legacy borrado
+    # app/services/transversales/cantidades_anomalas.py.
 
     def test_exact_header_matching(self) -> None:
         """Near-miss 'Codigo' must NOT map; exact 'Código' must map."""

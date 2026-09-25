@@ -16,37 +16,7 @@ from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 
 # Module-level flag: skip evidence/audit DB writes when testing
 _PERSIST = is_evidence_audit_enabled()
-from app.services.transversales import (
-    detect_decimales,
-    detect_tipo_documento_edad,
-    detect_tipo_identificacion_entidad,
-    detect_tipo_usuario,
-    normalize_invoice,
-)
-from app.services.urgencias.centro_costo_urgencias import (
-    detect_centro_costo_urgencias,
-)
-from app.services.urgencias.ide_contrato_urgencias import (
-    detect_ide_contrato_urgencias,
-)
-from app.services.urgencias.cups_equivalentes import detect_cups_equivalentes
-from app.services.urgencias.sala_observacion import detect_sala_observacion
-from app.services.urgencias.cantidades_urgencias import (
-    detect_cantidades_urgencias,
-)
-from app.services.urgencias.cantidades_soat_urgencias import (
-    detect_cantidades_soat_urgencias,
-)
-from app.services.urgencias.mal_capitado import detect_mal_capitado
-from app.services.urgencias.ide_contrato_reverse import detect_ide_contrato_reverse_urgencias
-from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
-from app.services.transversales.detect_copago_entidad import (
-    detect_copago_entidad_urgencias,
-)
-from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
-from app.services.urgencias.revision_cantidad import detect_revision_cantidad_urgencias
-from app.services.urgencias.revision_entidad_86 import detect_revision_entidad_86_urgencias
-from app.services.urgencias.duplicados_farmacia import detect_duplicados_farmacia
+from app.services.transversales import normalize_invoice
 from app.services.normalized_rows import build_normalized_rows
 
 logger = logging.getLogger(__name__)
@@ -335,24 +305,6 @@ def detect_all_problems_urgencias(
                         )
                         session.add(ra)
                     session.flush()
-    else:
-        problemas_centros = []
-        problemas_ide_contrato = []
-        decimales = detect_decimales(data_sheet, indices)
-        tipo_identificacion_edad = []
-        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-        codigo_entidad_afiliacion = []
-        profesionales = []
-        mal_capitado = []
-        cantidades_urgencias = []
-        cantidades_soat_urgencias = []
-        ide_contrato_reverse = []
-        revision_entidad_86 = []
-        revision_cantidad = detect_revision_cantidad_urgencias(data_sheet, indices)
-        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-        duplicados_farmacia = detect_duplicados_farmacia(data_sheet, indices)
-        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
     # 6. Filtrar centros de costo por prioridad
     errores_por_factura_codigo: dict[tuple[str, str], list[tuple[dict, int]]] = {}
@@ -439,24 +391,6 @@ def detect_all_problems_urgencias(
         error_groups["Revision-Necesaria"] = (
             revision_entidad_86 + revision_cantidad
         )
-    else:
-        error_groups = {
-            "Centros de Costo": problemas_centros_filtrados,
-            "IDE Contrato": problemas_ide_contrato + ide_contrato_reverse,
-            "Cups Equivalentes": problemas_cups_equivalentes,
-            "MAL CAPITADO": mal_capitado,
-            "Cantidades": cantidades_urgencias,
-            "Cantidades SOAT": cantidades_soat_urgencias,
-            "Decimales": decimales,
-            "Tipo Identificación / Edad": tipo_identificacion_edad,
-            "Profesionales": profesionales,
-            "Código Entidad vs Afiliación": tipo_identificacion_entidad,
-            "Tipo Usuario": tipo_usuario,
-            "⚠️ Revisión Necesaria": revision_entidad_86 + revision_cantidad,
-            "Copago vs Entidad": copago_entidad,
-            "Duplicados Farmacia": duplicados_farmacia,
-            "Cups Sin Contrato": cups_sin_contrato,
-        }
     normalized_rows = build_normalized_rows(
         error_groups=error_groups,
         responsables_map=responsable_cierra,

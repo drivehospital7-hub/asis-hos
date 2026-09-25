@@ -216,39 +216,9 @@ class TestEngineRoutingF5:
         assert "bacteriologas_cronograma" in call_names
         assert len(result["problemas"]["profesionales"]) == 1
 
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
-    def test_legacy_path_called_when_engine_disabled(self, mock_enabled):
-        """Legacy path uses detect_duplicado_id_codigo."""
-        from app.services.intramural.duplicado_id_codigo import detect_duplicado_id_codigo
-
-        headers = ["Número Factura", "Nº Identificación", "Cód. Equivalente CUPS",
-                    "Código Tipo Procedimiento", "Procedimiento"]
-        rows = [
-            ["F001", "123", "X001", "05", "Proc A"],
-            ["F002", "123", "X001", "05", "Proc B"],
-        ]
-        wb = Workbook()
-        ws = wb.active
-        for ci, h in enumerate(headers, 1):
-            ws.cell(row=1, column=ci, value=h)
-        for ri, row_data in enumerate(rows, 2):
-            for ci, val in enumerate(row_data, 1):
-                ws.cell(row=ri, column=ci, value=val)
-        indices = {
-            "numero_factura": 0,
-            "identificacion": 1,
-            "codigo": 2,
-            "codigo_tipo_procedimiento": 3,
-            "procedimiento": 4,
-            "codigo_dx_principal": None,
-            "responsable_cierra": None,
-            "fecha_cierre": None,
-            "fec_factura": None,
-        }
-
-        result = detect_duplicado_id_codigo(ws, indices)
-        assert len(result) == 1
-        assert result[0]["identificacion"] == "123"
+    # NOTE (remate borrado fase 3): test_legacy_path_called_when_engine_disabled
+    # eliminado — importaba el módulo legacy borrado
+    # app/services/intramural/duplicado_id_codigo.py.
 
     def test_keys_present_in_engine_output(self):
         """Engine path produces resultado with all expected keys."""

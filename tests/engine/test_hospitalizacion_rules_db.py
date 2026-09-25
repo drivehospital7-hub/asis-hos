@@ -275,14 +275,20 @@ class TestGroupRulesDbBacked:
 class TestRule61Detects939402:
     """cups_equivalentes_hospitalizacion DB rule detects 939402+Hospitalización.
 
-    Rule 61 lives in the live DB; the test DB may or may not carry it. These
-    tests seed it transactionally (same session, rolled back at the end) so the
-    DB-backed execution is proven regardless of environment state.
+    The cups_equivalentes_hospitalizacion rule does NOT exist in prod
+    (production uses hospi_cups_equivalentes_fila). This test proves
+    DB-backed mechanics with a synthetic rule, not parity with prod.
     """
 
     @pytest.fixture
     def seeded_rule61(self):
-        """Seed cups_equivalentes_hospitalizacion in a transaction; rollback after."""
+        """Seed synthetic cups_equivalentes_hospitalizacion; rollback after.
+
+        Authoritative fixture: if the rule already exists (e.g. the migrated
+        906317/906249 shape of rule 009), its conditions are deleted and the
+        fixture tree (root OR -> AND[eq codigo 939402, eq tipo Hospitalización])
+        is rebuilt in the same transaction, rolled back at the end.
+        """
         from app.models import Regla, Condicion
 
         session = _session()
@@ -303,24 +309,30 @@ class TestRule61Detects939402:
                 )
                 session.add(rule)
                 session.flush()
-                # OR root -> [eq codigo 939402 AND eq tipo Hospitalización]
-                root = Condicion(regla_id=rule.id, padre_id=None, tipo="composite",
-                                 operador="OR", orden=0)
-                session.add(root)
+            else:
+                session.query(Condicion).filter(
+                    Condicion.regla_id == rule.id
+                ).delete(synchronize_session=False)
                 session.flush()
-                and_node = Condicion(regla_id=rule.id, padre_id=root.id,
-                                     tipo="composite", operador="AND", orden=0)
-                session.add(and_node)
-                session.flush()
-                session.add(Condicion(regla_id=rule.id, padre_id=and_node.id,
-                                      tipo="atomic", operador="eq",
-                                      fuente_datos="invoice.codigo",
-                                      valor_esperado="939402", orden=0))
-                session.add(Condicion(regla_id=rule.id, padre_id=and_node.id,
-                                      tipo="atomic", operador="eq",
-                                      fuente_datos="invoice.tipo_factura_descripcion",
-                                      valor_esperado="Hospitalización", orden=1))
-                session.flush()
+            # Authoritative fixture tree:
+            # OR root -> [eq codigo 939402 AND eq tipo Hospitalización]
+            root = Condicion(regla_id=rule.id, padre_id=None, tipo="composite",
+                             operador="OR", orden=0)
+            session.add(root)
+            session.flush()
+            and_node = Condicion(regla_id=rule.id, padre_id=root.id,
+                                 tipo="composite", operador="AND", orden=0)
+            session.add(and_node)
+            session.flush()
+            session.add(Condicion(regla_id=rule.id, padre_id=and_node.id,
+                                  tipo="atomic", operador="eq",
+                                  fuente_datos="invoice.codigo",
+                                  valor_esperado="939402", orden=0))
+            session.add(Condicion(regla_id=rule.id, padre_id=and_node.id,
+                                  tipo="atomic", operador="eq",
+                                  fuente_datos="invoice.tipo_factura_descripcion",
+                                  valor_esperado="Hospitalización", orden=1))
+            session.flush()
             session.commit()
             yield session
         finally:

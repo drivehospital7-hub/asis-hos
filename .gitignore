@@ -74,9 +74,10 @@ header_check2.txt
 data/import/
 
 # =========================
-# Exports generados (no versionar)
+# Exports generados (no versionar: se regeneran desde la app)
 # =========================
-data/export/notas_tecnicas_export.csv
+data/export/
+notas_tecnicas_procedimientos_*.csv
 
 # =========================
 # DATA (CRÍTICO EN TU PROYECTO)
@@ -126,6 +127,7 @@ scripts/output/
 # =========================
 # Frontend (Vite / React / npm)
 # =========================
+node_modules/
 frontend/node_modules/
 frontend/dist/
 *.tsbuildinfo
@@ -139,20 +141,30 @@ frontend/dist/
 # =========================
 .atl/
 .codegraph/
+# Notas de trabajo del orquestador (proceso, no producto)
+odd/
 
 # =========================
 # Backups de BD (no versionar)
 # =========================
 backup_*.sql
 scripts/backup_*.sql
+scripts/backup_*.csv
 
 # =========================
 # Scripts de debug/exploración manual
 # =========================
 /check_*.py
 /show_rule*.py
+/_query_*.py
 /scripts/dump_rules.py
 /scripts/load_rules.py
+# Archivos con espacios accidentales (junk de redirecciones rotas)
+*. py
+/app/ services/
+# Salidas de redirección sueltas en raíz
+/err.txt
+/out.txt
 
 # =========================
 # Diseños locales (OpenPencil)

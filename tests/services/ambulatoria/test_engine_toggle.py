@@ -1,7 +1,8 @@
-"""Strict TDD: Tests for engine toggle in ambulatoria/detect_all.py.
+"""Tests for engine path in ambulatoria/detect_all.py.
 
-Verifies that is_rule_engine_enabled() toggle routes to RuleBasedDetector
-when True, and falls back to legacy detectors when False, without crashing.
+NOTE: the legacy/OFF path was removed by design (is_rule_engine_enabled()
+returns True hard-coded — "Engine always on"). Tests mocking engine OFF
+(test_legacy_path_*) were deleted; only engine-ON tests remain.
 """
 
 from __future__ import annotations
@@ -122,24 +123,8 @@ class TestAmbulatoriaEngineToggle:
         assert len(result["problemas"]["decimales"]) == 2
         assert responsables == {}
 
-    @patch("app.services.ambulatoria.detect_all.is_rule_engine_enabled", return_value=False)
-    def test_legacy_path_returns_valid_structure(
-        self, mock_enabled: MagicMock,
-    ) -> None:
-        """Legacy path must return a valid result dict without crashing."""
-        from app.services.ambulatoria.detect_all import (
-            detect_all_problems_ambulatoria,
-        )
-        wb, indices = _build_simple_sheet()
-        result, responsables = detect_all_problems_ambulatoria(
-            wb.active, indices,
-        )
-
-        assert "problemas" in result
-        assert isinstance(result["problemas"], dict)
-        assert "totales" in result
-        assert result["area"] == AREA_AMBULATORIA
-        assert responsables == {}
+    # NOTE: legacy/OFF path removed — engine is always on, so tests mocking
+    # is_rule_engine_enabled → False were deleted (no OFF branch exists).
 
     @patch("app.database.get_session")
     @patch("app.services.engine.rule_based_detector.RuleBasedDetector")
@@ -174,27 +159,6 @@ class TestAmbulatoriaEngineToggle:
             result, _ = detect_all_problems_ambulatoria(wb.active, indices)
 
         assert set(_RecordingDetector.instances) == {r.nombre for r in served}
-
-        problemas = result["problemas"]
-        expected_keys = {
-            "normalizados", "centros_de_costos", "ide_contrato",
-            "cups_equivalentes", "decimales", "tipo_identificacion_edad",
-            "tipo_identificacion_entidad", "codigo_entidad_vs_afiliacion",
-            "tipo_usuario", "copago_entidad", "cups_sin_contrato",
-        }
-        for key in expected_keys:
-            assert key in problemas, f"Missing key: {key}"
-
-    @patch("app.constants.base.is_rule_engine_enabled", return_value=False)
-    def test_legacy_path_with_all_detectors(
-        self, mock_enabled: MagicMock,
-    ) -> None:
-        """Legacy path must produce problems dict with all keys present."""
-        from app.services.ambulatoria.detect_all import (
-            detect_all_problems_ambulatoria,
-        )
-        wb, indices = _build_simple_sheet()
-        result, _ = detect_all_problems_ambulatoria(wb.active, indices)
 
         problemas = result["problemas"]
         expected_keys = {

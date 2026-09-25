@@ -335,52 +335,9 @@ class TestIdeContratoOdontologia:
         assert "F014" not in facturas
         assert "F015" not in facturas
 
-    def test_legacy_vs_engine_same_detections(self):
-        """Both legacy and engine detect the same facturas for odontologia."""
-        from app.services.odontologia.ide_contrato import (
-            detect_ide_contrato_odontologia,
-        )
-
-        condiciones = _build_odon_ide_conditions()
-        ws = self._make_ws([
-            ("F100", "ESS118", "890203", "999"),    # BAD: ESS118+PyP
-            ("F101", "ESS118", "890203", "970"),    # OK
-            ("F102", "ESS118", "888888", "969"),    # OK: ESS118+NoPyP valid
-            ("F103", "ESSC18", "890203", "999"),    # BAD: ESSC18+PyP
-            ("F104", "ESSC18", "888888", "968"),    # OK
-            ("F105", "0001", "997106", "17"),       # OK
-            ("F106", "86", "888888", "911"),        # OK: 86+NoPyP valid
-            ("F107", "86", "888888", "999"),        # BAD: 86+NoPyP wrong
-            ("F108", "EPSS41", "997107", "955"),    # OK: EPSS41+PyP valid
-            ("F109", "EPSI05", "997301", "977"),    # OK: EPSI05+PyP valid
-        ])
-
-        idx = _build_indices("numero_factura", "codigo_entidad_cobrar", "codigo", "ide_contrato")
-        legacy_results = detect_ide_contrato_odontologia(ws, idx)
-        legacy_facturas = {r["factura"] for r in legacy_results}
-
-        engine_results = _run_engine_detection(
-            "ide_contrato_odontologia_valido", "odontologia",
-            "IDE Contrato validation", condiciones, ws, idx,
-        )
-        engine_facturas = _get_facturas_from_results(engine_results)
-
-        # Both must detect F100 and F103 (PyP+wrong IDE)
-        assert "F100" in legacy_facturas, "Legacy must detect F100"
-        assert "F100" in engine_facturas, "Engine must detect F100"
-        assert "F103" in legacy_facturas, "Legacy must detect F103"
-        assert "F103" in engine_facturas, "Engine must detect F103"
-        assert "F107" in legacy_facturas, "Legacy must detect F107 (86+NoPyP wrong)"
-        # Engine covers only top 8 entities including 86, so F107 should be detected
-        assert "F107" in engine_facturas, "Engine must detect F107"
-
-        # Neither should detect the OK cases
-        for ok_fact in ("F101", "F102", "F104", "F105", "F106", "F108", "F109"):
-            assert ok_fact not in engine_facturas, f"Engine should not detect {ok_fact}"
-
-        # Engine must not have false positives
-        for ef in engine_facturas:
-            assert ef in legacy_facturas, f"Engine false positive: {ef}"
+    # NOTE (remate fase 3): test_legacy_vs_engine_same_detections eliminado —
+    # dependía del módulo legacy borrado app/services/odontologia/ide_contrato
+    # (sin legacy no hay paridad que probar). Resto del archivo intacto.
 
 
 # ── Test: IDE Contrato Urgencias Forward ────────────────────────────────────

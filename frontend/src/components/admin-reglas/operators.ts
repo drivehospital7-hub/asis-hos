@@ -95,11 +95,16 @@ export const OPERADORES_COMPOSITE = ["AND", "OR", "NOT"] as const;
 // ─── FUENTES_DATOS ─────────────────────────────────────────────────
 
 export const FUENTES_DATOS: string[] = [
-  // invoice.* (existing 31 fields)
+  // invoice.* (row fields + collect_set/aggregates used by seeded rules)
   "invoice.vlr_subsidiado",
   "invoice.vlr_procedimiento",
   "invoice.convenio_facturado",
   "invoice.codigo",
+  "invoice.codigo_profesional",
+  "invoice.collect_set_codigo",
+  "invoice.collect_set_tarifario",
+  "invoice.count",
+  "invoice.estancia_horas",
   "invoice.cantidad",
   "invoice.numero_factura",
   "invoice.tipo_procedimiento",
