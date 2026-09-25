@@ -447,22 +447,5 @@ class TestSalaObservacionEvaluatorDeprecation:
         )
 
 
-class TestSalaObservacionModuleDeprecation:
-    """sala_observacion.py module should emit DeprecationWarning on import or access."""
-
-    def test_module_triggers_deprecation_on_import(self):
-        """Importing sala_observacion module triggers DeprecationWarning."""
-        import importlib
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            importlib.reload(__import__("app.services.urgencias.sala_observacion", fromlist=["detect_sala_observacion"]))
-
-        deprecation_warnings = [
-            x for x in w if issubclass(x.category, DeprecationWarning)
-        ]
-        # The module may already be cached; if no warning on reload, that's OK
-        # as long as the warning exists when the module is first loaded.
-        # We just verify the deprecation mechanism is in place.
-        from app.services.urgencias.sala_observacion import detect_sala_observacion
-        assert callable(detect_sala_observacion)
+# NOTE (remate legacy fase 2): TestSalaObservacionModuleDeprecation eliminado —
+# importaba app.services.urgencias.sala_observacion (borrado).

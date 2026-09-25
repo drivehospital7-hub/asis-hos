@@ -6,7 +6,7 @@ Agrupa detectores transversales + específicos de Farmacia.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -22,18 +22,6 @@ _PERSIST = is_evidence_audit_enabled()
 logger = logging.getLogger(__name__)
 
 
-def _get_farmacia_detectors() -> list[Callable]:
-    """Returns list of Farmacia-specific detector callables.
-
-    Used by tipo_factura_registry for lazy import.
-    """
-    from app.services.farmacia.duplicados_farmacia_farmacia import (
-        detect_duplicados_farmacia_farmacia,
-    )
-
-    return [detect_duplicados_farmacia_farmacia]
-
-
 def detect_all_problems_farmacia(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -47,21 +35,6 @@ def detect_all_problems_farmacia(
     Returns:
         (resultado_dict, responsables_map)
     """
-    from app.services.transversales import (
-        detect_decimales,
-        detect_tipo_documento_edad,
-        detect_tipo_identificacion_entidad,
-        detect_codigo_entidad_vs_entidad_afiliacion,
-        detect_tipo_usuario,
-    )
-    from app.services.transversales.detect_copago_entidad import (
-        detect_copago_entidad_urgencias,
-    )
-    from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
-    from app.services.farmacia.duplicados_farmacia_farmacia import (
-        detect_duplicados_farmacia_farmacia,
-    )
-
     # 1. Detección engine: descubrimiento dinámico por dominio (sin nombres fijos).
     # Las reglas habilitadas (dominio + transversales, solo activo) salen de la
     # DB vía RuleResolver; agregar/retirar reglas en la UI no toca código.
@@ -97,26 +70,6 @@ def detect_all_problems_farmacia(
         finally:
             session.close()
         error_groups = dict(grupos)
-    else:
-        decimales = detect_decimales(data_sheet, indices)
-        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
-        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5
-        )
-        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
-        duplicados_farmacia = detect_duplicados_farmacia_farmacia(data_sheet, indices)
-        error_groups = {
-            "Decimales": decimales,
-            "Tipo Identificación / Edad": tipo_identificacion_edad,
-            "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
-            "Tipo Usuario": tipo_usuario,
-            "Copago vs Entidad": copago_entidad,
-            "Cups Sin Contrato": cups_sin_contrato,
-            "Duplicados Farmacia": duplicados_farmacia,
-        }
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}

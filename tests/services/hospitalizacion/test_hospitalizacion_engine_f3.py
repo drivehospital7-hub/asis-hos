@@ -393,35 +393,9 @@ class TestF3CantidadesToggle:
 class TestF3HospitalizacionCodesToggle:
     """T-F3.3: hospitalizacion_codes → legacy toggle (engine can't handle computed filter)."""
 
-    def test_engine_path_calls_cups_equivalentes_hospitalizacion(self):
-        """Engine path MUST invoke the DB rule cups_equivalentes_hospitalizacion
-        instead of the legacy detector (rule exists and covers CUPS equivalents)."""
-        from app.services.hospitalizacion.detect_all import (
-            detect_all_problems_hospitalizacion,
-        )
-        from app.services.hospitalizacion import hospitalizacion_codes as hc_module
-        original_fn = hc_module.detect_hospitalizacion_codes
-        legacy_called: list[str] = []
-        def tracking_fn(ds, idx):
-            legacy_called.append("called")
-            return original_fn(ds, idx)
-
-        try:
-            hc_module.detect_hospitalizacion_codes = tracking_fn
-            wb, idx = _build_sheet()
-            restore = _env("true")
-            try:
-                r, _ = detect_all_problems_hospitalizacion(wb.active, idx)
-            finally:
-                restore()
-        finally:
-            hc_module.detect_hospitalizacion_codes = original_fn
-
-        assert not legacy_called, (
-            "Legacy detect_hospitalizacion_codes must NOT be called in engine path"
-        )
-        assert "cups_equivalentes" in r["problemas"]
-        assert r["problemas"]["cups_equivalentes"] == []
+    # NOTA borrado legacy fase 2: test_engine_path_calls_cups_equivalentes_hospitalizacion
+    # eliminado — importaba app.services.hospitalizacion.hospitalizacion_codes
+    # (módulo borrado; regla ACTIVA en prod cubierta por engine).
 
     def test_legacy_path_produces_cups_equivalentes(self):
         """Legacy path must produce cups_equivalentes without crashing."""

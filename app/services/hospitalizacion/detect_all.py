@@ -6,7 +6,7 @@ Agrupa detectores transversales + específicos de Hospitalización.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -20,40 +20,6 @@ from app.services.normalized_rows import build_normalized_rows
 # Module-level flag: skip evidence/audit DB writes when testing
 _PERSIST = is_evidence_audit_enabled()
 logger = logging.getLogger(__name__)
-
-
-def _get_hospitalizacion_detectors() -> list[Callable]:
-    """Returns list of Hospitalización-specific detector callables.
-    
-    Used by tipo_factura_registry for lazy import.
-    """
-    from app.services.hospitalizacion.cantidades_hospitalizacion import (
-        detect_cantidades_hospitalizacion,
-    )
-    from app.services.hospitalizacion.hospitalizacion_codes import (
-        detect_hospitalizacion_codes,
-    )
-    from app.services.hospitalizacion.centro_costo_hospitalizacion import (
-        detect_centro_costo_hospitalizacion,
-    )
-    from app.services.hospitalizacion.cantidades_soat_hospitalizacion import (
-        detect_cantidades_soat_hospitalizacion,
-    )
-    from app.services.urgencias.ide_contrato_urgencias import (
-        detect_ide_contrato_urgencias,
-    )
-    from app.services.transversales.detect_copago_entidad import (
-        detect_copago_entidad_urgencias,
-    )
-
-    return [
-        detect_centro_costo_hospitalizacion,
-        detect_ide_contrato_urgencias,
-        detect_cantidades_hospitalizacion,
-        detect_cantidades_soat_hospitalizacion,
-        detect_hospitalizacion_codes,
-        detect_copago_entidad_urgencias,
-    ]
 
 
 # Legacy grupo_error -> bucket taxonómico (presentación, no descubrimiento).
@@ -214,34 +180,6 @@ def detect_all_problems_hospitalizacion(
     Returns:
         (resultado_dict, responsables_map)
     """
-    from app.services.transversales import (
-        detect_decimales,
-        detect_tipo_documento_edad,
-        detect_tipo_identificacion_entidad,
-        detect_codigo_entidad_vs_entidad_afiliacion,
-        detect_tipo_usuario,
-    )
-    from app.services.hospitalizacion.cantidades_hospitalizacion import (
-        detect_cantidades_hospitalizacion,
-    )
-    from app.services.hospitalizacion.hospitalizacion_codes import (
-        detect_hospitalizacion_codes,
-    )
-    from app.services.hospitalizacion.centro_costo_hospitalizacion import (
-        detect_centro_costo_hospitalizacion,
-    )
-    from app.services.hospitalizacion.cantidades_soat_hospitalizacion import (
-        detect_cantidades_soat_hospitalizacion,
-    )
-    from app.services.urgencias.ide_contrato_urgencias import (
-        detect_ide_contrato_urgencias,
-    )
-    from app.services.urgencias.profesionales_urgencias import detect_profesionales_urgencias
-    from app.services.transversales.detect_copago_entidad import (
-        detect_copago_entidad_urgencias,
-    )
-    from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
-
     # 1-4. Evaluación engine consolidada: una sola sesión + un solo collector.
     # Descubrimiento dinámico (RuleResolver, solo activo): cada regla
     # habilitada del dominio + transversales se evalúa exactamente una vez.
@@ -260,38 +198,6 @@ def detect_all_problems_hospitalizacion(
         copago_entidad = groups.get("copago_entidad", [])
         profesionales = groups.get("profesionales", [])
         cups_sin_contrato = groups.get("cups_sin_contrato", [])
-    else:
-        problemas_centros = detect_centro_costo_hospitalizacion(data_sheet, indices)
-        problemas_ide_contrato = detect_ide_contrato_urgencias(data_sheet, indices)
-        problemas_cups_equivalentes = detect_hospitalizacion_codes(data_sheet, indices)
-        cantidades_hospitalizacion = detect_cantidades_hospitalizacion(data_sheet, indices)
-        cantidades_soat_hospitalizacion = detect_cantidades_soat_hospitalizacion(data_sheet, indices)
-        decimales = detect_decimales(data_sheet, indices)
-        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
-        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5,
-        )
-        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-        profesionales = detect_profesionales_urgencias(
-            data_sheet, indices, tipos_validos={"Hospitalización"},
-        )
-        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
-        error_groups = {
-            "Centros de Costo": problemas_centros,
-            "IDE Contrato": problemas_ide_contrato,
-            "Cups Equivalentes": problemas_cups_equivalentes,
-            "Cantidades Hospitalización": cantidades_hospitalizacion,
-            "Cantidades SOAT Hospitalización": cantidades_soat_hospitalizacion,
-            "Decimales": decimales,
-            "Tipo Identificación / Edad": tipo_identificacion_edad,
-            "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
-            "Tipo Usuario": tipo_usuario,
-            "Copago vs Entidad": copago_entidad,
-            "Profesionales": profesionales,
-            "Cups Sin Contrato": cups_sin_contrato,
-        }
 
     logger.info(
         "detect_all_problems_hospitalizacion - Profesionales encontrados: %d",

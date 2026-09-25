@@ -62,57 +62,10 @@ class TestLegacyVsEngineOutputFormat:
         # Engine wrapper returns: list of dicts with factura + problema
         # Both are compatible with detect_all.py consumption
 
-    def test_legacy_decimales_signature(self):
-        """Legacy detect_decimales returns list[str] of invoice numbers."""
-        from app.services.transversales.decimales import detect_decimales
-        from openpyxl import Workbook
-
-        wb = Workbook()
-        ws = wb.active
-        ws.cell(row=1, column=1, value="NUMERO_FACTURA")
-        ws.cell(row=1, column=2, value="VLR_SUBSIDIADO")
-        ws.cell(row=1, column=3, value="VLR_PROCEDIMIENTO")
-        ws.cell(row=2, column=1, value="F001")
-        ws.cell(row=2, column=2, value=1000.50)  # Has decimal
-        ws.cell(row=2, column=3, value=2000)
-
-        indices = {"numero_factura": 0, "vlr_subsidiado": 1, "vlr_procedimiento": 2}
-        result = detect_decimales(ws, indices)
-
-        assert isinstance(result, list)
-        # Legacy returns list of strings
-        assert "F001" in result
-
-    def test_legacy_ruta_duplicada_signature(self):
-        """Legacy detect_ruta_duplicada returns list[dict] with specific keys."""
-        from app.services.transversales.ruta_duplicada import detect_ruta_duplicada
-        from openpyxl import Workbook
-
-        wb = Workbook()
-        ws = wb.active
-        ws.cell(row=1, column=1, value="NUMERO_FACTURA")
-        ws.cell(row=1, column=2, value="IDENTIFICACION")
-        ws.cell(row=1, column=3, value="CONVENIO_FACTURADO")
-        # 3 facturas for same patient in PyP → ruta duplicada
-        ws.cell(row=2, column=1, value="F001")
-        ws.cell(row=2, column=2, value="12345")
-        ws.cell(row=2, column=3, value="Promoción y Prevención")
-        ws.cell(row=3, column=1, value="F002")
-        ws.cell(row=3, column=2, value="12345")
-        ws.cell(row=3, column=3, value="Promoción y Prevención")
-        ws.cell(row=4, column=1, value="F003")
-        ws.cell(row=4, column=2, value="12345")
-        ws.cell(row=4, column=3, value="Promoción y Prevención")
-
-        indices = {"numero_factura": 0, "identificacion": 1, "convenio_facturado": 2}
-        result = detect_ruta_duplicada(ws, indices)
-
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert "identificacion" in result[0]
-        assert "facturas" in result[0]
-        assert "cantidad" in result[0]
-        assert result[0]["cantidad"] == 3
+    # NOTE (remate borrado fase 3): test_legacy_decimales_signature y
+    # test_legacy_ruta_duplicada_signature eliminados — importaban los módulos
+    # legacy borrados app/services/transversales/decimales.py y
+    # app/services/transversales/ruta_duplicada.py.
 
 
 class TestGroupBySnapshotParity:

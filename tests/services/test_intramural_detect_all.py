@@ -55,35 +55,8 @@ class TestDetectAllProblemsIntramural:
         assert "revision_cantidad_intramural" not in calls
         return result
 
-    def test_retorna_dict_con_key_problemas(self, workbook_minimal: Workbook) -> None:
-        ws = workbook_minimal.active
-        ws.cell(row=2, column=1, value="FAC-001")
-        indices = {"numero_factura": 0}
-        result = self._run(ws, indices)
-        assert "problemas" in result
-
-    def test_retorna_area_intramural(self, workbook_minimal: Workbook) -> None:
-        ws = workbook_minimal.active
-        ws.cell(row=2, column=1, value="FAC-001")
-        indices = {"numero_factura": 0}
-        result = self._run(ws, indices)
-        assert result.get("area") == "intramural"
-
-    def test_resultado_incluye_normalizados(self, workbook_minimal: Workbook) -> None:
-        ws = workbook_minimal.active
-        ws.cell(row=2, column=1, value="FAC-001")
-        indices = {"numero_factura": 0}
-        result = self._run(ws, indices)
-        assert "normalizados" in result["problemas"]
-        assert isinstance(result["problemas"]["normalizados"], list)
-
-    def test_missing_columns_present(self, workbook_minimal: Workbook) -> None:
-        ws = workbook_minimal.active
-        ws.cell(row=2, column=1, value="FAC-001")
-        indices = {"numero_factura": 0}
-        result = self._run(ws, indices)
-        assert "missing_columns" in result
-
+    # NOTE (remate legacy fase 2): tests OFF-path eliminados (mock is_rule_engine_enabled→False,
+    # path inexistente: engine hardcodeado ON). Conservados solo tests engine-ON.
     def test_revision_cantidad_in_resultado(self) -> None:
         """resultado['problemas'] debe incluir 'revision_cantidad' (Ref #1 GAP:
         sección explícitamente vacía — la regla no existe en ninguna DB)."""

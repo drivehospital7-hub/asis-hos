@@ -6,7 +6,7 @@ Agrupa detectores transversales + específicos de Intramural.
 from __future__ import annotations
 
 import logging
-from typing import Any, Callable
+from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
 
@@ -22,26 +22,6 @@ _PERSIST = is_evidence_audit_enabled()
 logger = logging.getLogger(__name__)
 
 
-def _get_intramural_detectors() -> list[Callable]:
-    """Returns list of Intramural-specific detector callables.
-    
-    Used by tipo_factura_registry for lazy import.
-    """
-    from app.services.intramural.bacteriologas_cronograma import (
-        detect_bacteriologas_cronograma,
-    )
-    from app.services.intramural.centro_costo_intramural import (
-        detect_centro_costo_intramural,
-    )
-    from app.services.intramural.duplicado_id_codigo import (
-        detect_duplicado_id_codigo,
-    )
-    from app.services.intramural.ide_contrato_intramural import (
-        detect_ide_contrato_intramural,
-    )
-    return [detect_bacteriologas_cronograma, detect_centro_costo_intramural, detect_ide_contrato_intramural, detect_duplicado_id_codigo]
-
-
 def detect_all_problems_intramural(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
@@ -55,18 +35,6 @@ def detect_all_problems_intramural(
     Returns:
         (resultado_dict, responsables_map)
     """
-    from app.services.transversales import (
-        detect_decimales,
-        detect_tipo_documento_edad,
-        detect_tipo_identificacion_entidad,
-        detect_codigo_entidad_vs_entidad_afiliacion,
-        detect_tipo_usuario,
-    )
-    from app.services.transversales.detect_copago_entidad import (
-        detect_copago_entidad_urgencias,
-    )
-    from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
-
     # 1. Detección engine: descubrimiento dinámico por dominio (sin nombres fijos).
     # Las reglas habilitadas (dominio + transversales, solo activo) salen de la
     # DB vía RuleResolver — incluye los 4 gaps 015 (bacteriologas, centro_costo,
@@ -105,33 +73,6 @@ def detect_all_problems_intramural(
         finally:
             session.close()
         error_groups = dict(grupos)
-    else:
-        decimales = detect_decimales(data_sheet, indices)
-        tipo_identificacion_edad = detect_tipo_documento_edad(data_sheet, indices)
-        tipo_identificacion_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5
-        )
-        tipo_usuario = detect_tipo_usuario(data_sheet, indices)
-        copago_entidad = detect_copago_entidad_urgencias(data_sheet, indices)
-        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
-        bacteriologas = []
-        problemas_centros = []
-        raw_results = []
-        revision_cantidad = []
-        error_groups = {
-            "Centros de Costo": [],
-            "Decimales": decimales,
-            "Tipo Identificación / Edad": tipo_identificacion_edad,
-            "Código Entidad vs Afiliación": entidad_afiliacion_comparison + tipo_identificacion_entidad,
-            "Tipo Usuario": tipo_usuario,
-            "Copago vs Entidad": copago_entidad,
-            "IDE Contrato": [],
-            "Cups Sin Contrato": cups_sin_contrato,
-            "Profesionales": bacteriologas,
-            "Duplicado ID+Código": [],
-            "⚠️ Revisión Necesaria": revision_cantidad,
-        }
 
     # 2. Build responsable_cierra mapping
     responsable_cierra: dict[str, str] = {}
@@ -219,22 +160,14 @@ def detect_all_problems_intramural(
     # Normalizado usa centros filtrados por prioridad (igual que legacy).
     error_groups["Centros de Costo"] = problemas_centros_filtrados
 
-    # LEGACY OFF (2026-09-09): llamada legacy detect_ide_contrato_intramural
-    # anulada en AMBAS ramas — revertir con git revert. No se cablea
-    # RuleBasedDetector porque 015_seed_intramural_gaps.sql excluye
-    # explícitamente ide_contrato_simple y pym_rutas_dx (sin rules DB;
-    # un lookup engine daría "Rule not found" → [] silencioso).
-    # TODO(engine): sembrar rules ide_contrato_simple + pym_rutas_dx y
-    # cablear RuleBasedDetector aquí para reactivar hallazgos.
+    # 7. IDE Contrato: sin reglas DB (015 excluye ide_contrato_simple y
+    # pym_rutas_dx) → [] hasta sembrar rules y cablear RuleBasedDetector.
     problemas_ide_contrato: list[dict[str, Any]] = []
 
     # 8. Duplicado ID+Código: raw viene del resolver (grupo
     # 'Duplicado ID-Codigo', seed 015). duplicado_id_codigo_02_lab sigue sin
     # seed (015): el resolver no lo sirve, no se evalúa. El post-procesado
     # corre sobre el set que haya (vacío → []).
-    if not is_rule_engine_enabled():
-        duplicado_id_codigo = []
-
     if is_rule_engine_enabled():
         # Post-process engine results to match legacy format
         # Engine output for group-by rules has factura=composite_key

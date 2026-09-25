@@ -1,35 +1,7 @@
 """Módulos de detección específicos de Urgencias."""
 
-from app.services.urgencias.cantidades_urgencias import detect_cantidades_urgencias
-from app.services.urgencias.cantidades_soat_urgencias import (
-    detect_cantidades_soat_urgencias,
-)
-from app.services.hospitalizacion.cantidades_soat_hospitalizacion import (
-    detect_cantidades_soat_hospitalizacion,
-)
-from app.services.hospitalizacion.cantidades_hospitalizacion import (
-    detect_cantidades_hospitalizacion,
-)
-from app.services.hospitalizacion.hospitalizacion_codes import (
-    detect_hospitalizacion_codes,
-)
-from app.services.urgencias.centro_costo_urgencias import detect_centro_costo_urgencias
-from app.services.urgencias.cups_equivalentes import detect_cups_equivalentes
 from app.services.urgencias.detect_all import detect_all_problems_urgencias
-from app.services.urgencias.ide_contrato_urgencias import detect_ide_contrato_urgencias
-from app.services.urgencias.sala_observacion import detect_sala_observacion
-from app.services.urgencias.mal_capitado import detect_mal_capitado
 
 __all__ = [
     "detect_all_problems_urgencias",
-    "detect_cantidades_urgencias",
-    "detect_cantidades_soat_urgencias",
-    "detect_cantidades_soat_hospitalizacion",
-    "detect_cantidades_hospitalizacion",
-    "detect_centro_costo_urgencias",
-    "detect_cups_equivalentes",
-    "detect_hospitalizacion_codes",
-    "detect_ide_contrato_urgencias",
-    "detect_sala_observacion",
-    "detect_mal_capitado",
 ]

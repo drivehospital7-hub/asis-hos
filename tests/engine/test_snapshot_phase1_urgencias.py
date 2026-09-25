@@ -164,64 +164,9 @@ class TestRevisionEntidad86:
 
         assert len(results) == 0, "Engine should NOT detect empty entidad"
 
-    def test_legacy_vs_engine_detect_same_facturas(self):
-        """Both legacy and engine detect the same facturas for entidad=86."""
-        from app.services.urgencias.revision_entidad_86 import (
-            detect_revision_entidad_86_urgencias,
-        )
-
-        condiciones = [
-            {
-                "id": 1, "padre_id": None,
-                "tipo": "atomic", "operador": "eq",
-                "fuente_datos": "invoice.codigo_entidad_cobrar",
-                "valor_esperado": "86", "orden": 0,
-            },
-        ]
-
-        wb = Workbook()
-        ws = wb.active
-        ws.cell(row=1, column=1, value="TIPO_FACTURA_DESCRIPCION")
-        ws.cell(row=1, column=2, value="NUMERO_FACTURA")
-        ws.cell(row=1, column=3, value="CODIGO_ENTIDAD_COBRAR")
-        ws.cell(row=1, column=4, value="CODIGO")
-        ws.cell(row=1, column=5, value="PROCEDIMIENTO")
-        ws.cell(row=1, column=6, value="IDE_CONTRATO")
-        # Row: entidad=86, Urgencias → should be detected
-        ws.cell(row=2, column=1, value="Urgencias")
-        ws.cell(row=2, column=2, value="F001")
-        ws.cell(row=2, column=3, value="86")
-        ws.cell(row=2, column=4, value="890201")
-        ws.cell(row=2, column=5, value="CONSULTA")
-        ws.cell(row=2, column=6, value="12345")
-        # Row: different entidad → should NOT be detected
-        ws.cell(row=3, column=1, value="Urgencias")
-        ws.cell(row=3, column=2, value="F002")
-        ws.cell(row=3, column=3, value="ESS118")
-        ws.cell(row=3, column=4, value="890201")
-
-        indices_legacy = _build_indices(
-            "tipo_factura_descripcion", "numero_factura",
-            "codigo_entidad_cobrar", "codigo", "procedimiento", "ide_contrato",
-        )
-
-        legacy_results = detect_revision_entidad_86_urgencias(ws, indices_legacy)
-        legacy_facturas = _get_facturas_from_results(legacy_results)
-
-        engine_results = _run_engine_detection(
-            "revision_entidad_86", "urgencias",
-            "Revisión necesaria para entidad 86",
-            condiciones, ws, indices_legacy,
-        )
-        engine_facturas = _get_facturas_from_results(engine_results)
-
-        # Legacy filters by tipo_factura_descripcion == "Urgencias",
-        # engine condition tree doesn't (it only checks entidad == "86").
-        # Both should detect F001 and not F002.
-        assert "F001" in legacy_facturas, "Legacy should detect F001"
-        assert "F001" in engine_facturas, "Engine should detect F001"
-        assert "F002" not in legacy_facturas, "Legacy should NOT detect F002"
-        assert "F002" not in engine_facturas, "Engine should NOT detect F002"
+    # NOTE (remate borrado fase 3): test_legacy_vs_engine_detect_same_facturas
+    # eliminado — importaba el módulo legacy borrado
+    # app/services/urgencias/revision_entidad_86.py.
 
 
 # ── Test: cantidades_urgencias ──────────────────────────────────────────────

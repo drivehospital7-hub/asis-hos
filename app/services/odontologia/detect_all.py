@@ -16,22 +16,7 @@ from app.constants.base import is_evidence_audit_enabled, is_rule_engine_enabled
 
 # Module-level flag: skip evidence/audit DB writes when testing
 _PERSIST = is_evidence_audit_enabled()
-from app.services.transversales import (
-    detect_decimales,
-    detect_tipo_documento_edad,
-    detect_tipo_identificacion_entidad,
-    detect_codigo_entidad_vs_entidad_afiliacion,
-    detect_tipo_usuario,
-    detect_doble_tipo_procedimiento,
-    detect_ruta_duplicada,
-    detect_cantidades_anomalas,
-    normalize_invoice,
-)
-from app.services.odontologia.profesionales import detect_profesionales_odontologia
-from app.services.odontologia.centro_costo import detect_centro_costo_odontologia
-from app.services.odontologia.ide_contrato import detect_ide_contrato_odontologia
-from app.services.urgencias.mal_capitado import detect_mal_capitado
-from app.services.transversales.procedimiento_contratado import detect_cups_sin_contrato
+from app.services.transversales import normalize_invoice
 
 logger = logging.getLogger(__name__)
 
@@ -138,21 +123,6 @@ def detect_all_problems_odontologia(
                         )
                         session.add(ra)
                     session.flush()
-    else:
-        decimales = []
-        doble_tipo = []
-        ruta_dup = []
-        tipo_id_edad = []
-        tipo_id_entidad = detect_tipo_identificacion_entidad(data_sheet, indices)
-        cantidades = detect_cantidades_anomalas(data_sheet, indices)
-        entidad_afiliacion_comparison = detect_codigo_entidad_vs_entidad_afiliacion(
-            data_sheet, indices, limit_log=5
-        )
-        tipo_usuario_od = detect_tipo_usuario(data_sheet, indices)
-        ide_contrato = []
-        profesionales = []
-        centro_costo = []
-        cups_sin_contrato = detect_cups_sin_contrato(data_sheet, indices)
 
     # LEGACY OFF: /procesar usa solo engine (is_rule_engine_enabled()=True).
     # Post-filtros Python 990203 / ruta-dup 3-facturas anulados.
