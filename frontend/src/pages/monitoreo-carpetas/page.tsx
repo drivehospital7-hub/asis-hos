@@ -73,10 +73,6 @@ const MOVE_TOAST_DURATION = 2500;
 // sin X-Requested-With; con el header devuelve 403 JSON.
 const XHR_HEADERS = { "X-Requested-With": "XMLHttpRequest" };
 
-// showDirectoryPicker solo existe en navegadores Chromium; fallback = input textual.
-const supportsDirectoryPicker =
-  typeof window !== "undefined" && "showDirectoryPicker" in window;
-
 function formatScanDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const d = new Date(value);
@@ -229,22 +225,10 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
     });
   };
 
-  // Picker de carpetas (solo Chromium): la web no expone la ruta UNC
-  // absoluta, así que se sugiere el nombre elegido y se confirma como texto.
-  const handleBrowseRoot = async (idx: number) => {
-    try {
-      const dirHandle = await (
-        window as unknown as {
-          showDirectoryPicker: () => Promise<{ name?: string }>;
-        }
-      ).showDirectoryPicker();
-      if (dirHandle?.name) {
-        handleRootChange(idx, dirHandle.name);
-      }
-    } catch {
-      // Usuario canceló o picker no disponible — se mantiene el input textual.
-    }
-  };
+  // NOTA: sin picker de carpetas a propósito. El showDirectoryPicker del
+  // navegador solo devuelve el nombre final (ej. "0 SEPTIEMBRE") y nunca la
+  // ruta UNC completa, así que truncaba \\servidor\... y rompía el escaneo.
+  // La ruta se ingresa como texto completo.
 
   const handleSaveConfig = async () => {
     setConfigSaving(true);
@@ -389,24 +373,19 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
             <div key={idx} className="flex items-center gap-2">
               {can_write ? (
                 <>
-                  <Input
-                    value={root}
-                    onChange={(e) => handleRootChange(idx, e.target.value)}
-                    placeholder="\\\\servidor\\ruta"
-                    className="flex-1 font-mono text-xs"
-                  />
-                  {supportsDirectoryPicker && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleBrowseRoot(idx)}
-                      className="shrink-0"
-                      title="Examinar carpetas (se sugiere el nombre; confirmar como texto)"
-                    >
-                      <FolderOpen className="h-3.5 w-3.5" />
-                      Examinar
-                    </Button>
-                  )}
+                  <div className="flex-1">
+                    <Input
+                      value={root}
+                      onChange={(e) => handleRootChange(idx, e.target.value)}
+                      placeholder="\\\\servidor\\ruta"
+                      className="flex-1 font-mono text-xs"
+                    />
+                    {root.trim() && !/^(\\\\|[a-zA-Z]:[\\/]|\/\/)/.test(root.trim()) && (
+                      <p className="text-[11px] text-warning-foreground mt-1">
+                        Parece ruta parcial — usá la ruta completa UNC, ej. \\\\192.168.0.127\\facturacion\\facturacion.
+                      </p>
+                    )}
+                  </div>
                   <Button
                     variant="ghost"
                     size="icon"
