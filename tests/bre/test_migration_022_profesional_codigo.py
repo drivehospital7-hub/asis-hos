@@ -1,24 +1,26 @@
-"""Migration 022 tests (SQL-text + hermetic firing — zero DB writes).
+"""Migration 024 tests (SQL-text + hermetic firing — zero DB writes).
 
-022 moves the legacy "tipo de profesional -> codigos permitidos" mapping into
-the engine (Approach A: data only, no new code) from:
-  app/services/urgencias/profesionales_urgencias.py (+ constants/urgencias.py)
-  app/services/odontologia/profesionales.py         (+ constants/odontologia.py)
-  app/services/equipos_basicos/profesionales.py     (+ constants/equipos_basicos.py)
+024 converges the 022 urg_ rules to the prod bridge shape:
+  profesional_urg_<family> -> profesional_<family> (9 rules, final names),
+  mirror dominio 'hospitalizacion', NO eq guard on
+  invoice.tipo_factura_descripcion, bridge scope (hospitalizacion, urgencias)
+  via regla_dominios.
 
-Seeded (22 rules, all active v1, prioridad 40, severidad error,
-grupo_error 'Profesionales'):
-  urgencias (9, filtro tipo=Urgencias):
-    profesional_urg_{trabajadora_social, psicologa, nutricionista,
-      fisioterapeuta, jefe_enfermeria, odontologo} (5 conds c/u),
-    profesional_urg_medico_excluido (4), profesional_urg_bacteriologa_lab (9),
-    profesional_urg_medico_lab (5).
-  hospitalizacion (9, espejo con filtro 'Hospitalización', mismos catalogos).
-  odontologia (2, sin filtro de tipo): profesional_odon_higienista (4),
-    profesional_odon_odontologo_pyp (5).
-  equipos_basicos (2, espejo odonto).
-Total: 114 condiciones. 21 catalogos nuevos; reusa
-codigos_tipo_procedimiento_laboratorio (no lo redefine).
+Bridge condition counts (no tipo guard):
+  trabajadora_social, psicologa, nutricionista, fisioterapeuta,
+  jefe_enfermeria, odontologo: 4 each (root AND + cat_in prof orden 1 +
+  NOT orden 2 + inner cat_in codigo).
+  medico_excluido: 3 (root AND + prof orden 1 + cat_in excluidos orden 2).
+  bacteriologa_lab: 8 (root + prof + NOT_lab(2) + inner AND +
+  tipo_lab + lab=Si + NOT_exc(3) + inner excepciones).
+  medico_lab: 4 (root + prof + tipo_lab + lab=Si).
+Total: 39 conditions. 21 catalogs re-run from 022; reuses
+codigos_tipo_procedimiento_laboratorio (never redefined).
+
+024 converges both directions (fresh DB: 022 urg_ + 024 renames+rebuilds;
+prod: upserts refresh activo/grupo_error, guarded inserts are no-ops).
+NOTE: this test was updated to the convergent form by eye against the SQL
+text; it was not executed against a live DB (collect-only validation).
 """
 from __future__ import annotations
 
@@ -27,56 +29,33 @@ from pathlib import Path
 from typing import Any
 
 MIGRATIONS_DIR = Path("migrations")
-MIGRATION = MIGRATIONS_DIR / "022_seed_profesional_codigo_map.sql"
+MIGRATION = MIGRATIONS_DIR / "024_reconcile_profesional_bridge.sql"
+NEXT_MIGRATION = MIGRATIONS_DIR / "025_seed_duplicado_02_lab.sql"
 
-EXPECTED_RULES = {
-    "profesional_urg_trabajadora_social": "urgencias",
-    "profesional_urg_psicologa": "urgencias",
-    "profesional_urg_nutricionista": "urgencias",
-    "profesional_urg_fisioterapeuta": "urgencias",
-    "profesional_urg_jefe_enfermeria": "urgencias",
-    "profesional_urg_odontologo": "urgencias",
-    "profesional_urg_medico_excluido": "urgencias",
-    "profesional_urg_bacteriologa_lab": "urgencias",
-    "profesional_urg_medico_lab": "urgencias",
-    "profesional_hosp_trabajadora_social": "hospitalizacion",
-    "profesional_hosp_psicologa": "hospitalizacion",
-    "profesional_hosp_nutricionista": "hospitalizacion",
-    "profesional_hosp_fisioterapeuta": "hospitalizacion",
-    "profesional_hosp_jefe_enfermeria": "hospitalizacion",
-    "profesional_hosp_odontologo": "hospitalizacion",
-    "profesional_hosp_medico_excluido": "hospitalizacion",
-    "profesional_hosp_bacteriologa_lab": "hospitalizacion",
-    "profesional_hosp_medico_lab": "hospitalizacion",
-    "profesional_odon_higienista": "odontologia",
-    "profesional_odon_odontologo_pyp": "odontologia",
-    "profesional_eqb_higienista": "equipos_basicos",
-    "profesional_eqb_odontologo_pyp": "equipos_basicos",
+URG_TO_FINAL = {
+    "profesional_urg_trabajadora_social": "profesional_trabajadora_social",
+    "profesional_urg_psicologa": "profesional_psicologa",
+    "profesional_urg_nutricionista": "profesional_nutricionista",
+    "profesional_urg_fisioterapeuta": "profesional_fisioterapeuta",
+    "profesional_urg_jefe_enfermeria": "profesional_jefe_enfermeria",
+    "profesional_urg_odontologo": "profesional_odontologo",
+    "profesional_urg_medico_excluido": "profesional_medico_excluido",
+    "profesional_urg_bacteriologa_lab": "profesional_bacteriologa_lab",
+    "profesional_urg_medico_lab": "profesional_medico_lab",
 }
 
+EXPECTED_RULES = {final: "hospitalizacion" for final in URG_TO_FINAL.values()}
+
 EXPECTED_COUNTS = {
-    "profesional_urg_trabajadora_social": 5,
-    "profesional_urg_psicologa": 5,
-    "profesional_urg_nutricionista": 5,
-    "profesional_urg_fisioterapeuta": 5,
-    "profesional_urg_jefe_enfermeria": 5,
-    "profesional_urg_odontologo": 5,
-    "profesional_urg_medico_excluido": 4,
-    "profesional_urg_bacteriologa_lab": 9,
-    "profesional_urg_medico_lab": 5,
-    "profesional_hosp_trabajadora_social": 5,
-    "profesional_hosp_psicologa": 5,
-    "profesional_hosp_nutricionista": 5,
-    "profesional_hosp_fisioterapeuta": 5,
-    "profesional_hosp_jefe_enfermeria": 5,
-    "profesional_hosp_odontologo": 5,
-    "profesional_hosp_medico_excluido": 4,
-    "profesional_hosp_bacteriologa_lab": 9,
-    "profesional_hosp_medico_lab": 5,
-    "profesional_odon_higienista": 4,
-    "profesional_odon_odontologo_pyp": 5,
-    "profesional_eqb_higienista": 4,
-    "profesional_eqb_odontologo_pyp": 5,
+    "profesional_trabajadora_social": 4,
+    "profesional_psicologa": 4,
+    "profesional_nutricionista": 4,
+    "profesional_fisioterapeuta": 4,
+    "profesional_jefe_enfermeria": 4,
+    "profesional_odontologo": 4,
+    "profesional_medico_excluido": 3,
+    "profesional_bacteriologa_lab": 8,
+    "profesional_medico_lab": 4,
 }
 
 EXPECTED_CATALOGS = (
@@ -103,6 +82,14 @@ EXPECTED_CATALOGS = (
     "codigos_pyp_higienista",
 )
 
+# Rules 024 must never reference (other-domain mirrors / existence checks).
+PROTECTED_NAMES = (
+    "profesional_hosp_",
+    "profesional_odon_",
+    "profesional_eqb_",
+    "_valido",
+)
+
 
 def _text() -> str:
     return MIGRATION.read_text(encoding="utf-8")
@@ -113,78 +100,116 @@ def _code_lines(text: str) -> list[str]:
 
 
 def _rule_window(text: str, name: str) -> str:
-    start = text.find("'%s'" % name)
+    start = text.find("    '%s',\n" % name)
     assert start != -1, "rule %s upsert missing" % name
     rest = text[start:]
     nxt = rest.find("INSERT INTO reglas", 10)
     return rest[:nxt] if nxt != -1 else rest
 
 
-def test_022_file_exists() -> None:
-    assert MIGRATION.exists(), "022 migration file missing"
+def test_024_file_exists() -> None:
+    assert MIGRATION.exists(), "024 migration file missing"
 
 
-def test_022_planned_after_021() -> None:
+def test_024_planned_after_023_before_025() -> None:
     from run_migrations import plan_migrations
 
     planned = [p.stem for p in plan_migrations(MIGRATIONS_DIR, applied=set(), include_evidence=False)]
-    assert "021_live_detail_keys" in planned
-    assert "022_seed_profesional_codigo_map" in planned
-    assert planned.index("021_live_detail_keys") < planned.index(
-        "022_seed_profesional_codigo_map"
+    assert "023_regla_dominios" in planned
+    assert "024_reconcile_profesional_bridge" in planned
+    assert "025_seed_duplicado_02_lab" in planned
+    assert planned.index("023_regla_dominios") < planned.index(
+        "024_reconcile_profesional_bridge"
+    )
+    assert planned.index("024_reconcile_profesional_bridge") < planned.index(
+        "025_seed_duplicado_02_lab"
     )
 
 
-def test_022_not_treated_as_evidence_seed() -> None:
+def test_024_not_treated_as_evidence_seed() -> None:
     from run_migrations import should_skip_evidence
 
     assert should_skip_evidence(MIGRATION.name, include_evidence=False) is False
     assert should_skip_evidence(MIGRATION.name, include_evidence=True) is False
+    assert should_skip_evidence(NEXT_MIGRATION.name, include_evidence=False) is False
 
 
-def test_022_upserts_each_rule_by_name_version() -> None:
+def test_024_renames_each_urg_rule_to_final() -> None:
     text = _text()
-    for name, dominio in EXPECTED_RULES.items():
+    for urg_name, final_name in URG_TO_FINAL.items():
+        assert "SET nombre = '%s'" % final_name in text, "rename to %s missing" % final_name
+        assert "WHERE nombre = '%s' AND version = 1" % urg_name in text, (
+            "rename source %s missing" % urg_name
+        )
+        assert "NOT EXISTS (SELECT 1 FROM reglas WHERE nombre = '%s' AND version = 1)" % final_name in text, (
+            "rename of %s not guarded against existing final" % final_name
+        )
+
+
+def test_024_upserts_each_final_rule_narrow_conflict() -> None:
+    text = _text()
+    for final_name, dominio in EXPECTED_RULES.items():
         pattern = re.compile(
-            r"'%s',\s*'.*?',\s*'%s',\s*'active',\s*1," % (re.escape(name), re.escape(dominio)),
+            r"'%s',\s*'.*?',\s*'%s',\s*'active',\s*1," % (re.escape(final_name), re.escape(dominio)),
             re.DOTALL,
         )
-        assert pattern.search(text), "rule %s not upserted" % name
-    assert text.count("ON CONFLICT (nombre, version) DO UPDATE") >= len(EXPECTED_RULES)
+        assert pattern.search(text), "rule %s not upserted" % final_name
+    assert text.count(
+        "ON CONFLICT (nombre, version) DO UPDATE SET activo = true, grupo_error = 'Profesionales'"
+    ) == len(EXPECTED_RULES)
 
 
-def test_022_rebuilds_conditions_by_name() -> None:
+def test_024_rebuilds_only_guard_shaped_trees() -> None:
     text = _text()
-    for name in EXPECTED_RULES:
-        assert re.search(
-            r"WHERE nombre = '%s' AND version = 1" % re.escape(name), text
-        ), "rule %s conditions not resolved by name" % name
-    assert text.count("DELETE FROM condiciones WHERE regla_id = ") >= len(EXPECTED_RULES)
+    for final_name in EXPECTED_RULES:
+        window = _rule_window(text, final_name)
+        assert "g.operador = 'eq' AND g.fuente_datos = 'invoice.tipo_factura_descripcion'" in window, (
+            "rule %s missing guard-shaped rebuild trigger" % final_name
+        )
 
 
-def test_022_no_hardcoded_rule_ids() -> None:
+def test_024_no_tipo_guard_values() -> None:
     code = "\n".join(_code_lines(_text()))
-    assert re.search(r"regla_id\s*=\s*\d+", code) is None
-    assert re.search(r"padre_id\s*=\s*\d+", code) is None
+    assert '"Urgencias"' not in code, "bridge must not filter on Urgencias literal"
+    assert '"Hospitalización"' not in code, "bridge must not filter on Hospitalización literal"
+    assert "'atomic', 'eq', 'invoice.tipo_factura_descripcion'" not in code
 
 
-def test_022_no_transaction_control_or_max_id() -> None:
-    code = "\n".join(_code_lines(_text()))
-    assert re.search(r"^\s*BEGIN\s*;", code, re.MULTILINE) is None
-    assert re.search(r"^\s*COMMIT\s*;", code, re.MULTILINE) is None
-    assert "MAX(id)" not in code and "MAX(c.id)" not in code
-
-
-def test_022_seeds_expected_cond_counts() -> None:
+def test_024_seeds_expected_bridge_cond_counts() -> None:
     text = _text()
     for name, expected in EXPECTED_COUNTS.items():
         window = _rule_window(text, name)
-        found = window.count("VALUES (rid,")
+        found = window.count("INSERT INTO condiciones")
         assert found == expected, "rule %s: seeded %d conds, expected %d" % (name, found, expected)
-    assert text.count("VALUES (rid,") == sum(EXPECTED_COUNTS.values()) == 114
+    assert text.count("INSERT INTO condiciones") == sum(EXPECTED_COUNTS.values()) == 39
 
 
-def test_022_seeds_expected_catalogs() -> None:
+def test_024_prof_orden_before_not_orden() -> None:
+    text = _text()
+    not_bearing = [n for n in EXPECTED_RULES if n not in (
+        "profesional_medico_excluido", "profesional_medico_lab")]  # positive-match bridges
+    assert len(not_bearing) == 7
+    for name in not_bearing:
+        window = _rule_window(text, name)
+        prof_pos = window.find("'invoice.codigo_profesional'")
+        not_pos = window.find("'composite', 'NOT'")
+        assert prof_pos != -1 and not_pos != -1 and prof_pos < not_pos, (
+            "rule %s: prof must precede NOT" % name
+        )
+
+
+def test_024_ensures_both_bridge_rows() -> None:
+    text = _text()
+    assert "CREATE TABLE IF NOT EXISTS regla_dominios" in text
+    assert "CREATE INDEX IF NOT EXISTS ix_regla_dominios_dominio" in text
+    for name in EXPECTED_RULES:
+        window = _rule_window(text, name)
+        assert "rd.dominio = 'hospitalizacion'" in window, "rule %s missing hospitalizacion bridge" % name
+        assert "rd.dominio = 'urgencias'" in window, "rule %s missing urgencias bridge" % name
+    assert text.count("INSERT INTO regla_dominios") == 2 * len(EXPECTED_RULES) == 18
+
+
+def test_024_reruns_expected_catalogs() -> None:
     code = "\n".join(_code_lines(_text()))
     assert code.count("INSERT INTO catalogos") == len(EXPECTED_CATALOGS) == 21
     for key in EXPECTED_CATALOGS:
@@ -195,13 +220,13 @@ def test_022_seeds_expected_catalogs() -> None:
         ), "catalog %s not additive-guarded" % key
 
 
-def test_022_reuses_lab_catalog_without_redefining() -> None:
+def test_024_reuses_lab_catalog_without_redefining() -> None:
     code = "\n".join(_code_lines(_text()))
-    assert code.count('"codigos_tipo_procedimiento_laboratorio"') == 4
+    assert code.count('"codigos_tipo_procedimiento_laboratorio"') == 2
     assert "key = 'codigos_tipo_procedimiento_laboratorio'" not in code
 
 
-def test_022_grupo_error_and_detail_fields() -> None:
+def test_024_grupo_error_and_detail_fields() -> None:
     text = _text()
     for name in EXPECTED_RULES:
         window = _rule_window(text, name)
@@ -210,33 +235,35 @@ def test_022_grupo_error_and_detail_fields() -> None:
         assert "'Cód: {codigo_profesional}'" in window, "rule %s missing detalle_b" % name
 
 
-def test_022_only_expected_operators() -> None:
+def test_024_only_expected_operators() -> None:
     code = "\n".join(_code_lines(_text()))
     ops = set(re.findall(r"'(AND|OR|NOT|eq|cat_in|in|gt|gte|lt|lte)'", code))
     assert ops <= {"AND", "NOT", "eq", "cat_in"}, "unexpected operators: %s" % ops
 
 
-def test_022_single_active_v1_per_rule() -> None:
+def test_024_no_hardcoded_rule_ids() -> None:
+    code = "\n".join(_code_lines(_text()))
+    assert re.search(r"regla_id\s*=\s*\d+", code) is None
+    assert re.search(r"padre_id\s*=\s*\d+", code) is None
+
+
+def test_024_no_transaction_control_or_max_id() -> None:
+    code = "\n".join(_code_lines(_text()))
+    assert re.search(r"^\s*BEGIN\s*;", code, re.MULTILINE) is None
+    assert re.search(r"^\s*COMMIT\s*;", code, re.MULTILINE) is None
+    assert "MAX(id)" not in code and "MAX(c.id)" not in code
+
+
+def test_024_single_active_v1_per_rule() -> None:
     text = _text()
     assert "version = 2" not in text
     assert "version <> 1" not in text
-    for name in EXPECTED_RULES:
-        assert text.count("WHERE nombre = '%s' AND version = 1" % name) == 1
 
 
-def test_022_hosp_mirrors_urg_shapes() -> None:
-    text = _text()
-    pairs = [
-        ("profesional_urg_trabajadora_social", "profesional_hosp_trabajadora_social"),
-        ("profesional_urg_medico_excluido", "profesional_hosp_medico_excluido"),
-        ("profesional_urg_bacteriologa_lab", "profesional_hosp_bacteriologa_lab"),
-        ("profesional_urg_medico_lab", "profesional_hosp_medico_lab"),
-    ]
-    for urg_name, hosp_name in pairs:
-        urg_ops = re.findall(r"'(AND|NOT|eq|cat_in)'", _rule_window(text, urg_name))
-        hosp_ops = re.findall(r"'(AND|NOT|eq|cat_in)'", _rule_window(text, hosp_name))
-        assert urg_ops == hosp_ops, "%s shape drifted from %s" % (hosp_name, urg_name)
-        assert '"Hospitalización"' in _rule_window(text, hosp_name)
+def test_024_never_touches_protected_rules() -> None:
+    code = "\n".join(_code_lines(_text()))
+    for protected in PROTECTED_NAMES:
+        assert protected not in code, "024 must not reference %s*" % protected
 
 
 class _FakeSession:
@@ -257,13 +284,10 @@ _CATALOGS = {
     "profesionales_urgencias_trabajadora_social": ["01235", "03568"],
     "profesionales_urgencias_medico": ["01293", "02249"],
     "profesionales_urgencias_bacteriologa": ["02217", "03374"],
-    "profesionales_odontologia_higienista": ["01329", "01330", "03698"],
-    "profesionales_odontologia_odontologo": ["01251", "03007", "03424"],
     "codigos_trabajadora_social": ["37701", "890409"],
     "codigos_excluidos_medico": ["890409", "37701", "890408"],
     "codigos_tipo_procedimiento_laboratorio": ["02", "05"],
     "excepciones_bacteriologa": ["903883", "904903"],
-    "codigos_pyp_higienista": ["990212", "997002", "997106", "997107", "997301", "P0000011"],
 }
 
 
@@ -288,135 +312,96 @@ def _fires(specs: list, invoice: dict) -> bool:
     return bool(ev.evaluate(tree, ctx)["outcome"])
 
 
-_TS = [
+# Bridge shapes: root AND, prof orden 1, no tipo guard.
+_TS_B = [
     (None, "composite", "AND", None, None),
-    (1, "atomic", "eq", "invoice.tipo_factura_descripcion", "Urgencias"),
     (1, "atomic", "cat_in", "invoice.codigo_profesional",
      "profesionales_urgencias_trabajadora_social"),
     (1, "composite", "NOT", None, None),
-    (4, "atomic", "cat_in", "invoice.codigo", "codigos_trabajadora_social"),
+    (3, "atomic", "cat_in", "invoice.codigo", "codigos_trabajadora_social"),
 ]
 
-_MED_EXCL = [
+_MED_EXCL_B = [
     (None, "composite", "AND", None, None),
-    (1, "atomic", "eq", "invoice.tipo_factura_descripcion", "Urgencias"),
     (1, "atomic", "cat_in", "invoice.codigo_profesional", "profesionales_urgencias_medico"),
     (1, "atomic", "cat_in", "invoice.codigo", "codigos_excluidos_medico"),
 ]
 
-_BACT = [
+_BACT_B = [
     (None, "composite", "AND", None, None),
-    (1, "atomic", "eq", "invoice.tipo_factura_descripcion", "Urgencias"),
     (1, "atomic", "cat_in", "invoice.codigo_profesional",
      "profesionales_urgencias_bacteriologa"),
     (1, "composite", "NOT", None, None),
-    (4, "composite", "AND", None, None),
-    (5, "atomic", "cat_in", "invoice.codigo_tipo_procedimiento",
+    (3, "composite", "AND", None, None),
+    (4, "atomic", "cat_in", "invoice.codigo_tipo_procedimiento",
      "codigos_tipo_procedimiento_laboratorio"),
-    (5, "atomic", "eq", "invoice.laboratorio", "Si"),
+    (4, "atomic", "eq", "invoice.laboratorio", "Si"),
     (1, "composite", "NOT", None, None),
-    (8, "atomic", "cat_in", "invoice.codigo", "excepciones_bacteriologa"),
+    (7, "atomic", "cat_in", "invoice.codigo", "excepciones_bacteriologa"),
 ]
 
-_MED_LAB = [
+_MED_LAB_B = [
     (None, "composite", "AND", None, None),
-    (1, "atomic", "eq", "invoice.tipo_factura_descripcion", "Urgencias"),
     (1, "atomic", "cat_in", "invoice.codigo_profesional", "profesionales_urgencias_medico"),
     (1, "atomic", "cat_in", "invoice.codigo_tipo_procedimiento",
      "codigos_tipo_procedimiento_laboratorio"),
     (1, "atomic", "eq", "invoice.laboratorio", "Si"),
 ]
 
-_HIG = [
-    (None, "composite", "AND", None, None),
-    (1, "atomic", "cat_in", "invoice.codigo_profesional",
-     "profesionales_odontologia_higienista"),
-    (1, "composite", "NOT", None, None),
-    (3, "atomic", "cat_in", "invoice.codigo", "codigos_pyp_higienista"),
-]
 
-_ODO_PYP = [
-    (None, "composite", "AND", None, None),
-    (1, "atomic", "cat_in", "invoice.codigo_profesional",
-     "profesionales_odontologia_odontologo"),
-    (1, "atomic", "cat_in", "invoice.codigo", "codigos_pyp_higienista"),
-    (1, "composite", "NOT", None, None),
-    (4, "atomic", "eq", "invoice.codigo", "P0000011"),
-]
-
-
-class TestFiringTipoCodigo:
+class TestFiringBridge:
     def test_ts_fires_on_forbidden_code(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "03568",
                "codigo": "890201"}
-        assert _fires(_TS, inv) is True
+        assert _fires(_TS_B, inv) is True
+
+    def test_ts_fires_regardless_of_tipo(self) -> None:
+        # Bridge has no tipo guard: scope comes from regla_dominios.
+        inv = {"tipo_factura_descripcion": "Hospitalización", "codigo_profesional": "03568",
+               "codigo": "890201"}
+        assert _fires(_TS_B, inv) is True
 
     def test_ts_silent_on_allowed_code(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "03568",
                "codigo": "890409"}
-        assert _fires(_TS, inv) is False
+        assert _fires(_TS_B, inv) is False
 
-    def test_ts_silent_for_other_tipo(self) -> None:
+    def test_ts_silent_for_other_prof(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "01293",
                "codigo": "890201"}
-        assert _fires(_TS, inv) is False
-
-    def test_ts_silent_for_other_dominio(self) -> None:
-        inv = {"tipo_factura_descripcion": "Hospitalización", "codigo_profesional": "03568",
-               "codigo": "890201"}
-        assert _fires(_TS, inv) is False
+        assert _fires(_TS_B, inv) is False
 
     def test_medico_excluido_fires(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "01293",
                "codigo": "890409"}
-        assert _fires(_MED_EXCL, inv) is True
+        assert _fires(_MED_EXCL_B, inv) is True
 
     def test_medico_excluido_silent_neutral_code(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "01293",
                "codigo": "890201"}
-        assert _fires(_MED_EXCL, inv) is False
+        assert _fires(_MED_EXCL_B, inv) is False
 
     def test_medico_lab_fires(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "01293",
                "codigo_tipo_procedimiento": "02", "laboratorio": "Si"}
-        assert _fires(_MED_LAB, inv) is True
+        assert _fires(_MED_LAB_B, inv) is True
 
     def test_medico_lab_silent_no_lab(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "01293",
                "codigo_tipo_procedimiento": "01", "laboratorio": "No"}
-        assert _fires(_MED_LAB, inv) is False
+        assert _fires(_MED_LAB_B, inv) is False
 
     def test_bacteriologa_fires_without_lab(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "03374",
                "codigo_tipo_procedimiento": "01", "laboratorio": "No", "codigo": "901210"}
-        assert _fires(_BACT, inv) is True
+        assert _fires(_BACT_B, inv) is True
 
     def test_bacteriologa_silent_with_lab(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "03374",
                "codigo_tipo_procedimiento": "02", "laboratorio": "Si", "codigo": "901210"}
-        assert _fires(_BACT, inv) is False
+        assert _fires(_BACT_B, inv) is False
 
     def test_bacteriologa_silent_on_exception_code(self) -> None:
         inv = {"tipo_factura_descripcion": "Urgencias", "codigo_profesional": "03374",
                "codigo_tipo_procedimiento": "01", "laboratorio": "No", "codigo": "904903"}
-        assert _fires(_BACT, inv) is False
-
-    def test_higienista_fires_non_pyp(self) -> None:
-        inv = {"codigo_profesional": "01329", "codigo": "890201"}
-        assert _fires(_HIG, inv) is True
-
-    def test_higienista_silent_pyp(self) -> None:
-        inv = {"codigo_profesional": "01329", "codigo": "997002"}
-        assert _fires(_HIG, inv) is False
-
-    def test_odontologo_fires_pyp(self) -> None:
-        inv = {"codigo_profesional": "03424", "codigo": "997002"}
-        assert _fires(_ODO_PYP, inv) is True
-
-    def test_odontologo_silent_p0000011(self) -> None:
-        inv = {"codigo_profesional": "03424", "codigo": "P0000011"}
-        assert _fires(_ODO_PYP, inv) is False
-
-    def test_odontologo_silent_non_pyp(self) -> None:
-        inv = {"codigo_profesional": "03424", "codigo": "890201"}
-        assert _fires(_ODO_PYP, inv) is False
+        assert _fires(_BACT_B, inv) is False
