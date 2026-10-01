@@ -147,6 +147,7 @@ odd/
 # =========================
 # Backups de BD (no versionar)
 # =========================
+backups/
 backup_*.sql
 scripts/backup_*.sql
 scripts/backup_*.csv
