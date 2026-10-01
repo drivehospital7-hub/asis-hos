@@ -21,6 +21,7 @@ class InvoiceRecord:
     status: str
     invoice_type: str
     invoice_code: str
+    mtime: float | None = None
 
 
 @dataclass

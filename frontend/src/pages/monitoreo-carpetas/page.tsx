@@ -45,6 +45,7 @@ interface ScanResponse {
   data: {
     monitoring?: boolean;
     cached?: boolean;
+    scan_in_progress?: boolean;
     message?: string;
     events_count?: number;
     observer_alive?: boolean;
@@ -136,6 +137,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
   const [configRoots, setConfigRoots] = useState<string[]>([]);
   const [configSavedRoots, setConfigSavedRoots] = useState<string[]>([]);
   const [configFuente, setConfigFuente] = useState<string>("");
+  const [configGuardadoEn, setConfigGuardadoEn] = useState<string | null>(null);
   const [configSaving, setConfigSaving] = useState(false);
   const [configError, setConfigError] = useState<string | null>(null);
   const [configSuccess, setConfigSuccess] = useState<string | null>(null);
@@ -154,6 +156,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
           setConfigRoots(data.data.roots);
           setConfigSavedRoots(data.data.roots);
           setConfigFuente(data.data.fuente);
+          setConfigGuardadoEn(data.data.ultima_actualizacion ?? null);
         }
       })
       .catch(() => {
@@ -183,7 +186,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
       try {
         const res = await fetch("/monitoreo-carpetas/data");
         const data: ScanResponse = await res.json();
-        if (data.status === "success" && data.data) {
+        if (data.status === "success" && data.data?.cached === true) {
           setResult(data.data);
         }
       } catch {
@@ -247,6 +250,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
         setConfigRoots(data.data.roots);
         setConfigSavedRoots(data.data.roots);
         setConfigFuente(data.data.fuente);
+        setConfigGuardadoEn(data.data.ultima_actualizacion ?? null);
         setConfigSuccess("Rutas guardadas correctamente.");
       } else {
         setConfigError(data.errors?.join(", ") || "Error al guardar rutas.");
@@ -348,7 +352,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {configFuente === "manual"
-                ? "Rutas configuradas manualmente. Los cambios requieren Guardar."
+                ? `Rutas configuradas manualmente${configGuardadoEn ? ` (guardado: ${formatScanDateTime(configGuardadoEn)})` : ""}. Los cambios requieren Guardar.`
                 : configFuente === "env"
                   ? "Rutas desde variable de entorno. Editalas abajo para personalizar."
                   : "Sin rutas configuradas."}
@@ -598,13 +602,14 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
           {/* Duplicates section */}
           {result.duplicados && result.duplicados.length > 0 && (
             <Card className="p-6 border-border bg-card shadow-none mb-6">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-                <AlertCircle className="h-5 w-5 text-warning-foreground" />
-                <h3 className="font-display font-semibold text-foreground text-sm">
-                  Facturas Duplicadas ({result.duplicados.length})
-                </h3>
-              </div>
-              <div className="space-y-2">
+              <details>
+              <summary className="flex items-center gap-2 cursor-pointer pb-3 border-b border-border list-none">
+              <AlertCircle className="h-5 w-5 text-warning-foreground" />
+              <h3 className="font-display font-semibold text-foreground text-sm">
+                Facturas Duplicadas ({result.duplicados.length})
+              </h3>
+              </summary>
+              <div className="space-y-2 pt-3">
                 {result.duplicados.map((dup, idx) => (
                   <div key={idx} className="text-xs text-foreground/80 flex items-start gap-2">
                     <FileText className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" />
@@ -616,44 +621,49 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                   </div>
                 ))}
               </div>
+              </details>
             </Card>
           )}
 
           {/* Empty folders section */}
           {result.vacias && result.vacias.length > 0 && (
             <Card className="p-6 border-border bg-card shadow-none mb-6">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-                <FolderOpen className="h-5 w-5 text-muted-foreground" />
-                <h3 className="font-display font-semibold text-foreground text-sm">
-                  Carpetas Vacías ({result.vacias.length})
-                </h3>
-              </div>
-              <div className="space-y-1">
+              <details>
+              <summary className="flex items-center gap-2 cursor-pointer pb-3 border-b border-border list-none">
+              <FolderOpen className="h-5 w-5 text-muted-foreground" />
+              <h3 className="font-display font-semibold text-foreground text-sm">
+                Carpetas Vacías ({result.vacias.length})
+              </h3>
+              </summary>
+              <div className="space-y-1 pt-3">
                 {result.vacias.map((v, idx) => (
                   <p key={idx} className="text-xs text-foreground/80">
                     {v.facturador} — {v.folder}
                   </p>
                 ))}
               </div>
+              </details>
             </Card>
           )}
 
           {/* Scan errors section */}
           {result.errores_scan && result.errores_scan.length > 0 && (
             <Card className="p-6 border-danger/30 bg-danger/5 shadow-none mb-6">
-              <div className="flex items-center gap-2 mb-4 pb-3 border-b border-border">
-                <XCircle className="h-5 w-5 text-danger" />
-                <h3 className="font-display font-semibold text-danger text-sm">
-                  Errores de Escaneo ({result.errores_scan.length})
-                </h3>
-              </div>
-              <div className="space-y-1">
+              <details>
+              <summary className="flex items-center gap-2 cursor-pointer pb-3 border-b border-border list-none">
+              <XCircle className="h-5 w-5 text-danger" />
+              <h3 className="font-display font-semibold text-danger text-sm">
+                Errores de Escaneo ({result.errores_scan.length})
+              </h3>
+              </summary>
+              <div className="space-y-1 pt-3">
                 {result.errores_scan.map((e, idx) => (
                   <p key={idx} className="text-xs text-danger/80">
                     {e.root}: {e.error}
                   </p>
                 ))}
               </div>
+              </details>
             </Card>
           )}
 
@@ -692,25 +702,26 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
           {/* Results table */}
           {result.facturas && result.facturas.length > 0 && (
             <Card className="p-6 border-border bg-card shadow-none">
-              <div className="flex items-center justify-between mb-4 pb-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-success" />
-                  <h3 className="font-display font-semibold text-foreground text-sm">
-                    Facturas Encontradas
-                    {facturadorFilter && (
-                      <span className="text-muted-foreground ml-1">
-                        ({filteredFacturas.length} de {result.facturas.length})
-                      </span>
-                    )}
-                    {!facturadorFilter && (
-                      <span className="text-muted-foreground ml-1">
-                        ({result.facturas.length})
-                      </span>
-                    )}
-                  </h3>
-                </div>
-                {facturadores.length > 1 && (
-                  <select
+              <details>
+              <summary className="flex items-center gap-2 cursor-pointer pb-3 border-b border-border list-none">
+                <CheckCircle2 className="h-5 w-5 text-success" />
+                <h3 className="font-display font-semibold text-foreground text-sm">
+                  Facturas Encontradas
+                  {facturadorFilter ? (
+                    <span className="text-muted-foreground ml-1">
+                      ({filteredFacturas.length} de {result.facturas.length})
+                    </span>
+                  ) : (
+                    <span className="text-muted-foreground ml-1">
+                      ({result.facturas.length})
+                    </span>
+                  )}
+                </h3>
+              </summary>
+              <div className="pt-3">
+              {facturadores.length > 1 && (
+                <div className="flex justify-end mb-3">
+                <select
                     value={facturadorFilter}
                     onChange={(e) => setFacturadorFilter(e.target.value)}
                     className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
@@ -720,8 +731,8 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                       <option key={f} value={f}>{f}</option>
                     ))}
                   </select>
+                </div>
                 )}
-              </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-xs">
                   <thead>
@@ -774,6 +785,8 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                   </tbody>
                 </table>
               </div>
+              </div>
+              </details>
             </Card>
           )}
         </>

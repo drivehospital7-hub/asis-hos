@@ -83,14 +83,36 @@ def _move_one(src: str, dest: Path) -> str | None:
     return None
 
 
+def _copy_one(src: str, dest: Path) -> str | None:
+    """Copy one invoice dir. Returns error message or None on success."""
+    src_path = Path(src)
+    if not src_path.exists():
+        return MOVE_ERR_SRC_MISSING
+    target = dest / src_path.name
+    if target.exists():
+        return f"{MOVE_ERR_COLLISION} {target}"
+    try:
+        shutil.copytree(str(src_path), str(target), symlinks=False)
+    except OSError as exc:
+        logger.error("[BACK][ERROR] Copy failed %s -> %s: %s", src, target, exc)
+        return str(exc)
+    return None
+
+
 def execute_move(
-    sources: list[str], dest_dir: str, watcher
+    sources: list[str], dest_dir: str, watcher, operation: str = "move"
 ) -> tuple[list[str], list[dict]]:
-    """Execute per-item moves, resync watcher, return (moved, failed).
+    """Execute per-item moves (or copies), resync watcher, return (moved, failed).
 
     Destination may live outside the watched roots. The watcher only
     resyncs the destination subtree when it falls under the watched
-    roots; otherwise the source entries are simply removed.
+    roots; otherwise the source entries are simply removed (move) or
+    nothing is resynced (copy).
+
+    Args:
+        operation: "move" (default, preserves legacy callers) or "copy".
+            Copy keeps the source in place, so only the destination
+            subtree is resynced (no ``remove_subtree``).
     """
     dest = Path(dest_dir)
     try:
@@ -105,17 +127,21 @@ def execute_move(
     # Unknown roots (empty) default to resync to preserve legacy behavior;
     # when roots are known, only resync destinations under watch.
     dest_watched = not watched_roots or _is_under_roots(dest, watched_roots)
+    is_copy = operation == "copy"
+    _transfer_one = _copy_one if is_copy else _move_one
+    verb = "Copied" if is_copy else "Moved"
     moved: list[str] = []
     failed: list[dict] = []
     for src in sources:
-        error = _move_one(src, dest)
+        error = _transfer_one(src, dest)
         if error is None:
             moved.append(src)
-            logger.info("[BACK] Moved %s -> %s", src, dest / Path(src).name)
-            watcher.remove_subtree(src)
+            logger.info("[BACK] %s %s -> %s", verb, src, dest / Path(src).name)
+            if not is_copy:
+                watcher.remove_subtree(src)
             if dest_watched:
                 watcher.update_subtree(str(dest))
         else:
             failed.append({"src": src, "error": error})
-    logger.info("[BACK] Bulk move done: %d moved, %d failed", len(moved), len(failed))
+    logger.info("[BACK] Bulk %s done: %d ok, %d failed", operation, len(moved), len(failed))
     return moved, failed

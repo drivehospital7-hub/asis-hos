@@ -117,6 +117,12 @@ def scan_subtree(
         # Valid, non-empty invoice folder → register but DON'T recurse
         status = _infer_status_from_parts(path_parts)
 
+        # mtime gratis: scandir ya trae el stat del entry, sin abrir contenido.
+        try:
+            mtime = entry.stat(follow_symlinks=False).st_mtime
+        except OSError:
+            mtime = None
+
         invoices.append(InvoiceRecord(
             filename=name,
             facturador=facturador_name,
@@ -124,6 +130,7 @@ def scan_subtree(
             status=status,
             invoice_type=invoice_type,
             invoice_code=name,
+            mtime=mtime,
         ))
 
 

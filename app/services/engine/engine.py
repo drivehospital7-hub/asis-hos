@@ -240,7 +240,7 @@ class RuleEvaluationEngine:
                                   "vlr_procedimiento", "cantidad", "convenio_facturado",
                                   "centro_costo", "ide_contrato", "entidad_cobrar",
                                   "entidad_afiliacion", "tipo_usuario", "vlr_copago",
-                                  "codigo_tipo_procedimiento", "laboratorio", "tarifario",
+                                  "codigo_tipo_procedimiento", "laboratorio", "vacuna", "tarifario",
                                   "tipo_factura_descripcion", "responsable_cierra",
                                   "codigo_profesional", "profesional_atiende", "identificacion",
                                   "fec_nacimiento", "fec_factura", "edad",

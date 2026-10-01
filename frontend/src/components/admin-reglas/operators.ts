@@ -122,6 +122,7 @@ export const FUENTES_DATOS: string[] = [
   "invoice.fec_nacimiento",
   "invoice.fec_factura",
   "invoice.laboratorio",
+  "invoice.vacuna",
   "invoice.tipo_factura_descripcion",
   "invoice.codigo_equiv",
   "invoice.codigo_tipo_procedimiento",

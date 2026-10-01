@@ -8,6 +8,8 @@ import { AtomicNode } from "./AtomicNode";
 interface CompositeNodeProps {
   node: CondicionTree & { _collapsed?: boolean };
   depth: number;
+  /** Position within the parent's children (0-based). Used for "Rama N" labels. */
+  index?: number;
   catalogOptions?: string[];
   readOnly?: boolean;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
@@ -21,6 +23,7 @@ interface CompositeNodeProps {
 export function CompositeNode({
   node,
   depth,
+  index = 0,
   catalogOptions,
   readOnly,
   onUpdate,
@@ -31,6 +34,10 @@ export function CompositeNode({
   const collapsed = node._collapsed ?? false;
   const children = node.condiciones ?? [];
   const indent = depth * 20;
+  // DB ids are small; editor-created nodes carry huge temporary ids.
+  const idLabel = node.id > 1e12 ? "nuevo" : `#${node.id}`;
+  // Direct children of the root are the rule's branches: label them Rama 1..N.
+  const branchLabel = depth === 1 ? `Rama ${index + 1}` : null;
 
   if (readOnly) {
     return (
@@ -54,7 +61,10 @@ export function CompositeNode({
             )}
           </button>
           <span className="font-semibold text-xs uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
-            {node.operador ?? node.tipo}
+            {branchLabel ?? node.operador ?? node.tipo}
+          </span>
+          <span className="text-xs font-mono text-muted-foreground" title="ID de condición en base de datos">
+            {idLabel}
           </span>
           <span className="text-xs text-muted-foreground ml-1">
             ({children.length} hijo{children.length !== 1 ? "s" : ""})
@@ -63,11 +73,12 @@ export function CompositeNode({
 
         {!collapsed && children.length > 0 && (
           <div className="ml-2 mt-1">
-            {children.map((child) => (
+            {children.map((child, i) => (
               <NodeRenderer
                 key={child.id}
                 node={child}
                 depth={depth + 1}
+                index={i}
                 catalogOptions={catalogOptions}
                 readOnly={readOnly}
                 onUpdate={onUpdate}
@@ -118,6 +129,15 @@ export function CompositeNode({
           ))}
         </select>
 
+        {branchLabel && (
+          <span className="font-semibold text-xs uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}
+            title="Rama de la regla (hija directa de la raíz)">
+            {branchLabel}
+          </span>
+        )}
+        <span className="text-xs font-mono text-muted-foreground" title="ID de condición en base de datos">
+          {idLabel}
+        </span>
         <span className="text-xs text-muted-foreground">
           ({children.length} hijo{children.length !== 1 ? "s" : ""})
         </span>
@@ -161,11 +181,12 @@ export function CompositeNode({
       {/* Children (only if not collapsed) */}
       {!collapsed && children.length > 0 && (
         <div className="ml-2 mt-1">
-          {children.map((child) => (
+          {children.map((child, i) => (
             <NodeRenderer
               key={child.id}
                 node={child}
                 depth={depth + 1}
+                index={i}
                 catalogOptions={catalogOptions}
               readOnly={readOnly}
               onUpdate={onUpdate}
@@ -191,6 +212,7 @@ export function CompositeNode({
 interface NodeRendererProps {
   node: CondicionTree & { _collapsed?: boolean };
   depth: number;
+  index?: number;
   catalogOptions?: string[];
   readOnly?: boolean;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
@@ -202,6 +224,7 @@ interface NodeRendererProps {
 export function NodeRenderer({
   node,
   depth,
+  index = 0,
   catalogOptions,
   readOnly,
   onUpdate,
@@ -217,6 +240,7 @@ export function NodeRenderer({
       <CompositeNode
         node={node}
         depth={depth}
+        index={index}
         catalogOptions={catalogOptions}
         readOnly={readOnly}
         onUpdate={onUpdate}
@@ -227,9 +251,15 @@ export function NodeRenderer({
     );
   }
 
+  // DB ids are small; editor-created nodes carry huge temporary ids.
+  const idLabel = node.id > 1e12 ? "nuevo" : `#${node.id}`;
+  const branchLabel = depth === 1 ? `Rama ${index + 1}` : null;
+
   return (
     <AtomicNode
       node={node}
+      idLabel={idLabel}
+      branchLabel={branchLabel}
       catalogOptions={catalogOptions}
       readOnly={readOnly}
       onUpdate={onUpdate}

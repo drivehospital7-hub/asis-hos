@@ -78,3 +78,46 @@ class TestScanSubtree:
             v.get("folder", "").endswith("FEV99999") for v in empty_folders
         )
         assert errors == []
+
+    def test_scan_subtree_captura_mtime(self, temp_scan_root: Path) -> None:
+        """Cada invoice válida trae el mtime de su carpeta (dir real)."""
+        import os
+
+        invoices: list[InvoiceRecord] = []
+        empty_folders: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        scan_subtree(str(temp_scan_root), str(temp_scan_root), 0, invoices, empty_folders, errors)
+
+        assert len(invoices) == 3
+        for inv in invoices:
+            assert isinstance(inv.mtime, float)
+            # Aproximado: el mtime del dir puede moverse ~ms entre el scan
+            # (entry.stat) y esta lectura (os.stat).
+            assert inv.mtime == pytest.approx(
+                os.stat(inv.full_path).st_mtime, abs=5.0
+            )
+
+    def test_scan_subtree_stat_falla_mtime_none(
+        self, temp_scan_root: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Si entry.stat falla (OSError), el invoice se registra con mtime None."""
+        import os
+
+        real_stat = os.DirEntry.stat
+
+        def _failing_stat(self_entry, *args, **kwargs):
+            if self_entry.name.upper().startswith(("FEV", "CAP")):
+                raise OSError("stat simulado")
+            return real_stat(self_entry, *args, **kwargs)
+
+        monkeypatch.setattr(os.DirEntry, "stat", _failing_stat)
+
+        invoices: list[InvoiceRecord] = []
+        empty_folders: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        scan_subtree(str(temp_scan_root), str(temp_scan_root), 0, invoices, empty_folders, errors)
+
+        assert len(invoices) == 3
+        assert all(inv.mtime is None for inv in invoices)

@@ -50,101 +50,23 @@
         </div>
       </div>
 
-      {# Navigation items #}
+      {# Navigation items — registro canónico: app/constants/navigation.py expone
+         `nav_modules` ya filtrados por sesión vía context processor. #}
       <nav class="flex-1 py-2 overflow-y-auto">
-        {% set nav_items = {
-          'home.home_react':               {'label': 'Panel principal', 'icon': 'LayoutDashboard'},
-          'procesar.procesar_react':       {'label': 'Procesar',        'icon': 'FileText'},
-          'control_errores.control_errores_page': {'label': 'Control de Novedades', 'icon': 'ClipboardCheck'},
-          'abiertas_urgencias.abiertas_urgencias_react': {'label': 'Abiertas Urgencias', 'icon': 'CalendarClock'},
-          'busqueda_pdf.react_shell':      {'label': 'Búsqueda PDF',    'icon': 'Search'},
-          'cronograma_urgencias.cronograma_urgencias_react': {'label': 'Cronograma Urgencias', 'icon': 'CalendarClock'},
-          'cronograma_bacteriologas.cronograma_react': {'label': 'Cronograma Bacteriólogas', 'icon': 'CalendarClock'},
-          'ordenado_facturado.ordenado_facturado_react': {'label': 'Ordenado y Facturado', 'icon': 'FileSpreadsheet'},
-          'derechos.derechos_react':       {'label': 'Derechos',        'icon': 'Scale'},
-          'monitoreo_carpetas.index':      {'label': 'Monitoreo de Carpetas', 'icon': 'FolderSearch'},
-          'examenes.examenes_react':       {'label': 'Exámenes',        'icon': 'FlaskConical'},
-          'auth.usuarios_react':           {'label': 'Usuarios',        'icon': 'Users'},
-          'catalogo.catalogo_react':       {'label': 'Catálogos',       'icon': 'BookType'},
-        } %}
-
         {# ── "Áreas de trabajo" label (matches React sidebar) ── #}
         <p class="px-4 pb-1 text-[11px] uppercase tracking-wider font-medium sidebar-label" style="color:var(--sidebar-foreground); opacity:0.5; display:none;">Áreas de trabajo</p>
 
         <div class="px-2 space-y-0.5">
-          {% if '*' in session_permisos %}
-            {% for endpoint, item in nav_items.items() %}
-              {% set is_active = request.endpoint == endpoint %}
-              {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
-              {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
-              {% set op = 1 if is_active else 0.8 %}
-              <a href="{{ url_for(endpoint) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
-                <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
-                <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
-              </a>
-            {% endfor %}
-          {% else %}
-            {# ── "Panel principal" — always shown for authenticated non-admin users ── #}
-            {% if session.get('ce_authenticated') %}
-              {% set endpoint = 'home.home_react' %}
-              {% set item = nav_items.get(endpoint) %}
-              {% if item %}
-                {% set is_active = request.endpoint == endpoint %}
-                {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
-                {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
-                {% set op = 1 if is_active else 0.8 %}
-                <a href="{{ url_for(endpoint) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
-                  <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
-                  <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
-                </a>
-              {% endif %}
-            {% endif %}
-
-            {# Map permiso key → Flask endpoint. Iterated once (unique keys) to
-               avoid duplicating nav items when user has both X and X:write. #}
-            {% set _ep_map = {
-              'procesar':                     'procesar.procesar_react',
-              'control_urgencias':            'control_errores.control_errores_page',
-              'facturas_abiertas':            'abiertas_urgencias.abiertas_urgencias_react',
-              'busqueda_pdf':                 'busqueda_pdf.react_shell',
-              'cronograma_urgencias':         'cronograma_urgencias.cronograma_urgencias_react',
-              'cronograma_bacteriologas':     'cronograma_bacteriologas.cronograma_react',
-              'equipos_basicos':              'ordenado_facturado.ordenado_facturado_react',
-              'derechos':                     'derechos.derechos_react',
-              'monitoreo_carpetas':           'monitoreo_carpetas.index',
-              'examenes':                     'examenes.examenes_react',
-              '*':                            'auth.usuarios_react',
-            } %}
-            {% for key, ep in _ep_map.items() %}
-              {% set ns = namespace(found=false) %}
-              {% for p in session_permisos %}
-                {% set pkey = p.split(':')[0] if ':' in p else p %}
-                {% if pkey == key %}
-                  {% set ns.found = true %}
-                {% endif %}
-              {% endfor %}
-              {% if ns.found %}
-                {% set item = nav_items.get(ep) %}
-                {% if item %}
-                  {% set is_active = request.endpoint == ep %}
-                  {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
-                  {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
-                  {% set op = 1 if is_active else 0.8 %}
-                  <a href="{{ url_for(ep) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
-                    <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
-                    <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
-                  </a>
-                {% endif %}
-              {% endif %}
-            {% endfor %}
-          {% endif %}
-
-          {% if '*' in session_permisos %}
-            <a href="{{ url_for('import_facturas.import_facturas_react') }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="color:var(--sidebar-foreground); opacity:0.8;" onmouseover="this.style.backgroundColor='var(--sidebar-accent)';this.style.opacity='1'" onmouseout="this.style.backgroundColor='transparent';this.style.opacity='0.8'" title="Importar Facturas">
-              <i data-lucide="upload" class="lucide w-4 h-4 shrink-0"></i>
-              <span class="sidebar-label whitespace-nowrap" style="display:none;">Importar Facturas</span>
+          {% for item in nav_modules %}
+            {% set is_active = request.endpoint == item.endpoint %}
+            {% set bg = 'var(--sidebar-primary)' if is_active else 'transparent' %}
+            {% set fg = 'var(--sidebar-primary-foreground)' if is_active else 'var(--sidebar-foreground)' %}
+            {% set op = 1 if is_active else 0.8 %}
+            <a href="{{ url_for(item.endpoint) }}" class="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 sidebar-item" style="background-color:{{ bg }}; color:{{ fg }}; opacity:{{ op }};" onmouseover="this.style.backgroundColor='{{ 'var(--sidebar-primary)' if is_active else 'var(--sidebar-accent)' }}';this.style.opacity='1'" onmouseout="this.style.backgroundColor='{{ bg }}';this.style.opacity='{{ op }}'" title="{{ item.label }}">
+              <i data-lucide="{{ item.icon }}" class="lucide w-4 h-4 shrink-0"></i>
+              <span class="sidebar-label whitespace-nowrap" style="display:none;">{{ item.label }}</span>
             </a>
-          {% endif %}
+          {% endfor %}
         </div>
       </nav>
 

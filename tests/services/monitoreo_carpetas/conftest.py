@@ -69,6 +69,23 @@ def temp_scan_root() -> Generator[Path, None, None]:
 
 
 @pytest.fixture(autouse=True)
+def _isolate_monitoreo_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> Generator[None, None, None]:
+    """Redirect the JSON config to tmp so tests never touch the real file.
+
+    Integration tests delete CONFIG_FILE (``_cleanup_config``); without this
+    they wipe the operator-saved roots in ``app/data`` and the app falls
+    back to the env var on next boot.
+    """
+    monkeypatch.setattr(
+        "app.utils.monitoreo_store.CONFIG_FILE",
+        tmp_path / "monitoreo_carpetas_config.json",
+    )
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _isolate_route_watcher() -> Generator[None, None, None]:
     """Reset the module-global route FolderWatcher before/after each test.
 

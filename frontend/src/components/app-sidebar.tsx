@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   FileText,
@@ -12,32 +13,62 @@ import {
   LogOut,
   FlaskConical,
   Search,
+  FileSearch,
+  ArrowRightLeft,
+  ArrowLeftRight,
+  Settings,
 } from "lucide-react";
+
+type IconComponent = React.ComponentType<{ className?: string }>;
+
+// Mapa estatico nombre-lucide → componente para los iconos que usa el
+// sidebar hoy. La API devuelve solo el nombre; el filtrado por permisos
+// ya lo hizo el servidor (GET /api/nav).
+const ICONS: Record<string, IconComponent> = {
+  LayoutDashboard,
+  FileText,
+  ClipboardCheck,
+  CalendarClock,
+  FileSpreadsheet,
+  Scale,
+  FolderSearch,
+  Users,
+  Upload,
+  BookType,
+  FlaskConical,
+  Search,
+  FileSearch,
+  ArrowRightLeft,
+  ArrowLeftRight,
+  Settings,
+};
+
+// Fallback generico (componente ya importado): un modulo nuevo con un
+// icono desconocido nunca rompe el sidebar.
+const FALLBACK_ICON: IconComponent = LayoutDashboard;
+
+// Lookup insensible a mayusculas (la API puede traer "upload" o "Upload").
+const ICON_LOOKUP: Record<string, IconComponent> = Object.fromEntries(
+  Object.entries(ICONS).map(([name, component]) => [name.toLowerCase(), component]),
+);
+
+function resolveIcon(name: unknown): IconComponent {
+  if (typeof name !== "string") return FALLBACK_ICON;
+  return ICON_LOOKUP[name.toLowerCase()] ?? FALLBACK_ICON;
+}
+
+interface ApiNavItem {
+  label: string;
+  href: string;
+  icon: string;
+}
 
 interface NavItem {
   label: string;
   href: string;
-  icon: React.ComponentType<{ className?: string }>;
-  permiso?: string;
+  Icon: IconComponent;
   exact?: boolean;
 }
-
-const ALL_NAV: NavItem[] = [
-  { label: "Panel principal", href: "/dashboard", icon: LayoutDashboard, exact: true },
-  { label: "Procesar", href: "/procesar", icon: FileText, permiso: "procesar" },
-  { label: "Control de Novedades", href: "/control-novedades", icon: ClipboardCheck, permiso: "control_urgencias" },
-  { label: "Abiertas Urgencias", href: "/abiertas-urgencias", icon: CalendarClock, permiso: "facturas_abiertas" },
-  { label: "Búsqueda PDF", href: "/busqueda-pdf", icon: Search, permiso: "busqueda_pdf" },
-  { label: "Cronograma Urgencias", href: "/cronograma-urgencias", icon: CalendarClock, permiso: "cronograma_urgencias" },
-  { label: "Cronograma Bacteriólogas", href: "/cronograma-bacteriologas", icon: CalendarClock, permiso: "cronograma_bacteriologas" },
-  { label: "Ordenado y Facturado", href: "/ordenado-facturado", icon: FileSpreadsheet, permiso: "equipos_basicos" },
-  { label: "Derechos", href: "/derechos", icon: Scale, permiso: "derechos" },
-  { label: "Monitoreo de Carpetas", href: "/monitoreo-carpetas", icon: FolderSearch, permiso: "monitoreo_carpetas" },
-  { label: "Exámenes", href: "/examenes", icon: FlaskConical, permiso: "examenes" },
-  { label: "Usuarios", href: "/auth/usuarios", icon: Users, permiso: "*" },
-  { label: "Importar Facturas", href: "/import-facturas", icon: Upload, permiso: "*" },
-  { label: "Catálogos", href: "/catalogo", icon: BookType, permiso: "*" },
-];
 
 interface AppSidebarProps {
   username?: string;
@@ -45,27 +76,51 @@ interface AppSidebarProps {
   collapsed: boolean;
 }
 
-export function AppSidebar({ username = "", permisos = [], collapsed }: AppSidebarProps) {
+export function AppSidebar({ username = "", collapsed }: AppSidebarProps) {
+  // null = cargando (GET /api/nav en vuelo); [] = error o sin modulos.
+  const [items, setItems] = useState<NavItem[] | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/nav", { headers: { Accept: "application/json" } })
+      .then((res) => {
+        if (!res.ok) throw new Error(`GET /api/nav: HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((body: { data?: { modulos?: ApiNavItem[] } }) => {
+        if (!alive) return;
+        const modulos = body?.data?.modulos;
+        if (!Array.isArray(modulos)) {
+          setItems([]);
+          return;
+        }
+        setItems(
+          modulos
+            .filter(
+              (m): m is ApiNavItem =>
+                typeof m?.label === "string" && typeof m?.href === "string",
+            )
+            .map((m) => ({
+              label: m.label,
+              href: m.href,
+              Icon: resolveIcon(m.icon),
+              exact: m.href === "/dashboard",
+            })),
+        );
+      })
+      .catch(() => {
+        // Error de red o respuesta invalida: sidebar vacio, sin crashear.
+        if (alive) setItems([]);
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const isActive = (href: string, exact?: boolean) => {
     if (exact) return location.pathname === href;
     return location.pathname === href || location.pathname.startsWith(href + "/");
   };
-
-  const isAdmin = permisos.includes("*");
-
-  // Expandir :write → base (ej: control_urgencias:write → control_urgencias)
-  const expandedPermisos = new Set(permisos);
-  permisos.forEach((p) => {
-    if (p.endsWith(":write")) {
-      expandedPermisos.add(p.replace(/:write$/, ""));
-    }
-  });
-
-  const visibleItems = ALL_NAV.filter((item) => {
-    if (!item.permiso) return true;
-    if (isAdmin) return true;
-    return expandedPermisos.has(item.permiso);
-  });
 
   return (
     <aside
@@ -104,39 +159,52 @@ export function AppSidebar({ username = "", permisos = [], collapsed }: AppSideb
             Áreas de trabajo
           </p>
         )}
-        <div className="space-y-0.5 px-2">
-          {visibleItems.map((item) => {
-            const active = isActive(item.href, item.exact);
-            return (
-              <a
-                key={item.href}
-                href={item.href}
-                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150"
-                style={{
-                  backgroundColor: active ? "var(--color-sidebar-primary)" : "transparent",
-                  color: active ? "var(--color-sidebar-primary-foreground)" : "var(--color-sidebar-foreground)",
-                  opacity: active ? 1 : 0.8,
-                }}
-                onMouseEnter={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = "var(--color-sidebar-accent)";
-                    e.currentTarget.style.opacity = "1";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!active) {
-                    e.currentTarget.style.backgroundColor = "transparent";
-                    e.currentTarget.style.opacity = "0.8";
-                  }
-                }}
-                title={item.label}
-              >
-                <item.icon className="h-4 w-4 shrink-0" />
-                {!collapsed && <span className="truncate">{item.label}</span>}
-              </a>
-            );
-          })}
-        </div>
+        {items === null ? (
+          <div className="space-y-0.5 px-2" aria-hidden="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-md animate-pulse">
+                <div className="h-4 w-4 shrink-0 rounded" style={{ backgroundColor: "var(--color-sidebar-accent)" }} />
+                {!collapsed && (
+                  <div className="h-4 flex-1 rounded" style={{ backgroundColor: "var(--color-sidebar-accent)" }} />
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="space-y-0.5 px-2">
+            {items.map((item) => {
+              const active = isActive(item.href, item.exact);
+              return (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150"
+                  style={{
+                    backgroundColor: active ? "var(--color-sidebar-primary)" : "transparent",
+                    color: active ? "var(--color-sidebar-primary-foreground)" : "var(--color-sidebar-foreground)",
+                    opacity: active ? 1 : 0.8,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.backgroundColor = "var(--color-sidebar-accent)";
+                      e.currentTarget.style.opacity = "1";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!active) {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                      e.currentTarget.style.opacity = "0.8";
+                    }
+                  }}
+                  title={item.label}
+                >
+                  <item.Icon className="h-4 w-4 shrink-0" />
+                  {!collapsed && <span className="truncate">{item.label}</span>}
+                </a>
+              );
+            })}
+          </div>
+        )}
       </nav>
 
       {/* Footer: logout */}

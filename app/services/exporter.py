@@ -230,6 +230,7 @@ def _do_detect_problems(
         "convenio_facturado": "Convenio Facturado",
         "cantidad": "Cantidad",
         "laboratorio": "Laboratorio",
+        "vacuna": "Vacuna",
         "centro_costo": "Centro Costo",
         "codigo_entidad_cobrar": "Cód Entidad Cobrar",
         "entidad_cobrar": "Entidad Cobrar",

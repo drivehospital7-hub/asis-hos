@@ -35,6 +35,15 @@ from app.utils.monitoreo_store import get_roots, save_roots
 # Module-level FolderWatcher singleton (lazy-init, first call triggers full scan)
 _watcher = FolderWatcher()
 
+
+def get_watcher() -> FolderWatcher:
+    """Public accessor for the module-global watcher singleton.
+
+    Lets sibling features (e.g. Traslado de Facturas) reuse the scan
+    cache without importing the private ``_watcher`` global.
+    """
+    return _watcher
+
 logger = logging.getLogger(__name__)
 
 monitoreo_carpetas_bp = Blueprint("monitoreo_carpetas", __name__)
@@ -399,6 +408,23 @@ def get_cached_data():
         }), 200
 
     if result is None:
+        # Sin resultado cacheado (ej. memoria vacía tras reinicio):
+        # disparar escaneo background sin bloquear el response. El poll
+        # del frontend lo levanta cuando termina. Se pasan las raíces
+        # actuales (config o watcher si config vacío) para que el bg-scan
+        # las adopte antes de escanear.
+        effective_roots = current_roots or cached_roots
+        if effective_roots:
+            scan_in_progress = _watcher.start_background_first_scan(effective_roots)
+            return jsonify({
+                "status": "success",
+                "data": {
+                    "cached": False,
+                    "scan_in_progress": scan_in_progress,
+                    "message": "Escaneo en curso, los datos aparecerán solos.",
+                },
+                "errors": [],
+            }), 200
         return jsonify({
             "status": "success",
             "data": {"cached": False},

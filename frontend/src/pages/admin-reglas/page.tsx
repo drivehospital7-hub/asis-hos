@@ -890,7 +890,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
             <h2 className="font-display font-semibold" style={{ color: "oklch(0.15 0.02 160)", fontSize: "1rem" }}>
               {rule.nombre} <span className="text-xs font-mono text-muted-foreground">(#{rule.id})</span>
             </h2>
-            <EstadoBadge estado={rule.estado} />
+            <EstadoBadge estado={rule.estado} activo={rule.activo} />
           </div>
           <div className="flex gap-2">
           </div>
@@ -1579,7 +1579,7 @@ function ReglasVinculadas({ catalogKey, onClose }: ReglasVinculadasProps) {
                     <td className="py-2 px-3 font-mono text-xs text-muted-foreground">{r.id}</td>
                     <td className="py-2 px-3 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{r.nombre}</td>
                     <td className="py-2 px-3"><DominiosBadges dominios={getRuleDominios(r)} /></td>
-                    <td className="py-2 px-3"><EstadoBadge estado={r.estado} /></td>
+                    <td className="py-2 px-3"><EstadoBadge estado={r.estado} activo={r.activo} /></td>
                   </tr>
                 ))}
               </tbody>

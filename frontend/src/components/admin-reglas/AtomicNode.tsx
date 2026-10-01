@@ -11,6 +11,10 @@ import { ValueInput } from "./ValueInput";
 
 interface AtomicNodeProps {
   node: CondicionTree;
+  /** Precomputed label: `#<id>` or "nuevo". Falls back to `#id` when omitted. */
+  idLabel?: string;
+  /** "Rama N" when the node is a direct child of the root. */
+  branchLabel?: string | null;
   catalogOptions?: string[];
   readOnly?: boolean;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
@@ -19,7 +23,8 @@ interface AtomicNodeProps {
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove }: AtomicNodeProps) {
+export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove, idLabel, branchLabel }: AtomicNodeProps) {
+  const refLabel = idLabel ?? (node.id > 1e12 ? "nuevo" : `#${node.id}`);
   const operator = node.operador ?? "";
   const valueType = getValueTypeForOperator(operator);
   const isCatIn = operator === "cat_in";
@@ -63,6 +68,14 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove 
           borderLeft: "3px solid oklch(0.6 0.2 25 / 0.3)",
         }}
       >
+        {branchLabel && (
+          <span className="font-semibold text-xs uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
+            {branchLabel}
+          </span>
+        )}
+        <span className="text-xs font-mono text-muted-foreground" title="ID de condición en base de datos">
+          {refLabel}
+        </span>
         <span className="font-medium text-xs" style={{ color: "oklch(0.55 0.04 160)" }}>
           {node.fuente_datos ?? "?"}
         </span>
@@ -86,6 +99,14 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove 
         borderLeft: "3px solid oklch(0.6 0.2 25 / 0.3)",
       }}
     >
+      {branchLabel && (
+        <span className="font-semibold text-xs uppercase tracking-wider self-center" style={{ color: "oklch(0.55 0.04 160)" }}>
+          {branchLabel}
+        </span>
+      )}
+      <span className="text-xs font-mono text-muted-foreground self-center" title="ID de condición en base de datos">
+        {refLabel}
+      </span>
       {/* FUENTES_DATOS searchable select */}
       <SearchableSelect
         value={node.fuente_datos ?? ""}

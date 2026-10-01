@@ -103,9 +103,14 @@ class FolderWatcher:
         self._reconciler_thread: threading.Thread | None = None
         self._reconciler_stop = threading.Event()
         self._reconcile_lock = threading.Lock()  # guard anti-solapamiento
+        self._scan_in_progress: bool = False  # guard primer escaneo background
         self._excel_stale: bool = False  # True si el Excel no refleja el ScanResult
         self._excel_generated_at: float | None = None  # epoch s última generación Excel
         self._load_snapshot()
+        # Scheduler como fuente de verdad desde el boot: el loop espera el
+        # intervalo antes del primer ciclo (daemon, no escanea en init).
+        # La adopción de raíces vive en `_reconcile_once_locked`.
+        self.start_reconciler()
 
     # ------------------------------------------------------------------
     # Public API
@@ -171,6 +176,53 @@ class FolderWatcher:
         self.start_reconciler()
 
         return scan_result, excel_filename
+
+    def start_background_first_scan(self, roots: list[str] | None = None) -> bool:
+        """Lanza `first_scan` en background si no hay resultado cacheado.
+
+        Solo arranca cuando `_result is None`, hay roots efectivos y no
+        hay otro escaneo en curso (flag `_scan_in_progress` bajo lock, que
+        el thread baja en `finally`). No bloquea: el poll del frontend
+        levanta los datos cuando el scan termina.
+
+        Args:
+            roots: Raíces a escanear. Si se pasan y difieren de
+                ``self._roots``, se adoptan primero; si es None se usa
+                ``self._roots``.
+
+        Returns:
+            True si lanzó el thread de escaneo (o ya hay uno en curso),
+            False si hay resultado cacheado o no hay raíces efectivas.
+        """
+        with self._lock:
+            if self._result is not None:
+                return False
+            effective = list(roots) if roots is not None else list(self._roots)
+            if not effective:
+                return False
+            if set(effective) != set(self._roots):
+                self._roots = list(effective)
+                logger.info("bg-scan: adoptando raíces %s", self._roots)
+            if self._scan_in_progress:
+                return True
+            self._scan_in_progress = True
+            scan_roots = list(self._roots)
+
+        def _run() -> None:
+            try:
+                self.first_scan(scan_roots)
+            except Exception:
+                logger.exception("Escaneo background inicial falló")
+            finally:
+                with self._lock:
+                    self._scan_in_progress = False
+
+        thread = threading.Thread(
+            target=_run, name="monitoreo-first-scan", daemon=True
+        )
+        thread.start()
+        logger.info("Escaneo background inicial lanzado para %d roots", len(scan_roots))
+        return True
 
     def health_check(self) -> dict[str, Any]:
         """Check monitoring health (scheduler is the source of truth).
@@ -357,8 +409,63 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
             self._reconcile_lock.release()
 
     def _reconcile_once_locked(self) -> bool:
-        """Cuerpo del ciclo del scheduler (llamar con `_reconcile_lock`)."""
+        """Cuerpo del ciclo del scheduler (llamar con `_reconcile_lock`).
+
+        Fase de adopción ANTES de cualquier early-return: si el store de
+        config trae raíces que el watcher no cubre, se adoptan con un
+        `first_scan` completo (fuera de `_lock`: `first_scan` lo toma
+        internamente). Reglas: (1) watcher sin raíces + config con
+        raíces → adoptar; (2) fuente manual con set distinto → reemplazo
+        total; (3) fuente env con watcher con raíces → NO degradar (el
+        downgrade a env solo manual vía Verificar/reset).
+        """
         from app.constants import monitoreo_carpetas as mc
+
+        # --- Fase de adopción: snapshot bajo lock, scan fuera del lock ---
+        from app.utils.monitoreo_store import get_roots as _store_get_roots
+
+        try:
+            cfg_roots, fuente, _ultima = _store_get_roots()
+        except Exception:
+            logger.exception("Reconciliador: no se pudo leer config, uso watcher")
+            cfg_roots, fuente = [], "env"
+        with self._lock:
+            watcher_roots = list(self._roots)
+        adopt: list[str] | None = None
+        if not watcher_roots and cfg_roots:
+            logger.info(
+                "Reconciliador: boot sin raíces, adoptando config (%s): %s",
+                fuente, cfg_roots,
+            )
+            adopt = list(cfg_roots)
+        elif fuente == "manual" and set(watcher_roots) != set(cfg_roots):
+            logger.info(
+                "Reconciliador: config manual cambió (%s → %s), "
+                "adoptando reemplazo total",
+                watcher_roots, cfg_roots,
+            )
+            adopt = list(cfg_roots)
+        elif (
+            fuente == "env"
+            and watcher_roots
+            and set(watcher_roots) != set(cfg_roots)
+        ):
+            logger.warning(
+                "Reconciliador: config env difiere, conservando raíces "
+                "del watcher %s (downgrade solo manual)",
+                watcher_roots,
+            )
+        if adopt:
+            # NUNCA con `_lock` tomado: `first_scan` lo toma internamente.
+            try:
+                self.first_scan(adopt)
+            except Exception:
+                logger.exception("Reconciliador: adopción falló para %s", adopt)
+                return False
+            with self._lock:
+                self._last_reconcile_at = time.time()
+                self._save_snapshot()
+            return True
 
         with self._lock:
             if self._result is None:
@@ -659,6 +766,7 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
         with self._lock:
             self._result = None
             self._roots = []
+            self._scan_in_progress = False
             self._events_count = 0
             self._last_event_at = None
             self._last_reconcile_at = None
@@ -767,6 +875,8 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
                             "status": inv.status,
                             "invoice_type": inv.invoice_type,
                             "invoice_code": inv.invoice_code,
+                            # getattr tolerante: snapshots viejos no traen el campo.
+                            "mtime": getattr(inv, "mtime", None),
                         }
                         for inv in self._result.facturas
                     ],

@@ -69,10 +69,14 @@ def get_roots() -> tuple[list[str], str, str | None]:
         if roots:
             return roots, "manual", config.get("ultima_actualizacion")
 
-    # Priority 2: Environment variable
+    # Priority 2: Environment variable (log path: revela qué disco usa el server)
     env_raw = os.environ.get(ENV_MONITOREO_ROOTS, "").strip()
     if env_raw:
         roots = _parse_env_var(env_raw)
+        logger.warning(
+            "Monitoreo sin JSON (%s ausente/vacío) → fallback a env var %s",
+            CONFIG_FILE, ENV_MONITOREO_ROOTS,
+        )
         return roots, "env", None
 
     # Priority 3: Empty
@@ -108,7 +112,7 @@ def save_roots(roots: list[str]) -> None:
         with open(fd, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
         Path(tmp_path).replace(CONFIG_FILE)
-        logger.info("Rutas de monitoreo guardadas: %s", roots)
+        logger.info("Rutas de monitoreo guardadas en %s: %s", CONFIG_FILE, roots)
     except Exception:
         # Cleanup temp file on failure
         try:

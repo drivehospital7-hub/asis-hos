@@ -19,6 +19,9 @@ PUBLIC_ENDPOINTS = frozenset({
     "auth.unauthorized_react",
     # Static — CSS, JS, imágenes
     "static",
+    # Nav — el sidebar React consulta módulos filtrados por sesión;
+    # anónimo → lista vacía (el filtrado lo hace modulos_para, no el guard)
+    "nav.nav_api",
     # Procedimientos — write endpoints descontinuados (410 Gone)
     "procedimientos.create_procedimiento_gone",
     "procedimientos.update_procedimiento_gone",
@@ -87,10 +90,19 @@ def create_app(config=None):
     # ──────────────────────────────────────────────
     @app.context_processor
     def inject_session_user():
+        from app.constants.navigation import modulos_para
+
+        permisos = session.get("permisos", []) or []
+        autenticado = bool(
+            session.get("ce_authenticated") or session.get("username") or permisos
+        )
         return {
             "session_username": session.get("username"),
             "session_rol": session.get("rol"),
             "session_permisos": session.get("permisos", []),
+            # Sidebar Jinja: módulos ya filtrados por sesión (registro canónico).
+            # ``is_active`` se sigue calculando en template con request.endpoint.
+            "nav_modules": modulos_para(permisos, autenticado=autenticado),
         }
 
     # ──────────────────────────────────────────────
@@ -172,9 +184,12 @@ def create_app(config=None):
     from app.routes.reglas_api import reglas_api_bp
     from app.routes.reglas_admin import reglas_admin_bp
     from app.routes.monitoreo_carpetas import monitoreo_carpetas_bp
+    from app.routes.traslado_facturas import traslado_facturas_bp
+    from app.routes.cruce_produccion import cruce_produccion_bp
     from app.routes.examenes import examenes_bp
     from app.routes.integration import integration_bp
     from app.routes.busqueda_pdf import busqueda_pdf_bp
+    from app.routes.nav import nav_bp
 
     # Control-errores es la raíz (debe registrarse antes de home)
     app.register_blueprint(control_errores_bp)
@@ -195,9 +210,12 @@ def create_app(config=None):
     app.register_blueprint(reglas_api_bp)
     app.register_blueprint(reglas_admin_bp)
     app.register_blueprint(monitoreo_carpetas_bp, url_prefix="/monitoreo-carpetas")
+    app.register_blueprint(traslado_facturas_bp, url_prefix="/traslado-facturas")
+    app.register_blueprint(cruce_produccion_bp, url_prefix="/cruce-produccion")
     app.register_blueprint(examenes_bp)  # sin prefix: /examenes, /api/examenes, /api/listado
     app.register_blueprint(integration_bp)
     app.register_blueprint(busqueda_pdf_bp)
+    app.register_blueprint(nav_bp)  # sin prefix: GET /api/nav (ruta absoluta)
 
     # Prerrequisito de seguridad: HTTPS en la LAN para la integración.
     if not app.config.get("TESTING"):

@@ -803,3 +803,216 @@ class TestSchedulerNoOverlap:
                 assert len(calls) == 2
         finally:
             watcher.reset()
+
+
+# =============================================================================
+# start_background_first_scan: auto-recuperación tras reinicio sin bloquear
+# =============================================================================
+
+
+class TestStartBackgroundFirstScan:
+    """start_background_first_scan: un solo thread, flag baja, fallo no cuelga."""
+
+    def test_concurrent_calls_launch_single_scan(self) -> None:
+        """Segundo llamado concurrente no lanza doble scan."""
+        import time
+
+        watcher = FolderWatcher()
+        watcher.reset()
+        try:
+            watcher._roots = ["/fake/root"]
+            calls: list[list[str]] = []
+            started = threading.Event()
+            release = threading.Event()
+
+            def _blocking_first_scan(roots: list[str]):
+                calls.append(list(roots))
+                started.set()
+                assert release.wait(timeout=10)
+                return ScanResult(), None
+
+            with mock.patch.object(
+                watcher, "first_scan", side_effect=_blocking_first_scan
+            ):
+                assert watcher.start_background_first_scan() is True
+                assert started.wait(timeout=10)
+                # Scan en curso: el segundo llamado no lanza otro thread
+                assert watcher.start_background_first_scan() is True
+                time.sleep(0.05)
+                assert len(calls) == 1
+                release.set()
+                deadline = time.time() + 10
+                while watcher._scan_in_progress and time.time() < deadline:
+                    time.sleep(0.02)
+                assert watcher._scan_in_progress is False
+                assert len(calls) == 1
+        finally:
+            watcher.reset()
+
+    def test_flag_lowered_after_scan(self) -> None:
+        """El flag se baja tras un scan exitoso."""
+        import time
+
+        watcher = FolderWatcher()
+        watcher.reset()
+        try:
+            watcher._roots = ["/fake/root"]
+            with mock.patch.object(
+                watcher, "first_scan", return_value=(ScanResult(), None)
+            ):
+                assert watcher.start_background_first_scan() is True
+                deadline = time.time() + 10
+                while watcher._scan_in_progress and time.time() < deadline:
+                    time.sleep(0.02)
+                assert watcher._scan_in_progress is False
+        finally:
+            watcher.reset()
+
+    def test_failed_scan_does_not_hang_flag(self) -> None:
+        """Scan fallido no deja el flag colgado."""
+        import time
+
+        watcher = FolderWatcher()
+        watcher.reset()
+        try:
+            watcher._roots = ["/fake/root"]
+            with mock.patch.object(
+                watcher, "first_scan", side_effect=RuntimeError("SMB caído")
+            ):
+                assert watcher.start_background_first_scan() is True
+                deadline = time.time() + 10
+                while watcher._scan_in_progress and time.time() < deadline:
+                    time.sleep(0.02)
+                assert watcher._scan_in_progress is False
+        finally:
+            watcher.reset()
+
+    def test_no_roots_or_cached_result_no_scan(self) -> None:
+        """Sin roots o con resultado cacheado no lanza nada."""
+        watcher = FolderWatcher()
+        watcher.reset()
+        try:
+            watcher._roots = []
+            assert watcher.start_background_first_scan() is False
+            watcher._roots = ["/fake/root"]
+            watcher.set_result(ScanResult())
+            assert watcher.start_background_first_scan() is False
+            assert watcher._scan_in_progress is False
+        finally:
+            watcher.reset()
+
+
+# =============================================================================
+# Task 4 (follow-up II): scheduler auto-adopción + bg-scan con config
+# =============================================================================
+
+
+class TestSchedulerAutoAdopcion:
+    """El scheduler adopta la config (manual o boot) y nunca degrada a env."""
+
+    def _tree(self, root: Path, *names: str) -> Path:
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True, exist_ok=True)
+        for name in names:
+            d = fact / name
+            d.mkdir(exist_ok=True)
+            (d / "dummy.txt").write_text("x")
+        return root
+
+    def _fresh_watcher(self) -> FolderWatcher:
+        watcher = FolderWatcher()
+        watcher.reset()
+        return watcher
+
+    def test_adopcion_manual_reemplaza_y_escanea(self, tmp_path: Path) -> None:
+        """Config manual distinta → reemplazo total + full scan."""
+        from app.services.monitoreo_carpetas.detect_all import detect_all
+
+        old = self._tree(tmp_path / "old", "FEV001")
+        new = self._tree(tmp_path / "new", "FEV002")
+        watcher = self._fresh_watcher()
+        try:
+            watcher._roots = [str(old)]
+            watcher.set_result(detect_all([str(old)]))
+            with mock.patch(
+                "app.utils.monitoreo_store.get_roots",
+                return_value=([str(new)], "manual", None),
+            ):
+                assert watcher.reconcile_once() is True
+            assert watcher.get_roots() == [str(new)]
+            result = watcher.get_result()
+            assert result is not None
+            assert {i.filename for i in result.facturas} == {"FEV002"}
+            assert watcher._last_reconcile_at is not None
+        finally:
+            watcher.reset()
+
+    def test_sin_downgrade_a_env(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Watcher con raíces + config env distinta → conserva watcher."""
+        from app.services.monitoreo_carpetas.detect_all import detect_all
+
+        old = self._tree(tmp_path / "old", "FEV001")
+        other = self._tree(tmp_path / "other", "FEV999")
+        watcher = self._fresh_watcher()
+        try:
+            watcher._roots = [str(old)]
+            watcher.set_result(detect_all([str(old)]))
+            with mock.patch(
+                "app.utils.monitoreo_store.get_roots",
+                return_value=([str(other)], "env", None),
+            ), caplog.at_level("WARNING"):
+                watcher.reconcile_once()  # merge normal, sin adopción
+            assert watcher.get_roots() == [str(old)]
+            assert {i.filename for i in watcher.get_result().facturas} == {"FEV001"}
+            assert any("conservando" in r.message for r in caplog.records)
+        finally:
+            watcher.reset()
+
+    def test_boot_sin_raices_adopta_env(self, tmp_path: Path) -> None:
+        """Watcher vacío + config env con raíces → adopta en el ciclo."""
+        new = self._tree(tmp_path / "new", "FEV007")
+        watcher = self._fresh_watcher()
+        try:
+            assert watcher.get_roots() == []
+            assert watcher.get_result() is None
+            with mock.patch(
+                "app.utils.monitoreo_store.get_roots",
+                return_value=([str(new)], "env", None),
+            ):
+                assert watcher.reconcile_once() is True
+            assert watcher.get_roots() == [str(new)]
+            result = watcher.get_result()
+            assert result is not None
+            assert {i.filename for i in result.facturas} == {"FEV007"}
+        finally:
+            watcher.reset()
+
+    def test_bg_scan_adopta_raices_pasadas(self, tmp_path: Path) -> None:
+        """start_background_first_scan(roots) adopta si difieren y escanea."""
+        import time
+
+        root = self._tree(tmp_path / "root", "FEV001")
+        watcher = self._fresh_watcher()
+        try:
+            watcher._roots = ["/vieja/inexistente"]
+            assert watcher.start_background_first_scan([str(root)]) is True
+            deadline = time.time() + 15
+            while watcher.get_result() is None and time.time() < deadline:
+                time.sleep(0.05)
+            assert watcher.get_result() is not None
+            assert watcher.get_roots() == [str(root)]
+            assert {i.filename for i in watcher.get_result().facturas} == {"FEV001"}
+        finally:
+            watcher.reset()
+
+    def test_bg_scan_sin_raices_efectivas_false(self) -> None:
+        """Sin raíces (propias ni pasadas) → False, sin adoptar vacío."""
+        watcher = self._fresh_watcher()
+        try:
+            assert watcher.start_background_first_scan() is False
+            assert watcher.start_background_first_scan([]) is False
+            assert watcher.get_roots() == []
+        finally:
+            watcher.reset()

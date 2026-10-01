@@ -203,6 +203,16 @@ def listar_errores(
     return errores
 
 
+def obtener_novedades() -> list[dict[str, Any]]:
+    """Retorna los registros crudos de novedades de control de errores.
+
+    Liviano para cruce batch: SIN conteos de imágenes (a diferencia de
+    ``listar_errores``). Solo lectura, nunca modifica el almacén.
+    """
+    data = _leer_datos()
+    return list(data.get("errores", []))
+
+
 def contar_duplicados(tipo_error: str, factura: str) -> int:
     """Cuenta registros existentes con el mismo ``tipo_error`` y ``factura``.
 
@@ -234,6 +244,30 @@ def _responsable_coincide_con_owner(
         normalizar_identidad(owner_full_identity or owner_identity).split()
     )
     return len(responsable_tokens) >= 2 and set(responsable_tokens) <= owner_tokens
+
+
+def backfill_ultima_modificacion_estado() -> int:
+    """Backfill idempotente para registros viejos sin el campo.
+
+    Copia `actualizado_en` (fallback `creado_en`) a
+    `ultima_modificacion_estado` solo donde falte. Solo backend.
+
+    Returns:
+        Cantidad de registros actualizados.
+    """
+    with _write_lock:
+        data = _leer_datos()
+        touched = 0
+        for error in data.get("errores", []):
+            if not error.get("ultima_modificacion_estado"):
+                error["ultima_modificacion_estado"] = (
+                    error.get("actualizado_en") or error.get("creado_en") or ""
+                )
+                touched += 1
+        if touched:
+            _escribir_datos(data)
+            logger.info("[BACK] Backfill ultima_modificacion_estado: %d", touched)
+        return touched
 
 
 def crear_error(
@@ -278,6 +312,8 @@ def crear_error(
             "created_by": created_by,
             "creado_en": datetime.now().isoformat(),
             "actualizado_en": datetime.now().isoformat(),
+            # Última vez que se fijó/cambió el estado (solo backend, no visible).
+            "ultima_modificacion_estado": datetime.now().isoformat(),
         }
 
         data.setdefault("errores", []).append(nuevo_error)
@@ -320,6 +356,8 @@ def actualizar_error(
             if observacion_facturador is not _NOT_SET:
                 error["observacion_facturador"] = observacion_facturador
             if estado is not _NOT_SET:
+                if estado != error.get("estado"):
+                    error["ultima_modificacion_estado"] = datetime.now().isoformat()
                 error["estado"] = estado
             if responsable is not _NOT_SET:
                 error["responsable"] = responsable

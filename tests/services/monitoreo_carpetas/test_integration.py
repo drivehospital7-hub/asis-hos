@@ -808,3 +808,88 @@ class TestScheduledScanContract:
             assert len(forced["facturas"]) == 1
         finally:
             os.environ.pop("MONITOREO_CARPETAS_ROOTS", None)
+
+
+class TestDataBackgroundScan:
+    """GET /data sin resultado dispara escaneo background sin bloquear."""
+
+    def setup_method(self, method) -> None:
+        """Reset the module-level FolderWatcher before each test."""
+        import app.routes.monitoreo_carpetas as route_mod
+        route_mod._watcher.reset()
+
+    def _authenticate(self, app_client) -> None:
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["username"] = "test"
+            sess["permisos"] = ["*"]
+
+    def test_data_sin_resultado_dispara_background(
+        self, app_client, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET /data sin cache: responde scan_in_progress True y llama first_scan."""
+        import time
+
+        import app.routes.monitoreo_carpetas as route_mod
+
+        self._authenticate(app_client)
+        root = tmp_path / "scan_root"
+        fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
+        fact.mkdir(parents=True)
+        (fact / "FEV001").mkdir()
+        (fact / "FEV001" / "dummy.txt").write_text("x")
+        monkeypatch.setattr(
+            "app.routes.monitoreo_carpetas.get_roots",
+            mock.Mock(return_value=([str(root)], "manual", None)),
+        )
+        assert route_mod._watcher.get_result() is None
+
+        calls: list[list[str]] = []
+        real_first_scan = route_mod._watcher.first_scan
+
+        def _counting_first_scan(roots: list[str]):
+            calls.append(list(roots))
+            return real_first_scan(roots)
+
+        monkeypatch.setattr(
+            route_mod._watcher, "first_scan", _counting_first_scan
+        )
+        resp = app_client.get("/monitoreo-carpetas/data")
+        assert resp.status_code == 200
+        data = resp.get_json()["data"]
+        assert data["cached"] is False
+        assert data["scan_in_progress"] is True
+        assert "Escaneo en curso" in data["message"]
+        # El background corre first_scan sin bloquear el response
+        deadline = time.time() + 15
+        while not calls and time.time() < deadline:
+            time.sleep(0.05)
+        assert len(calls) == 1
+        deadline = time.time() + 15
+        while route_mod._watcher.get_result() is None and time.time() < deadline:
+            time.sleep(0.05)
+        assert route_mod._watcher.get_result() is not None
+        # El poll siguiente ya levanta datos cacheados
+        data2 = app_client.get("/monitoreo-carpetas/data").get_json()["data"]
+        assert data2["cached"] is True
+        assert len(data2["facturas"]) == 1
+
+    def test_data_sin_roots_no_dispara_background(
+        self, app_client, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """GET /data sin roots ni cache: cached False sin scan_in_progress."""
+        import app.routes.monitoreo_carpetas as route_mod
+
+        self._authenticate(app_client)
+        monkeypatch.setattr(
+            "app.routes.monitoreo_carpetas.get_roots",
+            mock.Mock(return_value=([], "env", None)),
+        )
+        assert route_mod._watcher.get_result() is None
+        with mock.patch.object(
+            route_mod._watcher, "first_scan",
+            side_effect=AssertionError("no debe escanear sin roots"),
+        ):
+            resp = app_client.get("/monitoreo-carpetas/data")
+        assert resp.status_code == 200
+        assert resp.get_json()["data"] == {"cached": False}
