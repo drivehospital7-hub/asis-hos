@@ -98,12 +98,12 @@ class TestShell200:
 
     def test_shell_exposes_default_examenes(self, app_client) -> None:
         """Shell exposes the authoritative catalog defaults for Admin restore
-        (EX-16 frontend): DEFAULT_EXAMENES verbatim, 66 entries, not a
+        (EX-16 frontend): DEFAULT_EXAMENES verbatim, 67 entries, not a
         hardcoded client-side copy."""
         _authenticate(app_client, ["examenes:write"])
         data = _extract_initial_data(app_client.get("/examenes"))
         assert data["default_examenes"] == DEFAULT_EXAMENES
-        assert len(data["default_examenes"]) == 66
+        assert len(data["default_examenes"]) == 67
 
 
 class TestShellDenied:

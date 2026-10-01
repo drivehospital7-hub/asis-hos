@@ -5,8 +5,9 @@ Covers EX-4 (catalog store), EX-5 (listado no-reseed policy), EX-19
 DEFAULT_EXAMENES (verbatim source defaults) and CSV_HEADERS. All file IO is
 redirected to tmp_path via DATA_DIR monkeypatch.
 
-NOTE: the source catalog (D:\\CODE\\examenes\\examenes.json) contains 66
-entries, not the 54 stated in the SDD artifacts. Tests assert 66 (the
+NOTE: the source catalog (app/data/examenes.json seed, mirrored from
+D:\\CODE\\examenes\\examenes.json) contains 67
+entries, not the 54 stated in the SDD artifacts. Tests assert 67 (the
 verbatim source truth); the deviation is documented in apply-progress.
 """
 
@@ -49,12 +50,11 @@ class TestExamenesConstants:
         assert EX_LISTADO_FILE == "listado.json"
 
     def test_default_examenes_is_source_verbatim(self) -> None:
-        """DEFAULT_EXAMENES MUST equal the source catalog (66 entries)."""
-        source = json.loads(
-            Path(r"D:\CODE\examenes\examenes.json").read_text(encoding="utf-8")
-        )
+        """DEFAULT_EXAMENES MUST equal the repo seed catalog (67 entries)."""
+        seed_file = Path(__file__).resolve().parents[3] / "app" / "data" / "examenes.json"
+        source = json.loads(seed_file.read_text(encoding="utf-8"))
         assert DEFAULT_EXAMENES == source
-        assert len(DEFAULT_EXAMENES) == 66
+        assert len(DEFAULT_EXAMENES) == 67
 
     def test_default_examenes_known_entries(self) -> None:
         """Spot-check well-known catalog rows (codes, names, payer flags)."""

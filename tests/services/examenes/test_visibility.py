@@ -20,6 +20,7 @@ from pathlib import Path
 import pytest
 
 from app.constants.base import _filter_areas
+from app.constants.navigation import NAV_MODULES, modulos_para
 
 FRONTEND_ROOT = Path("frontend/src")
 
@@ -46,20 +47,28 @@ def _authenticate(client, permisos: list[str], username: str = "test") -> None:
 
 
 class TestSidebarVisibility:
-    """UP-3: ALL_NAV entry `{label:"Exámenes", href:"/examenes", permiso:"examenes"}`."""
+    """UP-3: server registry exposes the "Exámenes" entry gated by `examenes`."""
 
     def test_all_nav_has_examenes_entry(self) -> None:
-        sidebar = _read_frontend("components/app-sidebar.tsx")
-        assert 'href: "/examenes"' in sidebar
-        assert 'permiso: "examenes"' in sidebar
-        assert 'label: "Exámenes"' in sidebar
+        """Server registry has the examenes entry (href /examenes)."""
+        matches = [
+            m for m in NAV_MODULES if m["href"] == "/examenes"
+        ]
+        assert len(matches) == 1
+        assert matches[0]["key"] == "examenes"
+        assert matches[0]["label"] == "Exámenes"
+        assert any(
+            m["href"] == "/examenes"
+            for m in modulos_para(["examenes"], autenticado=True)
+        )
 
     def test_sidebar_entry_is_permission_gated(self) -> None:
-        """The entry sits inside ALL_NAV (filtered by expandedPermisos), so a
-        user without `examenes`/`examenes:write` never sees it (UP-3 hidden)."""
-        sidebar = _read_frontend("components/app-sidebar.tsx")
-        assert "ALL_NAV" in sidebar
-        assert 'permiso: "examenes"' in sidebar
+        """An unrelated permiso never sees the examenes entry (UP-3 hidden)."""
+        hrefs = [
+            m["href"]
+            for m in modulos_para(["odontologia"], autenticado=True)
+        ]
+        assert "/examenes" not in hrefs
 
 
 class TestDashboardVisibility:

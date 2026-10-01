@@ -88,6 +88,7 @@ app/data/*
 
 # Pero mantener estructura de carpetas
 !app/data/.gitkeep
+!app/data/examenes.json
 !app/data/input/
 !app/data/output/
 
