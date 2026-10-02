@@ -59,6 +59,7 @@ ODONTO_HEADERS = [
     "Código",
     "Cód. Equivalente CUPS",
     "Laboratorio",
+    "Vacuna",
     "Tipo Factura Descripción",
     "Tarifario",
     "Tipo Usuario",

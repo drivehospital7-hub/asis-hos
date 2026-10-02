@@ -19,6 +19,7 @@ def test_misma_factura_conserva_regla_propia_9_y_51():
                     "procedimiento": "p9",
                     "problema": "problema 9",
                     "regla": "#9",
+                    "detalle_a_campo": "procedimiento",
                 },
                 {
                     "factura": "CAP545490",
@@ -26,6 +27,7 @@ def test_misma_factura_conserva_regla_propia_9_y_51():
                     "procedimiento": "p51",
                     "problema": 'Verifica que si hay codigos 890701 o 890601',
                     "regla": "#51",
+                    "detalle_a_campo": "procedimiento",
                 },
             ]
         },

@@ -260,10 +260,11 @@ def create_user(
         if rol not in VALID_ROLES:
             return False, f"Rol inválido: {rol}"
 
-        permisos = _migrate_legacy_permisos(permisos)
         ok_exclusion, msg_exclusion = _check_mutual_exclusion(permisos)
         if not ok_exclusion:
             return False, msg_exclusion
+
+        permisos = _migrate_legacy_permisos(permisos)
 
         ok_areas, msg_areas = _validate_areas(areas)
         if not ok_areas:
@@ -330,14 +331,14 @@ def update_user(username: str, updates: dict) -> tuple:
             if not isinstance(nuevos_permisos, list):
                 return False, "Permisos debe ser una lista"
 
+            ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
+            if not ok_exclusion:
+                return False, msg_exclusion
+
             nuevos_permisos = _migrate_legacy_permisos(nuevos_permisos)
             for p in nuevos_permisos:
                 if p not in ALLOWED_PERMISOS:
                     return False, f"Permiso inválido: {p}"
-
-            ok_exclusion, msg_exclusion = _check_mutual_exclusion(nuevos_permisos)
-            if not ok_exclusion:
-                return False, msg_exclusion
 
             # Protección: si el usuario actual tiene "*" y los nuevos no → rechazar
             if "*" in (user.permisos or []) and "*" not in nuevos_permisos:

@@ -373,8 +373,12 @@ class TestBuscarRaicesLibresYPermisos:
             PERMISO_MUTUAL_EXCLUSION["traslado_facturas:write"]
             == "traslado_facturas"
         )
-        html = (_Path("app") / "templates" / "base.html").read_text(
-            encoding="utf-8"
-        )
-        assert "'traslado_facturas':" in html
-        assert "'traslado_facturas.index'" in html
+        # La navegación vive en el registro servidor (app/constants/navigation.py);
+        # base.html renderiza desde GET /api/nav, sin mapa hardcodeado.
+        from app.constants.navigation import NAV_MODULES, modulos_para
+
+        by_key = {m["key"]: m for m in NAV_MODULES}
+        assert by_key["traslado_facturas"]["endpoint"] == "traslado_facturas.index"
+        assert by_key["traslado_facturas"]["href"] == "/traslado-facturas"
+        hrefs = [m["href"] for m in modulos_para(["traslado_facturas"], autenticado=True)]
+        assert "/traslado-facturas" in hrefs
