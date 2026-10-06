@@ -170,6 +170,16 @@ def procesar_unificado_api():
         tipos_procesados_fallback=export_result["data"].get("tipos_procesados", []),
     )
 
+    # Advertencias de reglas que leyeron campos sin columna mapeada
+    # (antirregla muda): no bloquean el procesamiento, solo avisan.
+    # El status sigue siendo success — nunca "warning".
+    reglas_sin_datos = problemas_data.get("reglas_sin_datos", []) or []
+    if reglas_sin_datos:
+        response_data["advertencias_reglas"] = reglas_sin_datos
+    valores_no_catalogados = problemas_data.get("valores_no_catalogados", []) or []
+    if valores_no_catalogados:
+        response_data["valores_no_catalogados"] = valores_no_catalogados
+
     # Best-effort disk cache of the FULL deduped list for GET export.
     # Never breaks the main JSON flow: on disk failure the response
     # simply omits export_id (frontend disables the Exportar button).

@@ -52,6 +52,7 @@ def detect_all_problems_odontologia(
         from app.services.engine.session_manager import SessionManager
         from app.services.engine.evidence_collector import EvidenceCollector
         from app.services.engine.domain_detection import (
+            collect_field_warnings,
             detect_domain_rules,
             group_by_grupo,
             split_codigo_entidad,
@@ -66,6 +67,7 @@ def detect_all_problems_odontologia(
                 persist=_PERSIST, evidence_collector=collector, rows=rows,
             )
             grupos = group_by_grupo(batches)
+            reglas_sin_datos = collect_field_warnings(batches)
 
             decimales = grupos.get("Decimales", [])
             doble_tipo = grupos.get("Doble Tipo Procedimiento", [])
@@ -229,6 +231,7 @@ def detect_all_problems_odontologia(
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
+        "reglas_sin_datos": reglas_sin_datos,
     }
 
     # Enrich errors with responsable from mapping

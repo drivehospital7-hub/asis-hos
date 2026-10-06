@@ -55,6 +55,7 @@ def detect_all_problems_urgencias(
         from app.services.engine.session_manager import SessionManager
         from app.services.engine.evidence_collector import EvidenceCollector
         from app.services.engine.domain_detection import (
+            collect_field_warnings,
             detect_domain_rules,
             group_by_grupo,
             items_by_nombre,
@@ -75,6 +76,7 @@ def detect_all_problems_urgencias(
                 persist=_PERSIST, evidence_collector=collector, rows=rows,
             )
             grupos = group_by_grupo(batches)
+            reglas_sin_datos = collect_field_warnings(batches)
             por_nombre = items_by_nombre(batches)
 
             # Centro Costo + IDE Contrato (IDE reverse va a su propio bucket).
@@ -490,6 +492,7 @@ def detect_all_problems_urgencias(
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
+        "reglas_sin_datos": reglas_sin_datos,
     }
 
     # 12. Enrich errors with responsable from mapping

@@ -19,6 +19,8 @@ from app.constants import (
     AREA_EQUIPOS_BASICOS,
     AREA_UNIFICADA,
     PROFESIONALES_ODONTOLOGIA,
+    FACTURACION_HEADERS,
+    FACTURACION_HEADER_ALIASES,
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_por_responsable import (
@@ -68,6 +70,39 @@ class _SimpleSheet:
             return _CellValue(self._rows[row][column])
         except IndexError:
             return _CellValue(None)
+
+
+def _scan_valores_no_catalogados(
+    rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Best-effort S4: valores fuera de catalogos allowlist.
+
+    Nunca rompe el procesamiento: cualquier fallo devuelve [].
+    """
+    try:
+        from app.constants import (
+            FIELD_VALUE_CATALOGS,
+            MAX_UNKNOWN_VALUES_PER_FIELD,
+        )
+        from app.database import get_session
+        from app.services.transversales.valores_no_catalogados import (
+            find_unrecognized_values,
+            load_recognized_values,
+        )
+
+        session = get_session()
+        try:
+            recognized = load_recognized_values(session, FIELD_VALUE_CATALOGS)
+        finally:
+            session.close()
+        if not recognized:
+            return []
+        return find_unrecognized_values(
+            rows, recognized, max_per_field=MAX_UNKNOWN_VALUES_PER_FIELD,
+        )
+    except Exception:
+        logger.exception("Scan de valores no catalogados fallo (best-effort)")
+        return []
 
 
 def detect_problems_only(
@@ -217,39 +252,9 @@ def _do_detect_problems(
 
     del df
 
-    required_headers: dict[str, str] = {
-        "numero_factura": "Número Factura",
-        "vlr_subsidiado": "Vlr. Subsidiado",
-        "vlr_procedimiento": "Vlr. Procedimiento",
-        "codigo_tipo_procedimiento": "Código Tipo Procedimiento",
-        "tipo_procedimiento": "Tipo Procedimiento",
-        "codigo": "Código",
-        "codigo_equiv": "Cód. Equivalente CUPS",
-        "procedimiento": "Procedimiento",
-        "identificacion": "Nº Identificación",
-        "convenio_facturado": "Convenio Facturado",
-        "cantidad": "Cantidad",
-        "laboratorio": "Laboratorio",
-        "vacuna": "Vacuna",
-        "centro_costo": "Centro Costo",
-        "codigo_entidad_cobrar": "Cód Entidad Cobrar",
-        "entidad_cobrar": "Entidad Cobrar",
-        "entidad_afiliacion": "Entidad Afiliación",
-        "tipo_factura_descripcion": "Tipo Factura Descripción",
-        "ide_contrato": "IDE Contrato",
-        "tipo_identificacion": "Tipo Identificación",
-        "fec_nacimiento": "Fec. Nacimiento",
-        "fec_factura": "Fec. Factura",
-        "fecha_cierre": "Fecha Cierre",
-        "profesional_identificacion": "Identificación Profesional",
-        "profesional_atiende": "Profesional Atiende",
-        "codigo_profesional": "Código Profesional",
-        "responsable_cierra": "Responsable Cierra Facturar",
-        "tarifario": "Tarifario",
-        "tipo_usuario": "Tipo Usuario",
-        "vlr_copago": "Vlr. Copago",
-        "numero_reingreso": "Nº Reingreso",
-    }
+    # Mapa canonico centralizado (app.constants.headers): una sola fuente
+    # de verdad para los headers de la produccion del facturador.
+    required_headers: dict[str, str] = dict(FACTURACION_HEADERS)
 
     # --- Auto-detección de fila de headers (best-match, 5 filas) ---
     # Algunos Excel tienen filas de título antes de los encabezados reales.
@@ -305,7 +310,9 @@ def _do_detect_problems(
     # Leer headers de la primera fila
     headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
 
-    indices, missing_columns = get_column_indices(headers, required_headers)
+    indices, missing_columns = get_column_indices(
+        headers, required_headers, aliases=FACTURACION_HEADER_ALIASES
+    )
 
     # Build RowStore (list[dict]) for facts-first evaluation in the engine
     row_store = build_row_store(rows, indices)
@@ -333,7 +340,10 @@ def _do_detect_problems(
             )
         
         problemas_detectados["missing_columns"] = missing_columns
-        
+        problemas_detectados["valores_no_catalogados"] = (
+            _scan_valores_no_catalogados(row_store)
+        )
+
     except Exception as exc:
         logger.exception("Error detectando problemas")
         return {"status": "error", "data": {}, "errors": [str(exc)]}

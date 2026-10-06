@@ -16,16 +16,22 @@ logger = logging.getLogger(__name__)
 def get_column_indices(
     headers: list[Any],
     required_headers: dict[str, str],
+    aliases: dict[str, list[str] | tuple[str, ...]] | None = None,
 ) -> tuple[dict[str, int | None], list[str]]:
     """
     Mapea nombres de columna a sus índices (0-based).
 
     REQUIERE COINCIDENCIA EXACTA - NO infiere nombres similares.
     Si una columna no coincide exactamente, retorna None y la reporta en la lista de errores.
+    La unica tolerancia son los alias explicitos por clave (ver
+    app.constants.headers): nunca normalizacion automatica, porque hay
+    columnas que solo se diferencian por tilde. Cada match por alias se
+    loguea como alerta.
 
     Args:
         headers: Lista de nombres de columna del Excel.
         required_headers: Diccionario {clave_interna: nombre_exacto_en_excel}.
+        aliases: Opcional {clave_interna: variantes aceptadas}.
 
     Returns:
         Tuple de (dict con clave_interna -> índice 0-based o None,
@@ -45,6 +51,7 @@ def get_column_indices(
             excel_headers_normalized[normalized] = i
 
     # Buscar coincidencia EXACTA (con normalización NFC en ambos lados)
+    # + alias explicitos por clave (con alerta: el productor movio algo).
     missing_columns: list[str] = []
     for key, required_name in required_headers.items():
         required_norm = (
@@ -59,6 +66,27 @@ def get_column_indices(
                 required_name,
                 key,
                 excel_headers_normalized[required_norm],
+            )
+            continue
+        matched_alias: str | None = None
+        for alias in (aliases or {}).get(key, ()):
+            alias_norm = (
+                unicodedata.normalize("NFC", alias)
+                .strip()
+                .replace("\u00a0", " ")
+            )
+            if alias_norm in excel_headers_normalized:
+                indices[key] = excel_headers_normalized[alias_norm]
+                matched_alias = alias
+                break
+        if matched_alias is not None:
+            logger.warning(
+                "COLUMNA POR ALIAS: canonico '%s' ausente, se uso alias '%s' "
+                "-> clave '%s' (indice %d). Revisar header del productor.",
+                required_name,
+                matched_alias,
+                key,
+                indices[key],
             )
         else:
             missing_columns.append(required_name)

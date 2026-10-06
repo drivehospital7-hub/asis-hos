@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import unicodedata
 from typing import Any
 
 from openpyxl.worksheet.worksheet import Worksheet
@@ -216,6 +217,8 @@ def process_unified(
             "totales_por_tipo": {},
             "tipos_procesados": [],
             "missing_columns": [],
+            "reglas_sin_datos": [],
+            "valores_no_catalogados": [],
         }, {}
 
     all_normalized: list[dict[str, Any]] = []
@@ -223,6 +226,10 @@ def process_unified(
     all_totales: dict[str, int] = {}
     all_totales_por_tipo: dict[str, dict[str, int]] = {}
     all_responsables: dict[str, str] = {}
+    all_reglas_sin_datos: list[dict[str, Any]] = []
+    all_valores_no_catalogados: list[dict[str, Any]] = []
+    _seen_rsd: set[tuple[Any, ...]] = set()
+    _vnc_index: dict[tuple[Any, ...], dict[str, Any]] = {}
 
     # Construir mapa factura → tipo para filtrar falsos positivos cruzados
     factura_por_tipo = _build_factura_por_tipo(data_sheet, indices, tipos_presentes)
@@ -278,6 +285,36 @@ def process_unified(
 
         # Fusionar responsables
         all_responsables.update(responsables)
+
+        # Fusionar advertencias de reglas sin datos (antirregla muda),
+        # con dedup por (regla_id, campos).
+        for adv in resultado.get("reglas_sin_datos", []) or []:
+            if not isinstance(adv, dict):
+                continue
+            key = (adv.get("regla_id"), adv.get("regla"),
+                   tuple(adv.get("campos_faltantes", [])))
+            if key not in _seen_rsd:
+                _seen_rsd.add(key)
+                all_reglas_sin_datos.append(adv)
+
+        # Fusionar valores no catalogados: dedup por (campo, valor),
+        # sumando conteos entre tipos de factura.
+        for vnc in resultado.get("valores_no_catalogados", []) or []:
+            if not isinstance(vnc, dict):
+                continue
+            norm = unicodedata.normalize(
+                "NFC", str(vnc.get("valor", ""))).strip().upper()
+            vkey = (vnc.get("campo"), norm)
+            if vkey in _vnc_index:
+                _vnc_index[vkey]["conteo"] += int(vnc.get("conteo", 0) or 0)
+            else:
+                entry = {
+                    "campo": vnc.get("campo"),
+                    "valor": vnc.get("valor"),
+                    "conteo": int(vnc.get("conteo", 0) or 0),
+                }
+                _vnc_index[vkey] = entry
+                all_valores_no_catalogados.append(entry)
 
     # LEGACY OFF (2026-09-09): detect_cups_equivalentes_transversal legacy
     # anulado — revertir con git revert. Sin equivalente engine en DB.
@@ -348,6 +385,8 @@ def process_unified(
         "totales": all_totales,
         "tipos_procesados": tipos_presentes,
         "missing_columns": all_problemas.get("missing_columns", []),
+        "reglas_sin_datos": all_reglas_sin_datos,
+        "valores_no_catalogados": all_valores_no_catalogados,
     }
 
     logger.info(

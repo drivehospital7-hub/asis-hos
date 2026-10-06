@@ -57,6 +57,11 @@ class RuleBatch:
     grupo: str
     dominio: str
     items: list[dict[str, Any]] = field(default_factory=list)
+    regla_id: int | None = None
+    #: invoice.* fields this rule reads that have no mapped Excel column.
+    #: Non-empty means the rule evaluated blind on those fields (None) and
+    #: may be silently mute. Surfaced via collect_field_warnings().
+    campos_faltantes: list[str] = field(default_factory=list)
 
 
 @contextmanager
@@ -146,6 +151,11 @@ def detect_domain_rules(
     batches: list[RuleBatch] = []
     seen: set[str] = set()
 
+    resolved_rules = list(RuleResolver().resolve(domain, session))
+    # Best-effort antirregla-muda scan: rules reading invoice fields with
+    # no mapped Excel column evaluate blind (None) and may never fire.
+    field_warnings = _batch_field_warnings(session, resolved_rules, indices)
+
     def _evaluate(rule) -> None:
         if rule.nombre in seen:
             return
@@ -161,9 +171,11 @@ def detect_domain_rules(
             grupo=getattr(rule, "grupo_error", None) or rule.nombre,
             dominio=rule.dominio,
             items=items,
+            regla_id=rule.id,
+            campos_faltantes=field_warnings.get(rule.id, []),
         ))
 
-    for rule in RuleResolver().resolve(domain, session):
+    for rule in resolved_rules:
         _evaluate(rule)
     if only_ids is not None:
         # Selected but inactive rules never come from the resolver
@@ -176,6 +188,84 @@ def detect_domain_rules(
         len(batches), domain, [b.nombre for b in batches],
     )
     return batches
+
+
+def invoice_fields_missing(
+    fuentes: list[Any], mapped_keys: set[str],
+) -> list[str]:
+    """Pure helper: invoice.* fields absent from mapped index keys, sorted.
+
+    Only the ``invoice.`` prefix maps to Excel columns; computed providers
+    (date.*, group.*, catalog.*, contract.*) resolve elsewhere and are
+    ignored here.
+    """
+    missing: set[str] = set()
+    for fuente in fuentes:
+        if not isinstance(fuente, str) or not fuente.startswith("invoice."):
+            continue
+        field_name = fuente.split(".", 1)[1].strip()
+        if field_name and field_name not in mapped_keys:
+            missing.add(field_name)
+    return sorted(missing)
+
+
+def collect_field_warnings(batches: list[RuleBatch]) -> list[dict[str, Any]]:
+    """Summarize per-rule missing-field warnings across batches, deduped."""
+    warnings: list[dict[str, Any]] = []
+    seen: set[tuple[Any, ...]] = set()
+    for batch in batches:
+        if not batch.campos_faltantes:
+            continue
+        key = (batch.regla_id, batch.nombre, tuple(batch.campos_faltantes))
+        if key in seen:
+            continue
+        seen.add(key)
+        warnings.append({
+            "regla": batch.nombre,
+            "regla_id": batch.regla_id,
+            "campos_faltantes": list(batch.campos_faltantes),
+        })
+    return warnings
+
+
+def _batch_field_warnings(
+    session: "Session", rules: list, indices: dict[str, int | None] | None,
+) -> dict[int, list[str]]:
+    """Best-effort scan: which resolved rules read unmapped invoice fields.
+
+    Single batched condiciones query for all rule ids. Never raises:
+    on any failure returns {} so detection is never blocked by the scan.
+    """
+    try:
+        from app.models import Condicion  # lazy: avoid import cycle
+
+        mapped = {k for k, v in (indices or {}).items() if v is not None}
+        ids = [r.id for r in rules if getattr(r, "id", None) is not None]
+        if not ids:
+            return {}
+        rows = (
+            session.query(Condicion.regla_id, Condicion.fuente_datos)
+            .filter(Condicion.regla_id.in_(ids))
+            .filter(Condicion.fuente_datos.like("invoice.%"))
+            .all()
+        )
+        by_rule: dict[int, list[Any]] = {}
+        for regla_id, fuente in rows:
+            by_rule.setdefault(regla_id, []).append(fuente)
+        out: dict[int, list[str]] = {}
+        for rule in rules:
+            missing = invoice_fields_missing(by_rule.get(rule.id, []), mapped)
+            if missing:
+                logger.warning(
+                    "Regla %s (#%s) usa campos sin columna mapeada: %s "
+                    "— puede no disparar nunca (regla muda).",
+                    rule.nombre, rule.id, missing,
+                )
+                out[rule.id] = missing
+        return out
+    except Exception:
+        logger.exception("field-warning scan failed (best-effort)")
+        return {}
 
 
 def group_by_grupo(batches: list[RuleBatch]) -> dict[str, list[dict[str, Any]]]:

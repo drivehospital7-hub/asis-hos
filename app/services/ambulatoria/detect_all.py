@@ -42,6 +42,7 @@ def detect_all_problems_ambulatoria(
     if is_rule_engine_enabled():
         from app.database import get_session
         from app.services.engine.domain_detection import (
+            collect_field_warnings,
             detect_domain_rules,
             group_by_grupo,
             split_codigo_entidad,
@@ -52,6 +53,7 @@ def detect_all_problems_ambulatoria(
                 session, AREA_AMBULATORIA, data_sheet, indices, persist=_PERSIST,
             )
             grupos = group_by_grupo(batches)
+            reglas_sin_datos = collect_field_warnings(batches)
             decimales = grupos.get("Decimales", [])
             tipo_identificacion_edad = grupos.get("Tipo Identificacion / Edad", [])
             tipo_identificacion_entidad, entidad_afiliacion_comparison = (
@@ -150,6 +152,7 @@ def detect_all_problems_ambulatoria(
             "cups_sin_contrato": len(cups_sin_contrato),
         },
         "missing_columns": [],
+        "reglas_sin_datos": reglas_sin_datos,
     }
 
     # 7. Enrich errors with responsable
