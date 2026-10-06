@@ -35,6 +35,13 @@ from app.services.reglas.catalogos_service import (
     delete_catalogo,
     get_catalogo_reglas,
 )
+from app.services.reglas.grupos_service import (
+    create_grupo,
+    delete_grupo,
+    list_grupos,
+    rename_grupo,
+    unassign_grupo,
+)
 from app.utils.auth import admin_requerido
 
 logger = logging.getLogger(__name__)
@@ -209,6 +216,101 @@ def api_duplicate_rule(regla_id: int):
         return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
     except Exception as exc:
         logger.exception("Error duplicating rule %s", regla_id)
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+# ─── Grupos de error (labels, no entidad) ────────────────────────────
+
+
+@reglas_api_bp.route("/reglas/grupos", methods=["GET"])
+@admin_requerido
+def api_list_grupos():
+    """List group labels (canonical + in-use) with rule usage counts."""
+    db = next(get_db())
+    try:
+        return jsonify({"status": "success", "data": list_grupos(db), "errors": []})
+    except Exception as exc:
+        logger.exception("Error listing grupos")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/grupos", methods=["POST"])
+@admin_requerido
+def api_create_grupo():
+    """Create a simple group label in the catalog."""
+    db = next(get_db())
+    try:
+        data = request.get_json(force=True) or {}
+        result = create_grupo(db, data.get("nombre", ""))
+        return jsonify({"status": "success", "data": result, "errors": []}), 201
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error creating grupo")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/grupos/<path:nombre>", methods=["DELETE"])
+@admin_requerido
+def api_delete_grupo(nombre: str):
+    """Delete an unused, non-sistema group row from the catalog."""
+    db = next(get_db())
+    try:
+        result = delete_grupo(db, nombre)
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error deleting grupo")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/grupos/renombrar", methods=["PUT"])
+@admin_requerido
+def api_rename_grupo():
+    """Bulk-rename a group label across rules using it."""
+    db = next(get_db())
+    try:
+        data = request.get_json(force=True) or {}
+        result = rename_grupo(
+            db,
+            data.get("anterior", ""),
+            data.get("nuevo", ""),
+            responsible=session.get("username"),
+        )
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error renaming grupo")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+    finally:
+        db.close()
+
+
+@reglas_api_bp.route("/reglas/grupos/desasignar", methods=["PUT"])
+@admin_requerido
+def api_unassign_grupo():
+    """Unassign a group label (back to auto = rule name)."""
+    db = next(get_db())
+    try:
+        data = request.get_json(force=True) or {}
+        result = unassign_grupo(
+            db, data.get("grupo", ""), responsible=session.get("username"),
+        )
+        return jsonify({"status": "success", "data": result, "errors": []})
+    except ValueError as e:
+        return jsonify({"status": "error", "data": {}, "errors": [str(e)]}), 400
+    except Exception as exc:
+        logger.exception("Error unassigning grupo")
         return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
     finally:
         db.close()

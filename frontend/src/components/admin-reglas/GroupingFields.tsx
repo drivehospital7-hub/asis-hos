@@ -67,6 +67,7 @@ export const DETALLE_FIELD_KEYS: string[] = [
   "convenio_facturado",
   "centro_costo",
   "ide_contrato",
+  "numero_autorizacion",
   "entidad_cobrar",
   "entidad_afiliacion",
   "tipo_usuario",
@@ -98,6 +99,10 @@ interface Props {
   descripcionTemplate: string;
   disabled: boolean;
   onChange: (field: string, value: string) => void;
+  /** Suggestion list from the grupos catalog API (falls back to static). */
+  grupoOptions?: string[];
+  /** Sistema groups (custom formatter): choosing one shows a warning. */
+  sistemaOptions?: string[];
 }
 
 export interface DetalleParsed {
@@ -297,7 +302,12 @@ export function GroupingFields({
   descripcionTemplate,
   disabled,
   onChange,
+  grupoOptions,
+  sistemaOptions,
 }: Props) {
+  const grupoLabels = grupoOptions ?? GRUPO_ERROR_LABELS;
+  const sistemaSet = new Set(sistemaOptions ?? []);
+  const chosenSistema = grupoError !== "" && sistemaSet.has(grupoError);
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
       <div>
@@ -306,7 +316,7 @@ export function GroupingFields({
         </label>
         <select
           name="grupo_error"
-          value={GRUPO_ERROR_LABELS.includes(grupoError) || grupoError === "" ? grupoError : "__legacy__"}
+          value={grupoLabels.includes(grupoError) || grupoError === "" ? grupoError : "__legacy__"}
           onChange={(e) =>
             onChange(
               "grupo_error",
@@ -318,16 +328,24 @@ export function GroupingFields({
           disabled={disabled}
         >
           <option value="">— auto —</option>
-          {GRUPO_ERROR_LABELS.map((label) => (
+          {grupoLabels.map((label) => (
             <option key={label} value={label}>
               {label}
             </option>
           ))}
-          {grupoError !== "" && !GRUPO_ERROR_LABELS.includes(grupoError) && (
+          {grupoError !== "" && !grupoLabels.includes(grupoError) && (
             <option value="__legacy__">{grupoError}</option>
           )}
         </select>
       </div>
+      {chosenSistema && (
+        <div className="md:col-span-2">
+          <p className="text-xs" style={{ color: "oklch(0.6 0.2 25)" }}>
+            “{grupoError}” tiene formato propio: solo sirve si esta regla produce sus
+            datos (conteos, pares, edades…). Al guardar se pedirá confirmación.
+          </p>
+        </div>
+      )}
       <div>
         <label className="block text-sm font-medium mb-1" style={labelStyle}>
           Description template

@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import type { CondicionTree } from "@/lib/api-reglas";
-import { OPERADORES_COMPOSITE } from "./operators";
+import { OPERADORES_COMPOSITE, type RuleMode } from "./operators";
 import { AtomicNode } from "./AtomicNode";
 
 // ─── Props ─────────────────────────────────────────────────────────
@@ -12,6 +12,7 @@ interface CompositeNodeProps {
   index?: number;
   catalogOptions?: string[];
   readOnly?: boolean;
+  mode?: RuleMode;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
   onAddChild: (parentId: number, tipo: "atomic" | "composite") => void;
   onRemove: (nodeId: number) => void;
@@ -26,6 +27,7 @@ export function CompositeNode({
   index = 0,
   catalogOptions,
   readOnly,
+  mode,
   onUpdate,
   onAddChild,
   onRemove,
@@ -81,6 +83,7 @@ export function CompositeNode({
                 index={i}
                 catalogOptions={catalogOptions}
                 readOnly={readOnly}
+                mode={mode}
                 onUpdate={onUpdate}
                 onAddChild={onAddChild}
                 onRemove={onRemove}
@@ -189,6 +192,7 @@ export function CompositeNode({
                 index={i}
                 catalogOptions={catalogOptions}
               readOnly={readOnly}
+              mode={mode}
               onUpdate={onUpdate}
               onAddChild={onAddChild}
               onRemove={onRemove}
@@ -215,6 +219,7 @@ interface NodeRendererProps {
   index?: number;
   catalogOptions?: string[];
   readOnly?: boolean;
+  mode?: RuleMode;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
   onAddChild: (parentId: number, tipo: "atomic" | "composite") => void;
   onRemove: (nodeId: number) => void;
@@ -227,6 +232,7 @@ export function NodeRenderer({
   index = 0,
   catalogOptions,
   readOnly,
+  mode,
   onUpdate,
   onAddChild,
   onRemove,
@@ -243,6 +249,7 @@ export function NodeRenderer({
         index={index}
         catalogOptions={catalogOptions}
         readOnly={readOnly}
+        mode={mode}
         onUpdate={onUpdate}
         onAddChild={onAddChild}
         onRemove={onRemove}
@@ -262,6 +269,7 @@ export function NodeRenderer({
       branchLabel={branchLabel}
       catalogOptions={catalogOptions}
       readOnly={readOnly}
+      mode={mode}
       onUpdate={onUpdate}
       onRemove={onRemove}
     />

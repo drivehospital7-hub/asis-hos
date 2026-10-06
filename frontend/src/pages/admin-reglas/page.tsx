@@ -51,14 +51,19 @@ import {
   queryEvidencias,
   queryAuditoria,
   simulateReglas,
+  fetchGrupos,
   fetchCatalogos,
+  type GrupoInfo,
   createCatalogo,
   updateCatalogo,
   deleteCatalogo,
   fetchCatalogoReglas,
 } from "@/lib/api-reglas";
 import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
+import { GruposManager } from "@/components/admin-reglas/GruposManager";
 import { GroupingFields } from "@/components/admin-reglas/GroupingFields";
+import { GroupModeFields } from "@/components/admin-reglas/GroupModeFields";
+import { parseRuleMode, type RuleMode } from "@/components/admin-reglas/operators";
 import { ResultadosProcesar } from "@/components/procesar/ResultadosProcesar";
 import { Toast } from "@/components/procesar/Toast";
 import { useBulkActivacion } from "@/hooks/useBulkActivacion";
@@ -316,6 +321,23 @@ function RulesListView() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedRule, setSelectedRule] = useState<Regla | null>(null);
   const [viewMode, setViewMode] = useState<"list" | "detail">("list");
+  const [showGrupos, setShowGrupos] = useState(false);
+  const [gruposItems, setGruposItems] = useState<GrupoInfo[]>([]);
+  const [gruposLoading, setGruposLoading] = useState(false);
+  const [gruposError, setGruposError] = useState<string | null>(null);
+
+  const openGrupos = async () => {
+    setShowGrupos(true);
+    setGruposLoading(true);
+    setGruposError(null);
+    try {
+      setGruposItems(await fetchGrupos());
+    } catch (e) {
+      setGruposError(e instanceof Error ? e.message : "Error al cargar grupos");
+    } finally {
+      setGruposLoading(false);
+    }
+  };
   const [exceptionsModal, setExceptionsModal] = useState(false);
   const [exceptions, setExceptions] = useState<Excepcion[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -511,6 +533,9 @@ function RulesListView() {
               : <Ban className="h-3.5 w-3.5 mr-1" />}
             Desactivar todas
           </Button>
+          <Button size="sm" variant="secondary" onClick={openGrupos}>
+            Grupos
+          </Button>
           <Button size="sm" onClick={() => setShowCreate(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" />
             Nueva Regla
@@ -687,6 +712,16 @@ function RulesListView() {
       )}
 
       {/* Exceptions Modal */}
+      {showGrupos && (
+        <GruposManager
+          items={gruposItems}
+          loading={gruposLoading}
+          error={gruposError}
+          onChanged={async () => { await openGrupos(); await load(); }}
+          onClose={() => setShowGrupos(false)}
+        />
+      )}
+
       {exceptionsModal && (
         <ExceptionsPanel
           reglaId={exceptions.length > 0 ? exceptions[0].regla_id : 0}
@@ -810,14 +845,23 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [parametros, setParametros] = useState(
     rule.parametros ? JSON.stringify(rule.parametros, null, 2) : ""
   );
+  const [ruleMode, setRuleMode] = useState<RuleMode>(() => parseRuleMode(rule.parametros));
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [catalogOptions, setCatalogOptions] = useState<string[]>([]);
+  const [grupoOptions, setGrupoOptions] = useState<string[] | undefined>(undefined);
+  const [gruposSistema, setGruposSistema] = useState<string[]>([]);
 
   useEffect(() => {
     fetchCatalogos()
       .then((catalogos) => setCatalogOptions(catalogos.map((catalogo) => catalogo.key)))
       .catch(() => setCatalogOptions([]));
+    fetchGrupos()
+      .then((grupos) => {
+        setGrupoOptions(grupos.map((g) => g.nombre));
+        setGruposSistema(grupos.filter((g) => g.tipo === "sistema").map((g) => g.nombre));
+      })
+      .catch(() => setGrupoOptions(undefined));
   }, []);
 
   // Editable condition tree state
@@ -843,6 +887,21 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
     const conditionError = validateConditionTree(tree);
     if (conditionError) {
       setFormError(conditionError);
+      return;
+    }
+    // Soft lock: assigning a sistema group (custom formatter) needs confirm.
+    const grupoFinal = grupoError.trim();
+    if (
+      grupoFinal &&
+      gruposSistema.includes(grupoFinal) &&
+      (rule.grupo_error ?? "") !== grupoFinal &&
+      typeof window !== "undefined" &&
+      typeof window.confirm === "function" &&
+      !window.confirm(
+        `"${grupoFinal}" tiene formato propio: esta regla debe producir sus datos ` +
+          `(conteos, pares, edades…). ¿Mantener de todos modos?`,
+      )
+    ) {
       return;
     }
     // Validate parametros JSON if present
@@ -972,6 +1031,8 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
             descripcionTemplate={descripcionTemplate}
             disabled={isReadOnly}
             onChange={handleGroupingChange}
+            grupoOptions={grupoOptions}
+            sistemaOptions={gruposSistema}
           />
 
           <div className="flex items-center gap-2 mb-4">
@@ -980,20 +1041,13 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
             </span>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium mb-1" style={{ color: "oklch(0.55 0.04 160)" }}>
-              Parámetros JSON <span className="text-xs text-muted-foreground font-normal">(opcional — umbrales configurables para reglas paramétricas)</span>
-            </label>
-            <textarea
-              value={parametros}
-              onChange={(e) => setParametros(e.target.value)}
-              className="w-full rounded-lg border px-4 py-2.5 text-sm font-mono outline-none focus:border-primary"
-              style={{ borderColor: "oklch(0.55 0.04 160 / 0.2)" }}
-              rows={3}
-              disabled={isReadOnly}
-              placeholder='[{"umbral": 3}, {"umbral": 5}]'
-            />
-          </div>
+          <GroupModeFields
+            mode={ruleMode}
+            onModeChange={setRuleMode}
+            paramsText={parametros}
+            onParamsChange={setParametros}
+            disabled={isReadOnly}
+          />
 
           {/* Condition Tree */}
           <div className="mb-4">
@@ -1006,6 +1060,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               onChange={setTree}
               readOnly={isReadOnly}
               catalogOptions={catalogOptions}
+              mode={ruleMode}
             />
           </div>
 

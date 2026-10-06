@@ -312,6 +312,27 @@ class Regla(Base):
         }
 
 
+class GrupoError(Base):
+    """Catalogo gestionable de etiquetas grupo_error (sugerencias + CRUD).
+
+    Las reglas referencian por nombre (texto libre, sin FK): renombrar
+    actualiza reglas + fila; desasignar deja la fila si es sistema.
+    tipo: 'sistema' (formato propio, bloqueado) o 'simple'.
+    """
+    __tablename__ = "grupos_error"
+
+    nombre = Column(Text, primary_key=True)
+    tipo = Column(String(20), nullable=False, default="simple")
+    descripcion = Column(Text, nullable=True)
+
+    def to_dict(self):
+        return {
+            "nombre": self.nombre,
+            "tipo": self.tipo,
+            "descripcion": self.descripcion,
+        }
+
+
 class ReglaDominio(Base):
     """Bridge row: explicit multi-dominio scope of one rule (sdd reglas-multi-dominio).
 

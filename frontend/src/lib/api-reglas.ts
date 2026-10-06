@@ -188,12 +188,13 @@ async function apiPut<T>(url: string, body: unknown): Promise<T> {
   return json.data;
 }
 
-async function apiDelete(url: string): Promise<void> {
+async function apiDelete<T>(url: string): Promise<T> {
   const res = await fetch(url, { method: "DELETE" });
-  const json: ApiResponse<unknown> = await res.json();
+  const json: ApiResponse<T> = await res.json();
   if (json.status === "error") {
     throw new Error(json.errors?.[0] ?? "Error de servidor");
   }
+  return json.data;
 }
 
 // ─── Rules CRUD ──────────────────────────────────────────────────────
@@ -233,7 +234,7 @@ export async function updateRegla(id: number, data: Partial<Regla>): Promise<Reg
 
 /** Soft-delete a rule. */
 export async function deleteRegla(id: number): Promise<void> {
-  return apiDelete(`/api/reglas/${id}`);
+  await apiDelete<unknown>(`/api/reglas/${id}`);
 }
 
 /** Duplicate a rule as an independent active rule. */
@@ -403,6 +404,51 @@ export async function deleteCatalogo(key: string): Promise<DeleteCatalogoResult>
 /** Get rules that reference a catalog key. */
 export async function fetchCatalogoReglas(key: string): Promise<ReglaRef[]> {
   return apiGet<ReglaRef[]>(`/api/catalogos/${encodeURIComponent(key)}/reglas`);
+}
+
+// ─── Grupos de error (labels) ──────────────────────────────────────────
+
+export interface GrupoInfo {
+  nombre: string;
+  tipo: "sistema" | "canonico" | "simple";
+  total_reglas: number;
+  reglas_activas: number;
+}
+
+export interface RenameGrupoResult {
+  anterior: string;
+  nuevo: string;
+  actualizadas: number;
+}
+
+export interface UnassignGrupoResult {
+  grupo: string;
+  actualizadas: number;
+}
+
+/** List group labels (canonical + in-use) with rule usage counts. */
+export async function fetchGrupos(): Promise<GrupoInfo[]> {
+  return apiGet<GrupoInfo[]>("/api/reglas/grupos");
+}
+
+/** Bulk-rename a group label across rules using it. */
+export async function renameGrupo(anterior: string, nuevo: string): Promise<RenameGrupoResult> {
+  return apiPut<RenameGrupoResult>("/api/reglas/grupos/renombrar", { anterior, nuevo });
+}
+
+/** Unassign a group label (back to auto = rule name). */
+export async function unassignGrupo(grupo: string): Promise<UnassignGrupoResult> {
+  return apiPut<UnassignGrupoResult>("/api/reglas/grupos/desasignar", { grupo });
+}
+
+/** Create a simple group label in the catalog. */
+export async function createGrupo(nombre: string): Promise<{ nombre: string; tipo: string }> {
+  return apiPost<{ nombre: string; tipo: string }>("/api/reglas/grupos", { nombre });
+}
+
+/** Delete an unused, non-sistema group row from the catalog. */
+export async function deleteGrupo(nombre: string): Promise<{ grupo: string; eliminado: boolean }> {
+  return apiDelete<{ grupo: string; eliminado: boolean }>(`/api/reglas/grupos/${encodeURIComponent(nombre)}`);
 }
 
 // ─── Simulator ───────────────────────────────────────────────────────

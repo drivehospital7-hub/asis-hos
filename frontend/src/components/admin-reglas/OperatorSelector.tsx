@@ -1,4 +1,4 @@
-import { CATEGORIAS, OPERADORES_ATOMICOS } from "./operators";
+import { CATEGORIAS, GROUP_ONLY_OPERATORS, OPERADORES_ATOMICOS, type RuleMode } from "./operators";
 import { SearchableSelect, type SearchOption } from "./SearchableSelect";
 
 // ─── Props ─────────────────────────────────────────────────────────
@@ -7,6 +7,8 @@ interface OperatorSelectorProps {
   value: string;
   onChange: (operator: string) => void;
   readOnly?: boolean;
+  /** Row mode hides set-only operators (guidance; free text still allowed). */
+  mode?: RuleMode;
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────
@@ -15,8 +17,10 @@ const CATEGORY_LABEL: Record<string, string> = Object.fromEntries(
   CATEGORIAS.map((c) => [c.id, c.label]),
 );
 
-function toOptions(): SearchOption[] {
-  return OPERADORES_ATOMICOS.map((op) => ({
+function toOptions(mode?: RuleMode): SearchOption[] {
+  return OPERADORES_ATOMICOS.filter(
+    (op) => mode !== "row" || !GROUP_ONLY_OPERATORS.includes(op.value),
+  ).map((op) => ({
     value: op.value,
     label: `${op.label} — ${CATEGORY_LABEL[op.category] ?? op.category}`,
   }));
@@ -39,14 +43,14 @@ export function resolveOperatorInput(
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function OperatorSelector({ value, onChange, readOnly }: OperatorSelectorProps) {
+export function OperatorSelector({ value, onChange, readOnly, mode }: OperatorSelectorProps) {
   if (readOnly) {
     return (
       <span className="text-xs text-muted-foreground">{value || "—"}</span>
     );
   }
 
-  const options = toOptions();
+  const options = toOptions(mode);
   const known = value === "" || options.some((o) => o.value === value);
 
   return (

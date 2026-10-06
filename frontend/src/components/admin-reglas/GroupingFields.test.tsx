@@ -8,6 +8,38 @@ import {
   parseDetalle,
 } from "./GroupingFields";
 
+describe("GroupingFields sistema warning", () => {
+  const base = {
+    detalleACampo: "",
+    detalleBCampo: "",
+    descripcionTemplate: "",
+    disabled: false,
+    onChange: vi.fn(),
+  };
+  it("warns when a sistema group is chosen", () => {
+    const html = renderToStaticMarkup(
+      <GroupingFields
+        {...base}
+        grupoError="Duplicados-Farmacia"
+        grupoOptions={["Duplicados-Farmacia", "Mi Grupo"]}
+        sistemaOptions={["Duplicados-Farmacia"]}
+      />,
+    );
+    expect(html).toContain("formato propio");
+  });
+  it("stays silent for simple groups", () => {
+    const html = renderToStaticMarkup(
+      <GroupingFields
+        {...base}
+        grupoError="Mi Grupo"
+        grupoOptions={["Duplicados-Farmacia", "Mi Grupo"]}
+        sistemaOptions={["Duplicados-Farmacia"]}
+      />,
+    );
+    expect(html).not.toContain("formato propio");
+  });
+});
+
 describe("GroupingFields", () => {
   it("exposes the canonical grupo_error label list", () => {
     expect(GRUPO_ERROR_LABELS).toContain("Tipo Identificacion / Edad");
@@ -39,7 +71,7 @@ describe("GroupingFields", () => {
     expect(DETALLE_FIELD_KEYS).toContain("facturas");
     expect(DETALLE_FIELD_KEYS).toContain("estancia_str");
     expect(DETALLE_FIELD_KEYS).toContain("codigo_profesional");
-    expect(DETALLE_FIELD_KEYS).toHaveLength(38);
+    expect(DETALLE_FIELD_KEYS).toHaveLength(39);
     // Pruned dead keys never surface as options (legacy path instead)
     expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_actual");
     expect(DETALLE_FIELD_KEYS).not.toContain("ide_contrato_deberia");

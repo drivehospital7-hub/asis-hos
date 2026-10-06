@@ -2,7 +2,7 @@ import { useState } from "react";
 import { X, Eye, Loader2, ArrowLeftRight } from "lucide-react";
 import type { CondicionTree } from "@/lib/api-reglas";
 import { fetchCatalogo } from "@/lib/api-reglas";
-import { FUENTES_DATOS, getValueTypeForOperator } from "./operators";
+import { FUENTES_DATOS, getValueTypeForOperator, type RuleMode } from "./operators";
 import { OperatorSelector } from "./OperatorSelector";
 import { SearchableSelect } from "./SearchableSelect";
 import { ValueInput } from "./ValueInput";
@@ -17,13 +17,19 @@ interface AtomicNodeProps {
   branchLabel?: string | null;
   catalogOptions?: string[];
   readOnly?: boolean;
+  /** Row mode hides group.* sources from suggestions (free text allowed). */
+  mode?: RuleMode;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
   onRemove: (nodeId: number) => void;
 }
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove, idLabel, branchLabel }: AtomicNodeProps) {
+export function AtomicNode({ node, catalogOptions, readOnly, mode, onUpdate, onRemove, idLabel, branchLabel }: AtomicNodeProps) {
+  const fuenteOptions =
+    mode === "row" ? FUENTES_DATOS.filter((f) => !f.startsWith("group.")) : FUENTES_DATOS;
+  const fuenteValue = node.fuente_datos ?? "";
+  const fuenteKnown = fuenteValue === "" || fuenteOptions.includes(fuenteValue);
   const refLabel = idLabel ?? (node.id > 1e12 ? "nuevo" : `#${node.id}`);
   const operator = node.operador ?? "";
   const valueType = getValueTypeForOperator(operator);
@@ -109,8 +115,9 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove,
       </span>
       {/* FUENTES_DATOS searchable select */}
       <SearchableSelect
-        value={node.fuente_datos ?? ""}
-        options={FUENTES_DATOS}
+        value={fuenteValue}
+        options={fuenteOptions}
+        invalid={!fuenteKnown}
         onChange={(v) => onUpdate(node.id, "fuente_datos", v)}
         ariaLabel="Fuente de datos"
         placeholder="-- fuente -- (escribí para buscar)"
@@ -121,6 +128,7 @@ export function AtomicNode({ node, catalogOptions, readOnly, onUpdate, onRemove,
       <OperatorSelector
         value={operator}
         onChange={(op) => onUpdate(node.id, "operador", op)}
+        mode={mode}
       />
 
       {/* Value input (dynamic per operator) */}
