@@ -224,6 +224,51 @@ class ContainsEvaluator(AtomicEvaluator):
             return False
 
 
+class IsEmptyEvaluator(AtomicEvaluator):
+    """Empty check: True for None, "" or whitespace-only values.
+
+    Excel empty cells arrive as None (not ""), which `eq ""` never
+    matches — this operator is the UI-expressible empty check.
+    valor_esperado is ignored (may be None).
+    """
+
+    operator = "is_empty"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return True
+        try:
+            return not str(row_value).strip()
+        except (TypeError, ValueError):
+            return False
+
+
+class NotEmptyEvaluator(AtomicEvaluator):
+    """Inverse of is_empty: True when a non-blank value exists."""
+
+    operator = "not_empty"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return False
+        try:
+            return bool(str(row_value).strip())
+        except (TypeError, ValueError):
+            return False
+
+
 class RegexEvaluator(AtomicEvaluator):
     """Regex match: re.search(expected, str(row_value))."""
 
@@ -1253,6 +1298,8 @@ def _register_builtins() -> None:
         LteEvaluator(),
         InEvaluator(),
         ContainsEvaluator(),
+        IsEmptyEvaluator(),
+        NotEmptyEvaluator(),
         RegexEvaluator(),
         RegexExtractEvaluator(),
         ExistsInDBEvaluator(),

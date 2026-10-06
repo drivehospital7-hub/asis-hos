@@ -68,7 +68,12 @@ def _build_condition_tree(regla: Regla) -> list[dict[str, Any]] | None:
         by_id[c.id] = c.to_dict()
         by_id[c.id]["condiciones"] = []
 
-    # Build tree
+    # Build tree. Children (and roots) are sorted by (orden, id) so the
+    # UI always renders branches in a stable order. Without this, Postgres
+    # returns rows in physical heap order, which shifts after every
+    # delete+recreate save (dead-tuple slot reuse) and makes branches
+    # visually "jump" between edits. Evaluation is order-insensitive for
+    # AND/OR, so this only stabilizes display, never verdicts.
     roots: list[dict[str, Any]] = []
     for c in conditions:
         node = by_id[c.id]
@@ -76,6 +81,11 @@ def _build_condition_tree(regla: Regla) -> list[dict[str, Any]] | None:
             roots.append(node)
         elif c.padre_id in by_id:
             by_id[c.padre_id]["condiciones"].append(node)
+
+    _sort_key = lambda n: (n.get("orden", 0) or 0, n.get("id", 0) or 0)
+    for node in by_id.values():
+        node["condiciones"].sort(key=_sort_key)
+    roots.sort(key=_sort_key)
 
     return roots
 
@@ -164,6 +174,7 @@ def _clone_conditions(db_session, old_rule_id: int, new_rule_id: int) -> None:
     old_conds = (
         db_session.query(Condicion)
         .filter(Condicion.regla_id == old_rule_id)
+        .order_by(Condicion.id)
         .all()
     )
     if not old_conds:

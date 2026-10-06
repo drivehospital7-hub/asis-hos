@@ -238,7 +238,7 @@ class RuleEvaluationEngine:
                     for field in ("codigo", "codigo_equiv", "procedimiento", "tipo_identificacion",
                                   "codigo_entidad_cobrar", "tipo_procedimiento", "vlr_subsidiado",
                                   "vlr_procedimiento", "cantidad", "convenio_facturado",
-                                  "centro_costo", "ide_contrato", "entidad_cobrar",
+                                  "centro_costo", "ide_contrato", "numero_autorizacion", "entidad_cobrar",
                                   "entidad_afiliacion", "tipo_usuario", "vlr_copago",
                                   "codigo_tipo_procedimiento", "laboratorio", "vacuna", "tarifario",
                                   "tipo_factura_descripcion", "responsable_cierra",
@@ -464,14 +464,21 @@ class RuleEvaluationEngine:
         # Scope-less rows keep the legacy exact-first semantics.
         legacy_exact = (rule_has_no_scope(Regla.id)) & (Regla.dominio == dominio)
         exact_first = case((or_(exact_hit, legacy_exact), 0), else_=1)
-        return (
+        # Simulator dry-run may select inactive rules explicitly: honor the
+        # scope by dropping the activo filter only then. Default path
+        # (scope off) keeps activo-only semantics untouched.
+        from app.services.engine.domain_detection import _SIM_ONLY_RULE_IDS
+
+        simulation_active = _SIM_ONLY_RULE_IDS.get() is not None
+        query = (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
-            .filter(Regla.activo == True)  # noqa: E712
             .filter(rule_matches_domain_or_legacy(Regla.id, dominio))
             .order_by(exact_first, Regla.version.desc())
-            .first()
         )
+        if not simulation_active:
+            query = query.filter(Regla.activo == True)  # noqa: E712
+        return query.first()
 
     def _load_conditions(self, regla_id: int) -> list[dict]:
         """Load all conditions for a rule and convert to dicts."""
