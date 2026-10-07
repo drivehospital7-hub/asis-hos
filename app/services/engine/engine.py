@@ -540,18 +540,25 @@ class RuleEvaluationEngine:
 
 
 def _format_estancia(horas: float | None) -> str:
-    """Formatea estancia en días + horas (convención legacy sala/hosp).
+    """Formatea estancia en días + horas + minutos (trunca, no redondea).
 
+    Omite partes en cero ("5h", no "0d 5h 0m"); "0h" si es cero.
     Local al engine para no importar desde urgencias/hospitalizacion:
     el engine es transversal y esos packages son de dominio.
     """
     if horas is None:
         return "N/A"
-    dias = int(horas // 24)
-    hrs = int(horas % 24)
+    total_min = int(horas * 60)
+    dias, resto = divmod(total_min, 24 * 60)
+    hrs, mins = divmod(resto, 60)
+    partes = []
     if dias > 0:
-        return f"{dias}d {hrs}h"
-    return f"{hrs}h"
+        partes.append(f"{dias}d")
+    if hrs > 0:
+        partes.append(f"{hrs}h")
+    if mins > 0:
+        partes.append(f"{mins}m")
+    return " ".join(partes) if partes else "0h"
 
 
 def _rule_requests_estancia_str(

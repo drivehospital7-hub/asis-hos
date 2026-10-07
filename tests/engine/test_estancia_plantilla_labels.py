@@ -65,7 +65,7 @@ class TestPlantillaEstanciaOptIn:
             _ce(), rule_info, _collector(), record_evidence=False,
         )
         assert len(results) == 1
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
 
 class TestInferHospi:

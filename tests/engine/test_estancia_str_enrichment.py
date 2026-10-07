@@ -72,7 +72,7 @@ class TestGroupEstanciaStr:
         )
         assert len(results) == 1
         assert results[0].get("estancia_horas") == 30.5
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
     def test_5_horas_formatea_5h(self):
         from app.services.engine.group_evaluator import GroupEvaluator
@@ -168,7 +168,7 @@ class TestEngineRowEstanciaStr:
             persist=False, rows=rows,
         )
         assert len(results) == 1
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
     def test_row_path_5h(self):
         from app.services.engine.engine import RuleEvaluationEngine

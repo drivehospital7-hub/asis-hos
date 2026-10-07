@@ -89,13 +89,13 @@ class TestGrupoOptIn:
     def test_detalle_a_optin(self):
         results = _eval_grupo(_rule_info_sin_mapeo(detalle_a_campo="estancia_str"))
         assert len(results) == 1
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
     def test_template_optin(self):
         results = _eval_grupo(_rule_info_sin_mapeo(
             descripcion_template="Estancia {estancia_str} observada"))
         assert len(results) == 1
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
     def test_legacy_preservado_sin_mapeo(self):
         base = datetime(2026, 1, 1, 8, 0, 0)
@@ -163,7 +163,7 @@ class TestRowOptIn:
             _regla_row(descripcion_template="Estancia {estancia_str}"),
             [{"numero_factura": "F001", "codigo": "5DSB01", "estancia_horas": 30.5}])
         assert len(results) == 1
-        assert results[0].get("estancia_str") == "1d 6h"
+        assert results[0].get("estancia_str") == "1d 6h 30m"
 
     def test_legacy_preservado_sin_mapeo(self):
         results = _eval_row(_regla_row(), [
