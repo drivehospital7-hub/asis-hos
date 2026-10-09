@@ -465,6 +465,30 @@ ERROR_ESTADO_URGENCIAS = [
     "S",
     "N",
 ]
+ERROR_ESTADO_PENDIENTE = "S"
+
+# -----------------------------------------------------------------------------
+# Avisos de novedades hacia Revisor de Soportes
+# -----------------------------------------------------------------------------
+# Una novedad queda "lista para avisar" cuando tiene responsable y descripción.
+# Motivo del aviso: primera vez que queda lista, o cambio de responsable.
+AVISO_MOTIVO_NUEVA = "nueva"
+AVISO_MOTIVO_REASIGNADA = "reasignada"
+
+# Clase del aviso que consume Revisor (derivada de la categoría).
+AVISO_CLASE_ERROR = "error"
+AVISO_CLASE_NOTIFICACION = "notificacion"
+
+# Paginación de GET /api/integration/control-novedades/nuevas
+AVISOS_LIMITE_DEFAULT = 200
+AVISOS_LIMITE_MAX = 500
+
+# Ping "hubo cambios" al servidor de Revisor. La URL y la clave se leen de
+# estas variables de entorno (.env); sin URL no se envía nada.
+REVISOR_PING_URL_ENV = "REVISOR_PING_URL"
+REVISOR_PING_CLAVE_ENV = "REVISOR_PING_CLAVE"
+REVISOR_PING_HEADER = "X-Revisor-Clave"
+REVISOR_PING_TIMEOUT_S = 2
 
 # Centros de costo válidos para Urgencias
 CENTROS_COSTO_VALIDOS_URGENCIAS = frozenset({

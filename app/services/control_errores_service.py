@@ -438,6 +438,13 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
                 data["refactura"].strip() if data["refactura"] else ""
             ).upper()
 
+        # El aviso a Revisor solo puede dispararse al tocar responsable u
+        # observación; ahí se registra quién lo hizo (identidad de sesión).
+        if "responsable" in kwargs or "observacion" in kwargs:
+            kwargs["actor"] = (
+                f"{session.get('primer_nombre', '')} {session.get('apellido_1', '')}"
+            ).strip().upper()
+
         actualizado = actualizar_error(error_id, **kwargs)
 
         logger.info("[BACK] Error actualizado: %s", error_id)

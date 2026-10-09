@@ -34,15 +34,30 @@ Semántica de respuesta del lote:
 
 Formato heredado (un solo item) se conserva intacto: HTTP 201 con ``data.error``
 como registro persistido.
+
+Avisos para Revisor de Soportes (solo lectura): ``query_nuevas`` devuelve las
+novedades que quedaron listas para su responsable (o cambiaron de responsable)
+después de un cursor. Ver su docstring para el contrato.
 """
 
 import logging
+from datetime import datetime
 from typing import Any
 
 from app.constants import IMAGENES_MAX_PER_OBSERVACION
 from app.constants.base import INTEGRATION_QUERY_MAX_FACTURAS
-from app.constants.urgencias import ERROR_TIPO_ERROR, ERROR_TIPO_URGENCIAS
+from app.constants.urgencias import (
+    AVISO_CLASE_ERROR,
+    AVISO_CLASE_NOTIFICACION,
+    AVISOS_LIMITE_DEFAULT,
+    AVISOS_LIMITE_MAX,
+    ERROR_ESTADO_PENDIENTE,
+    ERROR_TIPO_ERROR,
+    ERROR_TIPO_NOTIFICACION,
+    ERROR_TIPO_URGENCIAS,
+)
 from app.services.control_errores_service import (
+    _resolve_owner_identities,
     _resolve_responsable_identity,
     _resolve_validador_identity,
     get_errores,
@@ -469,6 +484,131 @@ def query_by_facturas(
         return {"status": "success", "data": data, "errors": []}, 200
     except Exception as e:
         logger.exception("[BACK][ERROR] Error en consulta de novedades por factura")
+        return {"status": "error", "data": {}, "errors": [str(e)]}, 500
+
+
+def _parse_nuevas_params(
+    desde_raw: str | None, limite_raw: str | None
+) -> tuple[str | None, int, list[str]]:
+    """Valida ``desde`` y ``limite``; devuelve (desde_iso | None, limite, errores)."""
+    errors: list[str] = []
+    desde: str | None = None
+    if desde_raw and desde_raw.strip():
+        try:
+            parsed = datetime.fromisoformat(desde_raw.strip())
+            if parsed.tzinfo is not None:
+                raise ValueError("con zona horaria")
+            desde = parsed.isoformat()
+        except ValueError:
+            errors.append(
+                "Parámetro 'desde' inválido: use el 'cursor' devuelto por este "
+                "endpoint (fecha ISO local, sin zona horaria)"
+            )
+    limite = AVISOS_LIMITE_DEFAULT
+    if limite_raw and limite_raw.strip():
+        try:
+            limite = int(limite_raw)
+            if not 1 <= limite <= AVISOS_LIMITE_MAX:
+                raise ValueError("fuera de rango")
+        except ValueError:
+            errors.append(
+                f"Parámetro 'limite' inválido: entero entre 1 y {AVISOS_LIMITE_MAX}"
+            )
+    return desde, limite, errors
+
+
+def _aviso_visible(
+    error: dict[str, Any], owner: tuple[str, str] | None
+) -> bool:
+    """¿Este aviso se entrega? Solo pendientes, nunca a uno mismo, y con la
+    misma visibilidad por rol que la lista web (un facturador solo ve lo suyo)."""
+    if error.get("estado") != ERROR_ESTADO_PENDIENTE:
+        return False
+    if errores_storage.es_autoaviso(error):
+        return False
+    if owner is None:
+        return True
+    return errores_storage._responsable_coincide_con_owner(
+        error.get("responsable", ""), owner[0], error.get("created_by", ""), owner[1]
+    )
+
+
+def _shape_aviso(error: dict[str, Any]) -> dict[str, Any]:
+    """Proyección de una novedad para el aviso (solo los campos necesarios)."""
+    es_notificacion = (
+        errores_storage.normalizar_tipo_error(error.get("tipo_error"))
+        == ERROR_TIPO_NOTIFICACION
+    )
+    return {
+        "aviso_id": f"{error.get('id', '')}@{error.get('aviso_en', '')}",
+        "id": error.get("id", ""),
+        "motivo": error.get("aviso_motivo", ""),
+        "clase": AVISO_CLASE_NOTIFICACION if es_notificacion else AVISO_CLASE_ERROR,
+        "tipo_error": error.get("tipo_error", ""),
+        "factura": error.get("factura", ""),
+        "refactura": error.get("refactura", ""),
+        "observacion": error.get("observacion", ""),
+        "responsable": error.get("responsable", ""),
+        "reportado_por": error.get("aviso_por") or error.get("validador", ""),
+        "validador": error.get("validador", ""),
+        "created_by": error.get("created_by", ""),
+        "estado": error.get("estado", ""),
+        "creado_en": error.get("creado_en", ""),
+        "aviso_en": error.get("aviso_en", ""),
+    }
+
+
+def query_nuevas(
+    desde_raw: str | None = None,
+    limite_raw: str | None = None,
+    session: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], int]:
+    """Avisos de novedades posteriores a un cursor (solo lectura).
+
+    Un aviso nace cuando una novedad queda con responsable y descripción por
+    primera vez (``motivo: "nueva"``) o cuando cambia de responsable
+    (``"reasignada"``). Se entregan solo las pendientes y nunca las que el
+    responsable se asignó a sí mismo.
+
+    - Sin ``desde``: no devuelve novedades, solo ``cursor`` = hora actual del
+      servidor. Es el arranque: el cliente guarda ese cursor y así nunca recibe
+      el histórico ni depende de su propio reloj.
+    - Con ``desde``: avisos con ``aviso_en`` posterior, del más antiguo al más
+      nuevo, hasta ``limite``. ``cursor`` es el valor a enviar la próxima vez;
+      ``hay_mas`` indica que conviene volver a consultar de inmediato.
+
+    Cada item trae ``aviso_id`` (único por aviso; una misma novedad puede
+    avisarse más de una vez si la reasignan) para descartar repetidos.
+    """
+    try:
+        desde, limite, errors = _parse_nuevas_params(desde_raw, limite_raw)
+        if errors:
+            return {"status": "error", "data": {}, "errors": errors}, 400
+
+        ahora = datetime.now().isoformat()
+        novedades: list[dict[str, Any]] = []
+        cursor = desde or ahora
+        hay_mas = False
+        if desde is not None:
+            owner = _resolve_owner_identities(session or {})
+            for error in errores_storage.listar_avisos(desde):
+                if len(novedades) >= limite:
+                    hay_mas = True
+                    break
+                cursor = error["aviso_en"]
+                if _aviso_visible(error, owner):
+                    novedades.append(_shape_aviso(error))
+
+        logger.info("[BACK] Integración: %d aviso(s) de novedades", len(novedades))
+        data = {
+            "novedades": novedades,
+            "cursor": cursor,
+            "ahora": ahora,
+            "hay_mas": hay_mas,
+        }
+        return {"status": "success", "data": data, "errors": []}, 200
+    except Exception as e:
+        logger.exception("[BACK][ERROR] Error consultando avisos de novedades")
         return {"status": "error", "data": {}, "errors": [str(e)]}, 500
 
 

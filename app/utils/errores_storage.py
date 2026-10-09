@@ -12,6 +12,8 @@ from datetime import datetime
 from typing import Any
 
 from app.constants import (
+    AVISO_MOTIVO_NUEVA,
+    AVISO_MOTIVO_REASIGNADA,
     ERROR_TIPO_ERROR,
     ERROR_TIPO_LEGACY_NOTIFICACION,
     ERROR_TIPO_NOTIFICACION,
@@ -23,6 +25,7 @@ from app.constants import (
     IMAGENES_SCOPES,
     IMAGENES_OWNER_SIDECAR,
 )
+from app.utils import revisor_ping
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +74,67 @@ def normalizar_tipo_error(valor: str | None) -> str:
     ):
         return ERROR_TIPO_NOTIFICACION
     return ERROR_TIPO_ERROR
+
+
+def _lista_para_aviso(error: dict[str, Any]) -> bool:
+    """Una novedad se puede avisar cuando tiene responsable Y descripción."""
+    return bool(
+        (error.get("responsable") or "").strip()
+        and (error.get("observacion") or "").strip()
+    )
+
+
+def es_autoaviso(error: dict[str, Any]) -> bool:
+    """True si quien generó el aviso es el mismo responsable (no se le avisa)."""
+    por = normalizar_identidad(error.get("aviso_por"))
+    return bool(por) and por == normalizar_identidad(error.get("responsable"))
+
+
+def _marcar_aviso(error: dict[str, Any], motivo: str, por: str | None) -> None:
+    """Sella el aviso: cuándo quedó lista para su responsable, por qué y por quién."""
+    error["aviso_en"] = datetime.now().isoformat()
+    error["aviso_motivo"] = motivo
+    error["aviso_por"] = " ".join((por or "").split()).upper()
+
+
+def _evaluar_aviso(
+    error: dict[str, Any],
+    estaba_lista: bool,
+    responsable_previo: str | None,
+    actor: str | None,
+) -> bool:
+    """Sella el aviso tras una edición, si corresponde.
+
+    Corresponde cuando la novedad queda lista por primera vez (motivo
+    ``nueva``) o cuando cambia de responsable estando lista (``reasignada``).
+    Editar otros campos de una novedad ya avisada no genera aviso.
+
+    Returns:
+        True si hay que avisar a Revisor (hubo aviso y no es para uno mismo).
+    """
+    if not _lista_para_aviso(error):
+        return False
+    cambio_responsable = normalizar_identidad(responsable_previo) != normalizar_identidad(
+        error.get("responsable")
+    )
+    if estaba_lista and not cambio_responsable:
+        return False
+    reasignada = estaba_lista or bool(error.get("aviso_en"))
+    motivo = AVISO_MOTIVO_REASIGNADA if reasignada else AVISO_MOTIVO_NUEVA
+    _marcar_aviso(error, motivo, actor)
+    return not es_autoaviso(error)
+
+
+def listar_avisos(desde: str | None = None) -> list[dict[str, Any]]:
+    """Novedades con aviso sellado después de ``desde``, de la más antigua a la más nueva.
+
+    Solo lectura. ``desde`` es un ISO local sin zona, igual que ``aviso_en``;
+    None devuelve todas las que tienen aviso.
+    """
+    errores = [e for e in _leer_datos().get("errores", []) if e.get("aviso_en")]
+    if desde:
+        errores = [e for e in errores if e["aviso_en"] > desde]
+    return sorted(errores, key=lambda e: e["aviso_en"])
 
 
 def _get_imagenes_dir(error_id: str, scope: str = "") -> Path:
@@ -335,11 +399,17 @@ def crear_error(
             # Última vez que se fijó/cambió el estado (solo backend, no visible).
             "ultima_modificacion_estado": datetime.now().isoformat(),
         }
+        avisar = _lista_para_aviso(nuevo_error)
+        if avisar:
+            # Quien reporta es el validador (en la integración, el de ``nombres``).
+            _marcar_aviso(nuevo_error, AVISO_MOTIVO_NUEVA, validador)
 
         data.setdefault("errores", []).append(nuevo_error)
         _escribir_datos(data)
 
         logger.info("[BACK] Error creado: %s", nuevo_error["id"])
+        if avisar and not es_autoaviso(nuevo_error):
+            revisor_ping.notificar_cambios()
         return nuevo_error
 
 
@@ -361,12 +431,21 @@ def actualizar_error(
     estado: str | None = _NOT_SET,
     responsable: str | None = _NOT_SET,
     refactura: str | None = _NOT_SET,
+    actor: str = "",
 ) -> dict[str, Any] | None:
-    """Actualizar un error existente."""
+    """Actualizar un error existente.
+
+    Args:
+        actor: identidad (primer nombre + primer apellido) de quien edita. Solo
+            se usa para sellar el aviso cuando la novedad queda lista o cambia
+            de responsable; nunca proviene del payload del cliente.
+    """
     data = _leer_datos()
 
     for error in data.get("errores", []):
         if error.get("id") == error_id:
+            estaba_lista = _lista_para_aviso(error)
+            responsable_previo = error.get("responsable", "")
             if tipo_error is not _NOT_SET:
                 error["tipo_error"] = tipo_error
             if factura is not _NOT_SET:
@@ -385,9 +464,12 @@ def actualizar_error(
                 error["refactura"] = refactura
 
             error["actualizado_en"] = datetime.now().isoformat()
+            avisar = _evaluar_aviso(error, estaba_lista, responsable_previo, actor)
 
             _escribir_datos(data)
             logger.info("[BACK] Error actualizado: %s", error_id)
+            if avisar:
+                revisor_ping.notificar_cambios()
             return error
 
     return None

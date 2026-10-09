@@ -35,9 +35,11 @@ PUBLIC_ENDPOINTS = frozenset({
 # Endpoints de integración LAN que se autentican por bearer token (sin sesión).
 INTEGRATION_SUBMIT_ENDPOINT = "integration.control_novedades_submit"
 INTEGRATION_QUERY_ENDPOINT = "integration.control_novedades_query"
+INTEGRATION_NUEVAS_ENDPOINT = "integration.control_novedades_nuevas"
 INTEGRATION_BEARER_ENDPOINTS = frozenset({
     INTEGRATION_SUBMIT_ENDPOINT,
     INTEGRATION_QUERY_ENDPOINT,
+    INTEGRATION_NUEVAS_ENDPOINT,
 })
 
 

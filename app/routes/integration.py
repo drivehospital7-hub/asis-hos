@@ -12,7 +12,7 @@ import logging
 from flask import Blueprint, current_app, g, jsonify, request
 
 from app.constants.base import INTEGRATION_HTTPS_REQUIRED
-from app.services.integration_service import query_by_facturas, submit
+from app.services.integration_service import query_by_facturas, query_nuevas, submit
 from app.utils import token_store
 from app.utils.auth import admin_requerido
 
@@ -167,6 +167,28 @@ def control_novedades_query():
     synth_session = _build_synth_session(bearer) if bearer else None
     envelope, status = query_by_facturas(
         request.args.getlist("factura"), synth_session
+    )
+    return jsonify(envelope), status
+
+
+@integration_bp.get("/control-novedades/nuevas")
+def control_novedades_nuevas():
+    """Avisos de novedades posteriores a un cursor, autenticado por bearer token.
+
+    ``?desde=<cursor>&limite=<n>``; sin ``desde`` devuelve solo el cursor
+    inicial. Solo lectura: basta el permiso ``control_urgencias``. Delegador
+    fino: validación y forma viven en ``integration_service.query_nuevas``.
+    """
+    denied = _check_integration_https()
+    if denied:
+        return denied
+    bearer = g.get("bearer_user")
+    denied = _check_integration_read_permission(bearer)
+    if denied:
+        return denied
+    synth_session = _build_synth_session(bearer) if bearer else None
+    envelope, status = query_nuevas(
+        request.args.get("desde"), request.args.get("limite"), synth_session
     )
     return jsonify(envelope), status
 
