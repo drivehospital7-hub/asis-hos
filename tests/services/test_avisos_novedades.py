@@ -131,11 +131,13 @@ class TestAvisoAlEditar:
         nuevo = _crear()
         almacen.reset_mock()
 
-        errores_storage.actualizar_error(nuevo["id"], estado="N")
         errores_storage.actualizar_error(nuevo["id"], observacion="TEXTO CORREGIDO", actor="ANA VALDEZ")
         errores_storage.actualizar_error(nuevo["id"], tipo_error="Notificación")
+        errores_storage.actualizar_error(nuevo["id"], factura="FEV2")
 
-        assert _guardado(nuevo["id"])["aviso_en"] == nuevo["aviso_en"]
+        guardado = _guardado(nuevo["id"])
+        assert guardado["aviso_en"] == nuevo["aviso_en"]
+        assert "cambio_en" not in guardado
         almacen.assert_not_called()
 
     def test_mismo_responsable_con_otra_caja_no_es_reasignacion(self, almacen):
@@ -176,23 +178,160 @@ class TestAvisoAlEditar:
         assert _guardado("viejo-1")["aviso_motivo"] == "reasignada"
         almacen.assert_called_once()
 
-    def test_reasignarse_a_uno_mismo_no_avisa(self, almacen):
+    def test_reasignarse_a_uno_mismo_no_genera_aviso_entregable(self, almacen):
         nuevo = _crear()
         almacen.reset_mock()
 
         errores_storage.actualizar_error(nuevo["id"], responsable="CARLOS MEZA", actor="Carlos Meza")
 
-        assert _guardado(nuevo["id"])["aviso_motivo"] == "reasignada"
-        almacen.assert_not_called()
+        guardado = _guardado(nuevo["id"])
+        assert guardado["aviso_motivo"] == "reasignada"
+        assert errores_storage.es_autoaviso(guardado) is True
+        # Igual se avisa a Revisor: el responsable anterior debe perder su aviso.
+        assert guardado["cambio_en"] >= guardado["aviso_en"]
+        almacen.assert_called_once()
 
-    def test_quitar_el_responsable_no_avisa(self, almacen):
+    def test_quitar_el_responsable_no_sella_aviso_pero_si_cambio(self, almacen):
         nuevo = _crear()
         almacen.reset_mock()
 
         errores_storage.actualizar_error(nuevo["id"], responsable="", actor="ANA VALDEZ")
 
-        assert _guardado(nuevo["id"])["aviso_en"] == nuevo["aviso_en"]
+        guardado = _guardado(nuevo["id"])
+        assert guardado["aviso_en"] == nuevo["aviso_en"]
+        assert "cambio_en" in guardado
+        almacen.assert_called_once()
+
+
+class TestCambioDeNovedadAvisada:
+    """Resolver, reabrir o reasignar una novedad ya avisada sella ``cambio_en``."""
+
+    def test_resolver_sella_cambio_y_avisa(self, almacen):
+        nuevo = _crear()
+        almacen.reset_mock()
+
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+
+        guardado = _guardado(nuevo["id"])
+        assert guardado["estado"] == "N"
+        assert guardado["cambio_en"] > nuevo["aviso_en"]
+        assert guardado["aviso_en"] == nuevo["aviso_en"]
+        almacen.assert_called_once()
+
+    def test_reabrir_vuelve_a_sellar_cambio(self, almacen):
+        nuevo = _crear()
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+        primero = _guardado(nuevo["id"])["cambio_en"]
+        almacen.reset_mock()
+
+        errores_storage.actualizar_error(nuevo["id"], estado="S")
+
+        assert _guardado(nuevo["id"])["cambio_en"] > primero
+        almacen.assert_called_once()
+
+    def test_guardar_el_mismo_estado_no_es_cambio(self, almacen):
+        nuevo = _crear()
+        almacen.reset_mock()
+
+        errores_storage.actualizar_error(nuevo["id"], estado="S")
+
+        assert "cambio_en" not in _guardado(nuevo["id"])
         almacen.assert_not_called()
+
+    def test_reasignar_sella_aviso_y_cambio(self, almacen):
+        nuevo = _crear()
+        almacen.reset_mock()
+
+        errores_storage.actualizar_error(nuevo["id"], responsable="CARLOS MEZA", actor="LUZ MORA")
+
+        guardado = _guardado(nuevo["id"])
+        assert guardado["aviso_motivo"] == "reasignada"
+        assert guardado["cambio_en"] >= guardado["aviso_en"]
+        almacen.assert_called_once()
+
+    def test_novedad_nunca_avisada_no_sella_cambio(self, almacen):
+        fila = _crear(observacion="", responsable="")
+
+        errores_storage.actualizar_error(fila["id"], estado="N")
+
+        assert "cambio_en" not in _guardado(fila["id"])
+        almacen.assert_not_called()
+
+    def test_primer_aviso_en_una_edicion_no_cuenta_como_cambio(self, almacen):
+        fila = _crear(observacion="FALTA X", responsable="")
+
+        errores_storage.actualizar_error(fila["id"], responsable="LORENY ESPAÑA", actor="ANA VALDEZ")
+
+        guardado = _guardado(fila["id"])
+        assert guardado["aviso_motivo"] == "nueva"
+        assert "cambio_en" not in guardado
+        almacen.assert_called_once()
+
+
+class TestEliminarNovedadAvisada:
+    def _eliminados(self, tmp_path):
+        data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
+        return data.get("eliminados", [])
+
+    def test_eliminar_avisada_deja_anotacion_y_avisa(self, almacen, tmp_path):
+        nuevo = _crear()
+        almacen.reset_mock()
+
+        assert errores_storage.eliminar_error(nuevo["id"]) is True
+
+        eliminados = self._eliminados(tmp_path)
+        assert [e["id"] for e in eliminados] == [nuevo["id"]]
+        assert set(eliminados[0]) == {"id", "eliminado_en"}
+        assert _guardado(nuevo["id"]) is None
+        almacen.assert_called_once()
+
+    def test_eliminar_resuelta_avisada_tambien_se_anota(self, almacen, tmp_path):
+        nuevo = _crear()
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+        almacen.reset_mock()
+
+        errores_storage.eliminar_error(nuevo["id"])
+
+        assert [e["id"] for e in self._eliminados(tmp_path)] == [nuevo["id"]]
+        almacen.assert_called_once()
+
+    def test_eliminar_no_avisada_no_deja_anotacion(self, almacen, tmp_path):
+        fila = _crear(observacion="", responsable="")
+
+        assert errores_storage.eliminar_error(fila["id"]) is True
+
+        assert self._eliminados(tmp_path) == []
+        almacen.assert_not_called()
+
+    def test_eliminar_inexistente_no_hace_nada(self, almacen, tmp_path):
+        assert errores_storage.eliminar_error("no-existe") is False
+        assert self._eliminados(tmp_path) == []
+        almacen.assert_not_called()
+
+    def test_las_anotaciones_viejas_se_descartan(self, almacen, tmp_path):
+        nuevo = _crear()
+        archivo = tmp_path / "control_errores.json"
+        data = json.loads(archivo.read_text(encoding="utf-8"))
+        vieja = (datetime.now() - timedelta(days=31)).isoformat()
+        reciente = (datetime.now() - timedelta(days=29)).isoformat()
+        data["eliminados"] = [
+            {"id": "muy-vieja", "eliminado_en": vieja},
+            {"id": "reciente", "eliminado_en": reciente},
+        ]
+        archivo.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+        errores_storage.eliminar_error(nuevo["id"])
+
+        assert [e["id"] for e in self._eliminados(tmp_path)] == ["reciente", nuevo["id"]]
+
+    def test_las_demas_escrituras_conservan_las_anotaciones(self, almacen, tmp_path):
+        borrada = _crear(factura="A")
+        errores_storage.eliminar_error(borrada["id"])
+
+        otra = _crear(factura="B")
+        errores_storage.actualizar_error(otra["id"], estado="N")
+
+        assert [e["id"] for e in self._eliminados(tmp_path)] == [borrada["id"]]
 
 
 class TestServicioPasaElActor:
@@ -365,6 +504,127 @@ class TestQueryNuevas:
             novedades = query_nuevas(_antes_de(base), None, facturador)[0]["data"]["novedades"]
 
         assert [n["factura"] for n in novedades] == ["A"]
+
+
+class TestQueryNuevasCambiosYEliminadas:
+    def test_sin_desde_trae_las_tres_listas_vacias(self, almacen):
+        data = query_nuevas(None, None, _VALIDADOR)[0]["data"]
+
+        assert data["novedades"] == []
+        assert data["cambios_estado"] == []
+        assert data["eliminadas"] == []
+
+    def test_resolver_sale_en_cambios_estado(self, almacen):
+        nuevo = _crear()
+        cursor = query_nuevas(_antes_de(nuevo), None, _VALIDADOR)[0]["data"]["cursor"]
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+        cambio_en = _guardado(nuevo["id"])["cambio_en"]
+
+        data = query_nuevas(cursor, None, _VALIDADOR)[0]["data"]
+
+        assert data["novedades"] == []
+        assert data["cambios_estado"] == [{
+            "id": nuevo["id"],
+            "estado": "N",
+            "responsable": "LORENY ESPAÑA",
+            "cambiado_en": cambio_en,
+        }]
+        assert data["cursor"] == cambio_en
+        # Ya consumido: la siguiente consulta no lo repite.
+        assert query_nuevas(data["cursor"], None, _VALIDADOR)[0]["data"]["cambios_estado"] == []
+
+    def test_reabrir_informa_estado_pendiente(self, almacen):
+        nuevo = _crear()
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+        cursor = _guardado(nuevo["id"])["cambio_en"]
+        errores_storage.actualizar_error(nuevo["id"], estado="S")
+
+        cambios = query_nuevas(cursor, None, _VALIDADOR)[0]["data"]["cambios_estado"]
+
+        assert [(c["id"], c["estado"]) for c in cambios] == [(nuevo["id"], "S")]
+
+    def test_reasignar_sale_como_aviso_y_como_cambio(self, almacen):
+        nuevo = _crear()
+        cursor = nuevo["aviso_en"]
+        errores_storage.actualizar_error(nuevo["id"], responsable="CARLOS MEZA", actor="LUZ MORA")
+
+        data = query_nuevas(cursor, None, _VALIDADOR)[0]["data"]
+
+        assert [n["motivo"] for n in data["novedades"]] == ["reasignada"]
+        assert [(c["id"], c["responsable"]) for c in data["cambios_estado"]] == [(nuevo["id"], "CARLOS MEZA")]
+
+    def test_reasignarse_a_uno_mismo_informa_el_cambio_sin_aviso(self, almacen):
+        nuevo = _crear()
+        errores_storage.actualizar_error(nuevo["id"], responsable="CARLOS MEZA", actor="CARLOS MEZA")
+
+        data = query_nuevas(nuevo["aviso_en"], None, _VALIDADOR)[0]["data"]
+
+        assert data["novedades"] == []
+        assert [c["responsable"] for c in data["cambios_estado"]] == ["CARLOS MEZA"]
+
+    def test_eliminar_sale_en_eliminadas(self, almacen):
+        nuevo = _crear()
+        cursor = nuevo["aviso_en"]
+        errores_storage.eliminar_error(nuevo["id"])
+
+        data = query_nuevas(cursor, None, _VALIDADOR)[0]["data"]
+
+        assert data["novedades"] == []
+        assert data["cambios_estado"] == []
+        assert [e["id"] for e in data["eliminadas"]] == [nuevo["id"]]
+        assert data["cursor"] == data["eliminadas"][0]["eliminado_en"]
+
+    def test_resolver_y_eliminar_antes_de_consultar(self, almacen):
+        base = _crear(factura="BASE")
+        nuevo = _crear(factura="X")
+        errores_storage.actualizar_error(nuevo["id"], estado="N")
+        errores_storage.eliminar_error(nuevo["id"])
+
+        data = query_nuevas(base["aviso_en"], None, _VALIDADOR)[0]["data"]
+
+        # El registro ya no existe: solo queda la eliminación.
+        assert data["novedades"] == []
+        assert data["cambios_estado"] == []
+        assert [e["id"] for e in data["eliminadas"]] == [nuevo["id"]]
+
+    def test_el_limite_cuenta_las_tres_listas_y_respeta_el_orden(self, almacen):
+        a = _crear(factura="A")
+        b = _crear(factura="B")
+        errores_storage.actualizar_error(a["id"], estado="N")
+        errores_storage.eliminar_error(b["id"])
+        c = _crear(factura="C")
+
+        desde = _antes_de(a)
+        vistos = []
+        for _ in range(10):
+            data = query_nuevas(desde, "2", _VALIDADOR)[0]["data"]
+            vistos += [("aviso", n["factura"]) for n in data["novedades"]]
+            vistos += [("cambio", x["id"]) for x in data["cambios_estado"]]
+            vistos += [("eliminada", x["id"]) for x in data["eliminadas"]]
+            desde = data["cursor"]
+            if not data["hay_mas"]:
+                break
+
+        # B se eliminó antes de consultar, así que su aviso ya no existe.
+        assert sorted(vistos) == sorted([
+            ("aviso", "C"),
+            ("cambio", a["id"]),
+            ("eliminada", b["id"]),
+        ])
+        assert c["aviso_en"] == desde
+
+    def test_token_de_facturador_no_ve_cambios_ajenos(self, almacen):
+        propia = _crear(factura="A", responsable="LORENY ESPAÑA")
+        ajena = _crear(factura="B", responsable="CARLOS MEZA")
+        errores_storage.actualizar_error(propia["id"], estado="N")
+        errores_storage.actualizar_error(ajena["id"], estado="N")
+        facturador = dict(_VALIDADOR, rol="facturador", username="loreny")
+        usuario = {"primer_nombre": "Loreny", "segundo_nombre": "", "apellido_1": "España", "apellido_2": ""}
+
+        with patch("app.services.control_errores_service.users_store.get_user", return_value=usuario):
+            cambios = query_nuevas(ajena["aviso_en"], None, facturador)[0]["data"]["cambios_estado"]
+
+        assert [c["id"] for c in cambios] == [propia["id"]]
 
 
 # ---------------------------------------------------------------------------

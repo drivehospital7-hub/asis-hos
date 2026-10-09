@@ -483,6 +483,10 @@ AVISO_CLASE_NOTIFICACION = "notificacion"
 AVISOS_LIMITE_DEFAULT = 200
 AVISOS_LIMITE_MAX = 500
 
+# Días que se conserva el registro de novedades avisadas que fueron eliminadas
+# (solo id y fecha), para que Revisor pueda retirar su aviso.
+AVISOS_ELIMINADOS_DIAS = 30
+
 # Ping "hubo cambios" al servidor de Revisor. La URL y la clave se leen de
 # estas variables de entorno (.env); sin URL no se envía nada.
 REVISOR_PING_URL_ENV = "REVISOR_PING_URL"

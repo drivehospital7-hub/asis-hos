@@ -37,7 +37,8 @@ como registro persistido.
 
 Avisos para Revisor de Soportes (solo lectura): ``query_nuevas`` devuelve las
 novedades que quedaron listas para su responsable (o cambiaron de responsable)
-después de un cursor. Ver su docstring para el contrato.
+después de un cursor, más los cambios de estado y las eliminaciones de las ya
+avisadas. Ver su docstring para el contrato.
 """
 
 import logging
@@ -558,6 +559,47 @@ def _shape_aviso(error: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _cambio_visible(error: dict[str, Any], owner: tuple[str, str] | None) -> bool:
+    """Un cambio se entrega siempre, salvo la visibilidad por rol del token."""
+    if owner is None:
+        return True
+    return errores_storage._responsable_coincide_con_owner(
+        error.get("responsable", ""), owner[0], error.get("created_by", ""), owner[1]
+    )
+
+
+def _shape_cambio(error: dict[str, Any]) -> dict[str, Any]:
+    """Estado y responsable ACTUALES de una novedad ya avisada."""
+    return {
+        "id": error.get("id", ""),
+        "estado": error.get("estado", ""),
+        "responsable": error.get("responsable", ""),
+        "cambiado_en": error.get("cambio_en", ""),
+    }
+
+
+def _eventos_desde(
+    desde: str, owner: tuple[str, str] | None
+) -> list[tuple[str, str, dict[str, Any] | None]]:
+    """Avisos, cambios y eliminaciones posteriores a ``desde``, en orden de tiempo.
+
+    Cada evento es ``(momento, lista_destino, item)``; ``item`` es None cuando
+    el evento no se entrega (resuelta, para uno mismo, fuera del rol) pero
+    igual hace avanzar el cursor.
+    """
+    eventos: list[tuple[str, str, dict[str, Any] | None]] = []
+    for error in errores_storage.listar_avisos(desde):
+        item = _shape_aviso(error) if _aviso_visible(error, owner) else None
+        eventos.append((error["aviso_en"], "novedades", item))
+    for error in errores_storage.listar_cambios(desde):
+        item = _shape_cambio(error) if _cambio_visible(error, owner) else None
+        eventos.append((error["cambio_en"], "cambios_estado", item))
+    for eliminado in errores_storage.listar_eliminados(desde):
+        item = {"id": eliminado["id"], "eliminado_en": eliminado["eliminado_en"]}
+        eventos.append((eliminado["eliminado_en"], "eliminadas", item))
+    return sorted(eventos, key=lambda evento: evento[0])
+
+
 def query_nuevas(
     desde_raw: str | None = None,
     limite_raw: str | None = None,
@@ -579,6 +621,15 @@ def query_nuevas(
 
     Cada item trae ``aviso_id`` (único por aviso; una misma novedad puede
     avisarse más de una vez si la reasignan) para descartar repetidos.
+
+    Además de ``novedades`` devuelve, con el mismo cursor:
+
+    - ``cambios_estado``: novedades YA avisadas que cambiaron de estado o de
+      responsable; trae su ``estado`` y ``responsable`` actuales para que el
+      cliente actualice o retire el aviso que mostró.
+    - ``eliminadas``: ids de novedades ya avisadas que fueron eliminadas.
+
+    ``limite`` aplica al total de items de las tres listas.
     """
     try:
         desde, limite, errors = _parse_nuevas_params(desde_raw, limite_raw)
@@ -586,26 +637,32 @@ def query_nuevas(
             return {"status": "error", "data": {}, "errors": errors}, 400
 
         ahora = datetime.now().isoformat()
-        novedades: list[dict[str, Any]] = []
+        listas: dict[str, list[dict[str, Any]]] = {
+            "novedades": [],
+            "cambios_estado": [],
+            "eliminadas": [],
+        }
         cursor = desde or ahora
         hay_mas = False
+        entregados = 0
         if desde is not None:
             owner = _resolve_owner_identities(session or {})
-            for error in errores_storage.listar_avisos(desde):
-                if len(novedades) >= limite:
+            for momento, lista, item in _eventos_desde(desde, owner):
+                if entregados >= limite:
                     hay_mas = True
                     break
-                cursor = error["aviso_en"]
-                if _aviso_visible(error, owner):
-                    novedades.append(_shape_aviso(error))
+                cursor = momento
+                if item is not None:
+                    listas[lista].append(item)
+                    entregados += 1
 
-        logger.info("[BACK] Integración: %d aviso(s) de novedades", len(novedades))
-        data = {
-            "novedades": novedades,
-            "cursor": cursor,
-            "ahora": ahora,
-            "hay_mas": hay_mas,
-        }
+        logger.info(
+            "[BACK] Integración: %d aviso(s), %d cambio(s), %d eliminada(s)",
+            len(listas["novedades"]),
+            len(listas["cambios_estado"]),
+            len(listas["eliminadas"]),
+        )
+        data = {**listas, "cursor": cursor, "ahora": ahora, "hay_mas": hay_mas}
         return {"status": "success", "data": data, "errors": []}, 200
     except Exception as e:
         logger.exception("[BACK][ERROR] Error consultando avisos de novedades")

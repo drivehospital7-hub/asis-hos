@@ -8,12 +8,13 @@ import tempfile
 import threading
 import unicodedata
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 from app.constants import (
     AVISO_MOTIVO_NUEVA,
     AVISO_MOTIVO_REASIGNADA,
+    AVISOS_ELIMINADOS_DIAS,
     ERROR_TIPO_ERROR,
     ERROR_TIPO_LEGACY_NOTIFICACION,
     ERROR_TIPO_NOTIFICACION,
@@ -123,6 +124,65 @@ def _evaluar_aviso(
     motivo = AVISO_MOTIVO_REASIGNADA if reasignada else AVISO_MOTIVO_NUEVA
     _marcar_aviso(error, motivo, actor)
     return not es_autoaviso(error)
+
+
+def _marcar_cambio(
+    error: dict[str, Any], estado_previo: str | None, responsable_previo: str | None
+) -> bool:
+    """Sella ``cambio_en`` si una novedad YA avisada cambió de estado o de responsable.
+
+    Sirve para que Revisor actualice o retire un aviso que ya mostró. Solo se
+    llama para novedades que tenían aviso antes de la edición.
+
+    Returns:
+        True si hubo cambio (y por tanto hay que avisar a Revisor).
+    """
+    cambio_estado = estado_previo != error.get("estado")
+    cambio_responsable = normalizar_identidad(responsable_previo) != normalizar_identidad(
+        error.get("responsable")
+    )
+    if not (cambio_estado or cambio_responsable):
+        return False
+    error["cambio_en"] = datetime.now().isoformat()
+    return True
+
+
+def _registrar_eliminado(data: dict[str, Any], error_id: str) -> None:
+    """Anota en ``data["eliminados"]`` que una novedad avisada se eliminó.
+
+    Solo guarda id y fecha (ningún dato de la novedad) y descarta las
+    anotaciones con más de ``AVISOS_ELIMINADOS_DIAS`` días.
+    """
+    ahora = datetime.now()
+    limite = (ahora - timedelta(days=AVISOS_ELIMINADOS_DIAS)).isoformat()
+    vigentes = [
+        item for item in data.get("eliminados", [])
+        if item.get("eliminado_en", "") >= limite
+    ]
+    vigentes.append({"id": error_id, "eliminado_en": ahora.isoformat()})
+    data["eliminados"] = vigentes
+
+
+def listar_cambios(desde: str | None = None) -> list[dict[str, Any]]:
+    """Novedades ya avisadas que cambiaron de estado o responsable después de ``desde``.
+
+    Solo lectura; de la más antigua a la más nueva.
+    """
+    errores = [e for e in _leer_datos().get("errores", []) if e.get("cambio_en")]
+    if desde:
+        errores = [e for e in errores if e["cambio_en"] > desde]
+    return sorted(errores, key=lambda e: e["cambio_en"])
+
+
+def listar_eliminados(desde: str | None = None) -> list[dict[str, str]]:
+    """Anotaciones ``{id, eliminado_en}`` de novedades avisadas eliminadas después de ``desde``."""
+    eliminados = [
+        item for item in _leer_datos().get("eliminados", [])
+        if item.get("id") and item.get("eliminado_en")
+    ]
+    if desde:
+        eliminados = [item for item in eliminados if item["eliminado_en"] > desde]
+    return sorted(eliminados, key=lambda item: item["eliminado_en"])
 
 
 def listar_avisos(desde: str | None = None) -> list[dict[str, Any]]:
@@ -446,6 +506,8 @@ def actualizar_error(
         if error.get("id") == error_id:
             estaba_lista = _lista_para_aviso(error)
             responsable_previo = error.get("responsable", "")
+            estado_previo = error.get("estado")
+            tenia_aviso = bool(error.get("aviso_en"))
             if tipo_error is not _NOT_SET:
                 error["tipo_error"] = tipo_error
             if factura is not _NOT_SET:
@@ -465,10 +527,13 @@ def actualizar_error(
 
             error["actualizado_en"] = datetime.now().isoformat()
             avisar = _evaluar_aviso(error, estaba_lista, responsable_previo, actor)
+            cambio = tenia_aviso and _marcar_cambio(
+                error, estado_previo, responsable_previo
+            )
 
             _escribir_datos(data)
             logger.info("[BACK] Error actualizado: %s", error_id)
-            if avisar:
+            if avisar or cambio:
                 revisor_ping.notificar_cambios()
             return error
 
@@ -483,11 +548,19 @@ def eliminar_error(error_id: str) -> bool:
     errores_nuevos = [e for e in errores_original if e.get("id") != error_id]
 
     if len(errores_nuevos) < len(errores_original):
+        # Si ya se había avisado, Revisor debe enterarse para retirar su aviso.
+        avisada = any(
+            e.get("aviso_en") for e in errores_original if e.get("id") == error_id
+        )
         data["errores"] = errores_nuevos
+        if avisada:
+            _registrar_eliminado(data, error_id)
         _escribir_datos(data)
         logger.info("[BACK] Error eliminado: %s", error_id)
         # Eliminar carpeta de imágenes
         _eliminar_carpeta_imagenes(error_id)
+        if avisada:
+            revisor_ping.notificar_cambios()
         return True
 
     return False

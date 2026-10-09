@@ -173,7 +173,8 @@ def control_novedades_query():
 
 @integration_bp.get("/control-novedades/nuevas")
 def control_novedades_nuevas():
-    """Avisos de novedades posteriores a un cursor, autenticado por bearer token.
+    """Avisos, cambios de estado y eliminaciones de novedades posteriores a un
+    cursor, autenticado por bearer token.
 
     ``?desde=<cursor>&limite=<n>``; sin ``desde`` devuelve solo el cursor
     inicial. Solo lectura: basta el permiso ``control_urgencias``. Delegador
