@@ -12,6 +12,9 @@ from datetime import datetime
 from typing import Any
 
 from app.constants import (
+    ERROR_TIPO_ERROR,
+    ERROR_TIPO_LEGACY_NOTIFICACION,
+    ERROR_TIPO_NOTIFICACION,
     IMAGENES_DIR,
     IMAGENES_FACTURADOR_SCOPE,
     IMAGENES_MAX_PER_OBSERVACION,
@@ -51,6 +54,23 @@ def normalizar_identidad(s: str | None) -> str:
     value = "".join(char for char in value if not unicodedata.combining(char))
     value = value.replace(_PH_U, "Ñ").replace(_PH_L, "ñ")
     return " ".join(value.casefold().split())
+
+
+def normalizar_tipo_error(valor: str | None) -> str:
+    """Lleva cualquier categoría (vigente o heredada) a las dos vigentes.
+
+    "Notificación" (con o sin tilde) y la heredada "Factura Abierta" →
+    ``ERROR_TIPO_NOTIFICACION``. Todo lo demás (vacío, "Otros", "Soportes de
+    Carpeta", "FURIPS", ...) → ``ERROR_TIPO_ERROR``. Así un cliente con la
+    página en caché o sin recompilar nunca persiste una categoría vieja.
+    """
+    clave = normalizar_identidad(valor)
+    if (
+        clave == normalizar_identidad(ERROR_TIPO_NOTIFICACION)
+        or clave in ERROR_TIPO_LEGACY_NOTIFICACION
+    ):
+        return ERROR_TIPO_NOTIFICACION
+    return ERROR_TIPO_ERROR
 
 
 def _get_imagenes_dir(error_id: str, scope: str = "") -> Path:

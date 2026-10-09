@@ -15,7 +15,7 @@ interface UseEnvioControlOptions {
 
 /**
  * Shared send-to-control logic (preload + per-row POST + toast).
- * Same behavior as /procesar: sends as "Otros" with duplicate confirm.
+ * Same behavior as /procesar: sends as "Error" with duplicate confirm.
  */
 export function useEnvioControl({
   can_write,
@@ -80,7 +80,7 @@ export function useEnvioControl({
       } else {
         if (
           !(await window.__showConfirm!(
-            `¿Enviar factura "${factura}" a Control de Errores como "Otros"?`,
+            `¿Enviar factura "${factura}" a Control de Errores como "Error"?`,
           ))
         ) {
           return;
@@ -94,7 +94,7 @@ export function useEnvioControl({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            tipo_error: "Otros",
+            tipo_error: "Error",
             factura,
             observacion,
             estado: "S",

@@ -1,11 +1,13 @@
-"""R14 corrected: Factura + FURIPS split — RED suite (Strict TDD).
+"""Vocabulario de categorías de control-novedades.
 
-Expected to FAIL against the pre-fix vocabulary (5 entries with
-"Factura y Furips" combined). After the fix to
-app/constants/urgencias.py:438-444 the suite must turn GREEN.
+El vocabulario vigente son DOS categorías: "Error" y "Notificación".
+Reemplaza al R14 de seis categorías (Otros, Soportes de Carpeta, Factura
+Abierta, Carpeta no entregada, Factura, FURIPS): los valores heredados ya no
+se ofrecen ni se persisten; al crear o actualizar se mapean
+("Factura Abierta" → "Notificación", cualquier otro → "Error").
 
-Covers spec S1-S6: constant, opciones, create/update verbatim,
-exact case-sensitive filtering, export verbatim.
+El filtrado (1.4) y la exportación (1.5) siguen siendo literales sobre lo
+persistido, por eso sus fixtures conservan valores heredados.
 """
 
 from __future__ import annotations
@@ -22,7 +24,8 @@ from app.services.control_errores_service import get_errores, get_opciones
 
 _APP = create_app({"TESTING": True, "SECRET_KEY": "test-secret-key"})
 
-EXPECTED = ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+EXPECTED = ["Error", "Notificación"]
+LEGACY = ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
 
 
 def _error_fixture(error_id="err-1", tipo_error="Otros", factura="FAC-001", creado_en="2026-05-15T10:30:00"):
@@ -45,37 +48,71 @@ def _error_fixture(error_id="err-1", tipo_error="Otros", factura="FAC-001", crea
 # ---------------------------------------------------------------------------
 
 class TestR14SplitConstant:
-    """R14 S1/S5: ERROR_TIPO_URGENCIAS is 6 entries, split, no combined."""
+    """ERROR_TIPO_URGENCIAS is exactly Error + Notificación."""
 
-    def test_error_tipo_urgencias_is_six(self):
+    def test_error_tipo_urgencias_is_two(self):
         from app.constants import ERROR_TIPO_URGENCIAS
 
-        assert len(ERROR_TIPO_URGENCIAS) == 6
+        assert len(ERROR_TIPO_URGENCIAS) == 2
 
     def test_error_tipo_urgencias_exact_order(self):
         from app.constants import ERROR_TIPO_URGENCIAS
 
         assert ERROR_TIPO_URGENCIAS == EXPECTED
 
-    def test_contains_factura_title_case(self):
-        from app.constants import ERROR_TIPO_URGENCIAS
+    def test_named_constants_match_vocabulary(self):
+        from app.constants import ERROR_TIPO_ERROR, ERROR_TIPO_NOTIFICACION
 
-        assert "Factura" in ERROR_TIPO_URGENCIAS
-
-    def test_contains_furips_upper(self):
-        from app.constants import ERROR_TIPO_URGENCIAS
-
-        assert "FURIPS" in ERROR_TIPO_URGENCIAS
+        assert [ERROR_TIPO_ERROR, ERROR_TIPO_NOTIFICACION] == EXPECTED
 
     def test_not_contains_combined(self):
         from app.constants import ERROR_TIPO_URGENCIAS
 
         assert "Factura y Furips" not in ERROR_TIPO_URGENCIAS
 
-    def test_legacy_four_preserved_order(self):
+    def test_legacy_values_removed(self):
         from app.constants import ERROR_TIPO_URGENCIAS
 
-        assert ERROR_TIPO_URGENCIAS[:4] == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada"]
+        assert not set(LEGACY) & set(ERROR_TIPO_URGENCIAS)
+
+
+# ---------------------------------------------------------------------------
+# 1.1b — normalizar_tipo_error (mapeo de valores heredados)
+# ---------------------------------------------------------------------------
+
+class TestNormalizarTipoError:
+    """Cualquier valor entrante se lleva a una de las dos categorías vigentes."""
+
+    def test_vigentes_se_conservan(self):
+        from app.utils.errores_storage import normalizar_tipo_error
+
+        assert normalizar_tipo_error("Error") == "Error"
+        assert normalizar_tipo_error("Notificación") == "Notificación"
+
+    def test_notificacion_sin_tilde_o_con_otra_caja(self):
+        from app.utils.errores_storage import normalizar_tipo_error
+
+        assert normalizar_tipo_error("notificacion") == "Notificación"
+        assert normalizar_tipo_error("  NOTIFICACIÓN ") == "Notificación"
+
+    def test_factura_abierta_es_notificacion(self):
+        from app.utils.errores_storage import normalizar_tipo_error
+
+        assert normalizar_tipo_error("Factura Abierta") == "Notificación"
+        assert normalizar_tipo_error("factura  abierta") == "Notificación"
+
+    def test_resto_de_heredados_es_error(self):
+        from app.utils.errores_storage import normalizar_tipo_error
+
+        for legacy in ["Otros", "Soportes de Carpeta", "Carpeta no entregada", "Factura", "FURIPS"]:
+            assert normalizar_tipo_error(legacy) == "Error"
+
+    def test_vacio_none_o_desconocido_es_error(self):
+        from app.utils.errores_storage import normalizar_tipo_error
+
+        assert normalizar_tipo_error("") == "Error"
+        assert normalizar_tipo_error(None) == "Error"
+        assert normalizar_tipo_error("cualquier cosa") == "Error"
 
 
 # ---------------------------------------------------------------------------
@@ -83,31 +120,23 @@ class TestR14SplitConstant:
 # ---------------------------------------------------------------------------
 
 class TestR14SplitOpciones:
-    """R14 S1: get_opciones().tipos_error exposes Factura + FURIPS, omits combined."""
+    """get_opciones().tipos_error exposes only Error + Notificación."""
 
-    def test_opciones_contains_both_separate(self):
-        with _APP.test_request_context(), patch(
-            "app.services.control_errores_service.users_store.get_facturadores", return_value=[]
-        ):
-            data = get_opciones()["data"]
-        assert "Factura" in data["tipos_error"]
-        assert "FURIPS" in data["tipos_error"]
-        assert "Factura y Furips" not in data["tipos_error"]
-
-    def test_opciones_exact_six_ordered(self):
+    def test_opciones_exact_two_ordered(self):
         with _APP.test_request_context(), patch(
             "app.services.control_errores_service.users_store.get_facturadores", return_value=[]
         ):
             tipos = get_opciones()["data"]["tipos_error"]
         assert tipos == EXPECTED
-        assert len(tipos) == 6
+        assert len(tipos) == 2
 
-    def test_opciones_keeps_legacy_four(self):
+    def test_opciones_omits_legacy(self):
         with _APP.test_request_context(), patch(
             "app.services.control_errores_service.users_store.get_facturadores", return_value=[]
         ):
             tipos = get_opciones()["data"]["tipos_error"]
-        assert tipos[:4] == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada"]
+        assert not set(LEGACY) & set(tipos)
+        assert "Factura y Furips" not in tipos
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +144,7 @@ class TestR14SplitOpciones:
 # ---------------------------------------------------------------------------
 
 class TestR14SplitOpcionesRoute:
-    def test_route_opciones_contains_split(self, app_client):
+    def test_route_opciones_two_categories(self, app_client):
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["rol"] = "validador"
@@ -125,76 +154,69 @@ class TestR14SplitOpcionesRoute:
             resp = app_client.get("/api/control-errores/opciones")
         assert resp.status_code == 200
         tipos = resp.get_json()["data"]["tipos_error"]
-        assert "Factura" in tipos
-        assert "FURIPS" in tipos
-        assert "Factura y Furips" not in tipos
         assert tipos == EXPECTED
 
 
 # ---------------------------------------------------------------------------
-# 1.3 — POST/PUT verbatim
+# 1.3 — POST/PUT map legacy values to the two categories
 # ---------------------------------------------------------------------------
 
 class TestR14SplitCreateUpdate:
-    """R14 S2/S3: POST and PUT persist tipo_error verbatim (casing preserved)."""
+    """POST and PUT never persist a legacy category: it is mapped first."""
 
-    def test_post_factura_persists_verbatim(self, app_client):
+    def _login(self, app_client):
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["control_urgencias:write"]
             sess["username"] = "val1"
             sess["primer_nombre"] = "Juan"
             sess["apellido_1"] = "Perez"
+
+    def _post(self, app_client, tipo_error):
         with patch("app.services.control_errores_service.crear_error") as mock_crear:
-            mock_crear.return_value = {"id": "new-1", "tipo_error": "Factura", "factura": "FEV-001"}
-            resp = app_client.post(
-                "/api/control-errores",
-                json={"tipo_error": "Factura", "factura": "FEV-001", "responsable": "LORENY ESPAÑA", "observacion": "x"},
-            )
+            mock_crear.return_value = {"id": "new-1", "tipo_error": "x", "factura": "FEV-001"}
+            payload = {"factura": "FEV-001", "responsable": "LORENY ESPAÑA", "observacion": "x"}
+            if tipo_error is not None:
+                payload["tipo_error"] = tipo_error
+            resp = app_client.post("/api/control-errores", json=payload)
         assert resp.status_code == 200
-        assert resp.get_json()["data"]["error"]["tipo_error"] == "Factura"
-        assert mock_crear.call_args.args[0] == "Factura"
-        # vocabulary must contain it
-        from app.constants import ERROR_TIPO_URGENCIAS
+        return mock_crear.call_args.args[0]
 
-        assert "Factura" in ERROR_TIPO_URGENCIAS
+    def test_post_error_and_notificacion_persist_as_is(self, app_client):
+        self._login(app_client)
+        assert self._post(app_client, "Error") == "Error"
+        assert self._post(app_client, "Notificación") == "Notificación"
 
-    def test_post_furips_persists_upper_verbatim(self, app_client):
-        with app_client.session_transaction() as sess:
-            sess["ce_authenticated"] = True
-            sess["permisos"] = ["control_urgencias:write"]
-            sess["username"] = "val1"
-            sess["primer_nombre"] = "Juan"
-            sess["apellido_1"] = "Perez"
-        with patch("app.services.control_errores_service.crear_error") as mock_crear:
-            mock_crear.return_value = {"id": "new-2", "tipo_error": "FURIPS", "factura": "FEV-002"}
-            resp = app_client.post(
-                "/api/control-errores",
-                json={"tipo_error": "FURIPS", "factura": "FEV-002", "responsable": "LORENY ESPAÑA", "observacion": "x"},
-            )
-        assert resp.status_code == 200
-        assert resp.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
-        assert mock_crear.call_args.args[0] == "FURIPS"
-        from app.constants import ERROR_TIPO_URGENCIAS
+    def test_post_factura_abierta_persists_as_notificacion(self, app_client):
+        self._login(app_client)
+        assert self._post(app_client, "Factura Abierta") == "Notificación"
 
-        assert "FURIPS" in ERROR_TIPO_URGENCIAS
+    def test_post_other_legacy_persist_as_error(self, app_client):
+        self._login(app_client)
+        for legacy in ["Otros", "Soportes de Carpeta", "Carpeta no entregada", "Factura", "FURIPS"]:
+            assert self._post(app_client, legacy) == "Error"
 
-    def test_put_otros_to_furips_verbatim(self, app_client):
+    def test_post_without_tipo_defaults_to_error(self, app_client):
+        self._login(app_client)
+        assert self._post(app_client, None) == "Error"
+        assert self._post(app_client, "") == "Error"
+
+    def test_put_legacy_maps_before_update(self, app_client):
         def _fake():
-            return {"id": "test-i1", "estado": "S", "tipo_error": "Otros", "observacion": "pac", "observacion_facturador": "", "factura": "FAC-001", "responsable": ""}
+            return {"id": "test-i1", "estado": "S", "tipo_error": "Error", "observacion": "pac", "observacion_facturador": "", "factura": "FAC-001", "responsable": ""}
 
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["control_urgencias:write"]
             sess["username"] = "val1"
-        with (
-            patch("app.services.control_errores_service.obtener_error", return_value=_fake()),
-            patch("app.services.control_errores_service.actualizar_error", return_value={"id": "test-i1", "tipo_error": "FURIPS"}) as mock_upd,
-        ):
-            resp = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "FURIPS"})
-        assert resp.status_code == 200
-        assert resp.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
-        assert mock_upd.call_args.kwargs["tipo_error"] == "FURIPS"
+        for enviado, esperado in [("FURIPS", "Error"), ("Factura Abierta", "Notificación"), ("Notificación", "Notificación")]:
+            with (
+                patch("app.services.control_errores_service.obtener_error", return_value=_fake()),
+                patch("app.services.control_errores_service.actualizar_error", return_value={"id": "test-i1", "tipo_error": esperado}) as mock_upd,
+            ):
+                resp = app_client.put("/api/control-errores/test-i1", json={"tipo_error": enviado})
+            assert resp.status_code == 200
+            assert mock_upd.call_args.kwargs["tipo_error"] == esperado
 
 
 # ---------------------------------------------------------------------------

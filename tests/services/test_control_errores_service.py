@@ -1468,10 +1468,10 @@ class TestReFacturaColumnStorage:
 # =============================================================================
 
 class TestR14FacturaYFuripsOpciones:
-    """R14 S1: GET /api/control-errores/opciones includes Factura and FURIPS separate."""
+    """Vocabulario vigente: solo "Error" y "Notificación" (reemplaza al R14 de seis)."""
 
-    def test_opciones_includes_factura_y_furips(self):
-        """tipos_error MUST contain Factura Title Case + FURIPS upper + 4 existing."""
+    def test_opciones_solo_error_y_notificacion(self):
+        """tipos_error MUST be exactly Error + Notificación, in that order."""
         with (
             _APP.test_request_context(),
             patch("app.services.control_errores_service.users_store.get_facturadores",
@@ -1481,12 +1481,8 @@ class TestR14FacturaYFuripsOpciones:
 
         assert opciones["status"] == "success"
         tipos = opciones["data"]["tipos_error"]
-        assert "Factura" in tipos
-        assert "FURIPS" in tipos
-        assert "Factura y Furips" not in tipos
-        assert {"Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada"}.issubset(set(tipos))
-        assert len(tipos) == 6
-        assert tipos == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+        assert tipos == ["Error", "Notificación"]
+        assert not {"Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"} & set(tipos)
 
 
 class TestR14FacturaYFuripsFilter:

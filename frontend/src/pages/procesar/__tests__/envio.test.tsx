@@ -136,7 +136,7 @@ describe("envio a control (integration)", () => {
     expect(confirm).toHaveBeenCalledOnce();
     const body = JSON.parse(String(postCalls()[0][1]?.body));
     expect(body).toEqual({
-      tipo_error: "Otros",
+      tipo_error: "Error",
       factura: "F123",
       observacion: "D\nP\nDET",
       estado: "S",
@@ -167,7 +167,7 @@ describe("envio a control (integration)", () => {
     expect(confirm).toHaveBeenCalledOnce();
     const body = JSON.parse(String(postCalls()[0][1]?.body));
     expect(body.factura).toBe("f123 ");
-    expect(body.tipo_error).toBe("Otros");
+    expect(body.tipo_error).toBe("Error");
   });
 
   it("duplicado exige confirm: cancela → sin POST", async () => {
@@ -244,7 +244,7 @@ describe("envio a control (integration)", () => {
 
     await waitFor(() => expect(postCalls().length).toBe(1));
     const body = JSON.parse(String(postCalls()[0][1]?.body));
-    expect(body.tipo_error).toBe("Otros");
+    expect(body.tipo_error).toBe("Error");
     expect(body.factura).toBe("F123");
   });
 

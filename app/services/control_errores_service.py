@@ -21,11 +21,13 @@ from app.utils.errores_storage import (
     get_ultima_actualizacion,
     check_cambios,
     normalizar_identidad,
+    normalizar_tipo_error,
 )
 from app.constants.base import (
     ORGANIZATIONAL_AREAS,
     VALID_AREA_SLUGS,
 )
+from app.constants.urgencias import ERROR_TIPO_NOTIFICACION
 from app.utils import users_store
 
 logger = logging.getLogger(__name__)
@@ -349,14 +351,14 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
     try:
         sess = session if session is not None else flask.session
 
-        tipo_error = data.get("tipo_error", "").strip() or "Otros"
+        tipo_error = normalizar_tipo_error(data.get("tipo_error", ""))
         factura = (data.get("factura", "").strip() or "").upper()
         refactura = (data.get("refactura", "").strip() or "").upper()
         observacion = (data.get("observacion", "").strip() or "").upper()
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""
         estado = data.get("estado", "").strip() or "S"
         responsable_raw = data.get("responsable", "").strip() or ""
-        if tipo_error == "Factura Abierta" and responsable_raw.strip().upper() == "SIN HORARIO":
+        if tipo_error == ERROR_TIPO_NOTIFICACION and responsable_raw.strip().upper() == "SIN HORARIO":
             logger.error("[BACK][ERROR] Rechazo Factura Abierta sin horario: factura=%s", factura)
             return {
                 "status": "error",
@@ -366,7 +368,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
             }
         responsable = (_resolve_responsable_identity(responsable_raw) or responsable_raw).upper()
 
-        if tipo_error == "Factura Abierta" and responsable == "SIN HORARIO":
+        if tipo_error == ERROR_TIPO_NOTIFICACION and responsable == "SIN HORARIO":
             logger.error("[BACK][ERROR] Rechazo Factura Abierta sin horario: factura=%s", factura)
             return {
                 "status": "error",
@@ -417,7 +419,7 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         # Solo procesar campos que vienen en el request
         kwargs = {}
         if "tipo_error" in data:
-            kwargs["tipo_error"] = data["tipo_error"].strip() if data["tipo_error"] else ""
+            kwargs["tipo_error"] = normalizar_tipo_error(data["tipo_error"])
         if "factura" in data:
             kwargs["factura"] = (data["factura"].strip() if data["factura"] else "").upper()
         if "observacion" in data:

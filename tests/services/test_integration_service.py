@@ -1,7 +1,7 @@
 """Strict TDD RED tests for the integration submission service (Phase 3).
 
 The integration service validates a JSON schema, forces category
-"Soportes de Carpeta", resolves responsible via existing coincidence logic,
+"Error", resolves responsible via existing coincidence logic,
 and keeps validator (from token) separate from responsible. Each submission
 creates a new record: duplicate submissions are allowed (no idempotency).
 """
@@ -120,8 +120,8 @@ class TestSchemaValidation:
 
 
 class TestForcedCategory:
-    def test_category_forced_soportes_de_carpeta(self):
-        """Record persisted with category 'Soportes de Carpeta'."""
+    def test_category_forced_error(self):
+        """Record persisted with category 'Error'."""
         with (
             patch(
                 "app.services.integration_service._resolve_responsable",
@@ -135,7 +135,7 @@ class TestForcedCategory:
             submit(dict(VALID_PAYLOAD), _VALIDATOR_SESSION)
 
         call_data = mock_persist.call_args.args[0]
-        assert call_data["tipo_error"] == "Soportes de Carpeta"
+        assert call_data["tipo_error"] == "Error"
 
     def test_client_category_override_ignored(self):
         """A client-supplied different category is ignored and forced value stored."""
@@ -153,7 +153,7 @@ class TestForcedCategory:
             submit(payload, _VALIDATOR_SESSION)
 
         call_data = mock_persist.call_args.args[0]
-        assert call_data["tipo_error"] == "Soportes de Carpeta"
+        assert call_data["tipo_error"] == "Error"
 
 
 class TestResponsibleResolution:
@@ -784,7 +784,7 @@ class TestBatchSubmit:
 
         assert mock_persist.call_count == 2
         for call in mock_persist.call_args_list:
-            assert call.args[0]["tipo_error"] == "Soportes de Carpeta"
+            assert call.args[0]["tipo_error"] == "Error"
             assert call.args[0]["responsable"] == "LORENY ESPAÑA"
 
     def test_batch_persist_failure_rejects_only_that_item(self):
@@ -1035,7 +1035,7 @@ class TestRealJsonPersistence:
         assert len(data["errores"]) == 1
         record = data["errores"][0]
         # Forced category (client could not override — no tipo_error in payload)
-        assert record["tipo_error"] == "Soportes de Carpeta"
+        assert record["tipo_error"] == "Error"
         # Idempotency key must NOT be persisted
         assert "idempotency_key" not in record
         # Validator from the payload nombres, persisted UPPERCASE canonical
@@ -1080,7 +1080,7 @@ class TestRealJsonPersistence:
 
         assert status == 201
         data = json.loads((tmp_path / "control_errores.json").read_text(encoding="utf-8"))
-        assert data["errores"][0]["tipo_error"] == "Soportes de Carpeta"
+        assert data["errores"][0]["tipo_error"] == "Error"
 
 
 class TestConcurrentWrites:

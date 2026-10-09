@@ -636,8 +636,8 @@ class TestOpcionesDbOnlyIntegration:
 class TestR14FacturaYFuripsIntegration:
     """R14 S1 opciones + S2 create + S3 update + S4 filter — split vocabulary."""
 
-    def test_opciones_route_includes_factura_y_furips(self, app_client):
-        """GET /api/control-errores/opciones tipos_error contains Factura and FURIPS separate."""
+    def test_opciones_route_solo_error_y_notificacion(self, app_client):
+        """GET /api/control-errores/opciones tipos_error is exactly Error + Notificación."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["rol"] = "validador"
@@ -647,13 +647,10 @@ class TestR14FacturaYFuripsIntegration:
             resp = app_client.get("/api/control-errores/opciones")
         assert resp.status_code == 200
         tipos = resp.get_json()["data"]["tipos_error"]
-        assert "Factura" in tipos
-        assert "FURIPS" in tipos
-        assert "Factura y Furips" not in tipos
-        assert tipos == ["Otros", "Soportes de Carpeta", "Factura Abierta", "Carpeta no entregada", "Factura", "FURIPS"]
+        assert tipos == ["Error", "Notificación"]
 
-    def test_post_create_factura_y_furips_persists_verbatim(self, app_client):
-        """POST with tipo_error=Factura and FURIPS → persisted verbatim."""
+    def test_post_create_legacy_categories_persist_as_error(self, app_client):
+        """POST with legacy tipo_error (Factura / FURIPS) → persisted as Error."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["control_urgencias:write"]
@@ -669,9 +666,8 @@ class TestR14FacturaYFuripsIntegration:
                 "observacion": "Factura SOAT",
             })
         assert resp.status_code == 200
-        assert resp.get_json()["data"]["error"]["tipo_error"] == "Factura"
-        assert mock_crear.call_args.args[0] == "Factura"
-        # second: FURIPS upper-case verbatim
+        assert mock_crear.call_args.args[0] == "Error"
+        # second: FURIPS also maps to Error
         with patch("app.services.control_errores_service.crear_error") as mock_crear2:
             mock_crear2.return_value = {"id": "new-furips", "tipo_error": "FURIPS", "factura": "FEV-002"}
             resp2 = app_client.post("/api/control-errores", json={
@@ -681,11 +677,10 @@ class TestR14FacturaYFuripsIntegration:
                 "observacion": "FURIPS SOAT",
             })
         assert resp2.status_code == 200
-        assert resp2.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
-        assert mock_crear2.call_args.args[0] == "FURIPS"
+        assert mock_crear2.call_args.args[0] == "Error"
 
-    def test_put_update_to_factura_y_furips(self, app_client):
-        """PUT with tipo_error=Factura / FURIPS → 200 and verbatim."""
+    def test_put_update_legacy_categories_map_to_vigentes(self, app_client):
+        """PUT with legacy tipo_error → 200; Factura → Error, Factura Abierta → Notificación."""
         with app_client.session_transaction() as sess:
             sess["ce_authenticated"] = True
             sess["permisos"] = ["control_urgencias:write"]
@@ -696,16 +691,14 @@ class TestR14FacturaYFuripsIntegration:
         ):
             resp = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "Factura"})
         assert resp.status_code == 200
-        assert resp.get_json()["data"]["error"]["tipo_error"] == "Factura"
-        assert mock_upd.call_args.kwargs["tipo_error"] == "Factura"
+        assert mock_upd.call_args.kwargs["tipo_error"] == "Error"
         with (
             patch("app.services.control_errores_service.obtener_error", return_value=_fake_error()),
             patch("app.services.control_errores_service.actualizar_error", return_value={"id": "test-i1", "tipo_error": "FURIPS"}) as mock_upd2,
         ):
-            resp2 = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "FURIPS"})
+            resp2 = app_client.put("/api/control-errores/test-i1", json={"tipo_error": "Factura Abierta"})
         assert resp2.status_code == 200
-        assert resp2.get_json()["data"]["error"]["tipo_error"] == "FURIPS"
-        assert mock_upd2.call_args.kwargs["tipo_error"] == "FURIPS"
+        assert mock_upd2.call_args.kwargs["tipo_error"] == "Notificación"
 
     def test_filter_route_factura_y_furips_exact_match(self, app_client):
         """GET ?tipo_error=Factura / FURIPS exact; combined and lowercase zero."""

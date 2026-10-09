@@ -447,14 +447,19 @@ CODIGO_CUPS_SUSTITUTO_129B02 = "129B02"
 # URGENCIAS - Control de Errores
 # =============================================================================
 
+# Categorías vigentes de una novedad: "Error" es algo que el responsable debe
+# corregir; "Notificación" es un aviso (p. ej. una factura abierta).
+ERROR_TIPO_ERROR = "Error"
+ERROR_TIPO_NOTIFICACION = "Notificación"
+
 ERROR_TIPO_URGENCIAS = [
-    "Otros",
-    "Soportes de Carpeta",
-    "Factura Abierta",
-    "Carpeta no entregada",
-    "Factura",
-    "FURIPS",
+    ERROR_TIPO_ERROR,
+    ERROR_TIPO_NOTIFICACION,
 ]
+
+# Valores heredados (normalizados: minúsculas, sin tildes) que equivalen a
+# "Notificación". Cualquier otro valor heredado equivale a "Error".
+ERROR_TIPO_LEGACY_NOTIFICACION = frozenset({"factura abierta"})
 
 ERROR_ESTADO_URGENCIAS = [
     "S",

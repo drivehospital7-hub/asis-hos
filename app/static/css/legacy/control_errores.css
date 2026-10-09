@@ -664,6 +664,16 @@ body.editor-open {
   color: #065f46;
 }
 
+.category-badge--error {
+  background: var(--danger\/15);
+  color: var(--danger);
+}
+
+.category-badge--notificacion {
+  background: var(--primary\/10);
+  color: #1e40af;
+}
+
 /* Initials avatar */
 .avatar-initials {
   display: inline-flex;

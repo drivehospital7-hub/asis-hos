@@ -399,7 +399,10 @@ export function AbiertasUrgenciasPage({
           ) {
             data.data.errores.forEach(
               (e: { factura?: string; tipo_error?: string }) =>
-                e.factura && e.tipo_error === "Factura Abierta" && set.add(e.factura),
+                e.factura &&
+                (e.tipo_error === "Notificación" ||
+                  e.tipo_error === "Factura Abierta") &&
+                set.add(e.factura),
             );
           }
           envioExistentes.current = set;
@@ -530,7 +533,7 @@ export function AbiertasUrgenciasPage({
     } else {
       if (
         !(await window.__showConfirm!(
-          `¿Enviar factura "${factura}" a Control de Errores como "Factura Abierta"?`,
+          `¿Enviar factura "${factura}" a Control de Errores como "Notificación"?`,
         ))
       ) {
         return;
@@ -557,7 +560,7 @@ export function AbiertasUrgenciasPage({
       .join(" - ");
 
     const data = {
-      tipo_error: "Factura Abierta",
+      tipo_error: "Notificación",
       factura,
       observacion,
       observacion_facturador: "",

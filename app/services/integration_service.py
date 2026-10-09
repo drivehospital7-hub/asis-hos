@@ -1,7 +1,7 @@
 """Servicio de integración LAN para control-novedades.
 
 Recibe un payload autenticado por bearer token, fuerza la categoría
-"Soportes de Carpeta", resuelve el responsable y el validador con la lógica de
+"Error", resuelve el responsable y el validador con la lógica de
 coincidencia existente y mantiene el validador (del payload ``nombres``)
 separado del responsable y de ``created_by`` (username del dueño del token).
 Cada envío crea SIEMPRE un registro nuevo: los envíos duplicados son permitidos.
@@ -41,7 +41,7 @@ from typing import Any
 
 from app.constants import IMAGENES_MAX_PER_OBSERVACION
 from app.constants.base import INTEGRATION_QUERY_MAX_FACTURAS
-from app.constants.urgencias import ERROR_TIPO_URGENCIAS
+from app.constants.urgencias import ERROR_TIPO_ERROR, ERROR_TIPO_URGENCIAS
 from app.services.control_errores_service import (
     _resolve_responsable_identity,
     _resolve_validador_identity,
@@ -52,7 +52,7 @@ from app.utils import errores_storage
 logger = logging.getLogger(__name__)
 
 # Categoría forzada por el servidor; el cliente NO la controla.
-FORCED_CATEGORY = "Soportes de Carpeta"
+FORCED_CATEGORY = ERROR_TIPO_ERROR
 
 # Campos requeridos y sus tipos (strings no vacíos).
 REQUIRED_FIELDS = ("factura", "observacion", "responsable", "nombres")
@@ -119,7 +119,7 @@ def _forced_category() -> str:
     """Categoría forzada por el servidor (el cliente nunca la controla)."""
     categoria = FORCED_CATEGORY
     if categoria not in ERROR_TIPO_URGENCIAS:
-        categoria = "Otros"
+        categoria = ERROR_TIPO_ERROR
     return categoria
 
 

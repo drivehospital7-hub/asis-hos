@@ -61,6 +61,44 @@ class TestSinHorarioGuard:
         # factura in log
         assert any("FEV123" in r.message for r in caplog.records)
 
+    def test_ac1_reject_notificacion_sin_horario_no_create(self):
+        """AC1 con la categoría vigente: Notificación + Sin horario -> error, sin persistir."""
+        data = {
+            "tipo_error": "Notificación",
+            "factura": "FEV124",
+            "responsable": "Sin horario",
+            "observacion": "test",
+        }
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores", return_value=[]),
+            patch("app.services.control_errores_service.crear_error") as mock_crear,
+        ):
+            result = add_error(data, session=_sess())
+
+        assert result["status"] == "error"
+        assert result.get("success") is False
+        assert "No se puede enviar Factura Abierta sin horario" in result["errors"][0]
+        mock_crear.assert_not_called()
+
+    def test_ac3_accept_error_sin_horario(self):
+        """AC3 con la categoría vigente: Error + Sin horario -> success (solo Notificación se bloquea)."""
+        data = {
+            "tipo_error": "Error",
+            "factura": "FEV125",
+            "responsable": "Sin horario",
+            "observacion": "test",
+        }
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.users_store.get_facturadores", return_value=[]),
+            patch("app.services.control_errores_service.crear_error", return_value={"id": "n1"}) as mock_crear,
+        ):
+            result = add_error(data, session=_sess())
+
+        assert result["status"] == "success"
+        assert mock_crear.call_args.args[0] == "Error"
+
     def test_ac1_reject_variants_case_and_spaces(self):
         """AC1 edge: guard is exact after normalize — case/space trimmed still rejected."""
         data = {
