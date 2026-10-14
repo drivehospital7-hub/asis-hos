@@ -607,6 +607,49 @@ class SetIntersectsEvaluator(AtomicEvaluator):
         return bool(row_set & expected_set)
 
 
+class SetSubsetEvaluator(AtomicEvaluator):
+    """Checks if ALL row values are within the expected set (row ⊆ expected).
+
+    operator = "set_subset"
+    row_value is expected to be a list (from collect_set aggregation).
+    expected is the allowlist: every element of row_value must be in it.
+    The empty set is a subset of anything (vacuous truth); facturas always
+    carry values in practice, so this does not fire spuriously.
+    Comparison mirrors InEvaluator: direct check first, then stripped
+    uppercase string fallback (case-insensitive, accent-sensitive).
+    """
+
+    operator = "set_subset"
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: EvaluationContext | None = None,
+    ) -> bool:
+        if row_value is None:
+            return False
+        values = (
+            list(row_value)
+            if isinstance(row_value, (list, tuple, set, frozenset))
+            else [row_value]
+        )
+        allowed = (
+            set(expected)
+            if isinstance(expected, (list, tuple, set, frozenset))
+            else {expected}
+        )
+        allowed_norm = {str(v).strip().upper() for v in allowed}
+        for item in values:
+            if item in allowed:
+                continue
+            item_str = str(item).strip().upper() if item is not None else ""
+            if item_str not in allowed_norm:
+                return False
+        return True
+
+
 class AllValuesMatchEvaluator(AtomicEvaluator):
     """Checks if ALL pairs in row_value have count >= threshold.
 
@@ -1311,6 +1354,7 @@ def _register_builtins() -> None:
         CatalogInEvaluator(),
         SetContainsAllEvaluator(),
         SetIntersectsEvaluator(),
+        SetSubsetEvaluator(),
         AllValuesMatchEvaluator(),
         CupsContratadoEvaluator(),
         IdeContratoSimpleEvaluator(),
