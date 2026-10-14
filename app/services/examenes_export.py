@@ -30,6 +30,19 @@ logger = logging.getLogger(__name__)
 
 HEADERS: list[str] = CSV_HEADERS
 
+CATALOG_HEADERS: list[str] = [
+    "N°",
+    "Codigo",
+    "Examen",
+    "NEPS",
+    "MALLAM",
+    "EMSS",
+]
+
+CATALOG_COLUMN_WIDTHS: list[int] = [8, 15, 60, 12, 12, 12]
+
+CATALOG_FILENAME: str = "Catalogo_CUPS_HospitalOrito.xlsx"
+
 COLUMN_WIDTH = 20
 
 HEADER_FILL = PatternFill("solid", fgColor="1B5E20")
@@ -252,3 +265,46 @@ def filename_export(from_: str | None, to: str | None) -> str:
     """
     label = f"{from_ or ''}_{to or 'hasta'}" if (from_ or to) else "Todos_los_meses"
     return f"Listado_Lab_HospitalOrito_{label}.xlsx"
+
+
+def build_catalog_export_workbook(examenes: list[dict]) -> BytesIO:
+    """Workbook del catálogo CUPS: una fila por examen con N° secuencial.
+
+    Columnas = ``CATALOG_HEADERS`` (6). El tc usa la variante CSV
+    (X→SI/AUTH→AUTH/vacío), igual que el export del listado.
+    """
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Catalogo"
+
+    ws.append(CATALOG_HEADERS)
+    for cell in ws[1]:
+        cell.fill = HEADER_FILL
+        cell.font = HEADER_FONT
+        cell.border = THIN_BORDER
+
+    for idx, width in enumerate(CATALOG_COLUMN_WIDTHS, start=1):
+        ws.column_dimensions[get_column_letter(idx)].width = width
+
+    for n, ex in enumerate(examenes, start=1):
+        ws.append([
+            n,
+            _sanitize_for_excel(ex.get("cod", "")),
+            _sanitize_for_excel(ex.get("nom", "")),
+            _tc(ex.get("neps", "")),
+            _tc(ex.get("mall", "")),
+            _tc(ex.get("emss", "")),
+        ])
+        row_fill = ROW_FILL_LIGHT if n % 2 == 1 else ROW_FILL_WHITE
+        for col in range(1, len(CATALOG_HEADERS) + 1):
+            cell = ws.cell(row=ws.max_row, column=col)
+            cell.fill = row_fill
+            cell.border = THIN_BORDER
+            cell.font = DATA_FONT
+
+    ws.freeze_panes = "A2"
+
+    buffer = BytesIO()
+    wb.save(buffer)
+    buffer.seek(0)
+    return buffer

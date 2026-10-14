@@ -465,6 +465,30 @@ export function ExamenesPage({
     }
   };
 
+  // Catálogo CUPS completo (sin filtros): N° | Código | Examen | NEPS | MALLAM | EMSS.
+  const exportarCatalogo = async () => {
+    if (!examenes.length) {
+      window.alert("No hay exámenes para exportar.");
+      return;
+    }
+    try {
+      const res = await fetch("/api/examenes/catalog/export");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        window.alert(body?.errors?.[0] ?? "No se pudo exportar el catálogo.");
+        return;
+      }
+      const blob = await res.blob();
+      downloadBlob(
+        blob,
+        filenameFromDisposition(res.headers.get("Content-Disposition")) ??
+          "Catalogo_CUPS_HospitalOrito.xlsx",
+      );
+    } catch {
+      window.alert("No se pudo exportar el catálogo. Reintente.");
+    }
+  };
+
   // ─── Listado: edit modal (EX-12, write-gated) ──────────────────────
   const openEdit = (pf: Prefactura) => {
     setEditDraft({ ...pf, items: pf.items.map((i) => ({ ...i })) });
@@ -1184,9 +1208,15 @@ export function ExamenesPage({
           </Card>
 
           <Card className="p-5">
-            <h2 className="mb-3 font-heading text-sm font-semibold" style={{ color: "#1a4731" }}>
-              Base de Exámenes ({examenes.length})
-            </h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <h2 className="font-heading text-sm font-semibold" style={{ color: "#1a4731" }}>
+                Base de Exámenes ({examenes.length})
+              </h2>
+              <Button size="sm" variant="secondary" onClick={exportarCatalogo}>
+                <FileSpreadsheet className="h-3.5 w-3.5" />
+                Exportar Excel
+              </Button>
+            </div>
             <input
               type="text"
               value={admSearch}

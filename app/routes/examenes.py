@@ -24,6 +24,8 @@ from app.constants.examenes import (
     EX_LISTADO_FILE,
 )
 from app.services.examenes_export import (
+    CATALOG_FILENAME,
+    build_catalog_export_workbook,
     build_listado_export_workbook,
     compose_listado_view,
     filename_export,
@@ -241,4 +243,25 @@ def export_listado():
         mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         as_attachment=True,
         download_name=filename_export(from_, to),
+    )
+
+
+@examenes_bp.get("/api/examenes/catalog/export")
+@permiso_requerido("examenes")
+def export_catalog():
+    """Exporta TODO el catálogo CUPS a Excel (.xlsx).
+
+    Solo lectura (``examenes``); sin filtros ni paginado: siempre el
+    catálogo completo en el orden almacenado. Catálogo vacío → 400.
+    """
+    catalogo = examenes_store.get_examenes()
+    if not catalogo:
+        return _error(["No hay datos para exportar"], 400)
+
+    buffer = build_catalog_export_workbook(catalogo)
+    return send_file(
+        buffer,
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        as_attachment=True,
+        download_name=CATALOG_FILENAME,
     )
