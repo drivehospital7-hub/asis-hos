@@ -140,6 +140,7 @@ frontend/dist/
 # =========================
 # Agent / SDD artifacts
 # =========================
+.gentle-ai-default-agent.json
 .atl/
 .codegraph/
 # Notas de trabajo del orquestador (proceso, no producto)
