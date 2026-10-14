@@ -16,3 +16,4 @@ from app.constants.urgencias import *        # noqa: F401, F403
 from app.constants.grupo_error import *      # noqa: F401, F403
 from app.constants.headers import *          # noqa: F401, F403
 from app.constants.valores import *          # noqa: F401, F403
+from app.constants.server import *           # noqa: F401, F403

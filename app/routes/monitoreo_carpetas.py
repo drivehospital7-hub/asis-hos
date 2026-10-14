@@ -386,7 +386,12 @@ def clear_snapshot():
 @monitoreo_carpetas_bp.get("/data")
 def get_cached_data():
     """Retorna datos cacheados del watcher, si existen.
-    
+
+    Solo lectura: NUNCA dispara escaneos. Si no hay resultado cacheado
+    (ej. memoria vacía tras reinicio o monitoreo nunca arrancado),
+    responde cached=False y el usuario arranca explícitamente con
+    POST /scan desde la UI.
+
     Si las rutas actuales del store difieren de las rutas del watcher,
     retorna cached=False para evitar mostrar datos de un escaneo anterior.
 
@@ -408,26 +413,11 @@ def get_cached_data():
         }), 200
 
     if result is None:
-        # Sin resultado cacheado (ej. memoria vacía tras reinicio):
-        # disparar escaneo background sin bloquear el response. El poll
-        # del frontend lo levanta cuando termina. Se pasan las raíces
-        # actuales (config o watcher si config vacío) para que el bg-scan
-        # las adopte antes de escanear.
-        effective_roots = current_roots or cached_roots
-        if effective_roots:
-            scan_in_progress = _watcher.start_background_first_scan(effective_roots)
-            return jsonify({
-                "status": "success",
-                "data": {
-                    "cached": False,
-                    "scan_in_progress": scan_in_progress,
-                    "message": "Escaneo en curso, los datos aparecerán solos.",
-                },
-                "errors": [],
-            }), 200
+        # Sin resultado cacheado: SOLO reportar. Escanear es decisión
+        # explícita del usuario vía POST /scan (requiere permiso :write).
         return jsonify({
             "status": "success",
-            "data": {"cached": False},
+            "data": {"cached": False, "message": "Sin datos: ejecutá un escaneo"},
             "errors": [],
         }), 200
 

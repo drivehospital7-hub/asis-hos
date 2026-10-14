@@ -66,7 +66,10 @@ interface ScanResponse {
   errors: string[];
 }
 
-const DATA_POLL_INTERVAL_MS = 30000;
+const DATA_POLL_INTERVAL_MS = 60000;
+// Polling a 60s (antes 30s): GET /data es liviano (cache en memoria),
+// pero con varias pestañas abiertas duplicaba la presión sobre el pool
+// de threads de Waitress durante picos de exports.
 
 const MOVE_TOAST_DURATION = 2500;
 

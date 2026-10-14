@@ -2,6 +2,7 @@
 
 import json
 import logging
+import time
 import uuid
 import shutil
 import tempfile
@@ -18,6 +19,8 @@ from app.constants import (
     ERROR_TIPO_ERROR,
     ERROR_TIPO_LEGACY_NOTIFICACION,
     ERROR_TIPO_NOTIFICACION,
+    ERRORES_WRITE_MAX_RETRIES,
+    ERRORES_WRITE_RETRY_DELAY_SECS,
     IMAGENES_DIR,
     IMAGENES_FACTURADOR_SCOPE,
     IMAGENES_MAX_PER_OBSERVACION,
@@ -229,6 +232,31 @@ def _leer_datos() -> dict[str, list[dict[str, Any]]]:
         return {"errores": [], "ultima_actualizacion": None}
 
 
+def _replace_con_reintento(tmp_path: str, destino: Path) -> None:
+    """Renombra tmp → destino reintentando ante locks transitorios.
+
+    En Windows el antivirus o un thread concurrente puede lockear el
+    destino por milisegundos (WinError 5). Reintenta con backoff lineal
+    antes de rendirse; si agota los intentos, relanza la excepción.
+    """
+    ultimo_error: OSError | None = None
+    for intento in range(1, ERRORES_WRITE_MAX_RETRIES + 1):
+        try:
+            Path(tmp_path).replace(destino)
+            return
+        except PermissionError as e:
+            ultimo_error = e
+            logger.warning(
+                "Replace bloqueado (intento %d/%d): %s -> %s",
+                intento,
+                ERRORES_WRITE_MAX_RETRIES,
+                tmp_path,
+                destino,
+            )
+            time.sleep(ERRORES_WRITE_RETRY_DELAY_SECS * intento)
+    raise ultimo_error  # type: ignore[misc]
+
+
 def _escribir_datos(data: dict[str, list[dict[str, Any]]]) -> None:
     """Escribir datos al archivo JSON de forma atómica (evita corrupción)."""
     try:
@@ -240,7 +268,7 @@ def _escribir_datos(data: dict[str, list[dict[str, Any]]]) -> None:
         try:
             with open(fd, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
-            Path(tmp_path).replace(ERRORES_FILE)
+            _replace_con_reintento(tmp_path, ERRORES_FILE)
         except:
             # Limpiar temp file en caso de error
             try:
@@ -635,7 +663,7 @@ def _escribir_owner(error_id: str, owner: dict[str, str], scope: str = "") -> No
     try:
         with open(fd, "w", encoding="utf-8") as f:
             json.dump(owner, f, ensure_ascii=False, indent=2)
-        Path(tmp_path).replace(sidecar)
+        _replace_con_reintento(tmp_path, sidecar)
     except Exception:
         try:
             Path(tmp_path).unlink(missing_ok=True)

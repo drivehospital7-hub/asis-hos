@@ -324,24 +324,24 @@ class TestFolderWatcherHealthCheck:
         assert watcher._last_event_at is not None
         assert watcher._events_count == 1
 
-    def test_health_check_observer_none_triggers_fallback(self) -> None:
-        """health_check triggers fallback when observer is None."""
+    def test_health_check_observer_none_sin_fallback(self) -> None:
+        """health_check sin cache NI observer: reporta, NUNCA escanea solo."""
         watcher = FolderWatcher()
         watcher._roots = ["/fake/root"]
 
-        # With roots but no observer and no result, health_check
-        # should try to do a first_scan fallback
+        # Sin resultado en cache, health_check solo reporta: escanear es
+        # decisión explícita del usuario (POST /scan), nunca automática.
         with mock.patch.object(watcher, "first_scan") as mock_first_scan, \
                 mock.patch.object(watcher, "_check_roots_accessible", return_value=[]):
-            mock_first_scan.return_value = (ScanResult(), "test.xlsx")
             response = watcher.health_check()
 
-            mock_first_scan.assert_called_once()
+            mock_first_scan.assert_not_called()
             assert response["monitoring"] is False
-            assert "escaneo completo ejecutado" in response.get("message", "")
+            assert "ejecutá un escaneo" in response.get("message", "")
+            assert "result" not in response  # sin fallback automático
 
-    def test_health_check_observer_dead_triggers_fallback(self) -> None:
-        """health_check triggers fallback full scan when observer is dead."""
+    def test_health_check_observer_dead_sin_fallback(self) -> None:
+        """health_check con observer muerto y sin cache: reporta, no escanea."""
         watcher = FolderWatcher()
         watcher._roots = ["/fake/root"]
 
@@ -351,11 +351,11 @@ class TestFolderWatcherHealthCheck:
 
         with mock.patch.object(watcher, "first_scan") as mock_first_scan, \
                 mock.patch.object(watcher, "_check_roots_accessible", return_value=[]):
-            mock_first_scan.return_value = (ScanResult(), "test.xlsx")
             response = watcher.health_check()
 
-            mock_first_scan.assert_called_once_with(["/fake/root"])
+            mock_first_scan.assert_not_called()
             assert response["monitoring"] is False
+            assert "ejecutá un escaneo" in response.get("message", "")
 
 
 # =============================================================================
@@ -806,109 +806,51 @@ class TestSchedulerNoOverlap:
 
 
 # =============================================================================
-# start_background_first_scan: auto-recuperación tras reinicio sin bloquear
+# Arranque bajo demanda: el watcher nace en reposo; solo first_scan
+# explícito (POST /scan desde la UI) inicia el monitoreo programado.
 # =============================================================================
 
 
-class TestStartBackgroundFirstScan:
-    """start_background_first_scan: un solo thread, flag baja, fallo no cuelga."""
+class TestArranqueBajoDemanda:
+    """Sin arranque explícito no hay threads, scans ni scheduler."""
 
-    def test_concurrent_calls_launch_single_scan(self) -> None:
-        """Segundo llamado concurrente no lanza doble scan."""
-        import time
-
+    def test_boot_no_arranca_scheduler(self) -> None:
+        """FolderWatcher recién creado: en reposo, sin thread reconciliador."""
         watcher = FolderWatcher()
-        watcher.reset()
         try:
-            watcher._roots = ["/fake/root"]
-            calls: list[list[str]] = []
-            started = threading.Event()
-            release = threading.Event()
-
-            def _blocking_first_scan(roots: list[str]):
-                calls.append(list(roots))
-                started.set()
-                assert release.wait(timeout=10)
-                return ScanResult(), None
-
-            with mock.patch.object(
-                watcher, "first_scan", side_effect=_blocking_first_scan
-            ):
-                assert watcher.start_background_first_scan() is True
-                assert started.wait(timeout=10)
-                # Scan en curso: el segundo llamado no lanza otro thread
-                assert watcher.start_background_first_scan() is True
-                time.sleep(0.05)
-                assert len(calls) == 1
-                release.set()
-                deadline = time.time() + 10
-                while watcher._scan_in_progress and time.time() < deadline:
-                    time.sleep(0.02)
-                assert watcher._scan_in_progress is False
-                assert len(calls) == 1
+            assert watcher.get_result() is None
+            thread = watcher._reconciler_thread
+            assert thread is None or not thread.is_alive()
         finally:
             watcher.reset()
 
-    def test_flag_lowered_after_scan(self) -> None:
-        """El flag se baja tras un scan exitoso."""
-        import time
-
+    def test_first_scan_explicito_arranca_scheduler(self, tmp_path: Path) -> None:
+        """first_scan (UI) arranca el reconciliador programado."""
+        root = tmp_path / "root"
+        (root / "company").mkdir(parents=True)
         watcher = FolderWatcher()
         watcher.reset()
         try:
-            watcher._roots = ["/fake/root"]
-            with mock.patch.object(
-                watcher, "first_scan", return_value=(ScanResult(), None)
+            with mock.patch(
+                "app.services.monitoreo_carpetas.watcher.detect_all",
+                return_value=ScanResult(),
             ):
-                assert watcher.start_background_first_scan() is True
-                deadline = time.time() + 10
-                while watcher._scan_in_progress and time.time() < deadline:
-                    time.sleep(0.02)
-                assert watcher._scan_in_progress is False
-        finally:
-            watcher.reset()
-
-    def test_failed_scan_does_not_hang_flag(self) -> None:
-        """Scan fallido no deja el flag colgado."""
-        import time
-
-        watcher = FolderWatcher()
-        watcher.reset()
-        try:
-            watcher._roots = ["/fake/root"]
-            with mock.patch.object(
-                watcher, "first_scan", side_effect=RuntimeError("SMB caído")
-            ):
-                assert watcher.start_background_first_scan() is True
-                deadline = time.time() + 10
-                while watcher._scan_in_progress and time.time() < deadline:
-                    time.sleep(0.02)
-                assert watcher._scan_in_progress is False
-        finally:
-            watcher.reset()
-
-    def test_no_roots_or_cached_result_no_scan(self) -> None:
-        """Sin roots o con resultado cacheado no lanza nada."""
-        watcher = FolderWatcher()
-        watcher.reset()
-        try:
-            watcher._roots = []
-            assert watcher.start_background_first_scan() is False
-            watcher._roots = ["/fake/root"]
-            watcher.set_result(ScanResult())
-            assert watcher.start_background_first_scan() is False
-            assert watcher._scan_in_progress is False
+                watcher.first_scan([str(root)])
+            assert watcher.get_result() is not None
+            assert watcher._reconciler_thread is not None
+            assert watcher._reconciler_thread.is_alive()
         finally:
             watcher.reset()
 
 
 # =============================================================================
-# Task 4 (follow-up II): scheduler auto-adopción + bg-scan con config
+# Sin auto-adopción: el scheduler SOLO reconcilia raíces arrancadas
+# explícitamente; cualquier divergencia de config detiene el scheduler.
 # =============================================================================
 
 
-class TestSchedulerAutoAdopcion:
-    """El scheduler adopta la config (manual o boot) y nunca degrada a env."""
+class TestSchedulerSinAutoAdopcion:
+    """El scheduler nunca escanea raíces que el usuario no arrancó."""
 
     def _tree(self, root: Path, *names: str) -> Path:
         fact = root / "0 FACTURAS CAPITA OK - Test" / "company"
@@ -924,8 +866,12 @@ class TestSchedulerAutoAdopcion:
         watcher.reset()
         return watcher
 
-    def test_adopcion_manual_reemplaza_y_escanea(self, tmp_path: Path) -> None:
-        """Config manual distinta → reemplazo total + full scan."""
+    def _reconciler_alive(self, watcher: FolderWatcher) -> bool:
+        thread = watcher._reconciler_thread
+        return thread is not None and thread.is_alive()
+
+    def test_config_manual_distinta_detiene_scheduler(self, tmp_path: Path) -> None:
+        """Config manual distinta → NO escanea: detiene scheduler, conserva."""
         from app.services.monitoreo_carpetas.detect_all import detect_all
 
         old = self._tree(tmp_path / "old", "FEV001")
@@ -934,23 +880,31 @@ class TestSchedulerAutoAdopcion:
         try:
             watcher._roots = [str(old)]
             watcher.set_result(detect_all([str(old)]))
+            watcher.start_reconciler()
+            assert self._reconciler_alive(watcher)
             with mock.patch(
                 "app.utils.monitoreo_store.get_roots",
                 return_value=([str(new)], "manual", None),
+            ), mock.patch.object(
+                watcher,
+                "first_scan",
+                side_effect=AssertionError("no debe escanear solo"),
             ):
-                assert watcher.reconcile_once() is True
-            assert watcher.get_roots() == [str(new)]
+                assert watcher.reconcile_once() is False
+            # Conserva raíces y resultado del arranque explícito
+            assert watcher.get_roots() == [str(old)]
             result = watcher.get_result()
             assert result is not None
-            assert {i.filename for i in result.facturas} == {"FEV002"}
-            assert watcher._last_reconcile_at is not None
+            assert {i.filename for i in result.facturas} == {"FEV001"}
+            # Scheduler detenido hasta escaneo explícito
+            assert not self._reconciler_alive(watcher)
         finally:
             watcher.reset()
 
-    def test_sin_downgrade_a_env(
+    def test_config_env_distinta_no_degrada_ni_escanea(
         self, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ) -> None:
-        """Watcher con raíces + config env distinta → conserva watcher."""
+        """Watcher con raíces + config env distinta → conserva y detiene."""
         from app.services.monitoreo_carpetas.detect_all import detect_all
 
         old = self._tree(tmp_path / "old", "FEV001")
@@ -959,19 +913,25 @@ class TestSchedulerAutoAdopcion:
         try:
             watcher._roots = [str(old)]
             watcher.set_result(detect_all([str(old)]))
+            watcher.start_reconciler()
             with mock.patch(
                 "app.utils.monitoreo_store.get_roots",
                 return_value=([str(other)], "env", None),
+            ), mock.patch.object(
+                watcher,
+                "first_scan",
+                side_effect=AssertionError("no debe escanear solo"),
             ), caplog.at_level("WARNING"):
-                watcher.reconcile_once()  # merge normal, sin adopción
+                assert watcher.reconcile_once() is False
             assert watcher.get_roots() == [str(old)]
             assert {i.filename for i in watcher.get_result().facturas} == {"FEV001"}
-            assert any("conservando" in r.message for r in caplog.records)
+            assert not self._reconciler_alive(watcher)
+            assert any("deteniendo scheduler" in r.message for r in caplog.records)
         finally:
             watcher.reset()
 
-    def test_boot_sin_raices_adopta_env(self, tmp_path: Path) -> None:
-        """Watcher vacío + config env con raíces → adopta en el ciclo."""
+    def test_sin_raices_no_escanea(self, tmp_path: Path) -> None:
+        """Watcher vacío + config con raíces → NO adopta ni escanea solo."""
         new = self._tree(tmp_path / "new", "FEV007")
         watcher = self._fresh_watcher()
         try:
@@ -980,39 +940,13 @@ class TestSchedulerAutoAdopcion:
             with mock.patch(
                 "app.utils.monitoreo_store.get_roots",
                 return_value=([str(new)], "env", None),
+            ), mock.patch.object(
+                watcher,
+                "first_scan",
+                side_effect=AssertionError("no debe escanear solo"),
             ):
-                assert watcher.reconcile_once() is True
-            assert watcher.get_roots() == [str(new)]
-            result = watcher.get_result()
-            assert result is not None
-            assert {i.filename for i in result.facturas} == {"FEV007"}
-        finally:
-            watcher.reset()
-
-    def test_bg_scan_adopta_raices_pasadas(self, tmp_path: Path) -> None:
-        """start_background_first_scan(roots) adopta si difieren y escanea."""
-        import time
-
-        root = self._tree(tmp_path / "root", "FEV001")
-        watcher = self._fresh_watcher()
-        try:
-            watcher._roots = ["/vieja/inexistente"]
-            assert watcher.start_background_first_scan([str(root)]) is True
-            deadline = time.time() + 15
-            while watcher.get_result() is None and time.time() < deadline:
-                time.sleep(0.05)
-            assert watcher.get_result() is not None
-            assert watcher.get_roots() == [str(root)]
-            assert {i.filename for i in watcher.get_result().facturas} == {"FEV001"}
-        finally:
-            watcher.reset()
-
-    def test_bg_scan_sin_raices_efectivas_false(self) -> None:
-        """Sin raíces (propias ni pasadas) → False, sin adoptar vacío."""
-        watcher = self._fresh_watcher()
-        try:
-            assert watcher.start_background_first_scan() is False
-            assert watcher.start_background_first_scan([]) is False
+                assert watcher.reconcile_once() is False
             assert watcher.get_roots() == []
+            assert watcher.get_result() is None
         finally:
             watcher.reset()

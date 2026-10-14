@@ -1,7 +1,13 @@
-"""FolderWatcher — watchdog-based automatic monitoring of scanned folders.
+"""FolderWatcher — monitoreo bajo demanda de carpetas escaneadas.
+
+Política: NADA se monitorea solo. El watcher arranca en reposo y solo
+empieza a escanear cuando el usuario lo dispara explícitamente desde la UI
+(POST /scan, que requiere permiso de escritura). Recién entonces corre el
+reconciliador programado cada 15 min sobre esas raíces. Sin arranque
+explícito no hay scans, ni scheduler, ni adopción de config.
 
 Wraps a watchdog Observer in a daemon thread. First POST /scan triggers
-a full scan + observer start. Subsequent calls perform health checks.
+a full scan + scheduler start. Subsequent calls perform health checks.
 Filesystem events trigger incremental subtree re-scans.
 
 Persists ScanResult to snapshot file so data survives server restarts.
@@ -83,9 +89,10 @@ class _SubtreeUpdateHandler(FileSystemEventHandler):
 class FolderWatcher:
     """Caches ScanResult in memory and monitors roots via watchdog.
 
-    Lifecycle: ``None`` (initial) → ``first_scan()`` called → result cached and
-    observer daemon running → ``update_subtree()`` on each watchdog event →
-    ``health_check()`` on subsequent requests.
+    Lifecycle: ``None`` (initial, en reposo: sin threads ni scans) →
+    ``first_scan()`` explícito desde la UI → result cached y reconciliador
+    programado corriendo → ``update_subtree()`` on each watchdog event →
+    ``health_check()`` on subsequent requests. ``reset()`` vuelve a reposo.
 
     Thread safety: all ``ScanResult`` reads/writes are protected by
     ``threading.Lock``.
@@ -103,14 +110,11 @@ class FolderWatcher:
         self._reconciler_thread: threading.Thread | None = None
         self._reconciler_stop = threading.Event()
         self._reconcile_lock = threading.Lock()  # guard anti-solapamiento
-        self._scan_in_progress: bool = False  # guard primer escaneo background
         self._excel_stale: bool = False  # True si el Excel no refleja el ScanResult
         self._excel_generated_at: float | None = None  # epoch s última generación Excel
         self._load_snapshot()
-        # Scheduler como fuente de verdad desde el boot: el loop espera el
-        # intervalo antes del primer ciclo (daemon, no escanea en init).
-        # La adopción de raíces vive en `_reconcile_once_locked`.
-        self.start_reconciler()
+        # En reposo desde el boot: el reconciliador SOLO arranca con un
+        # `first_scan` explícito desde la UI. Nada escanea ni programa solo.
 
     # ------------------------------------------------------------------
     # Public API
@@ -118,6 +122,10 @@ class FolderWatcher:
 
     def first_scan(self, roots: list[str]) -> tuple[ScanResult, str | None]:
         """Full scan + Excel generation (+ watchdog observer only if enabled).
+
+        ARRANQUE EXPLÍCITO: este es el único punto de entrada que inicia el
+        monitoreo (lo llama POST /scan desde la UI). Además del scan,
+        arranca el reconciliador programado cada 15 min sobre `roots`.
 
         El escaneo programado (scheduler) es la fuente de verdad; el
         Observer solo arranca si ``ENABLE_WATCHDOG_OBSERVER`` es True
@@ -172,57 +180,11 @@ class FolderWatcher:
         if mc.ENABLE_WATCHDOG_OBSERVER:
             self._start_observer(roots)
 
-        # Start background scheduler (fuente de verdad programada)
+        # Start background scheduler (fuente de verdad programada).
+        # Solo se llega acá por arranque explícito desde la UI.
         self.start_reconciler()
 
         return scan_result, excel_filename
-
-    def start_background_first_scan(self, roots: list[str] | None = None) -> bool:
-        """Lanza `first_scan` en background si no hay resultado cacheado.
-
-        Solo arranca cuando `_result is None`, hay roots efectivos y no
-        hay otro escaneo en curso (flag `_scan_in_progress` bajo lock, que
-        el thread baja en `finally`). No bloquea: el poll del frontend
-        levanta los datos cuando el scan termina.
-
-        Args:
-            roots: Raíces a escanear. Si se pasan y difieren de
-                ``self._roots``, se adoptan primero; si es None se usa
-                ``self._roots``.
-
-        Returns:
-            True si lanzó el thread de escaneo (o ya hay uno en curso),
-            False si hay resultado cacheado o no hay raíces efectivas.
-        """
-        with self._lock:
-            if self._result is not None:
-                return False
-            effective = list(roots) if roots is not None else list(self._roots)
-            if not effective:
-                return False
-            if set(effective) != set(self._roots):
-                self._roots = list(effective)
-                logger.info("bg-scan: adoptando raíces %s", self._roots)
-            if self._scan_in_progress:
-                return True
-            self._scan_in_progress = True
-            scan_roots = list(self._roots)
-
-        def _run() -> None:
-            try:
-                self.first_scan(scan_roots)
-            except Exception:
-                logger.exception("Escaneo background inicial falló")
-            finally:
-                with self._lock:
-                    self._scan_in_progress = False
-
-        thread = threading.Thread(
-            target=_run, name="monitoreo-first-scan", daemon=True
-        )
-        thread.start()
-        logger.info("Escaneo background inicial lanzado para %d roots", len(scan_roots))
-        return True
 
     def health_check(self) -> dict[str, Any]:
         """Check monitoring health (scheduler is the source of truth).
@@ -269,14 +231,12 @@ El fallback full scan solo ocurre cuando NO hay datos en cache
                     logger.warning("Failed to restart observer: %s", exc)
             return snapshot
 
-        # Sin datos en cache (ni snapshot útil) — fallback full scan.
-        logger.warning("Sin datos en cache, triggering fallback full scan")
-        result, excel_filename = self.first_scan(self._roots)
+        # Sin datos en cache: NO hay fallback automático. Escanear es una
+        # decisión explícita del usuario (POST /scan); acá solo se reporta.
+        logger.info("Sin datos en cache, sin escanear: se requiere arranque explícito")
         snapshot = self.get_health_snapshot()
         snapshot["monitoring"] = False
-        snapshot["message"] = "Sin cache, escaneo completo ejecutado"
-        snapshot["result"] = result
-        snapshot["excel_filename"] = excel_filename
+        snapshot["message"] = "Sin datos: ejecutá un escaneo"
         return snapshot
 
     def get_health_snapshot(self) -> dict[str, Any]:
@@ -411,17 +371,17 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
     def _reconcile_once_locked(self) -> bool:
         """Cuerpo del ciclo del scheduler (llamar con `_reconcile_lock`).
 
-        Fase de adopción ANTES de cualquier early-return: si el store de
-        config trae raíces que el watcher no cubre, se adoptan con un
-        `first_scan` completo (fuera de `_lock`: `first_scan` lo toma
-        internamente). Reglas: (1) watcher sin raíces + config con
-        raíces → adoptar; (2) fuente manual con set distinto → reemplazo
-        total; (3) fuente env con watcher con raíces → NO degradar (el
-        downgrade a env solo manual vía Verificar/reset).
+        Sin auto-adopción: el scheduler SOLO reconcilia las raíces que el
+        usuario arrancó explícitamente (`first_scan` desde la UI). Si la
+        config del store trae otras raíces no vacías, el ciclo se detiene
+        y avisa: re-escanear es decisión explícita (POST /scan), nunca
+        automática. Con config vacía se reconcilian las raíces ya
+        arrancadas (nada nuevo que adoptar). La ruta POST /scan ya
+        re-sincroniza (reset + first_scan) cuando el usuario la invoca.
         """
         from app.constants import monitoreo_carpetas as mc
 
-        # --- Fase de adopción: snapshot bajo lock, scan fuera del lock ---
+        # --- Guardia de raíces: sin auto-adopción —
         from app.utils.monitoreo_store import get_roots as _store_get_roots
 
         try:
@@ -431,41 +391,22 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
             cfg_roots, fuente = [], "env"
         with self._lock:
             watcher_roots = list(self._roots)
-        adopt: list[str] | None = None
-        if not watcher_roots and cfg_roots:
-            logger.info(
-                "Reconciliador: boot sin raíces, adoptando config (%s): %s",
-                fuente, cfg_roots,
-            )
-            adopt = list(cfg_roots)
-        elif fuente == "manual" and set(watcher_roots) != set(cfg_roots):
-            logger.info(
-                "Reconciliador: config manual cambió (%s → %s), "
-                "adoptando reemplazo total",
-                watcher_roots, cfg_roots,
-            )
-            adopt = list(cfg_roots)
-        elif (
-            fuente == "env"
-            and watcher_roots
-            and set(watcher_roots) != set(cfg_roots)
-        ):
+        if not watcher_roots:
+            # Nada arrancado explícitamente: no hay qué reconciliar.
+            return False
+        if cfg_roots and set(watcher_roots) != set(cfg_roots):
+            # La config trae OTRAS raíces (no vacía y distinta): detener
+            # el scheduler y esperar decisión del usuario. NUNCA escanear
+            # solo porque la config cambió.
             logger.warning(
-                "Reconciliador: config env difiere, conservando raíces "
-                "del watcher %s (downgrade solo manual)",
-                watcher_roots,
+                "Reconciliador: config (%s) difiere de raíces activas %s — "
+                "deteniendo scheduler hasta escaneo explícito",
+                fuente, watcher_roots,
             )
-        if adopt:
-            # NUNCA con `_lock` tomado: `first_scan` lo toma internamente.
-            try:
-                self.first_scan(adopt)
-            except Exception:
-                logger.exception("Reconciliador: adopción falló para %s", adopt)
-                return False
-            with self._lock:
-                self._last_reconcile_at = time.time()
-                self._save_snapshot()
-            return True
+            self.stop_reconciler()
+            return False
+        # Config vacía: se reconcilian las raíces del arranque explícito
+        # (nada nuevo que adoptar, nada no pedido que escanear).
 
         with self._lock:
             if self._result is None:
@@ -766,7 +707,6 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
         with self._lock:
             self._result = None
             self._roots = []
-            self._scan_in_progress = False
             self._events_count = 0
             self._last_event_at = None
             self._last_reconcile_at = None
