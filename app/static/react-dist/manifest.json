@@ -101,6 +101,13 @@
       "_createLucideIcon-IEYCF5gg.js"
     ]
   },
+  "_copy-otUtByQ6.js": {
+    "file": "assets/copy-otUtByQ6.js",
+    "name": "copy",
+    "imports": [
+      "_createLucideIcon-IEYCF5gg.js"
+    ]
+  },
   "_createLucideIcon-IEYCF5gg.js": {
     "file": "assets/createLucideIcon-IEYCF5gg.js",
     "name": "createLucideIcon"
@@ -451,7 +458,7 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-CgDU_-vr.js",
+    "file": "assets/index-BMZh8ZpU.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
@@ -472,6 +479,8 @@
       "_folder-open-D2gyyT5p.js",
       "_file-down-Dts3xMzS.js",
       "_circle-check-CRdT4vUM.js",
+      "_check-DEZMmikv.js",
+      "_copy-otUtByQ6.js",
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js"
     ]
@@ -520,7 +529,7 @@
     ]
   },
   "src/pages/traslado-facturas/index.html": {
-    "file": "assets/index-Dmn4H7eQ.js",
+    "file": "assets/index-IkhIq0nJ.js",
     "name": "index",
     "src": "src/pages/traslado-facturas/index.html",
     "isEntry": true,
@@ -534,6 +543,7 @@
       "_circle-alert-DOvSSKHQ.js",
       "_circle-check-CRdT4vUM.js",
       "_folder-open-D2gyyT5p.js",
+      "_copy-otUtByQ6.js",
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js"
     ]
@@ -563,7 +573,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-BPaogRpw.css",
+    "file": "assets/style-C8nHpKEo.css",
     "src": "style.css"
   }
 }

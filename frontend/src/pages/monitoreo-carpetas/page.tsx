@@ -11,6 +11,8 @@ import {
   Plus,
   Trash2,
   Radio,
+  Copy,
+  Check,
 } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
@@ -77,6 +79,52 @@ const MOVE_TOAST_DURATION = 2500;
 // sin X-Requested-With; con el header devuelve 403 JSON.
 const XHR_HEADERS = { "X-Requested-With": "XMLHttpRequest" };
 
+// Convierte una ruta local/UNC a URL file:// para abrirla en el explorador
+// del equipo del usuario. Solo funciona si la ruta es accesible desde su
+// equipo (misma red / mismo servidor). Como respaldo siempre está copiar.
+function toFileUrl(path: string): string {
+  const p = path.trim();
+  // UNC \\servidor\recurso\... → file://servidor/recurso/...
+  const unc = p.match(/^\\\\([^\\]+)(\\.*)?$/);
+  if (unc) {
+    const rest = (unc[2] ?? "").replace(/\\/g, "/");
+    return `file://${unc[1]}${encodeURI(rest)}`;
+  }
+  // UNC posix //servidor/... → file://servidor/...
+  const posixUnc = p.match(/^\/\/([^/]+)(\/.*)?$/);
+  if (posixUnc) {
+    return `file://${posixUnc[1]}${encodeURI(posixUnc[2] ?? "")}`;
+  }
+  // Unidad local C:\... → file:///C:/...
+  if (/^[a-zA-Z]:[\\/]/.test(p)) {
+    return `file:///${encodeURI(p.replace(/\\/g, "/"))}`;
+  }
+  return `file://${encodeURI(p.replace(/\\/g, "/"))}`;
+}
+
+// Copia texto con fallback para páginas HTTP (sin navigator.clipboard).
+async function copyText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    // Fallback: textarea + execCommand
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
 function formatScanDateTime(value: string | null | undefined): string {
   if (!value) return "—";
   const d = new Date(value);
@@ -112,6 +160,15 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
   const [result, setResult] = useState<ScanResponse["data"] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [facturadorFilter, setFacturadorFilter] = useState<string>("");
+  const [copiedPath, setCopiedPath] = useState<string | null>(null);
+
+  const handleCopyPath = async (path: string) => {
+    const ok = await copyText(path);
+    if (ok) {
+      setCopiedPath(path);
+      setTimeout(() => setCopiedPath(null), 1500);
+    }
+  };
 
   // Bulk move (monitoreo-mover-facturas): string-key selection + dest + toast
   const {
@@ -755,6 +812,7 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Estado</th>
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Facturador</th>
                       <th className="text-left font-semibold text-foreground pb-2 pr-3">Archivo</th>
+                      <th className="text-left font-semibold text-foreground pb-2">Carpeta</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -782,6 +840,32 @@ export function MonitoreoCarpetasPage({ can_write = false }: { can_write?: boole
                         <td className="py-1.5 pr-3 text-foreground/80">{inv.facturador}</td>
                         <td className="py-1.5 pr-3 text-foreground/60 max-w-[200px] truncate" title={inv.filename}>
                           {inv.filename}
+                        </td>
+                        <td className="py-1.5">
+                          <div className="flex items-center gap-1">
+                            <a
+                              href={toFileUrl(inv.full_path)}
+                              target="_blank"
+                              rel="noreferrer"
+                              title={`Abrir carpeta: ${inv.full_path}`}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                              <FolderOpen className="h-3.5 w-3.5" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => void handleCopyPath(inv.full_path)}
+                              title={`Copiar ruta: ${inv.full_path}`}
+                              aria-label={`Copiar ruta de ${inv.filename}`}
+                              className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
+                            >
+                              {copiedPath === inv.full_path ? (
+                                <Check className="h-3.5 w-3.5 text-success" />
+                              ) : (
+                                <Copy className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}

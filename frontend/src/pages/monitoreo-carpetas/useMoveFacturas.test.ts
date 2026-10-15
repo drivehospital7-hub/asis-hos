@@ -86,6 +86,7 @@ describe("useMoveFacturas", () => {
     const fetchMock = vi.fn(async (url: string) => {
       if (url === "/monitoreo-carpetas/move") {
         return {
+          ok: true,
           json: async () => ({
             status: "success",
             data: { moved: ["/d/F1"], failed: [] },
@@ -94,6 +95,7 @@ describe("useMoveFacturas", () => {
         };
       }
       return {
+        ok: true,
         json: async () => ({ status: "success", data: {}, errors: [] }),
       };
     });
