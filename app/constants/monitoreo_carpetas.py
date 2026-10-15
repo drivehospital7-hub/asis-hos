@@ -120,6 +120,13 @@ Evita regenerar en cada evento watchdog (caro en I/O): `ensure_fresh_excel`
 solo regenera si `excel_stale` es True Y pasó este intervalo desde la
 última generación. Solo importa nombre/ruta de carpetas FEV/CAP."""
 
+MONITOREO_EXCEL_KEEP_LAST: int = 3
+"""Reportes `monitoreo_*.xlsx` a conservar en el dir de salida.
+
+Cada regeneración escribe un archivo timestampado nuevo; al terminar se
+podan los más viejos quedando solo estos. Evita acumulación sin cota
+en disco (la UI solo consume el último vía `excel_download`)."""
+
 # Columnas del reporte de detalle
 REPORT_COLUMNS: list[str] = [
     "Código Factura",

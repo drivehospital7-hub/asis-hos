@@ -31,6 +31,30 @@ logger = logging.getLogger(__name__)
 
 _MAX_SCAN_DEPTH = 6
 
+_scan_executor_lock = threading.Lock()
+_scan_executor: ThreadPoolExecutor | None = None
+
+
+def _get_scan_executor() -> ThreadPoolExecutor:
+    """Pool compartido de escaneo, creado una vez y reutilizado.
+
+    El pool vive lo que vive el proceso y está acotado a
+    ``MAX_CONCURRENT_SCANS`` threads EN TOTAL (no por escaneo): un worker
+    colgado en ``os.scandir`` sobre SMB ocupa su slot pero nunca se crean
+    threads nuevos por cada scan. Si todos los slots están colgados, los
+    scans nuevos fallan rápido con timeout visible en ``errores_scan``
+    en vez de fugar threads hasta voltear el server.
+    """
+    global _scan_executor
+    if _scan_executor is None:
+        with _scan_executor_lock:
+            if _scan_executor is None:
+                _scan_executor = ThreadPoolExecutor(
+                    max_workers=MAX_CONCURRENT_SCANS,
+                    thread_name_prefix="monitoreo-scan",
+                )
+    return _scan_executor
+
 
 def _infer_status_from_parts(parts: list[str]) -> str:
     for part in parts:
@@ -214,10 +238,11 @@ def scan_all(root_paths: list[str]) -> ScanResult:
     Anti-cuelgue SMB: cada root se pre-chequea con `_probe_root`
     (single-entry scandir acotado por `ROOT_PROBE_TIMEOUT`); un root
     inaccesible o colgado genera una entrada de error inmediata SIN
-    entrar al executor. El executor nunca bloquea el response en hilos
-    colgados dentro de `os.scandir`: tras recolectar con timeout por
-    root se cierra con `shutdown(wait=False, cancel_futures=True)` para
-    no esperar el join de hilos atascados en I/O de red.
+    entrar al executor. El escaneo usa el pool compartido de
+    `_get_scan_executor` (acotado a MAX_CONCURRENT_SCANS threads en todo
+    el proceso): `future.result(timeout)` por root evita que el response
+    se cuelgue en hilos atascados en I/O de red, y al no crear ni cerrar
+    un executor por scan no se fugan threads aunque el SMB se cuelgue.
     """
 
     all_invoices: list[InvoiceRecord] = []
@@ -258,42 +283,36 @@ def scan_all(root_paths: list[str]) -> ScanResult:
             excel_path=None,
         )
 
-    max_workers = min(MAX_CONCURRENT_SCANS, len(scannable))
+    # Pool compartido (ver _get_scan_executor): acota los threads de escaneo
+    # a MAX_CONCURRENT_SCANS en todo el proceso. Sin shutdown por scan —
+    # el pool se reutiliza y nunca se crean threads nuevos por escaneo.
+    executor = _get_scan_executor()
+    future_to_root = {
+        executor.submit(_scan_root, Path(rp.replace("\\", "/"))): rp
+        for rp in scannable
+    }
 
-    executor = ThreadPoolExecutor(max_workers=max_workers)
-    try:
-        future_to_root = {
-            executor.submit(_scan_root, Path(rp.replace("\\", "/"))): rp
-            for rp in scannable
-        }
+    for future in future_to_root:
+        root_str = future_to_root[future]
+        try:
+            result = future.result(timeout=SCAN_TIMEOUT_PER_FACTURADOR)
+        except FutureTimeoutError:
+            logger.error("Timeout scanning root: %s", root_str)
+            all_errors.append({
+                "root": root_str,
+                "error": f"Timeout after {SCAN_TIMEOUT_PER_FACTURADOR}s",
+            })
+            continue
+        except Exception as exc:
+            logger.exception("Error scanning root: %s", root_str)
+            all_errors.append({"root": root_str, "error": str(exc)})
+            continue
 
-        for future in future_to_root:
-            root_str = future_to_root[future]
-            try:
-                result = future.result(timeout=SCAN_TIMEOUT_PER_FACTURADOR)
-            except FutureTimeoutError:
-                logger.error("Timeout scanning root: %s", root_str)
-                all_errors.append({
-                    "root": root_str,
-                    "error": f"Timeout after {SCAN_TIMEOUT_PER_FACTURADOR}s",
-                })
-                continue
-            except Exception as exc:
-                logger.exception("Error scanning root: %s", root_str)
-                all_errors.append({"root": root_str, "error": str(exc)})
-                continue
-
-            all_invoices.extend(result["invoices"])
-            all_empty.extend(result["empty_folders"])
-            all_errors.extend(result["errors"])
-            for inv in result["invoices"]:
-                invoices_by_facturador.setdefault(inv.facturador, []).append(inv)
-    finally:
-        # Never block the response joining threads hung in SMB os.scandir:
-        # `future.result(timeout)` above already bounded each root, and this
-        # shutdown without join lets stragglers die with the daemon threads
-        # instead of hanging the HTTP request on executor teardown.
-        executor.shutdown(wait=False, cancel_futures=True)
+        all_invoices.extend(result["invoices"])
+        all_empty.extend(result["empty_folders"])
+        all_errors.extend(result["errors"])
+        for inv in result["invoices"]:
+            invoices_by_facturador.setdefault(inv.facturador, []).append(inv)
 
     status_counts: dict[str, int] = {}
     type_counts: dict[str, int] = {}

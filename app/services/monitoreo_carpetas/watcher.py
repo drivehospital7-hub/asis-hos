@@ -28,6 +28,9 @@ from watchdog.observers import Observer
 
 from app.constants.monitoreo_carpetas import (
     EXCEL_REGEN_THROTTLE_SECS,
+    MONITOREO_EXCEL_KEEP_LAST,
+    REPORT_PREFIX,
+    REPORT_SUFFIX,
     ROOT_PROBE_TIMEOUT,
     WATCHDOG_POLL_INTERVAL,
 )
@@ -41,6 +44,28 @@ logger = logging.getLogger(__name__)
 
 _SNAPSHOT_DIR = Path(__file__).parent.parent.parent / "data"
 _SNAPSHOT_FILE = _SNAPSHOT_DIR / "monitoreo_snapshot.json"
+
+
+def _prune_old_reports(output_dir: Path, keep: int = MONITOREO_EXCEL_KEEP_LAST) -> None:
+    """Borra reportes `monitoreo_*.xlsx` viejos, conserva los `keep` más nuevos.
+
+    Best-effort: un fallo de borrado se loguea y no rompe al llamador.
+    """
+    try:
+        reports = sorted(
+            output_dir.glob(f"{REPORT_PREFIX}*{REPORT_SUFFIX}"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+    except OSError:
+        logger.exception("No se pudo listar reportes para poda en %s", output_dir)
+        return
+    for stale in reports[keep:]:
+        try:
+            stale.unlink()
+            logger.info("Reporte viejo podado: %s", stale.name)
+        except OSError:
+            logger.warning("No se pudo borrar reporte viejo: %s", stale.name)
 
 
 def _epoch_to_iso(ts: float | None) -> str | None:
@@ -112,6 +137,7 @@ class FolderWatcher:
         self._reconcile_lock = threading.Lock()  # guard anti-solapamiento
         self._excel_stale: bool = False  # True si el Excel no refleja el ScanResult
         self._excel_generated_at: float | None = None  # epoch s última generación Excel
+        self._excel_gen_lock = threading.Lock()  # serializa regeneraciones concurrentes
         self._load_snapshot()
         # En reposo desde el boot: el reconciliador SOLO arranca con un
         # `first_scan` explícito desde la UI. Nada escanea ni programa solo.
@@ -154,6 +180,7 @@ class FolderWatcher:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             excel_path = output_dir / f"monitoreo_{timestamp}.xlsx"
             generate_excel(scan_result, str(excel_path))
+            _prune_old_reports(output_dir)
             scan_result.excel_path = str(excel_path)
             excel_filename = excel_path.name
             with self._lock:
@@ -777,23 +804,32 @@ diff, además marca ``excel_stale`` y persiste el snapshot.
             ):
                 return False
             result = self._result
-        # Generate OUTSIDE the lock (file I/O) using the snapshot reference.
-        from datetime import datetime
+        # Serializar regeneraciones concurrentes: dos requests a la vez
+        # generaban archivos duplicados con 1s de diferencia. El segundo
+        # espera, rechequea stale y sale sin regenerar si ya está fresco.
+        with self._excel_gen_lock:
+            with self._lock:
+                if self._result is None or not self._excel_stale:
+                    return False
+                result = self._result
+            # Generate OUTSIDE the lock (file I/O) using the snapshot reference.
+            from datetime import datetime
 
-        from app.utils.input_data import output_data_directory
+            from app.utils.input_data import output_data_directory
 
-        output_dir = output_data_directory(create=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        excel_path = output_dir / f"monitoreo_{timestamp}.xlsx"
-        generate_excel(result, str(excel_path))
-        with self._lock:
-            if self._result is not None:
-                self._result.excel_path = str(excel_path)
-            self._excel_stale = False
-            self._excel_generated_at = time.time()
-            self._save_snapshot()
-        logger.info("Excel fresco regenerado: %s", excel_path.name)
-        return True
+            output_dir = output_data_directory(create=True)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            excel_path = output_dir / f"monitoreo_{timestamp}.xlsx"
+            generate_excel(result, str(excel_path))
+            _prune_old_reports(output_dir)
+            with self._lock:
+                if self._result is not None:
+                    self._result.excel_path = str(excel_path)
+                self._excel_stale = False
+                self._excel_generated_at = time.time()
+                self._save_snapshot()
+            logger.info("Excel fresco regenerado: %s", excel_path.name)
+            return True
 
     # ------------------------------------------------------------------
     # Internal helpers
