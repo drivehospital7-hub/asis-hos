@@ -141,10 +141,15 @@ def listar_errores():
     responsable = request.args.get("responsable")
     area = request.args.get("area")
     validador = request.args.get("validador")
+    # Chequeo de duplicados sin filtros de vista: ?facturas=FEV1&facturas=FEV2
+    # o ?facturas=FEV1,FEV2 (match exacto contra factura o refactura).
+    facturas: list[str] = []
+    for raw in request.args.getlist("facturas"):
+        facturas.extend(p.strip().upper() for p in raw.split(",") if p.strip())
 
     return jsonify(get_errores(
         tipo_error, estado, responsable, area=area, session=dict(session),
-        validador=validador,
+        validador=validador, facturas=facturas or None,
     ))
 
 

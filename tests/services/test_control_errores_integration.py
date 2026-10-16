@@ -384,6 +384,62 @@ class TestAreaFilterIntegration:
         assert resp.get_json()["data"]["errores"] == []
 
 
+class TestFacturasFilterIntegration:
+    """?facturas= chequeo de duplicados sin filtros de vista (factura o refactura)."""
+
+    _FIXTURE = [
+        {
+            "id": "f-1", "tipo_error": "Error", "estado": "S",
+            "responsable": "", "factura": "FEV123", "refactura": "",
+            "creado_en": "2026-08-01T10:00:00",
+        },
+        {
+            "id": "f-2", "tipo_error": "Error", "estado": "S",
+            "responsable": "", "factura": "OTRA", "refactura": "FEV999",
+            "creado_en": "2026-09-05T10:00:00",
+        },
+    ]
+
+    def _get(self, app_client, qs):
+        with app_client.session_transaction() as sess:
+            sess["ce_authenticated"] = True
+            sess["rol"] = "admin"
+            sess["username"] = "admin"
+            sess["permisos"] = ["*"]
+        with (
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": self._FIXTURE}),
+            patch("app.utils.errores_storage.obtener_imagenes_count", return_value=0),
+        ):
+            return app_client.get(f"/api/control-errores{qs}")
+
+    def test_facturas_match_factura(self, app_client):
+        """?facturas=FEV123 → solo el registro con esa factura."""
+        resp = self._get(app_client, "?facturas=FEV123")
+        assert resp.status_code == 200
+        assert [e["id"] for e in resp.get_json()["data"]["errores"]] == ["f-1"]
+
+    def test_facturas_match_refactura_case_insensitive(self, app_client):
+        """?facturas=fev999 matchea refactura sin importar mayúsculas."""
+        resp = self._get(app_client, "?facturas=fev999")
+        assert resp.status_code == 200
+        assert [e["id"] for e in resp.get_json()["data"]["errores"]] == ["f-2"]
+
+    def test_facturas_multiples_coma_y_repetidos(self, app_client):
+        """?facturas=FEV123,FEV999 devuelve ambos; inexistente → vacío."""
+        resp = self._get(app_client, "?facturas=FEV123,FEV999")
+        assert resp.status_code == 200
+        assert {e["id"] for e in resp.get_json()["data"]["errores"]} == {"f-1", "f-2"}
+        resp = self._get(app_client, "?facturas=FEV000")
+        assert resp.get_json()["data"]["errores"] == []
+
+    def test_sin_facturas_devuelve_todo(self, app_client):
+        """Sin ?facturas= no hay filtro (contrato aditivo)."""
+        resp = self._get(app_client, "")
+        assert resp.status_code == 200
+        assert len(resp.get_json()["data"]["errores"]) == 2
+
+
 class TestOpcionesAreasIntegration:
     """sdd Empieza: /api/control-errores/opciones expone areas + responsables_detalle."""
 
