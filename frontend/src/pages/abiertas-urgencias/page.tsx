@@ -387,7 +387,10 @@ export function AbiertasUrgenciasPage({
         return;
       }
 
-      // Pre-load existing records for duplicate detection
+      // Pre-load existing records for duplicate detection.
+      // INTENCIONAL: solo categoría Notificación (= factura abierta). Un registro
+      // "Error" no significa que la factura ya fue reportada como abierta.
+      // (Espejo: /procesar solo matchea "Error" por la misma razón.)
       fetch("/api/control-errores")
         .then((res) => res.json())
         .then((data) => {

@@ -202,6 +202,60 @@
     });
   }
 
+  // Chequeo global de duplicados: une los locales (tokens vs vista filtrada)
+  // con el backend sin filtros (?facturas= matchea factura o refactura).
+  // Así el aviso no depende del filtro activo. Requiere un solo request.
+  async function buscarDuplicadosGlobal(factura) {
+    var locales = buscarDuplicados(factura);
+    var tokens = parsearFacturas(factura);
+    if (!tokens.length) return locales;
+    try {
+      var qs = tokens.map(function(t){return 'facturas=' + encodeURIComponent(t);}).join('&');
+      var res = await fetch('/api/control-errores?' + qs);
+      var result = await res.json();
+      if (result.status === 'success' && result.data && result.data.errores) {
+        var vistos = {};
+        locales.forEach(function(e){ vistos[e.id] = true; });
+        result.data.errores.forEach(function(e){
+          if (!vistos[e.id]) { locales.push(e); vistos[e.id] = true; }
+        });
+      }
+    } catch (e) { console.error('[FRONT] Duplicados global:', e); }
+    return locales;
+  }
+
+  // "Ago 2026" / "Ago 2026, Sep 2026" desde creado_en ISO (para el aviso).
+  function mesesDeDuplicados(dups) {
+    var vistos = {}, meses = [];
+    dups.forEach(function(e){
+      if (!e.creado_en) return;
+      var d = new Date(e.creado_en);
+      if (isNaN(d)) return;
+      var key = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      if (!vistos[key]) {
+        vistos[key] = true;
+        meses.push(formatMonthLabel(d.getFullYear(), d.getMonth() + 1));
+      }
+    });
+    return meses;
+  }
+
+  // Aviso con origen: si el duplicado está en otro mes, el mensaje lo dice
+  // para que no parezca un falso positivo contra lo visible en pantalla.
+  function mensajeDuplicado(factura, dups, accion) {
+    var base = 'La factura ' + factura + ' ya existe';
+    if (dups.length === 1) {
+      var unMes = mesesDeDuplicados(dups);
+      if (unMes.length) base += ' (cargada en ' + unMes[0] + ')';
+    } else if (dups.length > 1) {
+      base += ' (' + dups.length + ' registros';
+      var varios = mesesDeDuplicados(dups);
+      if (varios.length) base += ': ' + varios.slice(0, 3).join(', ') + (varios.length > 3 ? ', \u2026' : '');
+      base += ')';
+    }
+    return base + '. \u00bf' + (accion || 'Crear') + ' igual?';
+  }
+
   // Display-only Title Case (control-novedades-title-case-ui). NFKD accent-safe:
   // "MARÍA" → "María", particles NOT lowercased ("MARIA DEL PILAR" → "Maria Del Pilar").
   // Applied BEFORE escapeHtml at every transformed site; never emits markup.
@@ -1334,9 +1388,9 @@
       var factura = field === 'factura' ? newValue : '';
       var refactura = field === 'refactura' ? newValue : '';
       if (factura) {
-        var dup = buscarDuplicados(factura);
+        var dup = await buscarDuplicadosGlobal(factura);
         if (dup.length) {
-          if (!await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+          if (!await Modal.confirm(mensajeDuplicado(factura, dup, 'Crear'))) {
             closeEditor(); loadErrores(); return;
           }
         }
@@ -1348,8 +1402,8 @@
       if (field === 'factura' && newValue) {
         var errActual = cachedErrores.find(function(e){return e.id===currentEditId});
         if (errActual && errActual.factura !== newValue) {
-          var dup = buscarDuplicados(newValue);
-          if (dup.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+          var dup = await buscarDuplicadosGlobal(newValue);
+          if (dup.length && !await Modal.confirm(mensajeDuplicado(newValue, dup, 'Guardar'))) {
             // Revertir cambio visual y recargar
             currentCell.textContent = errActual.factura || '-';
             closeEditor(); loadErrores(); return;
@@ -1446,15 +1500,15 @@
     // Validar duplicados en factura
     if (field === 'factura' && newValue) {
       if (prevId === 'new') {
-        var dupNew = buscarDuplicados(newValue);
-        if (dupNew.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Crear igual?')) {
+        var dupNew = await buscarDuplicadosGlobal(newValue);
+        if (dupNew.length && !await Modal.confirm(mensajeDuplicado(newValue, dupNew, 'Crear'))) {
           closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
         }
       } else {
         var errActual = cachedErrores.find(function(e){return e.id===prevId});
         if (errActual && errActual.factura !== newValue) {
-          var dupExisting = buscarDuplicados(newValue);
-          if (dupExisting.length && !await Modal.confirm('La factura ' + newValue + ' ya existe. ¿Guardar igual?')) {
+          var dupExisting = await buscarDuplicadosGlobal(newValue);
+          if (dupExisting.length && !await Modal.confirm(mensajeDuplicado(newValue, dupExisting, 'Guardar'))) {
             currentCell.textContent = errActual.factura || '-';
             closeEditor(); loadErrores(); return; // NO callback - aborta la cadena
           }
@@ -1643,8 +1697,8 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     var factura = (document.getElementById('newFactura')?.value?.trim() || '').toUpperCase();
     var refactura = (document.getElementById('newRefactura')?.value?.trim() || '').toUpperCase();
     if (!factura) { isAdding = false; loadErrores(); return; }
-    var dup = buscarDuplicados(factura);
-    if (dup.length && !await Modal.confirm('La factura ' + factura + ' ya existe. ¿Crear igual?')) {
+    var dup = await buscarDuplicadosGlobal(factura);
+    if (dup.length && !await Modal.confirm(mensajeDuplicado(factura, dup, 'Crear'))) {
       isAdding = false; loadErrores(); return;
     }
     var data = { tipo_error: 'Error', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
@@ -2400,6 +2454,25 @@ function exportarExcel() {
     });
   }
 
+  // Tokens del backend (?facturas=) como Set: misma idea que
+  // buscarDuplicadosGlobal pero en un solo request para todo el batch.
+  async function _tokensDuplicadosCargaBackend(tokens) {
+    var mapa = {};
+    if (!tokens.length) return mapa;
+    try {
+      var qs = tokens.map(function(t){return 'facturas=' + encodeURIComponent(t);}).join('&');
+      var res = await fetch('/api/control-errores?' + qs);
+      var result = await res.json();
+      if (result.status === 'success' && result.data && result.data.errores) {
+        result.data.errores.forEach(function(e){
+          parsearFacturas(e.factura).forEach(function(t){ mapa[t] = true; });
+          parsearFacturas(e.refactura).forEach(function(t){ mapa[t] = true; });
+        });
+      }
+    } catch (e) { console.error('[FRONT] Duplicados carga:', e); }
+    return mapa;
+  }
+
   async function parseCargaMasiva() {
     const raw = document.getElementById('cargaTextarea').value;
     const descripcion = document.getElementById('cargaDescripcion').value.trim();
@@ -2451,6 +2524,20 @@ function exportarExcel() {
       await Modal.alert('Error al parsear los datos:\n' + errors.join('\n'));
       return;
     }
+
+    // ---- 2b. Chequeo global sin filtros (un request para todo el batch) ----
+    var _todosTokens = {};
+    rows.forEach(function(r){
+      parsearFacturas(r.factura).forEach(function(t){ _todosTokens[t] = true; });
+    });
+    var _globales = await _tokensDuplicadosCargaBackend(Object.keys(_todosTokens));
+    rows.forEach(function(r){
+      if (r.duplicate) return; // ya marcado contra la vista
+      var toks = parsearFacturas(r.factura);
+      for (var ti = 0; ti < toks.length; ti++) {
+        if (_globales[toks[ti]]) { r.duplicate = true; break; }
+      }
+    });
 
     if (errors.length) {
       if (!await Modal.confirm('Hay ' + errors.length + ' fila(s) ignoradas:\n' +
