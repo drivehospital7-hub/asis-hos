@@ -15,6 +15,22 @@ from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
+
+def _invalidate_cat_in(key: str) -> None:
+    """Invalida la cache del evaluator cat_in tras escribir un catalogo.
+
+    Import lazy: evita ciclos (evaluators no importa este modulo, pero el
+    patron lazy es la convencion del repo). Best-effort: si falla, el TTL
+    (60s) acota el dato rancio.
+    """
+    try:
+        from app.services.engine.evaluators import EVALUATOR_REGISTRY
+        evaluator = EVALUATOR_REGISTRY.get("cat_in")
+        if evaluator is not None and hasattr(evaluator, "invalidate"):
+            evaluator.invalidate(key)
+    except Exception:
+        logger.exception("invalidate cat_in fallo para %s", key)
+
 _CREATE_TABLE_SQL = """
     CREATE TABLE IF NOT EXISTS catalogos (
         id SERIAL PRIMARY KEY,
@@ -158,6 +174,7 @@ def create_catalogo(db, data: dict) -> dict:
     val = mapping["value"]
     if not isinstance(val, list):
         val = []
+    _invalidate_cat_in(mapping["key"])
     return {
         "key": mapping["key"],
         "values": val,
@@ -228,6 +245,7 @@ def update_catalogo(db, key: str, data: dict) -> dict:
     val = mapping["value"]
     if not isinstance(val, list):
         val = []
+    _invalidate_cat_in(mapping["key"])
     return {
         "key": mapping["key"],
         "values": val,
@@ -308,6 +326,7 @@ def delete_catalogo(db, key: str) -> dict:
             {"key": key},
         )
         db.commit()
+        _invalidate_cat_in(key)
         return {
             "deleted": True,
             "warnings": {
@@ -322,6 +341,7 @@ def delete_catalogo(db, key: str) -> dict:
         {"key": key},
     )
     db.commit()
+    _invalidate_cat_in(key)
     return {"deleted": True}
 
 

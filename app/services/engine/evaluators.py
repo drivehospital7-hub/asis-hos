@@ -1105,16 +1105,58 @@ class CronogramaCheckEvaluator(AtomicEvaluator):
         return None
 
 
+#: TTL de la cache de catalogos (segundos). Los catalogos son datos de
+#: referencia casi estaticos; el TTL cubre multi-proceso (cada worker de
+#: waitress tiene su copia y la invalidacion explicita solo alcanza al
+#: worker que atendio la UI). En el peor caso un cambio tarda esto en verse.
+CATALOG_CACHE_TTL_SECONDS = 60
+
+
 class CatalogInEvaluator(AtomicEvaluator):
     """Checks if row_value is in a catalog list stored in the catalogos DB table.
 
     valor_esperado is the catalog key (e.g. 'profesionales_odontologia').
-    The actual list is queried from the catalogos table at evaluation time.
-    Requires context.session to be available (DB connection).
+    The list is fetched once per key and cached in-memory (registry
+    singleton): 21k filas x N nodos `cat_in` costaban una query por fila;
+    ahora cuestan una por key cada TTL. catalogos_service invalida en cada
+    escritura, asi que la semantica es identica (misma query, mismos
+    fallbacks, mismos False).
 
     Use this instead of hardcoding lists in conditions for better maintainability.
     """
     operator = "cat_in"
+
+    def __init__(self) -> None:
+        # key -> (lista | None si faltante/mal formato, epoch de carga)
+        self._catalog_cache: dict[str, tuple[Any, float]] = {}
+
+    def invalidate(self, key: str | None = None) -> None:
+        """Invalida la cache: una key o todo. Llamar en cada escritura."""
+        if key is None:
+            self._catalog_cache.clear()
+            return
+        self._catalog_cache.pop(key.strip(), None)
+
+    def _load_catalog(self, key: str, session: Any) -> Any:
+        """Lista cacheada del catalogo (None si no existe o mal formato)."""
+        import time
+
+        now = time.monotonic()
+        cached = self._catalog_cache.get(key)
+        if cached is not None:
+            catalog_list, loaded_at = cached
+            if now - loaded_at < CATALOG_CACHE_TTL_SECONDS:
+                return catalog_list
+        from sqlalchemy import text
+        result = session.execute(
+            text("SELECT value FROM catalogos WHERE key = :key"),
+            {"key": key},
+        ).fetchone()
+        catalog_list = result[0] if result else None
+        if not isinstance(catalog_list, (list, tuple, set, frozenset)):
+            catalog_list = None
+        self._catalog_cache[key] = (catalog_list, now)
+        return catalog_list
 
     def evaluate(self, condition, row_value, expected, context=None):
         if context is None or context.session is None:
@@ -1122,16 +1164,9 @@ class CatalogInEvaluator(AtomicEvaluator):
             return False
         if not isinstance(expected, str) or not expected.strip():
             return False
-        from sqlalchemy import text
         try:
-            result = context.session.execute(
-                text("SELECT value FROM catalogos WHERE key = :key"),
-                {"key": expected.strip()}
-            ).fetchone()
-            if not result:
-                return False
-            catalog_list = result[0]
-            if not isinstance(catalog_list, (list, tuple, set, frozenset)):
+            catalog_list = self._load_catalog(expected.strip(), context.session)
+            if catalog_list is None:
                 return False
 
             # 1. Direct check (same types)
