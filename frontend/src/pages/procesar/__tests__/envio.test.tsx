@@ -248,6 +248,27 @@ describe("envio a control (integration)", () => {
     expect(body.factura).toBe("F123");
   });
 
+  it("notificacion existente NO avisa duplicado: se envía como nueva", async () => {
+    const confirm = vi.fn(async () => true);
+    (window as unknown as Record<string, unknown>).__showConfirm = confirm;
+    routeFetch(
+      [{ factura: "F123", tipo_error: "Notificación" }],
+      uploadResultFor([makeRow("F123")]),
+    );
+    render(<ProcesarPage can_write canControl />);
+    await uploadAndExpand();
+
+    // Notificación = abiertas, no error reportado → botón de nueva, sin ⚠
+    expect(screen.queryByTitle("Ya está en Control — Click para duplicar")).toBeNull();
+    fireEvent.click(await screen.findByTitle("Enviar a Control de Errores"));
+
+    await waitFor(() => expect(postCalls().length).toBe(1));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm.mock.calls[0][0]).not.toMatch(/ya existe/i);
+    const body = JSON.parse(String(postCalls()[0][1]?.body));
+    expect(body.tipo_error).toBe("Error");
+  });
+
   it("pre-existente con _enviada muestra ⚠ (no ✓) y acepta confirm → POST", async () => {
     const confirm = vi.fn(async (_msg: string) => true);
     (window as unknown as Record<string, unknown>).__showConfirm = confirm;

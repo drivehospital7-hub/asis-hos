@@ -33,7 +33,8 @@ export function useEnvioControl({
 
   const showEnvio = canShowEnvio(can_write, canControl);
 
-  // Preload único: GET /api/control-errores → Set global normalizado
+  // Preload único: GET /api/control-errores → Set global normalizado.
+  // buildEnvioSet solo incluye categoría "Error" (Notificación = abiertas).
   useEffect(() => {
     if (!showEnvio) return;
     fetch("/api/control-errores")

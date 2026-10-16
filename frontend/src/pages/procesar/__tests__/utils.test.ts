@@ -82,13 +82,26 @@ describe("buildObservacion", () => {
 // ─── buildEnvioSet ──────────────────────────────────────────────────────
 
 describe("buildEnvioSet", () => {
-  it("builds normalized Set from errores of any tipo_error", () => {
+  it("builds normalized Set from errores de categoria Error (incl. legacy Otros)", () => {
     const set = buildEnvioSet([
-      { factura: "f123 ", tipo_error: "Otros" },
+      { factura: "f123 ", tipo_error: "Error" },
       { factura: "FEV1", tipo_error: "Otro Tipo" },
     ]);
     expect(set.has("F123")).toBe(true);
     expect(set.has("FEV1")).toBe(true);
+  });
+
+  it("excluye categoria Notificacion (abiertas, no error reportado)", () => {
+    const set = buildEnvioSet([
+      { factura: "FEV10", tipo_error: "Notificación" },
+      { factura: "FEV11", tipo_error: "notificacion" },
+      { factura: "FEV12", tipo_error: "Factura Abierta" },
+      { factura: "FEV13", tipo_error: "Error" },
+    ]);
+    expect(set.has("FEV10")).toBe(false);
+    expect(set.has("FEV11")).toBe(false);
+    expect(set.has("FEV12")).toBe(false);
+    expect(set.has("FEV13")).toBe(true);
   });
 
   it("matches fila F123 against reporte f123 (no false negative)", () => {
