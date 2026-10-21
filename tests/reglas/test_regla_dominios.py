@@ -127,12 +127,13 @@ class TestMigration023SqlText:
 
 
 class TestReglaDominiosVocabulario:
-    def test_vocabulario_has_8_values(self) -> None:
+    def test_vocabulario_has_9_values(self) -> None:
         from app.constants.base import REGLA_DOMINIOS_VALIDOS
 
         assert REGLA_DOMINIOS_VALIDOS == frozenset({
             "urgencias", "hospitalizacion", "odontologia", "equipos_basicos",
             "transversal", "farmacia", "intramural", "ambulatoria",
+            "furips",
         })
 
 

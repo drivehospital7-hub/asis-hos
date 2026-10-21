@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models import NotasTecnicas
+from app.services.engine.evaluators import invalidate_eps_cups_cache
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +71,7 @@ def create(
     )
     db.add(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info(f"Creada nota técnica: proc={id_procedimiento}, hoja={id_nota_hoja}, tariff={tariff}")
@@ -87,6 +89,7 @@ def update(db: Session, id: int, **kwargs) -> Optional[NotasTecnicas]:
             setattr(obj, key, value)
     
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info(f"Actualizada nota técnica ID: {id}")
@@ -101,6 +104,7 @@ def delete(db: Session, id: int) -> bool:
     
     db.delete(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     
     logger.info(f"Eliminada nota técnica ID: {id}")
     return True

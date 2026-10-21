@@ -81,6 +81,7 @@ AREA_EXTRAMURAL = "extramural"
 AREA_FARMACIA = "farmacia"
 AREA_UNIFICADA = "unificada"
 AREA_AUDITORIA = "auditoria"
+AREA_FURIPS = "furips"
 
 # =============================================================================
 # ÁREAS ORGANIZACIONALES - Vocabulario canónico de áreas organizacionales
@@ -235,6 +236,7 @@ ENGINE_DOMAIN_TRANSVERSAL = "transversal"
 REGLA_DOMINIOS_VALIDOS: frozenset[str] = frozenset({
     "urgencias", "hospitalizacion", "odontologia", "equipos_basicos",
     "transversal", "farmacia", "intramural", "ambulatoria",
+    "furips",
 })
 RULE_STATES: frozenset[str] = frozenset({"active", "retired"})
 DEFAULT_SEVERITY = "error"

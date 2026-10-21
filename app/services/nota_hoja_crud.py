@@ -8,6 +8,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models import NotaHoja
+from app.services.engine.evaluators import invalidate_eps_cups_cache
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +56,7 @@ def create(db: Session, nota: str) -> NotaHoja:
     obj = NotaHoja(nota=nota)
     db.add(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info("Creada nota hoja: %s | ID: %s", nota, obj.id)
@@ -72,6 +74,7 @@ def update(db: Session, id: int, **kwargs) -> Optional[NotaHoja]:
             setattr(obj, key, value)
     
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info(f"Actualizada nota hoja ID: {id}")
@@ -92,6 +95,7 @@ def delete(db: Session, id: int) -> bool:
     
     db.delete(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     
     logger.info(f"Eliminada nota hoja ID: {id} con dependencias")
     return True

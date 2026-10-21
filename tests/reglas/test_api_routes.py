@@ -266,3 +266,30 @@ class TestReglasApiDuplicate:
         assert data["data"]["nombre"] == f"{rule['nombre']} (copia)"
         assert data["data"]["condiciones"][0]["fuente_datos"] == "campo_prueba"
         assert data["data"]["excepciones"][0]["condicion_json"] == {"factura": "EX-1"}
+
+
+class TestReglasApiFuentes:
+    """Tests for GET /api/reglas/fuentes (rule-builder field catalog)."""
+
+    def test_fuentes_requires_auth(self, app_client):
+        """GET /api/reglas/fuentes without auth returns 401."""
+        response = app_client.get("/api/reglas/fuentes")
+        assert response.status_code == 401
+
+    def test_fuentes_lists_facturacion_y_furips(self, app_client):
+        """Envelope with one entry per source and exact header text."""
+        app_client.post("/auth/login", data={"username": "admin", "password": "admin123"})
+        response = app_client.get("/api/reglas/fuentes")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["status"] == "success"
+        assert data["errors"] == []
+        by_fuente = {f["fuente"]: f for f in data["data"]}
+        assert set(by_fuente) == {"facturacion", "furips"}
+        assert by_fuente["facturacion"]["label"] == "Facturación"
+        assert by_fuente["furips"]["label"] == "FURIPS"
+        fact = {c["clave"]: c["header"] for c in by_fuente["facturacion"]["campos"]}
+        assert fact["centro_costo"] == "Centro Costo"
+        furi = {c["clave"]: c["header"] for c in by_fuente["furips"]["campos"]}
+        assert len(furi) == 102
+        assert furi["c03_numero_de_factura"] == "3-Número de factura"

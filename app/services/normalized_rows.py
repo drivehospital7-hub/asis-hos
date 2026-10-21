@@ -159,7 +159,7 @@ def _format_codigo_entidad(item: dict, mapping: dict) -> dict[str, str]:
             "detalle": detalle, "_header_override": "Código Entidad",
         }
     cod = item.get("codigo_entidad_cobrar", "")
-    nombre = item.get("entidad_cobrar_nombre", "")
+    nombre = (item.get("entidad_cobrar_nombre", "") or item.get("entidad_cobrar", "") or "").strip()
     return {
         "descripcion": item.get("problema", ""),
         "procedimiento": f"{cod} - {nombre}" if cod and nombre else str(cod),
@@ -821,7 +821,7 @@ def build_normalized_rows(
         else:
             # Viejo detector: codigo_entidad_vs_entidad_afiliacion
             cod = item.get("codigo_entidad_cobrar", "")
-            nombre = item.get("entidad_cobrar_nombre", "")
+            nombre = (item.get("entidad_cobrar_nombre", "") or item.get("entidad_cobrar", "") or "").strip()
             proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
             rows.append({
                 "tipo_error": "Código Entidad vs Afiliación",

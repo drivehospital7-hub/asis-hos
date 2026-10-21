@@ -34,7 +34,10 @@ class RuleBasedDetector:
     - **RowStore path** (fast): Pass ``rows`` (list[dict]) plus ``indices``.
     """
 
-    def __init__(self, rule_name: str, session: "Session", dominio: str) -> None:
+    def __init__(
+        self, rule_name: str, session: "Session", dominio: str,
+        include_transversal: bool = True,
+    ) -> None:
         """Initialize detector for a specific rule.
 
         Args:
@@ -42,10 +45,13 @@ class RuleBasedDetector:
             session: SQLAlchemy session for DB access.
             dominio: Area dominio threading into engine rule loading
                 (e.g., 'urgencias'; transversal rules resolve from any area).
+            include_transversal: When False, same-named transversal rules
+                never shadow the domain rule.
         """
         self._rule_name = rule_name
         self._session = session
         self._dominio = dominio
+        self._include_transversal = include_transversal
         self._engine = RuleEvaluationEngine(session)
 
     def detect(
@@ -81,4 +87,5 @@ class RuleBasedDetector:
             rows=rows,
             evidence_collector=evidence_collector,
             dominio=self._dominio,
+            include_transversal=self._include_transversal,
         )

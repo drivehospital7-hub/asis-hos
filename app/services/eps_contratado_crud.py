@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy.orm import Session
 
 from app.models import EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento
+from app.services.engine.evaluators import invalidate_eps_cups_cache
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,7 @@ def create(db: Session, cod_contrato: str, eps: str, regimen: str = "SUBSIDIADO"
     )
     db.add(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info("Creada EPS contratada: %s | Cod: %s | ID: %s", eps, cod_contrato, obj.id)
@@ -82,6 +84,7 @@ def update(db: Session, id: int, **kwargs) -> Optional[EpsContratado]:
             setattr(obj, key, value)
     
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info(f"Actualizada EPS contratada ID: {id}")
@@ -132,6 +135,7 @@ def delete(db: Session, id: int) -> bool:
     
     db.delete(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     
     logger.info(f"Eliminada EPS contratada ID: {id}")
     return True

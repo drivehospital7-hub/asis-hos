@@ -50,9 +50,13 @@ class _RecordingDetector:
     instances: list[tuple[str, str]] = []
     payloads: dict[str, list[dict]] = {}
 
-    def __init__(self, nombre: str, session, dominio: str) -> None:
+    def __init__(
+        self, nombre: str, session, dominio: str,
+        include_transversal: bool = True,
+    ) -> None:
         type(self).instances.append((nombre, dominio))
         self._nombre = nombre
+        self._include_transversal = include_transversal
 
     def detect(self, *args, **kwargs):
         return [dict(p) for p in type(self).payloads.get(self._nombre, [])]

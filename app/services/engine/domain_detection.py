@@ -119,6 +119,7 @@ def detect_domain_rules(
     rows: list[dict[str, Any]] | None = None,
     persist: bool = False,
     evidence_collector: "EvidenceCollector | None" = None,
+    include_transversal: bool = True,
 ) -> list[RuleBatch]:
     """Evaluate every enabled rule for a domain exactly once per nombre.
 
@@ -151,7 +152,9 @@ def detect_domain_rules(
     batches: list[RuleBatch] = []
     seen: set[str] = set()
 
-    resolved_rules = list(RuleResolver().resolve(domain, session))
+    resolved_rules = list(
+        RuleResolver().resolve(domain, session, include_transversal)
+    )
     # Best-effort antirregla-muda scan: rules reading invoice fields with
     # no mapped Excel column evaluate blind (None) and may never fire.
     field_warnings = _batch_field_warnings(session, resolved_rules, indices)
@@ -162,7 +165,10 @@ def detect_domain_rules(
         seen.add(rule.nombre)
         if only_ids is not None and rule.id not in only_ids:
             return
-        items = RuleBasedDetector(rule.nombre, session, dominio=domain).detect(
+        items = RuleBasedDetector(
+            rule.nombre, session, dominio=domain,
+            include_transversal=include_transversal,
+        ).detect(
             data_sheet, indices, persist=persist, rows=rows,
             evidence_collector=evidence_collector,
         )
@@ -254,7 +260,18 @@ def _batch_field_warnings(
             by_rule.setdefault(regla_id, []).append(fuente)
         out: dict[int, list[str]] = {}
         for rule in rules:
-            missing = invoice_fields_missing(by_rule.get(rule.id, []), mapped)
+            # Targets de agregacion group-by (parametros): los calcula
+            # el motor en runtime, no vienen del Excel — no son faltantes.
+            provided: set[str] = set()
+            for cfg in getattr(rule, "parametros", None) or []:
+                if not isinstance(cfg, dict):
+                    continue
+                for agg in cfg.get("aggregations", []) or []:
+                    target = agg.get("target") if isinstance(agg, dict) else None
+                    if target:
+                        provided.add(str(target))
+            missing = invoice_fields_missing(
+                by_rule.get(rule.id, []), mapped | provided)
             if missing:
                 logger.warning(
                     "Regla %s (#%s) usa campos sin columna mapeada: %s "

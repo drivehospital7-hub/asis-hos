@@ -7,6 +7,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import and_
 
 from app.models import EpsNota
+from app.services.engine.evaluators import (
+    invalidate_eps_cups_cache,
+    invalidate_eps_nota_cache,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,8 @@ def create(db: Session, id_nota_hoja: int, id_eps_contratado: int) -> EpsNota:
     )
     db.add(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
+    invalidate_eps_nota_cache()
     db.refresh(obj)
     
     logger.info(f"Creada relación EPS-Nota: hoja={id_nota_hoja}, eps={id_eps_contratado}")
@@ -78,6 +84,8 @@ def delete(db: Session, id: int) -> bool:
     
     db.delete(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
+    invalidate_eps_nota_cache()
     
     logger.info(f"Eliminada relación EPS-Nota ID: {id}")
     return True

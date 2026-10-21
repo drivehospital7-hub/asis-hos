@@ -8,6 +8,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 
 from app.models import Procedimiento
+from app.services.engine.evaluators import invalidate_eps_cups_cache
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +59,7 @@ def create(db: Session, cups: str, procedimiento: str) -> Procedimiento:
     )
     db.add(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info("Creado procedimiento: %s | CUPS: %s | ID: %s", procedimiento, cups, obj.id)
@@ -75,6 +77,7 @@ def update(db: Session, id: int, **kwargs) -> Optional[Procedimiento]:
             setattr(obj, key, value)
     
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     db.refresh(obj)
     
     logger.info(f"Actualizado procedimiento ID: {id}")
@@ -89,6 +92,7 @@ def delete(db: Session, id: int) -> bool:
     
     db.delete(obj)
     db.commit()
+    invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
     
     logger.info(f"Eliminado procedimiento ID: {id}")
     return True

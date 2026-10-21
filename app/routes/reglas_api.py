@@ -224,6 +224,23 @@ def api_duplicate_rule(regla_id: int):
 # ─── Grupos de error (labels, no entidad) ────────────────────────────
 
 
+@reglas_api_bp.route("/reglas/fuentes", methods=["GET"])
+@admin_requerido
+def api_list_fuentes():
+    """List data sources and their invoice fields for the rule builder.
+
+    Single source of truth lives in app.constants.headers: adding a key
+    to SOURCE_HEADERS surfaces it in the admin-reglas field selector
+    with no frontend change. No DB access needed.
+    """
+    from app.constants.headers import describe_fuentes
+    try:
+        return jsonify({"status": "success", "data": describe_fuentes(), "errors": []})
+    except Exception as exc:
+        logger.exception("Error listing fuentes")
+        return jsonify({"status": "error", "data": {}, "errors": [str(exc)]}), 500
+
+
 @reglas_api_bp.route("/reglas/grupos", methods=["GET"])
 @admin_requerido
 def api_list_grupos():

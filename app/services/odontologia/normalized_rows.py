@@ -333,7 +333,7 @@ def build_odontologia_normalized_rows(
                 })
             else:
                 cod = item.get("codigo_entidad_cobrar", "")
-                nombre = item.get("entidad_cobrar_nombre", "")
+                nombre = (item.get("entidad_cobrar_nombre", "") or item.get("entidad_cobrar", "") or "").strip()
                 proc_entidad = f"{cod} - {nombre}" if cod and nombre else cod
                 rows.append({
                     "tipo_error": "Código Entidad vs Afiliación",

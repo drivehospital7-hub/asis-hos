@@ -17,10 +17,13 @@ from app.constants import (
     AREA_ODONTOLOGIA,
     AREA_URGENCIAS,
     AREA_EQUIPOS_BASICOS,
+    AREA_FURIPS,
     AREA_UNIFICADA,
     PROFESIONALES_ODONTOLOGIA,
-    FACTURACION_HEADERS,
-    FACTURACION_HEADER_ALIASES,
+    SOURCE_FURIPS,
+    SOURCE_HEADER_ALIASES,
+    SOURCE_HEADER_ROWS,
+    required_headers_for,
 )
 from app.services.equipos_basicos.detect_all import detect_all_problems_equipos_basicos
 from app.services.odontologia.detect_por_responsable import (
@@ -83,7 +86,10 @@ def _scan_valores_no_catalogados(
         from app.constants import (
             FIELD_VALUE_CATALOGS,
             MAX_UNKNOWN_VALUES_PER_FIELD,
+            SCAN_VALORES_NO_CATALOGADOS,
         )
+        if not SCAN_VALORES_NO_CATALOGADOS:
+            return []
         from app.database import get_session
         from app.services.transversales.valores_no_catalogados import (
             find_unrecognized_values,
@@ -105,6 +111,106 @@ def _scan_valores_no_catalogados(
         return []
 
 
+def _build_anexo_map(
+    principal_filename: str | None,
+    campos: list[str] | None,
+) -> dict[str, list[dict[str, str]]]:
+    """Mapa factura -> [{campo, valor}] desde el Excel principal.
+
+    Best-effort: cualquier fallo devuelve {}. Solo display: estos campos
+    nunca entran al motor (las reglas no pueden leerlos; si alguna los
+    referencia, salta el aviso de regla sin datos).
+    """
+    from app.constants import FACTURACION_HEADERS
+    from app.utils.input_data import resolve_safe_excel_absolute
+
+    validos = [c for c in (campos or []) if c in FACTURACION_HEADERS]
+    ignorados = [c for c in (campos or []) if c not in FACTURACION_HEADERS]
+    if ignorados:
+        logger.warning("Campos de anexo ignorados (no existen): %s", ignorados)
+    if not validos or not principal_filename:
+        return {}
+    try:
+        path, error = resolve_safe_excel_absolute(principal_filename)
+        if error or path is None:
+            logger.warning("Anexo: no se pudo resolver el principal: %s", error)
+            return {}
+        df = pl.read_excel(
+            str(path),
+            engine="calamine",
+            has_header=False,
+        )
+        if df.width == 0:
+            return {}
+        # Fila de headers: primera de las 5 que contenga 'Número Factura'.
+        wanted = unicodedata.normalize("NFC", "Número Factura")
+        header_idx: int | None = None
+        header_vals: list[Any] = []
+        for r in range(min(5, df.height)):
+            vals = [v for v in df.row(r)]
+            norms = {
+                unicodedata.normalize("NFC", str(v)).strip().replace("\u00a0", " ")
+                for v in vals if v is not None
+            }
+            if wanted in norms:
+                header_idx = r
+                header_vals = vals
+                break
+        if header_idx is None:
+            logger.warning("Anexo: sin fila de headers en el principal")
+            return {}
+        needed = {"numero_factura": "Número Factura"}
+        needed.update({c: FACTURACION_HEADERS[c] for c in validos})
+        indices, _ = get_column_indices(header_vals, needed)
+        if indices.get("numero_factura") is None:
+            return {}
+        anexo: dict[str, list[dict[str, str]]] = {}
+        for r in range(header_idx + 1, df.height):
+            vals = df.row(r)
+            raw_fact = vals[indices["numero_factura"]]
+            if raw_fact is None:
+                continue
+            factura = str(raw_fact).strip()  # misma semantica que el motor
+            if not factura or factura in anexo:
+                continue
+            items = []
+            for c in validos:
+                col = indices.get(c)
+                if col is None:
+                    continue
+                val = vals[col]
+                text = "" if val is None else str(val).strip()
+                if text:
+                    items.append({"campo": FACTURACION_HEADERS[c], "valor": text})
+            if items:
+                anexo[factura] = items
+        logger.info("Anexo: %d facturas con datos (%d filas leidas)", len(anexo), df.height)
+        return anexo
+    except Exception:
+        logger.exception("Anexo: fallo construyendo el mapa (best-effort)")
+        return {}
+
+
+def _apply_anexo(
+    problemas_detectados: dict[str, Any],
+    anexo_map: dict[str, list[dict[str, str]]],
+) -> None:
+    """Pega `anexo` display-only en cada fila normalizada (in-place)."""
+    if not anexo_map:
+        return
+    matched = 0
+    total = 0
+    for row in problemas_detectados.get("problemas", {}).get("normalizados", []) or []:
+        if not isinstance(row, dict):
+            continue
+        total += 1
+        items = anexo_map.get(str(row.get("factura", "")).strip())
+        if items:
+            row["anexo"] = items
+            matched += 1
+    logger.info("Anexo aplicado: %d/%d filas normalizadas", matched, total)
+
+
 def detect_problems_only(
     *,
     filename: str,
@@ -114,6 +220,8 @@ def detect_problems_only(
     dias: list[int] | None = None,
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
+    principal_filename: str | None = None,
+    campos_anexo: list[str] | None = None,
 ) -> tuple[dict[str, Any], int]:
     """
     Solo detecta problemas en un Excel, SIN exportar ni crear archivos.
@@ -160,6 +268,8 @@ def detect_problems_only(
             dias=dias,
             todos_profesionales_dias=todos_profesionales_dias,
             validar_centro_costo=validar_centro_costo,
+            principal_filename=principal_filename,
+            campos_anexo=campos_anexo,
         )
         return (result, 200)
     except Exception:
@@ -185,6 +295,8 @@ def _do_detect_problems(
     dias: list[int] | None = None,
     todos_profesionales_dias: dict[str, list[int]] | None = None,
     validar_centro_costo: bool = False,
+    principal_filename: str | None = None,
+    campos_anexo: list[str] | None = None,
 ) -> dict[str, Any]:
     """
     Implementación interna de la detección de problemas.
@@ -252,9 +364,14 @@ def _do_detect_problems(
 
     del df
 
-    # Mapa canonico centralizado (app.constants.headers): una sola fuente
-    # de verdad para los headers de la produccion del facturador.
-    required_headers: dict[str, str] = dict(FACTURACION_HEADERS)
+    # Mapa canonico centralizado (app.constants.headers) segun fuente.
+    # FURIPS trae 102 headers numerados en fila 3; el best-match de abajo
+    # ya cubre filas 1..5, aqui solo cambia el mapa + alias por fuente.
+    from app.constants import SOURCE_FACTURACION
+    fuente = SOURCE_FURIPS if area == AREA_FURIPS else SOURCE_FACTURACION
+    required_headers: dict[str, str] = required_headers_for(fuente)
+    header_aliases = SOURCE_HEADER_ALIASES[fuente]
+    expected_header_row = SOURCE_HEADER_ROWS[fuente]
 
     # --- Auto-detección de fila de headers (best-match, 5 filas) ---
     # Algunos Excel tienen filas de título antes de los encabezados reales.
@@ -310,8 +427,15 @@ def _do_detect_problems(
     # Leer headers de la primera fila
     headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
 
+    if detected_row != expected_header_row:
+        logger.warning(
+            "Fuente %s: headers detectados en fila %d, esperado fila %d. "
+            "Si el productor movio la fila de encabezados, revisar.",
+            fuente, detected_row, expected_header_row,
+        )
+
     indices, missing_columns = get_column_indices(
-        headers, required_headers, aliases=FACTURACION_HEADER_ALIASES
+        headers, required_headers, aliases=header_aliases
     )
 
     # Build RowStore (list[dict]) for facts-first evaluation in the engine
@@ -332,6 +456,13 @@ def _do_detect_problems(
             problemas_detectados, responsables_map = process_unified(
                 sheet, indices, rows=row_store,
             )
+        elif area == AREA_FURIPS:
+            from app.services.furips.detect_all import (
+                detect_all_problems_furips,
+            )
+            problemas_detectados, responsables_map = detect_all_problems_furips(
+                sheet, indices, rows=row_store,
+            )
         else:
             problemas_detectados, responsables_map = detect_all_problems_odontologia_por_responsable(
                 sheet, indices, rows=row_store,
@@ -343,6 +474,12 @@ def _do_detect_problems(
         problemas_detectados["valores_no_catalogados"] = (
             _scan_valores_no_catalogados(row_store)
         )
+        # Anexo efimero display-only (furips + principal adjunto).
+        if area == AREA_FURIPS and principal_filename and campos_anexo:
+            _apply_anexo(
+                problemas_detectados,
+                _build_anexo_map(principal_filename, campos_anexo),
+            )
 
     except Exception as exc:
         logger.exception("Error detectando problemas")

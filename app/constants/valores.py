@@ -19,6 +19,11 @@ tilde cambiada no matchea y si se reporta.
 
 from __future__ import annotations
 
+#: Interruptor del scan S4 (valores no catalogados). En False el scan
+#: no se ejecuta y la respuesta nunca trae `valores_no_catalogados`.
+#: El resto (mapa, servicio, UI) queda intacto para reactivarlo.
+SCAN_VALORES_NO_CATALOGADOS = False
+
 #: Campo interno -> catalogos (keys de `catalogos`) en union.
 FIELD_VALUE_CATALOGS: dict[str, tuple[str, ...]] = {
     "centro_costo": (

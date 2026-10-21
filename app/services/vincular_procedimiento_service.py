@@ -11,6 +11,7 @@ from typing import Dict, Tuple
 from sqlalchemy.orm import Session
 
 from app.models import EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento
+from app.services.engine.evaluators import invalidate_eps_cups_cache
 
 logger = logging.getLogger(__name__)
 
@@ -96,6 +97,7 @@ def ejecutar(
         db.flush()
 
         db.commit()
+        invalidate_eps_cups_cache()  # cadena eps: refrescar motor sin reinicio
         db.refresh(eps_nota)
         db.refresh(nt)
 

@@ -23,6 +23,22 @@ _FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
     " ".join(f.upper().split()) for f in FACTURADORES_URGENCIAS
 )
 
+#: TTL de caches de datos de referencia (segundos). Cubre multi-proceso
+#: (cada worker tiene su copia y la invalidacion explicita solo alcanza al
+#: worker que atendio la escritura). Peor caso: un cambio tarda esto en verse.
+REFERENCE_DATA_TTL_SECONDS = 60
+
+
+def invalidate_eps_cups_cache() -> None:
+    """Limpia la cache del evaluador eps_cups_contratado. Llamar en cada
+    escritura de la cadena eps (procedimiento, notas, hojas, vinculos)."""
+    try:
+        ev = EVALUATOR_REGISTRY.get("eps_cups_contratado")
+        if ev is not None and hasattr(ev, "invalidate"):
+            ev.invalidate()
+    except Exception:
+        logger.exception("invalidate eps_cups_contratado fallo")
+
 
 class AtomicEvaluator(ABC):
     """Base class for atomic condition evaluators.
@@ -391,7 +407,9 @@ class ExistsInDBEvaluator(AtomicEvaluator):
     operator = "exists_in_db"
 
     def __init__(self) -> None:
-        self._cache: dict[tuple[str, str, str], bool] = {}
+        # (table, field, value) -> (exists, epoch). TTL: sin reinicio,
+        # un alta tarda a lo sumo REFERENCE_DATA_TTL_SECONDS en verse.
+        self._cache: dict[tuple[str, str, str], tuple[bool, float]] = {}
 
     def evaluate(
         self,
@@ -425,10 +443,13 @@ class ExistsInDBEvaluator(AtomicEvaluator):
         if not value_str:
             return False
 
-        # Check cache first
+        # Check cache first (con TTL)
+        import time
+
         cache_key = (table_name, field_name, value_str)
-        if cache_key in self._cache:
-            return self._cache[cache_key]
+        cached = self._cache.get(cache_key)
+        if cached is not None and time.monotonic() - cached[1] < REFERENCE_DATA_TTL_SECONDS:
+            return cached[0]
 
         # Must have a DB session
         if context is None or context.session is None:
@@ -445,7 +466,7 @@ class ExistsInDBEvaluator(AtomicEvaluator):
             )
             result = context.session.execute(query, {"val": value_str}).fetchone()
             exists = result is not None
-            self._cache[cache_key] = exists
+            self._cache[cache_key] = (exists, time.monotonic())
             return exists
         except Exception as exc:
             logger.exception(
@@ -453,6 +474,133 @@ class ExistsInDBEvaluator(AtomicEvaluator):
                 table_name, field_name, value_str, exc,
             )
             return False
+
+
+class EpsCupsContratadoEvaluator(AtomicEvaluator):
+    """Par (entidad, CUPS) contratado segun la cadena eps_nota.
+
+    operator = "eps_cups_contratado"
+
+    Lee de la fila codigo_entidad_cobrar (cod_contrato, ej ESS118) o
+    entidad_cobrar (nombre EPS) + codigo (CUPS). True cuando el par esta
+    contratado: existe camino eps_contratado -> eps_nota -> nota_hoja ->
+    notas_tecnicas -> procedimiento para esa EPS y ese CUPS.
+    valor_esperado se ignora (None). Sin excepciones hardcodeadas: lo que
+    no esta mapeado en la UI (/catalogo vinculaciones) da False y la
+    regla lo marca; el ajuste es dato, no codigo.
+    """
+
+    operator = "eps_cups_contratado"
+
+    def __init__(self) -> None:
+        # (entidad, cups) -> (contratado, epoch). TTL + invalidate() en
+        # cada escritura de la cadena para no pedir reinicio del server.
+        self._cache: dict[tuple[str, str], tuple[bool, float]] = {}
+
+    def invalidate(self) -> None:
+        """Limpia la cache. Llamar en cada escritura de la cadena eps."""
+        self._cache.clear()
+
+    def evaluate(
+        self,
+        condition: dict,
+        row_value: Any,
+        expected: Any,
+        context: "EvaluationContext | None" = None,
+    ) -> bool:
+        if context is None or context.session is None:
+            return False
+        codigo = str(row_value).strip().upper() if row_value else ""
+        if not codigo:
+            return False
+        inv = context.invoice_data or {}
+        ent_cod = str(inv.get("codigo_entidad_cobrar", "") or "").strip().upper()
+        if not ent_cod:
+            return False
+        # Solo codigo contra codigo: el nombre no participa (decision
+        # del usuario). Si el Excel trae otra cosa en codigo_entidad_cobrar,
+        # el dato de origen debe corregirse; el motor no adivina.
+        import time
+
+        cache_key = (ent_cod, codigo)
+        cached = self._cache.get(cache_key)
+        if cached is not None and time.monotonic() - cached[1] < REFERENCE_DATA_TTL_SECONDS:
+            return cached[0]
+        try:
+            from sqlalchemy import text
+            query = text(
+                "SELECT 1 FROM eps_nota en "
+                "JOIN eps_contratado ec ON ec.id = en.id_eps_contratado "
+                "JOIN nota_hoja nh ON nh.id = en.id_nota_hoja "
+                "JOIN notas_tecnicas nt ON nt.id_nota_hoja = nh.id "
+                "JOIN procedimiento p ON p.id = nt.id_procedimiento "
+                "WHERE UPPER(ec.cod_contrato) = :ent "
+                "AND UPPER(p.cups) = :cups LIMIT 1"
+            )
+            hit = context.session.execute(
+                query, {"ent": ent_cod, "cups": codigo},
+            ).fetchone()
+            contracted = hit is not None
+            self._cache[cache_key] = (contracted, time.monotonic())
+            return contracted
+        except Exception:
+            logger.exception("eps_cups_contratado query failed")
+            return False
+
+
+class EpsTieneNotaEvaluator(AtomicEvaluator):
+    """La entidad tiene al menos una nota vinculada (eps_nota).
+
+    operator = "eps_tiene_nota"
+
+    Guard para reglas de contratado: sin vinculacion no hay veredicto
+    (se omite la fila en silencio) en vez de marcar todo como error.
+    Solo codigo_entidad_cobrar contra cod_contrato (politica estricta).
+    """
+
+    operator = "eps_tiene_nota"
+
+    def __init__(self) -> None:
+        self._cache: dict[str, tuple[bool, float]] = {}
+
+    def invalidate(self) -> None:
+        self._cache.clear()
+
+    def evaluate(self, condition, row_value, expected, context=None):
+        if context is None or context.session is None:
+            return False
+        ent = str(row_value).strip().upper() if row_value else ""
+        if not ent:
+            return False
+        import time
+
+        cached = self._cache.get(ent)
+        if cached is not None and time.monotonic() - cached[1] < REFERENCE_DATA_TTL_SECONDS:
+            return cached[0]
+        try:
+            from sqlalchemy import text
+            hit = context.session.execute(
+                text("SELECT 1 FROM eps_nota en "
+                     "JOIN eps_contratado ec ON ec.id = en.id_eps_contratado "
+                     "WHERE UPPER(ec.cod_contrato) = :ent LIMIT 1"),
+                {"ent": ent},
+            ).fetchone()
+            ok = hit is not None
+            self._cache[ent] = (ok, time.monotonic())
+            return ok
+        except Exception:
+            logger.exception("eps_tiene_nota query failed")
+            return False
+
+
+def invalidate_eps_nota_cache() -> None:
+    """Limpia la cache de eps_tiene_nota. Llamar en cada escritura de eps_nota."""
+    try:
+        ev = EVALUATOR_REGISTRY.get("eps_tiene_nota")
+        if ev is not None and hasattr(ev, "invalidate"):
+            ev.invalidate()
+    except Exception:
+        logger.exception("invalidate eps_tiene_nota fallo")
 
 
 class CodigoEntidadCoincideEvaluator(AtomicEvaluator):
@@ -1392,6 +1540,8 @@ def _register_builtins() -> None:
         SetSubsetEvaluator(),
         AllValuesMatchEvaluator(),
         CupsContratadoEvaluator(),
+        EpsCupsContratadoEvaluator(),
+        EpsTieneNotaEvaluator(),
         IdeContratoSimpleEvaluator(),
         PymRutasDxEvaluator(),
         RevisionCantidadUrgenciasEvaluator(),

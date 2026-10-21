@@ -21,7 +21,7 @@ from flask import (
     session,
 )
 
-from app.constants import AREA_UNIFICADA
+from app.constants import AREA_FURIPS, AREA_UNIFICADA
 from app.services.exporter import detect_problems_only
 from app.services.procesar_export import (
     build_procesar_export_workbook,
@@ -101,6 +101,29 @@ def procesar_unificado_api():
 
     filename = str(temp_path)
     sheet_name = request.form.get("sheet_name") or None
+    # Fuente a procesar (facturacion|furips). Declarada por quien sube.
+    fuente = (request.form.get("fuente", "") or "").strip().lower()
+    area = AREA_FURIPS if fuente == "furips" else AREA_UNIFICADA
+    # Principal opcional (anexo efimero display-only para furips).
+    principal_temp_path = None
+    file_principal = request.files.get("file_principal")
+    if file_principal and file_principal.filename:
+        principal_temp_path, principal_error = save_temp_excel(file_principal)
+        if principal_error:
+            cleanup_temp_excel(temp_path)
+            return jsonify({
+                "status": "error",
+                "data": {},
+                "errors": [principal_error],
+            }), 400
+    campos_anexo: list[str] = []
+    campos_raw = (request.form.get("campos_anexo", "") or "").strip()
+    if campos_raw:
+        try:
+            parsed = json.loads(campos_raw)
+            campos_anexo = [str(c) for c in parsed] if isinstance(parsed, list) else []
+        except (json.JSONDecodeError, TypeError):
+            campos_anexo = [c.strip() for c in campos_raw.split(",") if c.strip()]
     profesional = request.form.get("profesional", "")
     validar_centro_costo = request.form.get("validar_centro_costo") == "on"
 
@@ -125,17 +148,21 @@ def procesar_unificado_api():
     export_result, status_code = detect_problems_only(
         filename=filename,
         sheet_name=sheet_name,
-        area=AREA_UNIFICADA,
+        area=area,
         profesional=profesional,
         dias=dias,
         todos_profesionales_dias=todos_profesionales_dias,
         validar_centro_costo=validar_centro_costo,
+        principal_filename=str(principal_temp_path) if principal_temp_path else None,
+        campos_anexo=campos_anexo,
     )
 
     problemas_data = export_result.get("data", {}).get("problemas", {})
     missing_columns = problemas_data.get("missing_columns", [])
 
     cleanup_temp_excel(temp_path)
+    if principal_temp_path is not None:
+        cleanup_temp_excel(principal_temp_path)
 
     if missing_columns:
         logger.error("Columnas faltantes en el Excel: %s", missing_columns)

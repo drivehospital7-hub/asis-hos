@@ -58,6 +58,7 @@ class RuleEvaluationEngine:
         rows: list[dict[str, Any]] | None = None,
         evidence_collector: "EvidenceCollector | None" = None,
         dominio: str | None = None,
+        include_transversal: bool = True,
     ) -> list[dict[str, Any]]:
         """Evaluate a single rule against all rows.
 
@@ -87,7 +88,7 @@ class RuleEvaluationEngine:
         if dominio is None:
             rule = self._load_rule_legacy(rule_name)
         else:
-            rule = self._load_rule_by_name(rule_name, dominio)
+            rule = self._load_rule_by_name(rule_name, dominio, include_transversal)
         if rule is None:
             logger.warning("Rule not found: %s", rule_name)
             return []
@@ -439,7 +440,9 @@ class RuleEvaluationEngine:
             .first()
         )
 
-    def _load_rule_by_name(self, rule_name: str, dominio: str) -> Regla | None:
+    def _load_rule_by_name(
+        self, rule_name: str, dominio: str, include_transversal: bool = True,
+    ) -> Regla | None:
         """Load the highest-version active rule for (nombre, dominio).
 
         Single-flag cutover: filters ONLY by activo (no estado filter).
@@ -473,7 +476,7 @@ class RuleEvaluationEngine:
         query = (
             self._session.query(Regla)
             .filter(Regla.nombre == rule_name)
-            .filter(rule_matches_domain_or_legacy(Regla.id, dominio))
+            .filter(rule_matches_domain_or_legacy(Regla.id, dominio, include_transversal))
             .order_by(exact_first, Regla.version.desc())
         )
         if not simulation_active:
