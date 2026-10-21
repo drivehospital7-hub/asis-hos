@@ -1,5 +1,10 @@
 /** Shared /procesar result types (used by /procesar and the simulator). */
 
+export interface AnexoItem {
+  campo: string;
+  valor: string;
+}
+
 export interface FacturaItem {
   tipo_error: string;
   factura: string;
@@ -11,6 +16,8 @@ export interface FacturaItem {
   fecha_cierre_vacia?: boolean;
   regla?: string;
   _enviada?: boolean;
+  /** Anexo efimero display-only desde el Excel principal (solo furips). */
+  anexo?: AnexoItem[];
 }
 
 export interface TipoGroup {
@@ -33,4 +40,20 @@ export interface ProcesarResultData {
   tipos_procesados: string[];
   columnas?: string[];
   export_id?: string | null;
+  advertencias_reglas?: ReglaSinDatos[];
+  valores_no_catalogados?: ValorNoCatalogado[];
+}
+
+/** Regla que leyo campos sin columna mapeada (antirregla muda). */
+export interface ReglaSinDatos {
+  regla: string;
+  regla_id: number | null;
+  campos_faltantes: string[];
+}
+
+/** Valor del Excel fuera de los catalogos allowlist. */
+export interface ValorNoCatalogado {
+  campo: string;
+  valor: string;
+  conteo: number;
 }

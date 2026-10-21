@@ -135,6 +135,7 @@ export function ResultadosProcesar({
   const allFacturas = errores.flatMap((fg) =>
     fg.tipos.flatMap((tg) => tg.facturas),
   );
+  const showAnexo = allFacturas.some((f) => (f.anexo?.length ?? 0) > 0);
   if (allFacturas.length === 0) return null;
 
   return (
@@ -219,6 +220,9 @@ export function ResultadosProcesar({
                             <th className="text-left font-medium px-4 py-3">Descripción</th>
                             <th className="text-left font-medium px-4 py-3">Detalle A</th>
                             <th className="text-left font-medium px-4 py-3">Detalle B</th>
+                            {showAnexo && (
+                              <th className="text-left font-medium px-4 py-3">Anexo</th>
+                            )}
                             {showEnvio && (
                               <th className="text-center font-medium px-4 py-3">Envío</th>
                             )}
@@ -240,6 +244,21 @@ export function ResultadosProcesar({
                               <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
                               <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>
                               <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.detalle || "-"}</td>
+                              {showAnexo && (
+                                <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">
+                                  {f.anexo?.length ? (
+                                    <ul className="space-y-0.5">
+                                      {f.anexo.map((a, j) => (
+                                        <li key={j}>
+                                          <span className="text-muted-foreground">{a.campo}:</span> {a.valor}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
+                              )}
                               {showEnvio && (
                                 <td className="px-4 py-3 text-center">{renderEnvioCell(f)}</td>
                               )}

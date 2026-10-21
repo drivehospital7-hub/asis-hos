@@ -1,6 +1,7 @@
 import { useReducer, useEffect, useRef } from "react";
 import type { CondicionTree } from "@/lib/api-reglas";
 import { NodeRenderer } from "./CompositeNode";
+import type { SearchOption } from "./SearchableSelect";
 import type { RuleMode } from "./operators";
 
 // ─── Types ──────────────────────────────────────────────────────────
@@ -264,6 +265,8 @@ interface ConditionTreeEditorProps {
   /** Whether the tree is read-only. */
   readOnly?: boolean;
   catalogOptions?: string[];
+  /** Labeled invoice.* fields per source (backend-driven). */
+  fieldOptions?: SearchOption[];
   /** Evaluation mode: filters operator/fuente suggestions. */
   mode?: RuleMode;
 }
@@ -273,6 +276,7 @@ export function ConditionTreeEditor({
   onChange,
   readOnly,
   catalogOptions,
+  fieldOptions,
   mode,
 }: ConditionTreeEditorProps) {
   // Initialize reducer state from tree prop (lazy init — runs once per mount)
@@ -335,6 +339,7 @@ export function ConditionTreeEditor({
           node={node}
           depth={0}
           catalogOptions={catalogOptions}
+          fieldOptions={fieldOptions}
           readOnly={readOnly}
           mode={mode}
           onUpdate={handleUpdate}

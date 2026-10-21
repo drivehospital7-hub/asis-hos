@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumbs } from "@/components/breadcrumbs";
 import { PageTitle } from "@/components/page-title";
 import { ResultadosProcesar } from "@/components/procesar/ResultadosProcesar";
+import { AdvertenciasProcesar } from "@/components/procesar/AdvertenciasProcesar";
 import type { ProcesarResultData } from "@/components/procesar/types";
 import { useEnvioControl } from "@/hooks/useEnvioControl";
 import { Toast } from "@/components/procesar/Toast";
@@ -20,6 +21,15 @@ interface ProcesarPageProps {
   canControl?: boolean;
 }
 
+/** Campos del principal ofrecidos como anexo display-only (claves internas). */
+const ANEXO_FIELDS = [
+  { key: "responsable_cierra", label: "Responsable cierre" },
+  { key: "entidad_cobrar", label: "Entidad" },
+  { key: "entidad_afiliacion", label: "Entidad afiliación" },
+  { key: "convenio_facturado", label: "Convenio" },
+  { key: "tipo_usuario", label: "Tipo usuario" },
+];
+
 // ---------------------------------------------------------------------------
 // Componente
 // ---------------------------------------------------------------------------
@@ -29,6 +39,9 @@ export function ProcesarPage({
   canControl = false,
 }: ProcesarPageProps) {
   const [file, setFile] = useState<File | null>(null);
+  const [fuente, setFuente] = useState("facturacion");
+  const [filePrincipal, setFilePrincipal] = useState<File | null>(null);
+  const [camposAnexo, setCamposAnexo] = useState<string[]>(["responsable_cierra"]);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ProcesarResultData | null>(null);
   const [error, setError] = useState("");
@@ -79,6 +92,11 @@ export function ProcesarPage({
 
     const fd = new FormData();
     fd.append("file_upload", file);
+    fd.append("fuente", fuente);
+    if (fuente === "furips" && filePrincipal) {
+      fd.append("file_principal", filePrincipal);
+      fd.append("campos_anexo", JSON.stringify(camposAnexo));
+    }
 
     try {
       const res = await fetch("/procesar/", { method: "POST", body: fd });
@@ -111,7 +129,20 @@ export function ProcesarPage({
 
       {/* Upload card */}
       <Card className="p-6 border-border bg-card shadow-none mb-6">
-        <h2 className="font-display font-semibold text-foreground mb-1">Subir archivo Excel</h2>
+        <div className="flex items-end justify-between gap-4 mb-4">
+          <h2 className="font-display font-semibold text-foreground mb-1">Subir archivo Excel</h2>
+          <label className="text-xs text-muted-foreground flex items-center gap-2">
+            Fuente
+            <select
+              value={fuente}
+              onChange={(e) => setFuente(e.target.value)}
+              className="rounded-md border border-border bg-card px-2 py-1.5 text-xs text-foreground"
+            >
+              <option value="facturacion">Facturación</option>
+              <option value="furips">FURIPS</option>
+            </select>
+          </label>
+        </div>
         <p className="text-xs text-muted-foreground mb-4">
           Formatos aceptados: .xlsx, .xls, .xlsm
         </p>
@@ -151,6 +182,43 @@ export function ProcesarPage({
             />
           </label>
 
+          {fuente === "furips" && (
+            <div className="mb-4 rounded-md border border-border p-4">
+              <p className="text-xs font-semibold text-foreground mb-1">
+                Excel principal (opcional)
+              </p>
+              <p className="text-xs text-muted-foreground mb-2">
+                Trae campos display-only por factura. No alimenta reglas.
+              </p>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.xlsm"
+                className="text-xs text-foreground/80 mb-3"
+                onChange={(e) => setFilePrincipal(e.target.files?.[0] || null)}
+              />
+              {filePrincipal && (
+                <div className="flex flex-wrap gap-3">
+                  {ANEXO_FIELDS.map((f) => (
+                    <label key={f.key} className="text-xs text-foreground/80 flex items-center gap-1.5">
+                      <input
+                        type="checkbox"
+                        checked={camposAnexo.includes(f.key)}
+                        onChange={(e) =>
+                          setCamposAnexo((prev) =>
+                            e.target.checked
+                              ? [...prev, f.key]
+                              : prev.filter((k) => k !== f.key),
+                          )
+                        }
+                      />
+                      {f.label}
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           {error && (
             <div className="mt-3 rounded-md border border-danger/30 bg-danger/5 p-3">
               <p className="text-xs font-medium text-danger">{error}</p>
@@ -179,6 +247,14 @@ export function ProcesarPage({
           </div>
         </form>
       </Card>
+
+      {/* Advertencias: reglas sin datos + valores no reconocidos */}
+      {result && (
+        <AdvertenciasProcesar
+          advertenciasReglas={result.advertencias_reglas}
+          valoresNoCatalogados={result.valores_no_catalogados}
+        />
+      )}
 
       {/* Resultados (componente compartido con el simulador) */}
       {result && (

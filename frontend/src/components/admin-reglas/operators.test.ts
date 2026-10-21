@@ -1,9 +1,26 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildFieldOptions,
   getGroupConfig,
   isBuilderCompatibleParams,
   parseRuleMode,
 } from "./operators";
+
+describe("buildFieldOptions", () => {
+  it("labels invoice fields per source with exact header", () => {
+    const out = buildFieldOptions([
+      { label: "Facturación", campos: [{ clave: "centro_costo", header: "Centro Costo" }] },
+      { label: "FURIPS", campos: [{ clave: "c03_numero_de_factura", header: "3-Número de factura" }] },
+    ]);
+    expect(out).toEqual([
+      { value: "invoice.centro_costo", label: "Facturación · Centro Costo" },
+      { value: "invoice.c03_numero_de_factura", label: "FURIPS · 3-Número de factura" },
+    ]);
+  });
+  it("returns empty for no sources", () => {
+    expect(buildFieldOptions([])).toEqual([]);
+  });
+});
 
 describe("parseRuleMode", () => {
   it("defaults to row for empty / null / non-group params", () => {

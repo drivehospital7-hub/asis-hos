@@ -53,6 +53,7 @@ import {
   simulateReglas,
   fetchGrupos,
   fetchCatalogos,
+  fetchFuentes,
   type GrupoInfo,
   createCatalogo,
   updateCatalogo,
@@ -60,6 +61,8 @@ import {
   fetchCatalogoReglas,
 } from "@/lib/api-reglas";
 import { ConditionTreeEditor, validateConditionTree } from "@/components/admin-reglas/ConditionTreeEditor";
+import type { SearchOption } from "@/components/admin-reglas/SearchableSelect";
+import { buildFieldOptions } from "@/components/admin-reglas/operators";
 import { GruposManager } from "@/components/admin-reglas/GruposManager";
 import { GroupingFields } from "@/components/admin-reglas/GroupingFields";
 import { GroupModeFields } from "@/components/admin-reglas/GroupModeFields";
@@ -90,7 +93,7 @@ const TABS: Tab[] = [
 
 /** Canonical dominio order — mirror of backend REGLA_DOMINIOS_VALIDOS
  *  (app/constants/base.py). Single shared definition for every view below. */
-const DOMINIOS = ["urgencias", "hospitalizacion", "odontologia", "equipos_basicos", "transversal", "farmacia", "intramural", "ambulatoria"];
+const DOMINIOS = ["urgencias", "hospitalizacion", "odontologia", "equipos_basicos", "transversal", "farmacia", "intramural", "ambulatoria", "furips"];
 const DOMINIO_TRANSVERSAL = "transversal";
 
 /** Minimal scope shape shared by Regla and ReglaRef. */
@@ -849,6 +852,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [catalogOptions, setCatalogOptions] = useState<string[]>([]);
+  const [fieldOptions, setFieldOptions] = useState<SearchOption[]>([]);
   const [grupoOptions, setGrupoOptions] = useState<string[] | undefined>(undefined);
   const [gruposSistema, setGruposSistema] = useState<string[]>([]);
 
@@ -862,6 +866,9 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
         setGruposSistema(grupos.filter((g) => g.tipo === "sistema").map((g) => g.nombre));
       })
       .catch(() => setGrupoOptions(undefined));
+    fetchFuentes()
+      .then((fuentes) => setFieldOptions(buildFieldOptions(fuentes)))
+      .catch(() => setFieldOptions([]));
   }, []);
 
   // Editable condition tree state
@@ -1060,6 +1067,7 @@ function RuleDetailForm({ rule, onBack, onSaved }: RuleDetailFormProps) {
               onChange={setTree}
               readOnly={isReadOnly}
               catalogOptions={catalogOptions}
+              fieldOptions={fieldOptions}
               mode={ruleMode}
             />
           </div>

@@ -431,6 +431,23 @@ export async function fetchGrupos(): Promise<GrupoInfo[]> {
   return apiGet<GrupoInfo[]>("/api/reglas/grupos");
 }
 
+export interface FuenteCampo {
+  clave: string;
+  header: string;
+}
+
+export interface FuenteInfo {
+  fuente: string;
+  label: string;
+  campos: FuenteCampo[];
+}
+
+/** List data sources and their invoice fields for the rule builder.
+ *  Single source of truth is backend app/constants/headers.py. */
+export async function fetchFuentes(): Promise<FuenteInfo[]> {
+  return apiGet<FuenteInfo[]>("/api/reglas/fuentes");
+}
+
 /** Bulk-rename a group label across rules using it. */
 export async function renameGrupo(anterior: string, nuevo: string): Promise<RenameGrupoResult> {
   return apiPut<RenameGrupoResult>("/api/reglas/grupos/renombrar", { anterior, nuevo });

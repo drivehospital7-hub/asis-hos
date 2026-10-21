@@ -2,6 +2,7 @@ import { ChevronDown, ChevronRight, Plus, X } from "lucide-react";
 import type { CondicionTree } from "@/lib/api-reglas";
 import { OPERADORES_COMPOSITE, type RuleMode } from "./operators";
 import { AtomicNode } from "./AtomicNode";
+import type { SearchOption } from "./SearchableSelect";
 
 // ─── Props ─────────────────────────────────────────────────────────
 
@@ -11,6 +12,7 @@ interface CompositeNodeProps {
   /** Position within the parent's children (0-based). Used for "Rama N" labels. */
   index?: number;
   catalogOptions?: string[];
+  fieldOptions?: SearchOption[];
   readOnly?: boolean;
   mode?: RuleMode;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
@@ -26,6 +28,7 @@ export function CompositeNode({
   depth,
   index = 0,
   catalogOptions,
+  fieldOptions,
   readOnly,
   mode,
   onUpdate,
@@ -82,6 +85,7 @@ export function CompositeNode({
                 depth={depth + 1}
                 index={i}
                 catalogOptions={catalogOptions}
+                fieldOptions={fieldOptions}
                 readOnly={readOnly}
                 mode={mode}
                 onUpdate={onUpdate}
@@ -191,6 +195,7 @@ export function CompositeNode({
                 depth={depth + 1}
                 index={i}
                 catalogOptions={catalogOptions}
+                fieldOptions={fieldOptions}
               readOnly={readOnly}
               mode={mode}
               onUpdate={onUpdate}
@@ -218,6 +223,7 @@ interface NodeRendererProps {
   depth: number;
   index?: number;
   catalogOptions?: string[];
+  fieldOptions?: SearchOption[];
   readOnly?: boolean;
   mode?: RuleMode;
   onUpdate: (nodeId: number, field: string, value: unknown) => void;
@@ -231,6 +237,7 @@ export function NodeRenderer({
   depth,
   index = 0,
   catalogOptions,
+  fieldOptions,
   readOnly,
   mode,
   onUpdate,
@@ -248,6 +255,7 @@ export function NodeRenderer({
         depth={depth}
         index={index}
         catalogOptions={catalogOptions}
+        fieldOptions={fieldOptions}
         readOnly={readOnly}
         mode={mode}
         onUpdate={onUpdate}
@@ -268,6 +276,7 @@ export function NodeRenderer({
       idLabel={idLabel}
       branchLabel={branchLabel}
       catalogOptions={catalogOptions}
+      fieldOptions={fieldOptions}
       readOnly={readOnly}
       mode={mode}
       onUpdate={onUpdate}

@@ -62,6 +62,8 @@ export const OPERADORES_ATOMICOS: OperatorDef[] = [
   // Complex
   { value: "all_values_match", label: "Todos los valores coinciden", category: "complex" },
   { value: "cups_contratado", label: "CUPS contratado", category: "complex" },
+  { value: "eps_cups_contratado", label: "EPS+CUPS contratado (cadena eps_nota)", category: "complex" },
+  { value: "eps_tiene_nota", label: "EPS tiene nota vinculada", category: "complex" },
 ];
 
 // ─── Operator → Value Type Mapping ─────────────────────────────────
@@ -94,6 +96,8 @@ export const OPERADOR_VALUE_TYPE: Record<string, ValueType> = {
   // Complex
   all_values_match: "number", // threshold
   cups_contratado: "hidden", // context-derived
+  eps_cups_contratado: "hidden", // context-derived
+  eps_tiene_nota: "hidden", // context-derived
 };
 
 // ─── Composite Operators ───────────────────────────────────────────
@@ -163,6 +167,23 @@ export const FUENTES_DATOS: string[] = [
 ];
 
 // ─── Helpers ────────────────────────────────────────────────────────
+
+/**
+ * Build labeled invoice.* field options grouped by source.
+ * Value stays engine-shaped (`invoice.<clave>`); the label carries the
+ * source + exact Excel header so sources are distinguishable
+ * (ej. `FURIPS · 3-Número de factura`).
+ */
+export function buildFieldOptions(
+  fuentes: { label: string; campos: { clave: string; header: string }[] }[],
+): { value: string; label: string }[] {
+  return fuentes.flatMap((f) =>
+    f.campos.map((c) => ({
+      value: `invoice.${c.clave}`,
+      label: `${f.label} · ${c.header}`,
+    })),
+  );
+}
 
 /** Get operators for a given category. */
 export function getOperatorsByCategory(category: OperatorCategory): OperatorDef[] {

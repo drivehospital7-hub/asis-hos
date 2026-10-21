@@ -4,7 +4,7 @@ import type { CondicionTree } from "@/lib/api-reglas";
 import { fetchCatalogo } from "@/lib/api-reglas";
 import { FUENTES_DATOS, getValueTypeForOperator, type RuleMode } from "./operators";
 import { OperatorSelector } from "./OperatorSelector";
-import { SearchableSelect } from "./SearchableSelect";
+import { SearchableSelect, type SearchOption } from "./SearchableSelect";
 import { ValueInput } from "./ValueInput";
 
 // ─── Props ─────────────────────────────────────────────────────────
@@ -16,6 +16,8 @@ interface AtomicNodeProps {
   /** "Rama N" when the node is a direct child of the root. */
   branchLabel?: string | null;
   catalogOptions?: string[];
+  /** Labeled invoice.* fields per source (backend-driven, overrides static). */
+  fieldOptions?: SearchOption[];
   readOnly?: boolean;
   /** Row mode hides group.* sources from suggestions (free text allowed). */
   mode?: RuleMode;
@@ -25,11 +27,19 @@ interface AtomicNodeProps {
 
 // ─── Component ──────────────────────────────────────────────────────
 
-export function AtomicNode({ node, catalogOptions, readOnly, mode, onUpdate, onRemove, idLabel, branchLabel }: AtomicNodeProps) {
-  const fuenteOptions =
+export function AtomicNode({ node, catalogOptions, fieldOptions, readOnly, mode, onUpdate, onRemove, idLabel, branchLabel }: AtomicNodeProps) {
+  // Static FUENTES_DATOS cover non-invoice prefixes; backend-driven
+  // fieldOptions override static invoice.* entries with source labels
+  // (ej. `FURIPS · 3-Número de factura`). Unknown values stay allowed
+  // (free text) — fuenteKnown only drives the invalid hint.
+  const staticOptions: (string | SearchOption)[] =
     mode === "row" ? FUENTES_DATOS.filter((f) => !f.startsWith("group.")) : FUENTES_DATOS;
+  const byValue = new Map<string, string | SearchOption>();
+  for (const o of staticOptions) byValue.set(typeof o === "string" ? o : o.value, o);
+  for (const o of fieldOptions ?? []) byValue.set(o.value, o);
+  const fuenteOptions = [...byValue.values()];
   const fuenteValue = node.fuente_datos ?? "";
-  const fuenteKnown = fuenteValue === "" || fuenteOptions.includes(fuenteValue);
+  const fuenteKnown = fuenteValue === "" || byValue.has(fuenteValue);
   const refLabel = idLabel ?? (node.id > 1e12 ? "nuevo" : `#${node.id}`);
   const operator = node.operador ?? "";
   const valueType = getValueTypeForOperator(operator);
