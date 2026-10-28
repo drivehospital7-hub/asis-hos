@@ -75,6 +75,7 @@ def _codigo_equivalentes_display(item: dict[str, Any]) -> str:
 def _evaluate_hospitalizacion_engine_rules(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, list[dict[str, Any]]], dict[str, list[dict[str, Any]]]]:
     """Evaluate every enabled hospitalización rule exactly once (dynamic).
 
@@ -109,6 +110,7 @@ def _evaluate_hospitalizacion_engine_rules(
         batches = detect_domain_rules(
             session, AREA_HOSPITALIZACION, data_sheet, indices,
             persist=_PERSIST, evidence_collector=collector,
+            rows=rows,
         )
         grupos = group_by_grupo(batches)
         por_nombre = items_by_nombre(batches)
@@ -170,12 +172,14 @@ def _evaluate_hospitalizacion_engine_rules(
 def detect_all_problems_hospitalizacion(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Detecta TODOS los problemas en facturas de Hospitalización.
 
     Args:
         data_sheet: Hoja de Excel con los datos
         indices: Índices de columnas
+        rows: RowStore precargado (fast path); si se omite se lee la hoja
 
     Returns:
         (resultado_dict, responsables_map)
@@ -184,7 +188,7 @@ def detect_all_problems_hospitalizacion(
     # Descubrimiento dinámico (RuleResolver, solo activo): cada regla
     # habilitada del dominio + transversales se evalúa exactamente una vez.
     if is_rule_engine_enabled():
-        groups, error_groups = _evaluate_hospitalizacion_engine_rules(data_sheet, indices)
+        groups, error_groups = _evaluate_hospitalizacion_engine_rules(data_sheet, indices, rows=rows)
         problemas_centros = groups.get("centros_de_costos", [])
         problemas_ide_contrato = groups.get("ide_contrato", [])
         problemas_cups_equivalentes = groups.get("cups_equivalentes", [])

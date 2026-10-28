@@ -25,12 +25,14 @@ logger = logging.getLogger(__name__)
 def detect_all_problems_intramural(
     data_sheet: Worksheet,
     indices: dict[str, int | None],
+    rows: list[dict[str, Any]] | None = None,
 ) -> tuple[dict[str, Any], dict[str, str]]:
     """Detecta TODOS los problemas en facturas de Intramural.
 
     Args:
         data_sheet: Hoja de Excel con los datos
         indices: Índices de columnas
+        rows: RowStore precargado (fast path); si se omite se lee la hoja
 
     Returns:
         (resultado_dict, responsables_map)
@@ -52,6 +54,7 @@ def detect_all_problems_intramural(
         try:
             batches = detect_domain_rules(
                 session, AREA_INTRAMURAL, data_sheet, indices, persist=_PERSIST,
+            rows=rows,
             )
             grupos = group_by_grupo(batches)
             decimales = grupos.get("Decimales", [])
