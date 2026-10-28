@@ -13,7 +13,7 @@
     <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
   </div>
   <div class="page-header-actions">
-    <button class="btn btn--secondary" onclick="exportarExcel()">
+    <button id="btnExportar" class="btn btn--secondary" onclick="exportarExcel()">
       <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
       Exportar
     </button>
@@ -1894,7 +1894,6 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
   
 function exportarExcel() {
-    if (!window._canWrite) return;
     if (!cachedErrores || cachedErrores.length === 0) {
       Modal.alert('No hay datos para exportar');
       return;
@@ -2808,8 +2807,10 @@ function exportarExcel() {
       body.classList.remove('auth-enabled');
       body.classList.add('auth-disabled');
 
-      // Deshabilitar acciones: Agregar, Exportar, Carga Masiva
+      // Deshabilitar acciones de escritura: Agregar, Carga Masiva.
+      // Exportar queda habilitado para lectura (backend: permiso base control_urgencias).
       document.querySelectorAll('.page-header-actions button').forEach(btn => {
+        if (btn.id === 'btnExportar') return;
         btn.classList.add('disabled-action');
         btn.setAttribute('disabled', '');
       });
