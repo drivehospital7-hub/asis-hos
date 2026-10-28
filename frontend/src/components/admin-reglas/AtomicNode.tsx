@@ -5,6 +5,7 @@ import { fetchCatalogo } from "@/lib/api-reglas";
 import { FUENTES_DATOS, getValueTypeForOperator, type RuleMode } from "./operators";
 import { OperatorSelector } from "./OperatorSelector";
 import { SearchableSelect, type SearchOption } from "./SearchableSelect";
+import { BranchCommentButton } from "./BranchCommentButton";
 import { ValueInput } from "./ValueInput";
 
 // ─── Props ─────────────────────────────────────────────────────────
@@ -118,6 +119,15 @@ export function AtomicNode({ node, catalogOptions, fieldOptions, readOnly, mode,
       {branchLabel && (
         <span className="font-semibold text-xs uppercase tracking-wider self-center" style={{ color: "oklch(0.55 0.04 160)" }}>
           {branchLabel}
+        </span>
+      )}
+      {branchLabel && (
+        <span className="self-center">
+          <BranchCommentButton
+            comentario={typeof node.comentario === "string" ? node.comentario : null}
+            onSave={(v) => onUpdate(node.id, "comentario", v)}
+            readOnly={readOnly}
+          />
         </span>
       )}
       <span className="text-xs font-mono text-muted-foreground self-center" title="ID de condición en base de datos">

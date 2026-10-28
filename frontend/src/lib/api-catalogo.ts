@@ -25,6 +25,8 @@ export interface ProcedimientoSqlite {
 export interface NotaHoja {
   id: number;
   nota: string;
+  /** Flujo derivado del nombre (solo lectura, lo define el backend). */
+  flujo?: string;
 }
 
 export interface EpsProcedimientosChain {

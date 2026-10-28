@@ -239,7 +239,7 @@ export function ResultadosProcesar({
                             >
                               <td className="px-4 py-3 text-xs text-foreground/80">{f.fec_factura || "-"}</td>
                               <td className="px-4 py-3 font-mono text-xs font-medium text-foreground">{f.factura}</td>
-                              <td className="px-4 py-3 font-mono text-xs text-foreground/70">{f.regla || "-"}</td>
+                              <td className="px-4 py-3 font-mono text-xs text-foreground/70">{f.regla || "-"}{typeof f.rama === "number" ? ` · R${f.rama}` : ""}</td>
                               <td className="px-4 py-3 text-xs text-foreground/80">{f.responsable_cierra || "-"}</td>
                               <td className="px-4 py-3 text-xs text-foreground/80 max-w-xs">{f.descripcion}</td>
                               <td className="px-4 py-3 text-xs text-foreground/70 max-w-xs">{f.procedimiento || "-"}</td>

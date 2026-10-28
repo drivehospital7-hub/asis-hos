@@ -817,6 +817,7 @@ function NotaHojaTab() {
                 <tr className="bg-gray-50 text-xs font-semibold uppercase tracking-wider" style={{ color: "oklch(0.55 0.04 160)" }}>
                   <th className="py-3 px-4 text-left">ID</th>
                   <th className="py-3 px-4 text-left">Nota</th>
+                  <th className="py-3 px-4 text-left">Flujo</th>
                   <th className="py-3 px-4 text-left">Acciones</th>
                 </tr>
               </thead>
@@ -825,6 +826,11 @@ function NotaHojaTab() {
                   <tr key={item.id} className="border-b" style={{ borderColor: "oklch(0.55 0.04 160 / 0.05)" }}>
                     <td className="py-3 px-4" style={{ color: "oklch(0.55 0.04 160)" }}>{item.id}</td>
                     <td className="py-3 px-4 font-medium" style={{ color: "oklch(0.15 0.02 160)" }}>{item.nota}</td>
+                    <td className="py-3 px-4">
+                      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-muted text-muted-foreground" title="Derivado del nombre (solo lectura)">
+                        {item.flujo === "capita" ? "Cápita" : "Evento"}
+                      </span>
+                    </td>
                     <td className="py-3 px-4">
                       <div className="flex gap-2">
                         <Button size="sm" variant="default" onClick={() => openEdit(item)}>

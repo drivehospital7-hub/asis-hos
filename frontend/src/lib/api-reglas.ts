@@ -47,6 +47,8 @@ export interface CondicionTree {
   fuente_datos: string | null;
   valor_esperado: unknown;
   orden: number;
+  /** Memo libre por nodo (solo nota, sin efecto en evaluacion). */
+  comentario?: string | null;
   condiciones?: CondicionTree[];
   [key: string]: unknown;  // Allow dynamic field access (updateNodeInTree helper)
 }

@@ -15,6 +15,9 @@ export interface FacturaItem {
   detalle: string;
   fecha_cierre_vacia?: boolean;
   regla?: string;
+  /** Numero de rama (1-based, orden del editor) que disparo la regla. */
+  rama?: number;
+  rama_id?: number;
   _enviada?: boolean;
   /** Anexo efimero display-only desde el Excel principal (solo furips). */
   anexo?: AnexoItem[];

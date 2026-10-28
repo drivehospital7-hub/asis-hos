@@ -1,6 +1,6 @@
 {
-  "_Toast-CnY-g1Qj.js": {
-    "file": "assets/Toast-CnY-g1Qj.js",
+  "_Toast-CKs4d6Cn.js": {
+    "file": "assets/Toast-CKs4d6Cn.js",
     "name": "Toast",
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
@@ -238,7 +238,7 @@
     ]
   },
   "src/pages/admin-reglas/index.html": {
-    "file": "assets/index-Dv64vTea.js",
+    "file": "assets/index-B0yxT8Iw.js",
     "name": "index",
     "src": "src/pages/admin-reglas/index.html",
     "isEntry": true,
@@ -251,7 +251,7 @@
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js",
       "_chevron-down-BGA8Tm_F.js",
-      "_Toast-CnY-g1Qj.js",
+      "_Toast-CKs4d6Cn.js",
       "_circle-check-CRdT4vUM.js",
       "_circle-x-DWHZiwFP.js",
       "_trash-2-B_HF-4H9.js",
@@ -301,7 +301,7 @@
     ]
   },
   "src/pages/catalogo/index.html": {
-    "file": "assets/index-CIgGXgza.js",
+    "file": "assets/index-jD5TMzeM.js",
     "name": "index",
     "src": "src/pages/catalogo/index.html",
     "isEntry": true,
@@ -506,7 +506,7 @@
     ]
   },
   "src/pages/procesar/index.html": {
-    "file": "assets/index-Cj5JhFs1.js",
+    "file": "assets/index-BdsoMMW0.js",
     "name": "index",
     "src": "src/pages/procesar/index.html",
     "isEntry": true,
@@ -516,7 +516,7 @@
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
-      "_Toast-CnY-g1Qj.js",
+      "_Toast-CKs4d6Cn.js",
       "_info-ChxgVf7c.js",
       "_arrow-right-C3omlvKg.js",
       "_eye-rX9dfGmL.js",
@@ -573,7 +573,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-DdtmTPIJ.css",
+    "file": "assets/style-CXbM6x4I.css",
     "src": "style.css"
   }
 }

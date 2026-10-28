@@ -3,6 +3,7 @@ import type { CondicionTree } from "@/lib/api-reglas";
 import { OPERADORES_COMPOSITE, type RuleMode } from "./operators";
 import { AtomicNode } from "./AtomicNode";
 import type { SearchOption } from "./SearchableSelect";
+import { BranchCommentButton } from "./BranchCommentButton";
 
 // ─── Props ─────────────────────────────────────────────────────────
 
@@ -141,6 +142,13 @@ export function CompositeNode({
             title="Rama de la regla (hija directa de la raíz)">
             {branchLabel}
           </span>
+        )}
+        {branchLabel && (
+          <BranchCommentButton
+            comentario={typeof node.comentario === "string" ? node.comentario : null}
+            onSave={(t) => onUpdate(node.id, "comentario", t)}
+            readOnly={readOnly}
+          />
         )}
         <span className="text-xs font-mono text-muted-foreground" title="ID de condición en base de datos">
           {idLabel}
