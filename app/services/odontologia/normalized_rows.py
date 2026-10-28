@@ -418,7 +418,7 @@ def build_odontologia_normalized_rows(
 
     # ── Enrich rows with regla from original items ────────────────────────
     # Build a list of (factura, tipo_error, regla) tuples from source collections
-    _item_reglas: dict[tuple[str, str], str] = {}
+    _item_reglas: dict[tuple[str, str], tuple[str, Any, Any]] = {}
     _COLLECTION_TIPO = {
         "Decimales": "Decimales",
         "Doble tipo": "Doble tipo procedimiento",
@@ -457,13 +457,15 @@ def build_odontologia_normalized_rows(
                     if r and f:
                         key = (f, tipo)
                         if key not in _item_reglas:
-                            _item_reglas[key] = r
+                            _item_reglas[key] = (
+                                r, item.get("rama"), item.get("rama_id"),
+                            )
     for row in rows:
         f = row.get("factura", "")
         t = row.get("tipo_error", "")
-        r = _item_reglas.get((f, t))
-        if r:
-            row["regla"] = r
+        hit = _item_reglas.get((f, t))
+        if hit:
+            row["regla"], row["rama"], row["rama_id"] = hit
         else:
             row["regla"] = ""
 

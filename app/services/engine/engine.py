@@ -183,7 +183,7 @@ class RuleEvaluationEngine:
                     if date_edad_meses is not None:
                         eval_ctx.invoice_data["date.edad_meses"] = date_edad_meses
 
-                eval_result = self._evaluator.evaluate(tree, eval_ctx, collect_trace=False)
+                eval_result, branch_index = self._evaluator.evaluate_root(tree, eval_ctx)
                 outcome = eval_result.get("outcome", False)
                 error_msg = eval_result.get("error")
 
@@ -204,6 +204,10 @@ class RuleEvaluationEngine:
                     # Re-extract outcome/error from full trace result (should be identical)
                     outcome = eval_result.get("outcome", False)
                     error_msg = eval_result.get("error")
+                    # Rama desde el trace (misma convencion que evaluate_root).
+                    branch_index = ConditionEvaluator.branch_index_from_trace(
+                        eval_result.get("trace")
+                    )
                     # Record evidence (immutable snapshot)
                     collector.record(
                         regla_id=rule.id,
@@ -219,10 +223,13 @@ class RuleEvaluationEngine:
 
                 # If MATCH, add to detection results
                 if outcome and not error_msg:
+                    rama, rama_id = ConditionEvaluator.branch_info(tree, branch_index)
                     problem = {
                         "factura": factura,
                         "problema": rule.descripcion or rule.nombre,
                         "regla": f"#{rule.id}",
+                        "rama": rama,
+                        "rama_id": rama_id,
                         "severidad": rule.severidad,
                         "param_config_id": config_idx,
                     }

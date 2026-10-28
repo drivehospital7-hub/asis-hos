@@ -377,6 +377,7 @@ class Condicion(Base):
     fuente_datos = Column(String(100), nullable=True)
     valor_esperado = Column(JSONB_COMPAT, nullable=True)
     orden = Column(Integer, nullable=False, default=0)
+    comentario = Column(Text, nullable=True)
 
     # Relationships
     regla = relationship("Regla", back_populates="condiciones")
@@ -392,6 +393,7 @@ class Condicion(Base):
             "fuente_datos": self.fuente_datos,
             "valor_esperado": self.valor_esperado,
             "orden": self.orden,
+            "comentario": self.comentario,
         }
 
 

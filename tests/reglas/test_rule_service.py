@@ -837,3 +837,68 @@ class TestRuleServicePublish:
         with pytest.raises(ValueError, match="Solo se pueden publicar reglas en estado draft"):
             publish_rule(mock_db, draft.id, responsible="admin")
         mock_db.commit.assert_called_once()
+
+
+class TestCondicionComentario:
+    """Memo por nodo: persiste, se clona y participa del change-detection."""
+
+    def test_store_condition_tree_guarda_comentario(self):
+        from app.services.reglas import rule_service as rs
+
+        captured = []
+
+        class FakeCondicion:
+            _next = [100]
+
+            def __init__(self, **kwargs):
+                captured.append(kwargs)
+                self.id = FakeCondicion._next[0]
+                FakeCondicion._next[0] += 1
+
+        with patch.object(rs, "Condicion", FakeCondicion):
+            mock_db = MagicMock()
+            rs._store_condition_tree(mock_db, 7, None, {
+                "tipo": "composite", "operador": "OR", "orden": 0,
+                "comentario": "memo rama",
+                "condiciones": [
+                    {"tipo": "atomic", "operador": "eq", "fuente_datos": "invoice.x",
+                     "valor_esperado": "1", "orden": 0, "comentario": "memo hoja"},
+                ],
+            })
+        memos = sorted(c["comentario"] for c in captured)
+        assert memos == ["memo hoja", "memo rama"]
+
+    def test_signature_incluye_comentario(self):
+        from app.services.reglas.rule_service import _condition_signature
+
+        base = [{"tipo": "atomic", "operador": "eq", "fuente_datos": "f",
+                 "valor_esperado": "1", "orden": 0, "comentario": None}]
+        same = [dict(n) for n in base]
+        assert _condition_signature(base) == _condition_signature(same)
+        changed = [dict(n, comentario="nuevo memo") for n in base]
+        assert _condition_signature(base) != _condition_signature(changed)
+
+    def test_clone_conditions_copia_comentario(self):
+        from app.services.reglas import rule_service as rs
+
+        old = MagicMock()
+        old.id = 5
+        old.padre_id = None
+        old.tipo = "atomic"
+        old.operador = "eq"
+        old.fuente_datos = "invoice.x"
+        old.valor_esperado = "1"
+        old.orden = 0
+        old.comentario = "memo clonado"
+
+        q = MagicMock()
+        q.filter.return_value.order_by.return_value.all.return_value = [old]
+        mock_db = MagicMock()
+        mock_db.query.return_value = q
+        mock_db.add = MagicMock()
+        mock_db.flush = MagicMock(side_effect=lambda: setattr(
+            mock_db.add.call_args[0][0], "id", 50))
+        rs._clone_conditions(mock_db, 1, 2)
+        new_c = mock_db.add.call_args[0][0]
+        assert new_c.comentario == "memo clonado"
+        assert new_c.padre_id is None

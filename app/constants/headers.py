@@ -228,6 +228,16 @@ SOURCE_LABELS: dict[str, str] = {
 }
 
 
+def nota_flujo(nombre: str | None) -> str:
+    """Flujo de una nota hoja por convenio de nombre (única fuente de verdad).
+
+    Contiene CAPITA -> 'capita'; lo demás -> 'evento'. Lo usan tanto el
+    motor (evaluators) como la UI (columna solo-lectura en /catalogo).
+    Si el convenio se rompe, se reemplaza por un campo explícito.
+    """
+    return "capita" if "CAPITA" in (nombre or "").upper() else "evento"
+
+
 def describe_fuentes() -> list[dict[str, object]]:
     """Contrato fuente -> campos para el builder de reglas (admin-reglas).
 

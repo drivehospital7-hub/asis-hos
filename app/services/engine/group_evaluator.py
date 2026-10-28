@@ -914,10 +914,16 @@ class GroupEvaluator:
 
             # 6. If MATCH, add to detection results
             if outcome and not error_msg:
+                rama, rama_id = condition_evaluator.branch_info(
+                    condition_tree,
+                    condition_evaluator.branch_index_from_trace(eval_result.get("trace")),
+                )
                 problem = {
                     "factura": factura,
                     "problema": rule_info.get("descripcion") or rule_info.get("nombre", ""),
                     "regla": f"#{rule_info.get('id', '')}",
+                    "rama": rama,
+                    "rama_id": rama_id,
                     "severidad": rule_info.get("severidad", "error"),
                 }
                 # Mapping metadata viaja en el item (misma razón que engine.py).

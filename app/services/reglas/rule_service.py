@@ -36,7 +36,7 @@ def _condition_signature(nodes: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [
         {
             key: node.get(key)
-            for key in ("tipo", "operador", "fuente_datos", "valor_esperado", "orden")
+            for key in ("tipo", "operador", "fuente_datos", "valor_esperado", "orden", "comentario")
         }
         | {"condiciones": _condition_signature(_condition_nodes(node.get("condiciones")))}
         for node in nodes
@@ -196,6 +196,7 @@ def _clone_conditions(db_session, old_rule_id: int, new_rule_id: int) -> None:
                 else None
             ),
             orden=c.orden,
+            comentario=c.comentario,
         )
         db_session.add(new_c)
         db_session.flush()  # Get ID
@@ -315,6 +316,7 @@ def _store_condition_tree(db_session, regla_id: int, padre_id: int | None, node:
         fuente_datos=node.get("fuente_datos"),
         valor_esperado=node.get("valor_esperado"),
         orden=node.get("orden", 0),
+        comentario=node.get("comentario"),
     )
     db_session.add(cond)
     db_session.flush()

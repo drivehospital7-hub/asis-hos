@@ -116,3 +116,61 @@ def test_eps_tiene_nota_vacio_no(session):
     ctx = _ctx(session, {})
     assert ev.evaluate({}, "", None, ctx) is False
     assert ev.evaluate({}, None, None, ctx) is False
+
+
+def _session_flujo():
+    import sqlite3  # noqa
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+    from app.database import Base
+    from app.models import EpsContratado, EpsNota, NotaHoja, NotasTecnicas, Procedimiento
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    s = sessionmaker(bind=engine)()
+    eps = EpsContratado(cod_contrato="ESS118", eps="E", regimen="S")
+    ncap = NotaHoja(nota="EMSSANAR CAPITA")
+    neve = NotaHoja(nota="EMSSANAR SUBSIDIADO")
+    p = Procedimiento(cups="890201", procedimiento="C", ide=1)
+    s.add_all([eps, ncap, neve, p])
+    s.flush()
+    s.add(EpsNota(id_nota_hoja=ncap.id, id_eps_contratado=eps.id))
+    s.add(EpsNota(id_nota_hoja=neve.id, id_eps_contratado=eps.id))
+    s.add(NotasTecnicas(id_procedimiento=p.id, id_nota_hoja=ncap.id, tariff=0))
+    s.commit()
+    return s
+
+
+def test_flujo_capita_vs_evento_en_par():
+    from app.services.engine.context import EvaluationContext
+    s = _session_flujo()
+    try:
+        ev = get_evaluator("eps_cups_contratado")
+        base = {"codigo_entidad_cobrar": "ESS118", "codigo": "890201"}
+        assert ev.evaluate({}, "890201", "capita", EvaluationContext(invoice_data=dict(base), session=s)) is True
+        assert ev.evaluate({}, "890201", "evento", EvaluationContext(invoice_data=dict(base), session=s)) is False
+        assert ev.evaluate({}, "890201", None, EvaluationContext(invoice_data=dict(base), session=s)) is True
+    finally:
+        s.close()
+
+
+def test_flujo_en_tiene_nota():
+    from app.services.engine.context import EvaluationContext
+    s = _session_flujo()
+    try:
+        ev = get_evaluator("eps_tiene_nota")
+        assert ev.evaluate({}, "ESS118", "capita", EvaluationContext(invoice_data={}, session=s)) is True
+        assert ev.evaluate({}, "ESS118", "evento", EvaluationContext(invoice_data={}, session=s)) is True
+        assert ev.evaluate({}, "OTRA", "capita", EvaluationContext(invoice_data={}, session=s)) is False
+        # EPS solo-capita no tiene nota de evento
+        from app.models import EpsContratado, EpsNota
+        eps2 = EpsContratado(cod_contrato="SOLOCAP", eps="X", regimen="S")
+        s.add(eps2)
+        s.flush()
+        hoja = s.query(NotaHoja).filter_by(nota="EMSSANAR CAPITA").first()
+        s.add(EpsNota(id_nota_hoja=hoja.id, id_eps_contratado=eps2.id))
+        s.commit()
+        assert ev.evaluate({}, "SOLOCAP", "capita", EvaluationContext(invoice_data={}, session=s)) is True
+        assert ev.evaluate({}, "SOLOCAP", "evento", EvaluationContext(invoice_data={}, session=s)) is False
+    finally:
+        s.close()

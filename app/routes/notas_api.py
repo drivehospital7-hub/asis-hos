@@ -393,10 +393,12 @@ def list_notas_hoja():
     """Lista todas las notas hojas."""
     db: Session = next(get_db())
     try:
+        from app.constants.headers import nota_flujo
         items = nota_hoja_crud.get_all(db)
         return jsonify({
             "status": "success",
-            "data": [n.to_dict() for n in items],
+            # flujo es solo-lectura (convenio de nombre, ver nota_flujo).
+            "data": [{**n.to_dict(), "flujo": nota_flujo(n.nota)} for n in items],
             "errors": []
         })
     finally:

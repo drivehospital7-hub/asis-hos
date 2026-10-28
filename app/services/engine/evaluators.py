@@ -29,6 +29,24 @@ _FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
 REFERENCE_DATA_TTL_SECONDS = 60
 
 
+def _nota_flujo_clause(flujo: Any) -> str:
+    """Fragmento SQL que restringe notas por flujo (ver nota_flujo).
+
+    valor_esperado 'capita'/'evento' -> filtra por ese flujo; otro/None ->
+    sin filtro (backward compat). La clasificacion vive en
+    app.constants.headers.nota_flujo; aqui solo se traduce a SQL probando
+    con nombres centinela (nunca se interpola texto libre).
+    """
+    from app.constants.headers import nota_flujo as _nf
+
+    nombre = str(flujo or "").strip().lower() if isinstance(flujo, str) else ""
+    if nombre not in ("capita", "evento"):
+        return ""
+    if _nf("NOTA CAPITA X") == nombre:
+        return " AND UPPER(nh.nota) LIKE '%CAPITA%'"
+    return " AND UPPER(nh.nota) NOT LIKE '%CAPITA%'"
+
+
 def invalidate_eps_cups_cache() -> None:
     """Limpia la cache del evaluador eps_cups_contratado. Llamar en cada
     escritura de la cadena eps (procedimiento, notas, hojas, vinculos)."""
@@ -481,13 +499,14 @@ class EpsCupsContratadoEvaluator(AtomicEvaluator):
 
     operator = "eps_cups_contratado"
 
-    Lee de la fila codigo_entidad_cobrar (cod_contrato, ej ESS118) o
-    entidad_cobrar (nombre EPS) + codigo (CUPS). True cuando el par esta
-    contratado: existe camino eps_contratado -> eps_nota -> nota_hoja ->
-    notas_tecnicas -> procedimiento para esa EPS y ese CUPS.
-    valor_esperado se ignora (None). Sin excepciones hardcodeadas: lo que
-    no esta mapeado en la UI (/catalogo vinculaciones) da False y la
-    regla lo marca; el ajuste es dato, no codigo.
+    Lee de la fila codigo_entidad_cobrar (cod_contrato, ej ESS118) +
+    codigo (CUPS). True cuando el par esta contratado: existe camino
+    eps_contratado -> eps_nota -> nota_hoja -> notas_tecnicas ->
+    procedimiento para esa EPS y ese CUPS.
+    valor_esperado opcional: 'capita' o 'evento' restringe a notas de ese
+    flujo (convenio: CAPITA en el nombre); None = todas (backward compat).
+    Sin excepciones hardcodeadas: lo que no esta mapeado en la UI
+    (/catalogo vinculaciones) da False y la regla lo marca.
     """
 
     operator = "eps_cups_contratado"
@@ -522,7 +541,9 @@ class EpsCupsContratadoEvaluator(AtomicEvaluator):
         # el dato de origen debe corregirse; el motor no adivina.
         import time
 
-        cache_key = (ent_cod, codigo)
+        flujo = str(expected or "").strip().lower() if isinstance(expected, str) else ""
+        flujo = flujo if flujo in ("capita", "evento") else ""
+        cache_key = (ent_cod, codigo, flujo)
         cached = self._cache.get(cache_key)
         if cached is not None and time.monotonic() - cached[1] < REFERENCE_DATA_TTL_SECONDS:
             return cached[0]
@@ -535,7 +556,8 @@ class EpsCupsContratadoEvaluator(AtomicEvaluator):
                 "JOIN notas_tecnicas nt ON nt.id_nota_hoja = nh.id "
                 "JOIN procedimiento p ON p.id = nt.id_procedimiento "
                 "WHERE UPPER(ec.cod_contrato) = :ent "
-                "AND UPPER(p.cups) = :cups LIMIT 1"
+                "AND UPPER(p.cups) = :cups"
+                + _nota_flujo_clause(flujo) + " LIMIT 1"
             )
             hit = context.session.execute(
                 query, {"ent": ent_cod, "cups": codigo},
@@ -556,12 +578,14 @@ class EpsTieneNotaEvaluator(AtomicEvaluator):
     Guard para reglas de contratado: sin vinculacion no hay veredicto
     (se omite la fila en silencio) en vez de marcar todo como error.
     Solo codigo_entidad_cobrar contra cod_contrato (politica estricta).
+    valor_esperado opcional: 'capita' o 'evento' restringe a notas de ese
+    flujo; None = cualquier nota.
     """
 
     operator = "eps_tiene_nota"
 
     def __init__(self) -> None:
-        self._cache: dict[str, tuple[bool, float]] = {}
+        self._cache: dict[tuple[str, str], tuple[bool, float]] = {}
 
     def invalidate(self) -> None:
         self._cache.clear()
@@ -574,7 +598,10 @@ class EpsTieneNotaEvaluator(AtomicEvaluator):
             return False
         import time
 
-        cached = self._cache.get(ent)
+        flujo = str(expected or "").strip().lower() if isinstance(expected, str) else ""
+        flujo = flujo if flujo in ("capita", "evento") else ""
+        cache_key = (ent, flujo)
+        cached = self._cache.get(cache_key)
         if cached is not None and time.monotonic() - cached[1] < REFERENCE_DATA_TTL_SECONDS:
             return cached[0]
         try:
@@ -582,11 +609,13 @@ class EpsTieneNotaEvaluator(AtomicEvaluator):
             hit = context.session.execute(
                 text("SELECT 1 FROM eps_nota en "
                      "JOIN eps_contratado ec ON ec.id = en.id_eps_contratado "
-                     "WHERE UPPER(ec.cod_contrato) = :ent LIMIT 1"),
+                     "JOIN nota_hoja nh ON nh.id = en.id_nota_hoja "
+                     "WHERE UPPER(ec.cod_contrato) = :ent"
+                     + _nota_flujo_clause(flujo) + " LIMIT 1"),
                 {"ent": ent},
             ).fetchone()
             ok = hit is not None
-            self._cache[ent] = (ok, time.monotonic())
+            self._cache[cache_key] = (ok, time.monotonic())
             return ok
         except Exception:
             logger.exception("eps_tiene_nota query failed")

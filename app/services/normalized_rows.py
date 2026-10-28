@@ -487,6 +487,8 @@ def _build_grupo_mapped_rows(
                 row["detalle"] = _resolve_detalle(item, b_campo) if b_campo else ""
                 _apply_template_override(row, item, mapping, regla_templates)
                 row["regla"] = item.get("regla", "") or ""
+                row["rama"] = item.get("rama")
+                row["rama_id"] = item.get("rama_id")
                 rows.append(row)
                 continue
             # Item-level fallback (the engine enriches each problem dict
@@ -505,6 +507,8 @@ def _build_grupo_mapped_rows(
             row["procedimiento"] = _resolve_procedimiento(item, a_campo)
             row["detalle"] = _resolve_detalle(item, b_campo)
             row["regla"] = item.get("regla", "") or ""
+            row["rama"] = item.get("rama")
+            row["rama_id"] = item.get("rama_id")
             if not any([a_campo, b_campo, resolved]):
                 logger.debug(
                     "No live detail for grupo=%s factura=%s; leaving empty",
@@ -525,9 +529,10 @@ def _attach_regla(
 
     Rows built 1:1 in _build_grupo_mapped_rows already carry their own
     regla; this only fills rows that lack one. It never invents display
-    text: empty procedimiento/detalle stay empty.
+    text: empty procedimiento/detalle stay empty. Rama viaja junto a
+    regla con el mismo first-wins.
     """
-    _item_reglas: dict[tuple[str, str], str] = {}
+    _item_reglas: dict[tuple[str, str], tuple[str, Any, Any]] = {}
     for grupo_key, group_list in error_groups.items():
         tipo = key_to_tipo_remap.get(grupo_key, grupo_key)
         if isinstance(group_list, list):
@@ -538,14 +543,19 @@ def _attach_regla(
                     if r and f:
                         key = (f, tipo)
                         if key not in _item_reglas:
-                            _item_reglas[key] = r
+                            _item_reglas[key] = (
+                                r, item.get("rama"), item.get("rama_id"),
+                            )
     for row in rows:
         if row.get("regla"):
             continue
         f = row.get("factura", "")
         t = row.get("tipo_error", "")
-        r = _item_reglas.get((f, t))
-        row["regla"] = r if r else ""
+        hit = _item_reglas.get((f, t))
+        if hit:
+            row["regla"], row["rama"], row["rama_id"] = hit
+        else:
+            row["regla"] = ""
 
 
 def build_normalized_rows(

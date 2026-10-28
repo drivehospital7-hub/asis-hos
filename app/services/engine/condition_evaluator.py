@@ -151,6 +151,94 @@ class ConditionEvaluator:
                 return True
         return False
 
+    def evaluate_root(
+        self,
+        node: dict,
+        context: "EvaluationContext",
+    ) -> tuple[dict[str, Any], int | None]:
+        """Fast-path evaluation of a rule tree root, reporting the branch.
+
+        Single walk (no duplicate evaluation): iterates the root's direct
+        children with the short-circuit semantics of its operator and
+        returns (result, branch_index | None).
+
+        branch_index is the position (0-based) of the deciding top-level
+        child — i.e. "rama N" in the rule editor (N = index + 1, in
+        (orden, id) order, which is how the tree is built). Rules cannot
+        reorder branches in the UI (only delete), so the number matches
+        what new processings report. Rules whose root is not a composite
+        (single atomic) report None: they are "rama 1" by construction.
+
+        Deciding child per operator:
+        - OR/MATCH: first True child. OR/NO_MATCH: None.
+        - AND/MATCH (all True): 0. AND/NO_MATCH: first False child.
+        - NOT: 0 (single-operand composite).
+        """
+        if not isinstance(node, dict) or node.get("tipo") != "composite":
+            return self._evaluate_fast(node, context), None
+        operador = (node.get("operador") or "").upper()
+        children = node.get("_children", []) or []
+        if operador == "OR":
+            for i, child in enumerate(children):
+                result = self._evaluate_fast(child, context)
+                if result.get("outcome"):
+                    return {"outcome": True}, i
+            return {"outcome": False}, None
+        if operador == "AND":
+            for i, child in enumerate(children):
+                result = self._evaluate_fast(child, context)
+                if not result.get("outcome"):
+                    return {"outcome": False}, i
+            return {"outcome": True}, 0 if children else None
+        if operador == "NOT":
+            result = self._evaluate_fast(children[0], context) if children else {"outcome": False}
+            return {"outcome": not result.get("outcome")}, 0 if children else None
+        logger.warning("Unknown composite operator: %s", operador)
+        return {"outcome": False, "error": f"Unknown composite operator: {operador}"}, None
+
+    @staticmethod
+    def branch_info(tree: dict | None, branch_index: int | None) -> tuple[int, int | None]:
+        """(numero_rama, rama_condition_id) desde el arbol y el indice ganador.
+
+        numero_rama es 1-based en orden (orden, id): el "Rama N" del editor.
+        Raiz atomica o sin hijos -> (1, id raiz). Estable mientras no se
+        reordenen ramas (la UI no permite reordenar, solo eliminar).
+        """
+        if not isinstance(tree, dict):
+            return 1, None
+        children = tree.get("_children", []) or []
+        if not children:
+            return 1, tree.get("id")
+        if branch_index is None or not (0 <= branch_index < len(children)):
+            branch_index = 0
+        child = children[branch_index] or {}
+        return branch_index + 1, child.get("id")
+
+    @staticmethod
+    def branch_index_from_trace(trace: dict | None) -> int | None:
+        """Deciding top-level branch index from a trace (same convention)."""
+        if not isinstance(trace, dict):
+            return None
+        children = trace.get("_children", []) or []
+        if not children:
+            return None
+        operador = (trace.get("operador") or "").upper()
+        if operador == "OR":
+            for i, child in enumerate(children):
+                if isinstance(child, dict) and child.get("outcome") is True:
+                    return i
+            return None
+        if operador == "AND":
+            if trace.get("outcome") is True:
+                return 0
+            for i, child in enumerate(children):
+                if isinstance(child, dict) and child.get("outcome") is False:
+                    return i
+            return 0
+        if operador == "NOT":
+            return 0
+        return None
+
     def evaluate(
         self,
         node: dict,

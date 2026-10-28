@@ -60,6 +60,8 @@ def build_display_items(normalized_rows: list[dict[str, Any]]) -> list[dict[str,
             "detalle": row.get("detalle", ""),
             "fecha_cierre_vacia": row.get("fecha_cierre_vacia", False),
             "regla": row.get("regla", ""),
+            "rama": row.get("rama"),
+            "rama_id": row.get("rama_id"),
         }
         for live_key, live_default in LIVE_DETAIL_DEFAULTS.items():
             live_value = row.get(live_key, live_default)
