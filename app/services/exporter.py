@@ -440,7 +440,17 @@ def _do_detect_problems(
 
     # Build RowStore (list[dict]) for facts-first evaluation in the engine
     row_store = build_row_store(rows, indices)
-    
+
+    # Antecedente urg/hosp 24h (best-effort): marca in-place
+    # tuvo_urg_hosp_24h para reglas de contratado con excepcion clinica.
+    try:
+        from app.services.transversales.antecedente_urg import (
+            compute_urg_hosp_24h_flags as _flags_urg,
+        )
+        _flags_urg(row_store)
+    except Exception:
+        logger.exception("Antecedente urg/hosp fallo (best-effort)")
+
     try:
         if area == AREA_URGENCIAS:
             problemas_detectados, responsables_map = detect_all_problems_urgencias(
