@@ -84,3 +84,51 @@ h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.01em;
 }
+
+/* Entrada escalonada de las tarjetas del panel principal */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.5s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up {
+    animation: none;
+  }
+}
+
+/* Impresión del dashboard: solo el bloque de estadísticas.
+   Acotado a body.page-dashboard para no afectar otras páginas. */
+@media print {
+  body.page-dashboard aside,
+  body.page-dashboard header,
+  body.page-dashboard .no-print {
+    display: none !important;
+  }
+  body.page-dashboard .app-content {
+    margin-left: 0 !important;
+  }
+  body.page-dashboard main {
+    padding: 0 !important;
+  }
+  body.page-dashboard #dashboard-stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+  /* Conservar los tonos de las tarjetas en papel */
+  body.page-dashboard #dashboard-stats * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

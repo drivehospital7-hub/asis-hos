@@ -42,7 +42,7 @@ export function AppLayout({ children, username, permisos }: AppLayoutProps) {
     <div className="min-h-screen" style={{ backgroundColor: "var(--color-background)" }}>
       <AppSidebar username={username} permisos={permisos} collapsed={collapsed} />
       <ConfirmDialog ref={confirmRef} />
-      <div style={{ marginLeft: collapsed ? "4rem" : "16rem", transition: "margin-left 0.2s ease" }}>
+      <div className="app-content" style={{ marginLeft: collapsed ? "4rem" : "16rem", transition: "margin-left 0.2s ease" }}>
         <AppHeader username={username} collapsed={collapsed} onToggle={toggle} />
         <main className="pb-8 pt-6">
           <div className="max-w-[1600px] mx-auto px-4 sm:px-8">

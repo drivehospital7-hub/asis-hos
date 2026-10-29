@@ -5,6 +5,7 @@ from pathlib import Path
 from flask import Blueprint, current_app, redirect, render_template, session, url_for
 
 from app.constants.base import _filter_areas
+from app.services.dashboard_stats import get_dashboard_stats
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,10 @@ def home_react():
     entry_js = _get_manifest_asset(manifest_path, "src/pages/index/index.html", "file")
     entry_css = _get_manifest_asset(manifest_path, "style.css", "file")
 
-    kpis = [
-        {"label": "Facturas del mes", "value": "0", "trend": "Sin datos", "icon": "trending-up"},
-        {"label": "Pendientes de revisi\u00f3n", "value": "0", "trend": "Sin datos", "icon": "clock"},
-        {"label": "Resueltas este mes", "value": "0", "trend": "Sin datos", "icon": "check-circle"},
-    ]
+    stats = get_dashboard_stats()
+    stats_data = stats.get("data", {}) if stats.get("status") == "success" else {}
+    kpis = stats_data.get("kpis", [])
+    month_label = stats_data.get("month_label", "")
     areas = _filter_areas(permisos)
 
     return render_template(
@@ -51,6 +51,7 @@ def home_react():
             "username": session.get("username", ""),
             "permisos": permisos,
             "kpis": kpis,
+            "month_label": month_label,
             "areas": areas,
         },
     )

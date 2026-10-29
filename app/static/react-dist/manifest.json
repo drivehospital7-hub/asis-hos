@@ -1,11 +1,11 @@
 {
-  "_Toast-CKs4d6Cn.js": {
-    "file": "assets/Toast-CKs4d6Cn.js",
+  "_Toast-BKcdCPw1.js": {
+    "file": "assets/Toast-BKcdCPw1.js",
     "name": "Toast",
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
       "_change-password-dialog-DbTgD6IY.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_status-badge-BTEsVPQc.js",
       "_file-down-Dts3xMzS.js",
       "_chevron-down-BGA8Tm_F.js",
@@ -14,8 +14,8 @@
       "_plus-Yje7e_oO.js"
     ]
   },
-  "_app-layout-CkYe8Ls7.js": {
-    "file": "assets/app-layout-CkYe8Ls7.js",
+  "_app-layout-C5ByLko2.js": {
+    "file": "assets/app-layout-C5ByLko2.js",
     "name": "app-layout",
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
@@ -184,6 +184,13 @@
       "_createLucideIcon-IEYCF5gg.js"
     ]
   },
+  "_printer-DRo2Uayl.js": {
+    "file": "assets/printer-DRo2Uayl.js",
+    "name": "printer",
+    "imports": [
+      "_createLucideIcon-IEYCF5gg.js"
+    ]
+  },
   "_save-Bs2hw3Wq.js": {
     "file": "assets/save-Bs2hw3Wq.js",
     "name": "save",
@@ -218,13 +225,13 @@
     ]
   },
   "src/pages/abiertas-urgencias/index.html": {
-    "file": "assets/index-CcSakDCk.js",
+    "file": "assets/index-lVLaz_TV.js",
     "name": "index",
     "src": "src/pages/abiertas-urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -238,20 +245,20 @@
     ]
   },
   "src/pages/admin-reglas/index.html": {
-    "file": "assets/index-B0yxT8Iw.js",
+    "file": "assets/index-BKBdVKUQ.js",
     "name": "index",
     "src": "src/pages/admin-reglas/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_status-badge-BTEsVPQc.js",
       "_plus-Yje7e_oO.js",
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js",
       "_chevron-down-BGA8Tm_F.js",
-      "_Toast-CKs4d6Cn.js",
+      "_Toast-BKcdCPw1.js",
       "_circle-check-CRdT4vUM.js",
       "_circle-x-DWHZiwFP.js",
       "_trash-2-B_HF-4H9.js",
@@ -262,13 +269,13 @@
     ]
   },
   "src/pages/auditoria/index.html": {
-    "file": "assets/index-CHX-7cfa.js",
+    "file": "assets/index-DKscQuA5.js",
     "name": "index",
     "src": "src/pages/auditoria/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -284,13 +291,13 @@
     ]
   },
   "src/pages/busqueda-pdf/index.html": {
-    "file": "assets/index-D0rHBmih.js",
+    "file": "assets/index-CWvdbCjM.js",
     "name": "index",
     "src": "src/pages/busqueda-pdf/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_input-BeGrZ1Ym.js",
       "_status-badge-BTEsVPQc.js",
@@ -301,13 +308,13 @@
     ]
   },
   "src/pages/catalogo/index.html": {
-    "file": "assets/index-jD5TMzeM.js",
+    "file": "assets/index-C2ivjO-u.js",
     "name": "index",
     "src": "src/pages/catalogo/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_status-badge-BTEsVPQc.js",
       "_plus-Yje7e_oO.js",
@@ -317,13 +324,13 @@
     ]
   },
   "src/pages/cronograma-bacteriologas/index.html": {
-    "file": "assets/index-BJfNf8T1.js",
+    "file": "assets/index-B_A10rDT.js",
     "name": "index",
     "src": "src/pages/cronograma-bacteriologas/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -336,13 +343,13 @@
     ]
   },
   "src/pages/cronograma-urgencias/index.html": {
-    "file": "assets/index-D-Cj3ZHC.js",
+    "file": "assets/index-B-tXiegx.js",
     "name": "index",
     "src": "src/pages/cronograma-urgencias/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -355,13 +362,13 @@
     ]
   },
   "src/pages/cruce-produccion/index.html": {
-    "file": "assets/index-B66QppW0.js",
+    "file": "assets/index-BZ9uHyVa.js",
     "name": "index",
     "src": "src/pages/cruce-produccion/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_input-BeGrZ1Ym.js",
       "_breadcrumbs-Ciaw9CUI.js",
@@ -375,13 +382,13 @@
     ]
   },
   "src/pages/derechos/index.html": {
-    "file": "assets/index-tfhWrpHR.js",
+    "file": "assets/index-B2O5wLE6.js",
     "name": "index",
     "src": "src/pages/derechos/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -396,13 +403,13 @@
     ]
   },
   "src/pages/examenes/index.html": {
-    "file": "assets/index-CZHr9vBx.js",
+    "file": "assets/index-T8NNVgiB.js",
     "name": "index",
     "src": "src/pages/examenes/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -410,17 +417,18 @@
       "_trash-2-B_HF-4H9.js",
       "_eye-rX9dfGmL.js",
       "_chevron-right-CMbuKBFd.js",
-      "_pencil-BNxqi9es.js"
+      "_pencil-BNxqi9es.js",
+      "_printer-DRo2Uayl.js"
     ]
   },
   "src/pages/genderize/index.html": {
-    "file": "assets/index-DretW6T6.js",
+    "file": "assets/index-CapmIT7Y.js",
     "name": "index",
     "src": "src/pages/genderize/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_status-badge-BTEsVPQc.js",
       "_input-BeGrZ1Ym.js",
@@ -432,17 +440,18 @@
     ]
   },
   "src/pages/index/index.html": {
-    "file": "assets/index-B4FnQMxn.js",
+    "file": "assets/index-BDD_ngTK.js",
     "name": "index",
     "src": "src/pages/index/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_page-title-pBIOg9dW.js",
       "_status-badge-BTEsVPQc.js",
-      "_circle-check-CRdT4vUM.js",
+      "_printer-DRo2Uayl.js",
       "_arrow-right-C3omlvKg.js",
+      "_circle-check-CRdT4vUM.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_eye-rX9dfGmL.js"
     ]
@@ -458,13 +467,13 @@
     ]
   },
   "src/pages/monitoreo-carpetas/index.html": {
-    "file": "assets/index-BMZh8ZpU.js",
+    "file": "assets/index-DnnvhRjZ.js",
     "name": "index",
     "src": "src/pages/monitoreo-carpetas/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_input-BeGrZ1Ym.js",
       "_breadcrumbs-Ciaw9CUI.js",
@@ -486,13 +495,13 @@
     ]
   },
   "src/pages/ordenado-facturado/index.html": {
-    "file": "assets/index-Yl73U2J6.js",
+    "file": "assets/index-DNfuM_qd.js",
     "name": "index",
     "src": "src/pages/ordenado-facturado/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
@@ -506,17 +515,17 @@
     ]
   },
   "src/pages/procesar/index.html": {
-    "file": "assets/index-BdsoMMW0.js",
+    "file": "assets/index-DHVoUdJA.js",
     "name": "index",
     "src": "src/pages/procesar/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_breadcrumbs-Ciaw9CUI.js",
       "_page-title-pBIOg9dW.js",
-      "_Toast-CKs4d6Cn.js",
+      "_Toast-BKcdCPw1.js",
       "_info-ChxgVf7c.js",
       "_arrow-right-C3omlvKg.js",
       "_eye-rX9dfGmL.js",
@@ -529,13 +538,13 @@
     ]
   },
   "src/pages/traslado-facturas/index.html": {
-    "file": "assets/index-IkhIq0nJ.js",
+    "file": "assets/index-DimIv4en.js",
     "name": "index",
     "src": "src/pages/traslado-facturas/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_input-BeGrZ1Ym.js",
       "_breadcrumbs-Ciaw9CUI.js",
@@ -558,13 +567,13 @@
     ]
   },
   "src/pages/usuarios/index.html": {
-    "file": "assets/index-pSfFwIpK.js",
+    "file": "assets/index-BmxdauSn.js",
     "name": "index",
     "src": "src/pages/usuarios/index.html",
     "isEntry": true,
     "imports": [
       "_createLucideIcon-IEYCF5gg.js",
-      "_app-layout-CkYe8Ls7.js",
+      "_app-layout-C5ByLko2.js",
       "_change-password-dialog-DbTgD6IY.js",
       "_status-badge-BTEsVPQc.js",
       "_pencil-BNxqi9es.js",
@@ -573,7 +582,7 @@
     ]
   },
   "style.css": {
-    "file": "assets/style-CXbM6x4I.css",
+    "file": "assets/style-CqhhtwP-.css",
     "src": "style.css"
   }
 }
