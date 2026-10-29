@@ -427,16 +427,23 @@ def _do_detect_problems(
     # Leer headers de la primera fila
     headers = [sheet.cell(row=1, column=col).value for col in range(1, max_col + 1)]
 
-    if detected_row != expected_header_row:
-        logger.warning(
-            "Fuente %s: headers detectados en fila %d, esperado fila %d. "
-            "Si el productor movio la fila de encabezados, revisar.",
-            fuente, detected_row, expected_header_row,
-        )
-
     indices, missing_columns = get_column_indices(
         headers, required_headers, aliases=header_aliases
     )
+    # El aviso de fila solo importa si falto mapear algo: con mapeo
+    # completo el best-match ya resolvio solo y el warning seria ruido.
+    if detected_row != expected_header_row and missing_columns:
+        logger.warning(
+            "Fuente %s: headers detectados en fila %d, esperado fila %d, "
+            "con %d columna(s) sin mapear. Revisar encabezados.",
+            fuente, detected_row, expected_header_row, len(missing_columns),
+        )
+    elif detected_row != expected_header_row:
+        logger.info(
+            "Fuente %s: headers en fila %d (mapeo completo %d/%d).",
+            fuente, detected_row, len(required_headers) - len(missing_columns),
+            len(required_headers),
+        )
 
     # Build RowStore (list[dict]) for facts-first evaluation in the engine
     row_store = build_row_store(rows, indices)
