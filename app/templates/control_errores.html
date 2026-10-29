@@ -1401,7 +1401,7 @@
           }
         }
       }
-    var data = { tipo_error: 'Error', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Notificación', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
     } else {
       // Validar duplicados en factura para registros existentes
@@ -1442,9 +1442,9 @@
   
   // Obtener datos de la fila nueva
   function getNewRowData() {
-    // Por defecto: tipo_error = Error, estado = Pendiente
+    // Por defecto: tipo_error = Notificación, estado = Pendiente
     return {
-      tipo_error: 'Error',
+      tipo_error: 'Notificación',
       observacion: '',
       observacion_facturador: '',
       estado: 'S',
@@ -1668,7 +1668,7 @@
       <td class="new-row-cell" data-type="text" data-id="new" data-field="factura" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="refactura" onclick="handleCellClick(this)"></td>
       <td class="fecha-creado">-</td>
-      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Error</td>
+      <td class="new-row-cell" data-type="select" data-id="new" data-field="tipo_error" onclick="handleCellClick(this)">Notificación</td>
       <td class="new-row-cell" data-type="text" data-id="new" data-field="observacion" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="responsable" onclick="handleCellClick(this)"></td>
       <td class="new-row-cell" data-type="select" data-id="new" data-field="estado" data-value="S" onclick="handleCellClick(this)"><span class="badge badge--pending">Pendiente</span></td>
@@ -1707,7 +1707,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (dup.length && !await Modal.confirm(mensajeDuplicado(factura, dup, 'Crear'))) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Error', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: 'Notificación', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }

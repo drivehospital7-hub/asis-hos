@@ -82,34 +82,34 @@ describe("buildObservacion", () => {
 // ─── buildEnvioSet ──────────────────────────────────────────────────────
 
 describe("buildEnvioSet", () => {
-  it("builds normalized Set from errores de categoria Error (incl. legacy Otros)", () => {
+  it("builds normalized Set from errores de categoria Notificacion", () => {
     const set = buildEnvioSet([
-      { factura: "f123 ", tipo_error: "Error" },
-      { factura: "FEV1", tipo_error: "Otro Tipo" },
+      { factura: "f123 ", tipo_error: "Notificación" },
+      { factura: "FEV1", tipo_error: "notificacion" },
     ]);
     expect(set.has("F123")).toBe(true);
     expect(set.has("FEV1")).toBe(true);
   });
 
-  it("excluye categoria Notificacion (abiertas, no error reportado)", () => {
+  it("excluye categoria Error (ya reportado como error, no como envio)", () => {
     const set = buildEnvioSet([
-      { factura: "FEV10", tipo_error: "Notificación" },
-      { factura: "FEV11", tipo_error: "notificacion" },
-      { factura: "FEV12", tipo_error: "Factura Abierta" },
-      { factura: "FEV13", tipo_error: "Error" },
+      { factura: "FEV10", tipo_error: "Error" },
+      { factura: "FEV11", tipo_error: "Otro Tipo" },
+      { factura: "FEV12", tipo_error: "Notificación" },
+      { factura: "FEV13", tipo_error: "Factura Abierta" },
     ]);
     expect(set.has("FEV10")).toBe(false);
     expect(set.has("FEV11")).toBe(false);
-    expect(set.has("FEV12")).toBe(false);
-    expect(set.has("FEV13")).toBe(true);
+    expect(set.has("FEV12")).toBe(true);
+    expect(set.has("FEV13")).toBe(true); // legacy abierta = notificación
   });
 
   it("matches fila F123 against reporte f123 (no false negative)", () => {
-    const set = buildEnvioSet([{ factura: "f123 " }]);
+    const set = buildEnvioSet([{ factura: "f123 ", tipo_error: "Notificación" }]);
     expect(set.has(norm("F123"))).toBe(true);
   });
 
-  it("skips entries without factura", () => {
+  it("skips entries without factura or without categoria Notificacion", () => {
     const set = buildEnvioSet([
       { factura: "" },
       { factura: "   " },

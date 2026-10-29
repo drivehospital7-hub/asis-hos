@@ -21,10 +21,10 @@ export function buildObservacion(
 }
 
 /**
- * Notificación (incl. legacy "Factura Abierta") = factura abierta de urgencias,
- * no un error reportado. /procesar envía como "Error", así que el aviso de
- * duplicado solo matchea categoría "Error": una Notificación existente no
- * significa que la factura ya fue reportada como error.
+ * El envío desde /procesar (y reglas) crea categoría "Notificación", así que
+ * el aviso de duplicado solo matchea esa categoría (incl. legacy
+ * "Factura Abierta"): un "Error" existente no significa que la factura ya
+ * fue enviada desde acá (las categorías conviven por factura).
  */
 export function isNotificacionCategoria(
   tipo_error: string | null | undefined,
@@ -40,7 +40,7 @@ export function buildEnvioSet(
   const set = new Set<string>();
   if (!Array.isArray(errores)) return set;
   for (const e of errores) {
-    if (isNotificacionCategoria(e?.tipo_error)) continue;
+    if (!isNotificacionCategoria(e?.tipo_error)) continue;
     const raw = e?.factura ?? "";
     if (raw.trim().length === 0) continue;
     set.add(norm(raw));

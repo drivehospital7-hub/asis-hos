@@ -15,7 +15,8 @@ interface UseEnvioControlOptions {
 
 /**
  * Shared send-to-control logic (preload + per-row POST + toast).
- * Same behavior as /procesar: sends as "Error" with duplicate confirm.
+ * Same behavior as /abiertas-urgencias: sends as "Notificación" with
+ * duplicate confirm (same-factura + same-category).
  */
 export function useEnvioControl({
   can_write,
@@ -34,7 +35,7 @@ export function useEnvioControl({
   const showEnvio = canShowEnvio(can_write, canControl);
 
   // Preload único: GET /api/control-errores → Set global normalizado.
-  // buildEnvioSet solo incluye categoría "Error" (Notificación = abiertas).
+  // buildEnvioSet solo incluye categoría "Notificación" (lo que este flujo envía).
   useEffect(() => {
     if (!showEnvio) return;
     fetch("/api/control-errores")
@@ -81,7 +82,7 @@ export function useEnvioControl({
       } else {
         if (
           !(await window.__showConfirm!(
-            `¿Enviar factura "${factura}" a Control de Errores como "Error"?`,
+            `¿Enviar factura "${factura}" a Control de Errores como "Notificación"?`,
           ))
         ) {
           return;
@@ -95,7 +96,7 @@ export function useEnvioControl({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            tipo_error: "Error",
+            tipo_error: "Notificación",
             factura,
             observacion,
             estado: "S",
