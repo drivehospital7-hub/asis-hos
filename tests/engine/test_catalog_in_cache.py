@@ -82,3 +82,13 @@ def test_no_session_still_false_without_query():
     session = _FakeSession({"k": ["A"]})
     assert ev.evaluate({}, "A", "k", context=None) is False
     assert session.calls == 0
+
+
+def test_accent_folding_matches_variants():
+    ev = CatalogInEvaluator()
+    session = _FakeSession({"nombres": ["ESPAÑA DIAZ LORENY ALEJANDRA", "Núñez"]})
+    ctx = _Ctx(session)
+    assert ev.evaluate({}, "ESPANA DIAZ LORENY ALEJANDRA", "nombres", context=ctx) is True
+    assert ev.evaluate({}, "españa diaz loreny alejandra", "nombres", context=ctx) is True
+    assert ev.evaluate({}, "NUNEZ", "nombres", context=ctx) is True
+    assert ev.evaluate({}, "OTRO NOMBRE", "nombres", context=ctx) is False

@@ -23,6 +23,16 @@ _FACTURADORES_URGENCIAS_NORM: frozenset[str] = frozenset(
     " ".join(f.upper().split()) for f in FACTURADORES_URGENCIAS
 )
 
+
+def strip_accents(text: str) -> str:
+    """Quita diacríticos (tildes, eñes) para comparaciones tolerantes."""
+    import unicodedata
+
+    return "".join(
+        c for c in unicodedata.normalize("NFD", text)
+        if unicodedata.category(c) != "Mn"
+    )
+
 #: TTL de caches de datos de referencia (segundos). Cubre multi-proceso
 #: (cada worker tiene su copia y la invalidacion explicita solo alcanza al
 #: worker que atendio la escritura). Peor caso: un cambio tarda esto en verse.
@@ -1350,10 +1360,12 @@ class CatalogInEvaluator(AtomicEvaluator):
             if row_value in catalog_list:
                 return True
 
-            # 2. Normalization fallback: match InEvaluator behavior — strip + upper
-            row_str = str(row_value).strip().upper() if row_value is not None else ""
+            # 2. Normalization fallback: match InEvaluator behavior (strip +
+            #    upper) plus diacritic folding, so catalog lookups tolerate
+            #    accents/case variants in source data (ej. ESPANA vs ESPAÑA).
+            row_str = strip_accents(str(row_value).strip().upper()) if row_value is not None else ""
             for val in catalog_list:
-                if str(val).strip().upper() == row_str:
+                if strip_accents(str(val).strip().upper()) == row_str:
                     return True
 
             return False
