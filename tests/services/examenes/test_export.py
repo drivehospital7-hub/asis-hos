@@ -51,12 +51,12 @@ class TestBuildWorkbook:
 
         assert ws.title == "Listado"
         assert [c.value for c in ws[1]] == CSV_HEADERS
-        assert len(CSV_HEADERS) == 11
+        assert len(CSV_HEADERS) == 12
         assert ws["A1"].fill.fgColor.rgb == "001B5E20"
         assert ws["A1"].font.color.rgb == "00FFFFFF"
         assert ws["A1"].font.bold is True
         assert ws.freeze_panes == "A2"
-        for col in "ABCDEFGHIJK":
+        for col in "ABCDEFGHIJKL":
             assert ws.column_dimensions[col].width == 20
 
     def test_una_fila_por_item_numero_secuencial(self) -> None:
@@ -84,14 +84,24 @@ class TestBuildWorkbook:
 
         assert ws.max_row == 4  # header + 2 items + 1 item
         assert [c.value for c in ws[2]] == [
-            1, "Juan Perez", "111", "903859", "Potasio", 2, "SI", "SI", "SI", "Angie Chapuel", "15/01/2026 08:30",
+            1, "Juan Perez", "111", "903859", "Potasio", 2, "SI", "SI", "SI", None, "Angie Chapuel", "15/01/2026 08:30",
         ]
         assert [c.value for c in ws[3]] == [
-            2, "Juan Perez", "111", "903016", "Ferritina", 1, "AUTH", "AUTH", "AUTH", "Angie Chapuel", "15/01/2026 08:30",
+            2, "Juan Perez", "111", "903016", "Ferritina", 1, "AUTH", "AUTH", "AUTH", None, "Angie Chapuel", "15/01/2026 08:30",
         ]
         assert [c.value for c in ws[4]] == [
-            3, "Maria Lopez", "111", "906131", "Trypanosoma", 1, None, None, None, "Cataleya Tapia", "28/08/2026 09:00",
+            3, "Maria Lopez", "111", "906131", "Trypanosoma", 1, None, None, None, None, "Cataleya Tapia", "28/08/2026 09:00",
         ]
+
+    def test_ocasionales_columna_despues_de_emss(self) -> None:
+        """OCASIONAL sale en el Excel (X→SI) justo después de EMSS."""
+        listado = [
+            _pf("pf-1", "Juan Perez", "15/01/2026 08:30", [_item("903859", "Potasio", ocas="X")]),
+        ]
+        buffer = build_listado_export_workbook(listado)
+        _, ws = _open(buffer)
+        assert [c.value for c in ws[1]][9] == "OCASIONAL"
+        assert [c.value for c in ws[2]][9] == "SI"
 
     def test_cantidad_ausente_y_fraccionaria(self) -> None:
         listado = [
@@ -145,8 +155,8 @@ class TestBuildWorkbook:
         # header styling untouched
         assert ws["A1"].fill.fgColor.rgb == "001B5E20"
         row = [c for c in ws[2]]
-        # columns: N, paciente(2), cedula(3), cod(4), nom(5), ..., facturador(10), hora(11)
-        for col_idx in (2, 3, 4, 5, 10):
+        # columns: N, paciente(2), cedula(3), cod(4), nom(5), ..., facturador(11), hora(12)
+        for col_idx in (2, 3, 4, 5, 11):
             cell = row[col_idx - 1]
             assert cell.data_type == "s", f"col {col_idx} should be text, got {cell.data_type}"
             assert str(cell.value).startswith("'"), f"col {col_idx} should be prefixed with single quote"
@@ -155,14 +165,14 @@ class TestBuildWorkbook:
         assert row[2].value == "'" + evil_cedula
         assert row[3].value == "'" + evil_cod
         assert row[4].value == "'" + evil_nom
-        assert row[9].value == "'" + evil_facturador
+        assert row[10].value == "'" + evil_facturador
         # hora is also sanitized when it starts with trigger char (edge)
         listado2 = [_pf("pf-2", "Normal", "=cmd|'/C calc'!A0", [_item("903859", "Potasio")])]
         listado2[0]["hora"] = "=2+2"
         buffer2 = build_listado_export_workbook(listado2)
         _, ws2 = _open(buffer2)
-        assert ws2.cell(row=2, column=11).value == "'=2+2"
-        assert ws2.cell(row=2, column=11).data_type == "s"
+        assert ws2.cell(row=2, column=12).value == "'=2+2"
+        assert ws2.cell(row=2, column=12).data_type == "s"
 
 
 class TestComposeListadoView:

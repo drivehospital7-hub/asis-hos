@@ -274,17 +274,19 @@
   },
   {
     "cod": "906127",
-    "emss": "",
-    "mall": "X",
+    "nom": "toxoplasma gondii ig g",
     "neps": "",
-    "nom": "toxoplasma gondii ig g"
+    "mall": "X",
+    "emss": "",
+    "ocas": "X"
   },
   {
     "cod": "906129",
-    "emss": "",
-    "mall": "X",
+    "nom": "toxoplasma gondii ig m",
     "neps": "",
-    "nom": "toxoplasma gondii ig m"
+    "mall": "X",
+    "emss": "",
+    "ocas": "X"
   },
   {
     "cod": "908873",
@@ -463,9 +465,9 @@
   },
   {
     "cod": "903809",
-    "nom": "BILIRRUBINAS TOTAL Y DIRECTA",
-    "neps": "",
+    "emss": "",
     "mall": "",
-    "emss": ""
+    "neps": "",
+    "nom": "BILIRRUBINAS TOTAL Y DIRECTA"
   }
 ]

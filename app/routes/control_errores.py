@@ -20,9 +20,9 @@ from app.services.control_errores_service import (
 )
 from app.services.control_errores_export import build_errores_export_workbook, filename_export
 
-from app.constants import IMAGENES_DIR, IMAGENES_SCOPES
+from app.constants import ERROR_TIPO_ERROR, IMAGENES_DIR, IMAGENES_SCOPES
 from app.utils.auth import permiso_requerido
-from app.utils.errores_storage import obtener_error
+from app.utils.errores_storage import normalizar_tipo_error, obtener_error
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +156,10 @@ def listar_errores():
 @control_errores_bp.get("/api/control-errores/export")
 @permiso_requerido("control_urgencias", "control_urgencias:write")
 def exportar_errores():
-    """Exportar errores filtrados a Excel (.xlsx) con adjuntos como links."""
+    """Exportar errores filtrados a Excel (.xlsx) con adjuntos como links.
+
+    Solo categoría Error se exporta: Notificación es informativa.
+    """
     tipo_error = request.args.get("tipo_error")
     estado = request.args.get("estado")
     responsable = request.args.get("responsable")
@@ -177,6 +180,12 @@ def exportar_errores():
         errores = [
             e for e in errores if str(e.get("creado_en", ""))[:7] == mes
         ]
+
+    # Solo Error es exportable: se excluye Notificación aunque venga en el filtro.
+    errores = [
+        e for e in errores
+        if normalizar_tipo_error(e.get("tipo_error")) == ERROR_TIPO_ERROR
+    ]
 
     if not errores:
         return jsonify({

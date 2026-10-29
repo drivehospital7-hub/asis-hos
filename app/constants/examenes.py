@@ -35,6 +35,7 @@ CSV_HEADERS: list[str] = [
     "NEPS",
     "MALLAM",
     "EMSS",
+    "OCASIONAL",
     "Facturador",
     "Fecha/Hora",
 ]

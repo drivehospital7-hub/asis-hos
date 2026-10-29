@@ -28,6 +28,7 @@ import {
   listadoFechaInfo,
   buildPrefactura,
   normalizeItem,
+  saveListadoResilient,
   formatFechaEsCo,
   resolveUiActions,
   postArray,
@@ -73,6 +74,7 @@ interface FlagState {
   neps: boolean;
   mall: boolean;
   emss: boolean;
+  ocas: boolean;
   nepsAuth: boolean;
   mallAuth: boolean;
   emssAuth: boolean;
@@ -82,6 +84,7 @@ const EMPTY_FLAGS: FlagState = {
   neps: false,
   mall: false,
   emss: false,
+  ocas: false,
   nepsAuth: false,
   mallAuth: false,
   emssAuth: false,
@@ -110,7 +113,6 @@ export function ExamenesPage({
   const [activeTab, setActiveTab] = useState<TabId>("consulta");
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<number | null>(null);
-  const [preview, setPreview] = useState<{ title: string; html: string } | null>(null);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -134,6 +136,11 @@ export function ExamenesPage({
     window.alert(`${what} cambió en otro equipo. Se recargó el estado actual para evitar pérdidas.`);
     await reloadData();
   };
+
+  // Lectura fresca solo del listado (para reintentar tras un 409 sin
+  // recargar todo como hace handleConflict).
+  const loadListadoFresh = async (): Promise<Prefactura[] | null> =>
+    (await fetchData<{ listado?: Prefactura[] }>("/api/listado"))?.listado ?? null;
 
   const confirmDialog = (
     window as unknown as { __showConfirm?: (msg: string) => Promise<boolean> }
@@ -364,6 +371,7 @@ export function ExamenesPage({
 
   // ─── Consulta: save-to-listado (EX-10, write-gated) ────────────────
   const handleSavePrefactura = async () => {
+    if (saving) return; // anti doble-envío (doble clic / Ctrl+S repetido)
     if (!cart.length) {
       window.alert("La prefactura está vacía.");
       return;
@@ -388,24 +396,53 @@ export function ExamenesPage({
       fecha || "___/___/____",
     );
     setSaving(true);
-    const optimistic = [...listado, pf];
-    setListado(optimistic);
-    const result = await postArray("/api/listado", optimistic, listado);
-    if (result !== "ok") {
+    // Agregado idempotente: si tras releer lo tuyo ya está, no se duplica.
+    const append = (server: Prefactura[]) =>
+      server.some((p) => p.id === pf.id) ? server : [...server, pf];
+    setListado(append(listado));
+    // Reintento automático: si otro guardó en el medio (409), relee y
+    // re-aplica lo tuyo sobre lo fresco en vez de molestarte con el aviso.
+    const outcome = await saveListadoResilient(append, listado, {
+      load: loadListadoFresh,
+      save: (next, base) => postArray("/api/listado", next, base),
+    });
+    if (outcome.status !== "ok") {
       setListado(listado); // rollback on failure — cart NOT cleared
       setSaving(false);
-      if (result === "conflict") {
+      if (outcome.status === "conflict") {
         await handleConflict("El listado");
       } else {
         window.alert("No se pudo guardar el listado. Reintente.");
       }
       return;
     }
+    setListado(outcome.state);
     setSaving(false);
     setCart([]);
     showToast(`✓ ${snapshot.length} examen(es) agregados al listado`);
-    setPreview({ title: "Prefactura — Vista previa", html: previewDoc });
+    // Impresión directa: sin modal previo (el bloqueo de popups cae al
+    // fallback de printContenido, que imprime en la página actual).
+    printContenido(previewDoc);
   };
+
+  // Ctrl/Cmd+S en la pestaña Consulta equivale a "Imprimir y Enlistar"
+  // (frena el diálogo de guardar del navegador). Refs para no re-suscribir
+  // el listener en cada render y no capturar estado vencido.
+  const saveRef = useRef(handleSavePrefactura);
+  saveRef.current = handleSavePrefactura;
+  const tabRef = useRef(activeTab);
+  tabRef.current = activeTab;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        if (tabRef.current !== "consulta") return;
+        e.preventDefault();
+        void saveRef.current();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // ─── Listado: row actions ──────────────────────────────────────────
   // EX-2: whole-record delete goes through the write-gated DELETE endpoint
@@ -415,16 +452,39 @@ export function ExamenesPage({
     const pf = listado.find((p) => p.id === id);
     if (!pf) return;
     if (!(await askConfirm(`¿Eliminar toda la prefactura de ${pf.paciente}?`))) return;
-    const next = listado.filter((p) => p.id !== id);
-    setListado(next);
-    const result = await deletePrefactura(id, listado);
-    if (result === "conflict") {
-      await handleConflict("El listado");
-    } else if (result === "error") {
-      setListado(listado); // rollback — la UI nunca queda sin el registro
-      window.alert("No se pudo eliminar la prefactura. Reintente.");
-    } else {
-      showToast(`✓ Prefactura de ${pf.paciente} eliminada`);
+    const remove = (server: Prefactura[]) => server.filter((p) => p.id !== id);
+    setListado(remove(listado));
+    // Reintento: 409/404 → relee; si otro ya la borró, objetivo cumplido.
+    let base = listado;
+    for (let attempt = 0; ; attempt += 1) {
+      const result = await deletePrefactura(id, base);
+      if (result === "ok") {
+        setListado(remove(base));
+        showToast(`✓ Prefactura de ${pf.paciente} eliminada`);
+        return;
+      }
+      if (result === "error") {
+        setListado(listado); // rollback — la UI nunca queda sin el registro
+        window.alert("No se pudo eliminar la prefactura. Reintente.");
+        return;
+      }
+      const server = await loadListadoFresh();
+      if (server === null) {
+        setListado(listado);
+        window.alert("No se pudo eliminar la prefactura. Reintente.");
+        return;
+      }
+      if (!server.some((p) => p.id === id)) {
+        setListado(server); // otro la borró: nada que hacer
+        showToast(`✓ Prefactura de ${pf.paciente} eliminada`);
+        return;
+      }
+      if (attempt >= 2) {
+        setListado(listado);
+        await handleConflict("El listado");
+        return;
+      }
+      base = server;
     }
   };
 
@@ -510,25 +570,47 @@ export function ExamenesPage({
       .map((i) => {
         const exam = examenes.find((e) => e.cod === i.cod);
         return exam
-          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", cantidad: normalizeItem(i).cantidad }
-          : { cod: i.cod, nom: i.nom, neps: "", mall: "", emss: "", cantidad: normalizeItem(i).cantidad };
+          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", ocas: exam.ocas || "", cantidad: normalizeItem(i).cantidad }
+          : { cod: i.cod, nom: i.nom, neps: "", mall: "", emss: "", ocas: "", cantidad: normalizeItem(i).cantidad };
       });
-    const next = listado.map((p) =>
-      p.id === editDraft.id
-        ? {
-            ...editDraft,
-            paciente: editDraft.paciente.trim(),
-            cedula: editDraft.cedula.trim(),
-            hora: editDraft.hora.trim() || p.hora,
-            items,
-          }
-        : p,
-    );
-    setListado(next);
-    setEditDraft(null);
-    if ((await postArray("/api/listado", next, listado)) === "conflict") {
+    // Re-aplicable sobre estado fresco (reintento): si el registro fue
+    // borrado en el medio, null → conflicto real (no se pisa nada).
+    const applyEdit = (server: Prefactura[]): Prefactura[] | null => {
+      if (!server.some((p) => p.id === editDraft.id)) return null;
+      return server.map((p) =>
+        p.id === editDraft.id
+          ? {
+              ...editDraft,
+              paciente: editDraft.paciente.trim(),
+              cedula: editDraft.cedula.trim(),
+              hora: editDraft.hora.trim() || p.hora,
+              items,
+            }
+          : p,
+      );
+    };
+    const next = applyEdit(listado);
+    if (next === null) {
       await handleConflict("El listado");
+      return;
     }
+    setListado(next);
+    const outcome = await saveListadoResilient(applyEdit, listado, {
+      load: loadListadoFresh,
+      save: (n, b) => postArray("/api/listado", n, b),
+    });
+    if (outcome.status !== "ok") {
+      setListado(listado);
+      setEditDraft(null);
+      if (outcome.status === "conflict") {
+        await handleConflict("El listado");
+      } else {
+        window.alert("No se pudo guardar la edición. Reintente.");
+      }
+      return;
+    }
+    setListado(outcome.state);
+    setEditDraft(null);
   };
 
   const editAddItem = () => {
@@ -536,7 +618,7 @@ export function ExamenesPage({
     const idx = editDraft.items.length;
     setEditDraft({
       ...editDraft,
-      items: [...editDraft.items, { cod: "", nom: "Nuevo procedimiento", neps: "", mall: "", emss: "", cantidad: 1 }],
+      items: [...editDraft.items, { cod: "", nom: "Nuevo procedimiento", neps: "", mall: "", emss: "", ocas: "", cantidad: 1 }],
     });
     setPickerIdx(idx);
     setPickerQuery("");
@@ -555,8 +637,8 @@ export function ExamenesPage({
     const items = editDraft.items.map((it, i) =>
       i === idx
         ? exam
-          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", cantidad: normalizeItem(it).cantidad }
-          : { cod, nom: it.nom, neps: "", mall: "", emss: "", cantidad: normalizeItem(it).cantidad }
+          ? { cod: exam.cod, nom: exam.nom, neps: exam.neps || "", mall: exam.mall || "", emss: exam.emss || "", ocas: exam.ocas || "", cantidad: normalizeItem(it).cantidad }
+          : { cod, nom: it.nom, neps: "", mall: "", emss: "", ocas: "", cantidad: normalizeItem(it).cantidad }
         : it,
     );
     setEditDraft({ ...editDraft, items });
@@ -592,6 +674,7 @@ export function ExamenesPage({
       neps: flagValue(admFlags.neps, admFlags.nepsAuth),
       mall: flagValue(admFlags.mall, admFlags.mallAuth),
       emss: flagValue(admFlags.emss, admFlags.emssAuth),
+      ocas: admFlags.ocas ? "X" : "",
     };
     const editing = admEditIdx >= 0;
     let next: Examen[];
@@ -625,6 +708,7 @@ export function ExamenesPage({
       neps: ex.neps === "X",
       mall: ex.mall === "X",
       emss: ex.emss === "X",
+      ocas: ex.ocas === "X",
       nepsAuth: ex.neps === "AUTH",
       mallAuth: ex.mall === "AUTH",
       emssAuth: ex.emss === "AUTH",
@@ -681,6 +765,7 @@ export function ExamenesPage({
     else if (e.mall === "AUTH") tags.push("MALLAM ⚠ AUTH");
     if (e.emss === "X") tags.push("EMSS");
     else if (e.emss === "AUTH") tags.push("EMSS ⚠ AUTH");
+    if (e.ocas === "X") tags.push("OCASIONAL");
     if (!tags.length) return <span className="text-xs text-gray-400">Sin clasificación asignada</span>;
     return (
       <div className="flex flex-wrap gap-1">
@@ -1192,6 +1277,15 @@ export function ExamenesPage({
                   <span className="text-[10px] text-gray-400">AUTH</span>
                 </div>
               ))}
+              <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={admFlags.ocas}
+                  onChange={() => setFlag("ocas")}
+                  className="accent-[#1a4731]"
+                />
+                OCASIONAL
+              </div>
             </div>
             <div className="mt-3 flex gap-2">
               <Button onClick={guardarExamen}>
@@ -1251,6 +1345,11 @@ export function ExamenesPage({
                         {e.emss && (
                           <span className="rounded px-1.5 py-0.5" style={{ background: "#faeeda", color: "#633806" }}>
                             {e.emss === "AUTH" ? "E⚠" : "E"}
+                          </span>
+                        )}
+                        {e.ocas && (
+                          <span className="rounded px-1.5 py-0.5" style={{ background: "#ede9fe", color: "#5b21b6" }}>
+                            O
                           </span>
                         )}
                       </div>
@@ -1434,6 +1533,11 @@ export function ExamenesPage({
                                   {item.emss === "AUTH" ? "E⚠" : "E"}
                                 </span>
                               )}
+                              {item.ocas && (
+                                <span className="rounded px-1" style={{ background: "#ede9fe", color: "#5b21b6" }}>
+                                  O
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td>
@@ -1490,38 +1594,6 @@ export function ExamenesPage({
                 Cancelar
               </Button>
               <Button onClick={saveEdit}>Guardar cambios</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview modal (EX-13) */}
-      {preview && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setPreview(null);
-          }}
-        >
-          <div className="w-full max-w-2xl overflow-hidden rounded-xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between bg-[#1a4731] px-5 py-3 text-white">
-              <h3 className="text-sm font-bold">{preview.title}</h3>
-              <button onClick={() => setPreview(null)} className="text-xl leading-none">
-                ×
-              </button>
-            </div>
-            <style dangerouslySetInnerHTML={{ __html: PREVIEW_STYLES }} />
-            <div className="max-h-[65vh] overflow-y-auto bg-white p-5">
-              <div className="pdoc" dangerouslySetInnerHTML={{ __html: preview.html }} />
-            </div>
-            <div className="flex gap-2 border-t bg-gray-50 px-5 py-3">
-              <Button onClick={() => printContenido(preview.html)}>
-                <Printer className="h-4 w-4" />
-                Imprimir / Guardar PDF
-              </Button>
-              <Button variant="secondary" onClick={() => setPreview(null)}>
-                Cerrar
-              </Button>
             </div>
           </div>
         </div>

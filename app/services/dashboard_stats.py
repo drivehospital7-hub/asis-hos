@@ -9,7 +9,8 @@ panel muestra el estado global del cierre.
 import logging
 from datetime import datetime
 
-from app.utils.errores_storage import listar_errores
+from app.constants import ERROR_TIPO_ERROR
+from app.utils.errores_storage import listar_errores, normalizar_tipo_error
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +46,13 @@ def get_dashboard_stats(now: datetime | None = None) -> dict:
         label = month_label_es(today)
 
         errores = listar_errores()
-        del_mes = [e for e in errores if str(e.get("creado_en", ""))[:7] == month_key]
+        # Solo categoría Error es contable: Notificación es informativa
+        # (no suma en KPIs ni gráficas del dashboard).
+        del_mes = [
+            e for e in errores
+            if str(e.get("creado_en", ""))[:7] == month_key
+            and normalizar_tipo_error(e.get("tipo_error")) == ERROR_TIPO_ERROR
+        ]
 
         total = len(del_mes)
         pendientes = sum(1 for e in del_mes if e.get("estado") == "S")

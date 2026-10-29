@@ -79,10 +79,11 @@ class TestExamenesConstants:
             "NEPS",
             "MALLAM",
             "EMSS",
+            "OCASIONAL",
             "Facturador",
             "Fecha/Hora",
         ]
-        assert len(CSV_HEADERS) == 11
+        assert len(CSV_HEADERS) == 12
 
 
 # =============================================================================

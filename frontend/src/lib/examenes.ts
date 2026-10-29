@@ -15,6 +15,8 @@ export interface Examen {
   neps: string;
   mall: string;
   emss: string;
+  /** Ocasionales/temporales: "X" o "" (sin AUTH). Ausente en registros legacy. */
+  ocas?: string;
 }
 
 export interface PrefacturaItem {
@@ -23,6 +25,8 @@ export interface PrefacturaItem {
   neps: string;
   mall: string;
   emss: string;
+  /** Ocasionales/temporales: "X" o "" (sin AUTH). Ausente en registros legacy. */
+  ocas?: string;
   /** Cantidad por ítem (EX-21). Opcional: ausente = 1 (registros legacy 5-campos). */
   cantidad?: number;
 }
@@ -43,6 +47,7 @@ export interface FlatExamen {
   neps?: string;
   mall?: string;
   emss?: string;
+  ocas?: string;
   paciente: string;
   cedula?: string;
   facturador: string;
@@ -351,6 +356,7 @@ export function migrateFlatToGrouped(flat: FlatExamen[]): Prefactura[] {
       neps: r.neps || "",
       mall: r.mall || "",
       emss: r.emss || "",
+      ocas: r.ocas || "",
       cantidad: 1,
     });
   }
@@ -444,6 +450,7 @@ export interface BuildPrefacturaInput {
     neps?: string;
     mall?: string;
     emss?: string;
+    ocas?: string;
     cantidad?: number;
   }>;
   /** Injectable clock for deterministic tests. */
@@ -482,6 +489,7 @@ export function buildPrefactura(input: BuildPrefacturaInput): Prefactura {
         neps: item.neps || "",
         mall: item.mall || "",
         emss: item.emss || "",
+        ocas: item.ocas || "",
         cantidad: item.cantidad,
       }),
     ),
@@ -606,7 +614,6 @@ export async function baseHash(value: unknown): Promise<string> {
 }
 
 export type PostResult = "ok" | "conflict" | "error";
-
 /**
  * POST full-array con concurrencia optimista: envía `base_hash` del arreglo en
  * el que el cliente basó su copia. 409 → "conflict" (no se escribió); el caller
@@ -637,6 +644,43 @@ export async function postArray(
 }
 
 export type DeleteResult = "ok" | "conflict" | "error";
+
+/** Deps inyectables de `saveListadoResilient` (testeable sin red). */
+export interface ResilientSaveDeps {
+  load: () => Promise<Prefactura[] | null>;
+  save: (next: Prefactura[], base: Prefactura[]) => Promise<PostResult>;
+}
+
+export interface ResilientSaveOutcome {
+  status: PostResult;
+  /** Último estado intentado (para dejar la UI igual al servidor). */
+  state: Prefactura[];
+}
+
+/**
+ * Guardado tolerante a ediciones concurrentes (varios facturadores a la
+ * vez): ante 409 re-lee el servidor, re-aplica `mutate` sobre lo fresco y
+ * reintenta (máx. `maxRetries`). `mutate` debe ser idempotente (no duplicar
+ * si lo suyo ya está) y devolver null cuando el cambio ya no aplica (ej.
+ * editar un registro que fue borrado) → "conflict" real.
+ */
+export async function saveListadoResilient(
+  mutate: (server: Prefactura[]) => Prefactura[] | null,
+  base: Prefactura[],
+  deps: ResilientSaveDeps,
+  maxRetries = 2,
+): Promise<ResilientSaveOutcome> {
+  let currentBase = base;
+  for (let attempt = 0; ; attempt += 1) {
+    const next = mutate(currentBase);
+    if (next === null) return { status: "conflict", state: currentBase };
+    const status = await deps.save(next, currentBase);
+    if (status !== "conflict" || attempt >= maxRetries) return { status, state: next };
+    const server = await deps.load();
+    if (server === null) return { status: "error", state: next };
+    currentBase = server;
+  }
+}
 
 /**
  * DELETE whole-record con concurrencia optimista (EX-2): envía `base_hash`

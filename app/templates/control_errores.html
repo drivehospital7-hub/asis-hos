@@ -11,6 +11,7 @@
   <div class="page-header-left">
     <h1 class="page-title">Control de Novedades</h1>
     <p class="page-description">Registro, seguimiento y resolución de novedades en facturación</p>
+    <p class="page-notice">Solo las novedades con categoría <strong>Error</strong> se contabilizan en el dashboard y se incluyen en el Excel. Las de categoría <strong>Notificación</strong> son solo informativas.</p>
   </div>
   <div class="page-header-actions">
     <button id="btnExportar" class="btn btn--secondary" onclick="exportarExcel()">
@@ -422,11 +423,13 @@
       const monthKey = year + '-' + String(month).padStart(2, '0');
       const label = formatMonthLabel(year, month);
       
-      // Contar errores de este mes
+      // Contar errores de este mes (solo categoría Error: Notificación no contabiliza)
       const count = cachedErrores.filter(e => {
         if (!e.creado_en) return false;
         const creado = new Date(e.creado_en);
-        return creado.getFullYear() === year && (creado.getMonth() + 1) === month;
+        if (!(creado.getFullYear() === year && (creado.getMonth() + 1) === month)) return false;
+        const tipo = (e.tipo_error || '').toLowerCase();
+        return !tipo.includes('notific') && tipo !== 'factura abierta';
       }).length;
       
       tabs.push({ key: monthKey, label, count, isActive: monthKey === currentMonth });
@@ -623,12 +626,15 @@
   }
   
   function updateStats() {
-    // Estadísticas de novedades del mes seleccionado
+    // Estadísticas del mes: solo categoría Error es contable
+    // (Notificación es informativa: no suma ni se exporta).
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
       const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
-      return monthKey === currentMonth;
+      if (monthKey !== currentMonth) return false;
+      const tipo = (e.tipo_error || '').toLowerCase();
+      return !tipo.includes('notific') && tipo !== 'factura abierta';
     });
     
     const total = erroresDelMes.length;
@@ -1899,12 +1905,14 @@ function exportarExcel() {
       return;
     }
     
-    // Filtrar solo errores del mes seleccionado
+    // Filtrar solo errores del mes seleccionado (categoría Error: Notificación no se exporta)
     const erroresDelMes = cachedErrores.filter(e => {
       if (!e.creado_en) return false;
       const creado = new Date(e.creado_en);
       const monthKey = creado.getFullYear() + '-' + String(creado.getMonth() + 1).padStart(2, '0');
-      return monthKey === currentMonth;
+      if (monthKey !== currentMonth) return false;
+      const tipo = (e.tipo_error || '').toLowerCase();
+      return !tipo.includes('notific') && tipo !== 'factura abierta';
     });
     
     if (erroresDelMes.length === 0) {

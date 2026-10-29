@@ -26,6 +26,8 @@ import {
   baseHash,
   postArray,
   deletePrefactura,
+  saveListadoResilient,
+  type PostResult,
   type Examen,
   type Prefactura,
 } from "./examenes";
@@ -138,6 +140,7 @@ describe("migrateFlatToGrouped", () => {
       neps: "",
       mall: "",
       emss: "",
+      ocas: "",
       cantidad: 1,
     });
   });
@@ -246,7 +249,7 @@ describe("buildPrefactura", () => {
       items: [{ cod: "906131", nom: "Trypanosoma" } as never],
       now,
     });
-    expect(pf.items[0]).toEqual({ cod: "906131", nom: "Trypanosoma", neps: "", mall: "", emss: "", cantidad: 1 });
+    expect(pf.items[0]).toEqual({ cod: "906131", nom: "Trypanosoma", neps: "", mall: "", emss: "", ocas: "", cantidad: 1 });
   });
 
   it("carries each item's cantidad (normalized) into the prefactura (EX-23)", () => {
@@ -986,5 +989,65 @@ describe("composeListadoView", () => {
 
   it("returns an empty listado unchanged (empty → [])", () => {
     expect(composeListadoView([], { from: null, to: null, query: "" })).toEqual([]);
+  });
+});
+// ─── saveListadoResilient (concurrencia: 3 facturadores a la vez) ─────────
+
+describe("saveListadoResilient", () => {
+  const pfA = (id: string): Prefactura => ({
+    id,
+    paciente: "A",
+    cedula: "1",
+    facturador: "F",
+    hora: "15/01/2026 08:30",
+    items: [],
+  });
+  const appendA = (server: Prefactura[]) =>
+    server.some((p) => p.id === "a") ? server : [...server, pfA("a")];
+
+  it("guarda al primer intento sin releer", async () => {
+    const save = vi.fn(async () => "ok" as const);
+    const load = vi.fn(async () => null);
+    const out = await saveListadoResilient(appendA, [], { load, save });
+    expect(out.status).toBe("ok");
+    expect(out.state.map((p) => p.id)).toEqual(["a"]);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(load).not.toHaveBeenCalled();
+  });
+
+  it("ante 409 relee, re-aplica sin duplicar y reintenta con hash fresco", async () => {
+    const serverState = [pfA("otro")];
+    const save = vi.fn(async (): Promise<PostResult> => "conflict")
+      .mockResolvedValueOnce("conflict")
+      .mockResolvedValueOnce("ok");
+    const load = vi.fn(async () => serverState);
+    const out = await saveListadoResilient(appendA, [], { load, save });
+    expect(out.status).toBe("ok");
+    expect(out.state.map((p) => p.id)).toEqual(["otro", "a"]);
+    // Segundo intento: base = lo fresco del servidor (no lo viejo).
+    expect(save).toHaveBeenNthCalledWith(2, [pfA("otro"), pfA("a")], serverState);
+  });
+
+  it("agotados los reintentos devuelve conflict", async () => {
+    const save = vi.fn(async () => "conflict" as const);
+    const load = vi.fn(async () => []);
+    const out = await saveListadoResilient(appendA, [], { load, save }, 1);
+    expect(out.status).toBe("conflict");
+    expect(save).toHaveBeenCalledTimes(2); // 1 intento + 1 reintento
+  });
+
+  it("si la relectura falla devuelve error", async () => {
+    const save = vi.fn(async () => "conflict" as const);
+    const load = vi.fn(async () => null);
+    const out = await saveListadoResilient(appendA, [], { load, save });
+    expect(out.status).toBe("error");
+  });
+
+  it("mutate null (ya no aplica) devuelve conflict sin guardar", async () => {
+    const save = vi.fn(async () => "ok" as const);
+    const load = vi.fn(async () => null);
+    const out = await saveListadoResilient(() => null, [], { load, save });
+    expect(out.status).toBe("conflict");
+    expect(save).not.toHaveBeenCalled();
   });
 });

@@ -7,7 +7,7 @@ de ``composeListadoView`` (lib/examenes.ts): rango de fechas excluye sin-fecha;
 ``q`` no vacío busca sobre el listado COMPLETO ignorando el rango; orden
 date-desc con hora desc dentro del día y sin-fecha al final.
 
-Una fila por ÍTEM con N° secuencial; columnas = ``CSV_HEADERS`` (11). El tc usa
+Una fila por ÍTEM con N° secuencial; columnas = ``CSV_HEADERS`` (12). El tc usa
 la variante CSV (X→SI/AUTH→AUTH/vacío), NO la de impresión (``tcDisplay``).
 """
 
@@ -37,9 +37,10 @@ CATALOG_HEADERS: list[str] = [
     "NEPS",
     "MALLAM",
     "EMSS",
+    "OCASIONAL",
 ]
 
-CATALOG_COLUMN_WIDTHS: list[int] = [8, 15, 60, 12, 12, 12]
+CATALOG_COLUMN_WIDTHS: list[int] = [8, 15, 60, 12, 12, 12, 12]
 
 CATALOG_FILENAME: str = "Catalogo_CUPS_HospitalOrito.xlsx"
 
@@ -237,6 +238,7 @@ def build_listado_export_workbook(prefacturas: list[dict]) -> BytesIO:
                 _tc(item.get("neps", "")),
                 _tc(item.get("mall", "")),
                 _tc(item.get("emss", "")),
+                _tc(item.get("ocas", "")),
                 _sanitize_for_excel(pf.get("facturador", "")),
                 _sanitize_for_excel(pf.get("hora", "")),
             ])
@@ -270,7 +272,7 @@ def filename_export(from_: str | None, to: str | None) -> str:
 def build_catalog_export_workbook(examenes: list[dict]) -> BytesIO:
     """Workbook del catálogo CUPS: una fila por examen con N° secuencial.
 
-    Columnas = ``CATALOG_HEADERS`` (6). El tc usa la variante CSV
+    Columnas = ``CATALOG_HEADERS`` (7). El tc usa la variante CSV
     (X→SI/AUTH→AUTH/vacío), igual que el export del listado.
     """
     wb = Workbook()
@@ -294,6 +296,7 @@ def build_catalog_export_workbook(examenes: list[dict]) -> BytesIO:
             _tc(ex.get("neps", "")),
             _tc(ex.get("mall", "")),
             _tc(ex.get("emss", "")),
+            _tc(ex.get("ocas", "")),
         ])
         row_fill = ROW_FILL_LIGHT if n % 2 == 1 else ROW_FILL_WHITE
         for col in range(1, len(CATALOG_HEADERS) + 1):

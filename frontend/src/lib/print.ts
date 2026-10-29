@@ -40,6 +40,7 @@ export const PRINT_CSS = `*{box-sizing:border-box;margin:0;padding:0;}
   .tneps{background:#e6f1fb;color:#0c447c;border-color:#b5d4f4;}
   .tmall{background:#eaf3de;color:#27500a;border-color:#c0dd97;}
   .temss{background:#faeeda;color:#633806;border-color:#fac775;}
+  .tocas{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd;}
   .tauth{background:#fdf0ee;color:#a32d2d;border-color:#f5c6c0;}
   .pfirma{margin-top:24px;border-top:1px solid #aaa;width:260px;font-size:10px;padding-top:5px;color:#555;}
   .pfooter{margin-top:12px;font-size:9px;color:#aaa;display:flex;justify-content:space-between;border-top:1px solid #eee;padding-top:7px;}`;
@@ -64,6 +65,7 @@ export function renderTagsPrint(item: PrefacturaItem): string {
   else if (item.mall === "AUTH") t += `<span class="ptag tauth">MALL⚠AUTH</span>`;
   if (item.emss === "X") t += `<span class="ptag temss">EMSS</span>`;
   else if (item.emss === "AUTH") t += `<span class="ptag tauth">EMSS⚠AUTH</span>`;
+  if (item.ocas === "X") t += `<span class="ptag tocas">OCASIONAL</span>`;
   return t || "—";
 }
 

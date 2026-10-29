@@ -31,6 +31,12 @@ describe("renderTagsPrint", () => {
   it("falls back to — when no payer flag is set", () => {
     expect(renderTagsPrint({ cod: "x", nom: "y", neps: "", mall: "", emss: "" })).toBe("—");
   });
+
+  it("renders OCASIONAL tag for ocas X (no AUTH)", () => {
+    const tags = renderTagsPrint({ cod: "x", nom: "y", neps: "", mall: "", emss: "", ocas: "X" });
+    expect(tags).toContain("OCASIONAL");
+    expect(tags).not.toContain("AUTH");
+  });
 });
 
 describe("buildPrefacturaDoc (EX-13)", () => {
