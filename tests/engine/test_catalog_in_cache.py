@@ -92,3 +92,11 @@ def test_accent_folding_matches_variants():
     assert ev.evaluate({}, "españa diaz loreny alejandra", "nombres", context=ctx) is True
     assert ev.evaluate({}, "NUNEZ", "nombres", context=ctx) is True
     assert ev.evaluate({}, "OTRO NOMBRE", "nombres", context=ctx) is False
+
+
+def test_internal_double_space_collapses():
+    ev = CatalogInEvaluator()
+    session = _FakeSession({"nombres": ["PAEZ YULIETH DANIELA"]})
+    ctx = _Ctx(session)
+    assert ev.evaluate({}, "PAEZ  YULIETH DANIELA", "nombres", context=ctx) is True
+    assert ev.evaluate({}, "  paez   yulieth   daniela  ", "nombres", context=ctx) is True

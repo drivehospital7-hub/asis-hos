@@ -33,6 +33,18 @@ def strip_accents(text: str) -> str:
         if unicodedata.category(c) != "Mn"
     )
 
+
+def normalize_for_match(value: Any) -> str:
+    """Normaliza un valor para comparar contra catalogos.
+
+    Recorta extremos, colapsa espacios internos (el Excel trae a veces
+    dobles espacios: 'PAEZ  YULIETH'), pasa a mayusculas y quita tildes.
+    Ambos lados (fila y catalogo) pasan por aqui.
+    """
+    if value is None:
+        return ""
+    return strip_accents(" ".join(str(value).split()).upper())
+
 #: TTL de caches de datos de referencia (segundos). Cubre multi-proceso
 #: (cada worker tiene su copia y la invalidacion explicita solo alcanza al
 #: worker que atendio la escritura). Peor caso: un cambio tarda esto en verse.
@@ -1360,12 +1372,12 @@ class CatalogInEvaluator(AtomicEvaluator):
             if row_value in catalog_list:
                 return True
 
-            # 2. Normalization fallback: match InEvaluator behavior (strip +
-            #    upper) plus diacritic folding, so catalog lookups tolerate
-            #    accents/case variants in source data (ej. ESPANA vs ESPAÑA).
-            row_str = strip_accents(str(row_value).strip().upper()) if row_value is not None else ""
+            # 2. Normalization fallback: espacios internos colapsados,
+            #    mayusculas y sin tildes en AMBOS lados (el Excel trae a
+            #    veces doble espacio: 'PAEZ  YULIETH' vs 'PAEZ YULIETH').
+            row_str = normalize_for_match(row_value)
             for val in catalog_list:
-                if strip_accents(str(val).strip().upper()) == row_str:
+                if normalize_for_match(val) == row_str:
                     return True
 
             return False
