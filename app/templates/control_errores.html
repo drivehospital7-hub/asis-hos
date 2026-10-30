@@ -2246,11 +2246,16 @@ function exportarExcel() {
     }
 
     // FE-2/D6: sin permiso por scope → no subir por paste.
-    // Facturador → _canFacturadorAttach; observación (modal) → _canWrite.
+    // Facturador → _canFacturadorAttach; observación (modal) → _canWrite
+    // o dueño de la nota (igual que el dropzone del modal).
     const allowed = target.scope === 'facturador'
       ? window._canFacturadorAttach
       : window._canWrite;
-    if (!allowed) return;
+    if (!allowed) {
+      var _pasteErr = (typeof cachedErrores !== 'undefined')
+        ? cachedErrores.find(function(e){return e.id===target.id}) : null;
+      if (target.scope !== '' || !_puedeEditarNota(_pasteErr)) return;
+    }
 
     // FE-2/D6: cupo max-3 en scope facturador → alert y skip (sin upload)
     if (target.scope === 'facturador') {
