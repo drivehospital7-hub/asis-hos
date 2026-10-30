@@ -1259,10 +1259,10 @@ body.editor-open {
   background: var(--muted);
 }
 .table tbody tr.row-nota {
-  background: #fefce8;
+  background: #eff6ff;
 }
 .table tbody tr.row-nota:hover {
-  background: #fef9c3;
+  background: #dbeafe;
 }
 td.nota-empty {
   color: var(--muted-foreground);

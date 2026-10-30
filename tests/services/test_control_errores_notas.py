@@ -113,3 +113,40 @@ class TestDeleteSessionKwarg:
             result = delete_error("x", session={"username": "admin1", "permisos": ["*"]})
         assert result["status"] == "success"
         mock_del.assert_called_once_with("x")
+
+    def test_ajeno_si_observa_nota(self):
+        """Cualquiera con acceso puede poner observacion_facturador en nota ajena."""
+        from flask import session
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias"]
+            session["username"] = "lector2"
+            mock_get.return_value = {
+                "id": "n1", "es_nota": True, "created_by": "lector1",
+                "tipo_error": "Notificación",
+            }
+            mock_upd.return_value = {"id": "n1"}
+            result = update_error("n1", {"observacion_facturador": "visto"})
+        assert result["status"] == "success"
+        assert mock_upd.call_args.kwargs == {"observacion_facturador": "visto"}
+
+    def test_ajeno_no_cambia_estado_nota(self):
+        """observacion abierta no habilita estado/responsable en notas ajenas."""
+        from flask import session
+        with (
+            _APP.test_request_context(),
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.actualizar_error") as mock_upd,
+        ):
+            session["permisos"] = ["control_urgencias"]
+            session["username"] = "lector2"
+            mock_get.return_value = {
+                "id": "n1", "es_nota": True, "created_by": "lector1",
+                "tipo_error": "Notificación",
+            }
+            result = update_error("n1", {"estado": "N", "observacion_facturador": "x"})
+        assert isinstance(result, tuple) and result[1] == 403
+        mock_upd.assert_not_called()

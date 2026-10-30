@@ -185,6 +185,7 @@
   let opciones = { tipos_error: [], estados: [], responsables: [], validadores: [], areas: [], responsables_detalle: [] };
   let cachedErrores = [];
   let isAdding = false;
+  let isSaving = false; // guard anti-doble-guardado (Enter repetido / click+Enter)
   let _cargaEnProgreso = false;
 
   let currentMonth = getCurrentMonth(); // Mes actual en formato "YYYY-MM"
@@ -610,11 +611,11 @@
           ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>`}
-          <td class="table-actions">${e.es_nota ? '' : `
+          <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
-            </button>`}
+            </button>
             <button class="action-icon action-icon--delete${(e.es_nota && (window._isAdmin || (window._username && e.created_by === window._username))) ? ' always-enabled' : ''}" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
@@ -1286,6 +1287,7 @@
     currentEditId = null;
     currentEditType = null;
     isAdding = false;
+    isSaving = false;
     editor.classList.remove('select-mode');
     document.body.classList.remove('editor-open');
   }
@@ -1352,6 +1354,8 @@
 
   async function saveFromEditor() {
     if (!currentEditId) return;
+    if (isSaving) return;
+    isSaving = true;
     // Editor de facturador abierto → no hacer nada (el save lo maneja saveFacturadorEditor)
     if (!currentCell) return;
 
@@ -1523,6 +1527,8 @@
     if (!currentEditId) { callback(); return; }
     // Editor de facturador abierto → no hacer nada
     if (!currentCell) { callback(); return; }
+    if (isSaving) return;
+    isSaving = true;
 
     let newValue = '';
     
@@ -1593,7 +1599,7 @@
       const data = prevId === 'new-nota'
         ? { es_nota: true, factura: field === 'factura' ? newValue : '', observacion: field === 'observacion' ? newValue : '' }
         : {
-        tipo_error: 'Error',
+        tipo_error: 'Notificación',
         factura: field === 'factura' ? newValue : '',
         refactura: field === 'refactura' ? newValue : '',
         observacion: '',
@@ -1792,7 +1798,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
     if (dup.length && !await Modal.confirm(mensajeDuplicado(factura, dup, 'Crear'))) {
       isAdding = false; loadErrores(); return;
     }
-    var data = { tipo_error: 'Notificación', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
+    var data = { tipo_error: document.getElementById('newTipo')?.value || 'Notificación', factura: factura, refactura: refactura, observacion: (document.getElementById('newObservacion')?.value?.trim() || '').toUpperCase(), observacion_facturador: '', estado: 'S', responsable: document.getElementById('newResponsable')?.value || '' };
     var res = await fetch('/api/control-errores', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
     if (res.ok) { isAdding = false; loadErrores(); }
   }
@@ -1912,11 +1918,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
           ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
           </td>`}
-          <td class="table-actions">${e.es_nota ? '' : `
+          <td class="table-actions">
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
-            </button>`}
+            </button>
             <button class="action-icon action-icon--delete${(e.es_nota && (window._isAdmin || (window._username && e.created_by === window._username))) ? ' always-enabled' : ''}" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>

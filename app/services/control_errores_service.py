@@ -485,18 +485,22 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
 
 
 def _update_nota(error_id: str, data: dict[str, Any], existente: dict[str, Any]) -> dict[str, Any]:
-    """Actualizar nota propia (S1/S6): solo dueño o admin, solo factura/observacion."""
+    """Actualizar nota (S1/S6 + decisión usuario: observación abierta).
+
+    factura/observacion: solo dueño o admin. observacion_facturador:
+    cualquiera con acceso (espejo de novedad común). Resto: 403."""
     user_permisos = session.get("permisos", [])
     is_admin = "*" in user_permisos
     username = session.get("username", "")
     owner = existente.get("created_by", "")
-    if not (is_admin or (username and username == owner)):
+    is_owner = bool(is_admin or (username and username == owner))
+    payload = {k: v for k, v in data.items() if k != ERROR_NOTA_FIELD and k != "es_nota"}
+    if ({"factura", "observacion"} & set(payload)) and not is_owner:
         return {
             "status": "error", "data": {},
             "errors": ["Solo el autor puede editar la nota"],
         }, 403
-    payload = {k: v for k, v in data.items() if k != ERROR_NOTA_FIELD and k != "es_nota"}
-    prohibited = set(payload.keys()) - {"factura", "observacion"}
+    prohibited = set(payload.keys()) - {"factura", "observacion", "observacion_facturador"}
     if prohibited:
         return {
             "status": "error", "data": {},
@@ -507,6 +511,10 @@ def _update_nota(error_id: str, data: dict[str, Any], existente: dict[str, Any])
         kwargs["factura"] = (payload["factura"].strip() if payload["factura"] else "").upper()
     if "observacion" in payload:
         kwargs["observacion"] = (payload["observacion"].strip() if payload["observacion"] else "").upper()
+    if "observacion_facturador" in payload:
+        kwargs["observacion_facturador"] = (
+            payload["observacion_facturador"].strip() if payload["observacion_facturador"] else ""
+        )
     actualizado = actualizar_error(error_id, **kwargs)
     logger.info("[BACK] Nota actualizada: %s", error_id)
     return {"status": "success", "data": {"error": actualizado}, "errors": []}
