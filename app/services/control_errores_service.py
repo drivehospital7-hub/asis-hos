@@ -350,7 +350,7 @@ def _add_nota(data: dict[str, Any], sess: dict[str, Any]) -> dict[str, Any]:
     """
     factura = (data.get("factura", "").strip() or "").upper()
     if not factura:
-        return {"status": "error", "data": {}, "errors": ["Factura requerida"]}
+        return {"status": "error", "data": {}, "errors": ["Factura requerida"]}, 400
     observacion = (data.get("observacion", "").strip() or "").upper()
     validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip().upper()
     created_by = sess.get("username", "")

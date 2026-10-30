@@ -1313,9 +1313,10 @@
     if (e.target.closest && e.target.closest('.confirm-overlay, .confirm-modal')) return;
     if (document.querySelector('.confirm-overlay')) return;
     const btnAdd = document.querySelector('.page-header .btn--primary');
-    
-    // Click en el editor o en el botón agregar: no cerrar
-    if (editor.contains(e.target) || (btnAdd && btnAdd.contains(e.target))) {
+    const btnNota = document.getElementById('btnAddNota');
+
+    // Click en el editor o en los botones agregar: no cerrar
+    if (editor.contains(e.target) || (btnAdd && btnAdd.contains(e.target)) || (btnNota && btnNota.contains(e.target))) {
       return;
     }
     
@@ -1487,7 +1488,7 @@
     };
   }
   
-  // Crear nuevo error desde el editor flotante
+  // Crear nuevo error o nota desde el editor flotante
   async function createNewError(data) {
     // Crear sin validar campos obligatorios
     try {
@@ -1496,9 +1497,17 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      if (res.ok) {
+      const result = await res.json().catch(function(){ return null; });
+      if (res.ok && result && result.status === 'success') {
         loadErrores();
+        return;
       }
+      var msg = (result && result.errors && result.errors.join(', ')) || 'No se pudo crear';
+      if (typeof Modal !== 'undefined' && Modal.alert) Modal.alert(msg); else showToast(msg, 'error');
+      var nr = document.getElementById('new-row');
+      if (nr) nr.remove();
+      isAdding = false;
+      loadErrores();
     } catch (e) {
       console.error(e);
     }
@@ -1576,9 +1585,11 @@
       }
     }
 
-    // Si es nuevo registro, crear directamente
-    if (prevId === 'new') {
-      const data = {
+    // Si es nuevo registro o nueva nota, crear directamente
+    if (prevId === 'new' || prevId === 'new-nota') {
+      const data = prevId === 'new-nota'
+        ? { es_nota: true, factura: field === 'factura' ? newValue : '', observacion: field === 'observacion' ? newValue : '' }
+        : {
         tipo_error: 'Error',
         factura: field === 'factura' ? newValue : '',
         refactura: field === 'refactura' ? newValue : '',

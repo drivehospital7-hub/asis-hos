@@ -241,7 +241,10 @@ def crear_error():
         permisos = session.get("permisos", [])
         if "*" not in permisos and "control_urgencias:write" not in permisos:
             return jsonify({"status": "error", "data": {}, "errors": ["Permiso denegado"]}), 403
-    return jsonify(add_error(data, session=dict(session)))
+    result = add_error(data, session=dict(session))
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")

@@ -79,3 +79,9 @@ class TestUpdateNota:
             result = update_error("n1", {"observacion": "hack"})
         assert isinstance(result, tuple) and result[1] == 403
         mock_upd.assert_not_called()
+
+    def test_nota_sin_factura_400(self):
+        """Nota sin factura → 400 (el front muestra el error sin recargar)."""
+        result = add_error({"es_nota": True, "factura": "", "observacion": "x"}, session=_sess_lectura())
+        assert isinstance(result, tuple) and result[1] == 400
+        assert result[0]["status"] == "error"
