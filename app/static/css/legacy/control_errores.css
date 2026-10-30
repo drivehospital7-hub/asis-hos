@@ -1236,3 +1236,35 @@ body.editor-open {
   color: var(--muted-foreground);
   font-size: 0.85rem;
 }
+
+/* Notas de lectura (S7): fondo distinto para todas las notas */
+.notas-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 0.5rem 0;
+}
+.btn-nota-add {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--foreground);
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+}
+.btn-nota-add:hover {
+  background: var(--muted);
+}
+.table tbody tr.row-nota {
+  background: #fefce8;
+}
+.table tbody tr.row-nota:hover {
+  background: #fef9c3;
+}
+td.nota-empty {
+  color: var(--muted-foreground);
+  opacity: 0.6;
+}

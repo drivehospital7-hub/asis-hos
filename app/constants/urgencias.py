@@ -467,6 +467,9 @@ ERROR_ESTADO_URGENCIAS = [
 ]
 ERROR_ESTADO_PENDIENTE = "S"
 
+# Notas de lectura en Control de Novedades (S1/S2/S8): flag de registro.
+ERROR_NOTA_FIELD = "es_nota"
+
 # -----------------------------------------------------------------------------
 # Avisos de novedades hacia Revisor de Soportes
 # -----------------------------------------------------------------------------

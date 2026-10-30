@@ -59,6 +59,10 @@
   </button>
 </div>
 
+<div class="notas-toolbar">
+  <button id="btnAddNota" class="btn-nota-add" onclick="addNewNota()" title="Agregar nota">+</button>
+</div>
+
 <div class="table-wrapper">
   <table class="table" id="erroresTable">
     <thead>
@@ -578,18 +582,18 @@
         // Obtener iniciales del responsable
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr>
+        html += `<tr class="${e.es_nota ? 'row-nota' : ''}">
           <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
-          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.refactura || '')}</span>
-          </td>
+          </td>`}
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td><span class="category-badge category-badge--notificacion">Notificación</span></td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
             <span class="category-badge category-badge--${categoryClass}">${escapeHtml(e.tipo_error)}</span>
-          </td>
+          </td>`}
           <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
@@ -597,21 +601,21 @@
               ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
               <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
-          </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+          </td>`}
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
-          </td>
-          <td class="table-actions">
+          </td>`}
+          <td class="table-actions">${e.es_nota ? '' : `
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
-            </button>
-            <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
+            </button>`}
+            <button class="action-icon action-icon--delete${(e.es_nota && (window._isAdmin || (window._username && e.created_by === window._username))) ? ' always-enabled' : ''}" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </td>
@@ -1004,9 +1008,30 @@
     }
   }
 
+  // ====== NOTAS (S1/S5/S6) ======
+  function _esNota(e) { return !!(e && e.es_nota); }
+  function _puedeEditarNota(e) {
+    if (!_esNota(e)) return false;
+    if (window._isAdmin) return true;
+    return !!(window._username && e.created_by && e.created_by === window._username);
+  }
+
   // ====== EDITOR GLOBAL ======
   function handleCellClick(td) {
     const field = td.dataset.field;
+    const rowId = td.dataset.id;
+    const rowErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===rowId}) : null;
+    if (_esNota(rowErr)) {
+      if (_puedeEditarNota(rowErr) && (field === 'factura' || field === 'observacion')) {
+        if (currentEditId) {
+          if (!currentCell) { saveFacturadorEditor(currentEditId); return; }
+          saveFromEditorWithCallback(function(){ openEditor(td); });
+        } else { openEditor(td); }
+        return;
+      }
+      if (field === 'factura' || field === 'observacion') { showObservacionReadOnly(td); return; }
+      return;
+    }
 
     // Sin permiso de escritura: observacion/factura/refactura muestran tooltip readonly
     if (!window._canWrite && (field === 'observacion' || field === 'factura' || field === 'refactura')) {
@@ -1127,7 +1152,12 @@
     const id = td.dataset.id;
 
     // Sin permiso de escritura: solo estado y observacion_facturador son editables
-    if (!window._canWrite && field !== 'estado' && field !== 'observacion_facturador') return;
+    if (!window._canWrite && field !== 'estado' && field !== 'observacion_facturador') {
+      var _cellId = (typeof td !== 'undefined' && td.dataset) ? td.dataset.id : ((typeof currentCell !== 'undefined' && currentCell) ? currentCell.dataset.id : null);
+      var _cellErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===_cellId}) : null;
+      var _notaOk = _puedeEditarNota(_cellErr) && (field === 'factura' || field === 'observacion');
+      if (!_notaOk) return;
+    }
 
     currentCell = td;
     currentEditId = isNew ? 'new' : id;
@@ -1390,7 +1420,12 @@
 
     // Guardar en backend - si es nuevo, crear; si es edición, actualizar
     var _didPropagateRefactura = false;
-    if (currentEditId === 'new') {
+    if (currentEditId === 'new-nota') {
+      var notaFactura = field === 'factura' ? newValue : '';
+      var notaObs = field === 'observacion' ? newValue : '';
+      var notaData = { es_nota: true, factura: notaFactura, observacion: notaObs };
+      createNewError(notaData);
+    } else if (currentEditId === 'new') {
       var factura = field === 'factura' ? newValue : '';
       var refactura = field === 'refactura' ? newValue : '';
       if (factura) {
@@ -1697,6 +1732,42 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
       }, 10);
     }
   }
+  // ====== NUEVA NOTA (S4/S5/S8): fila mínima, categoría fija ======
+  function addNewNota() {
+    if (isAdding || currentEditId) return;
+    isAdding = true;
+    currentEditId = 'new-nota';
+    const tbody = document.getElementById('erroresBody');
+    const newRow = document.createElement('tr');
+    newRow.id = 'new-row';
+    newRow.className = 'row-nota';
+    newRow.innerHTML = `
+      <td class="fecha-creado">${currentUserName || '-'}</td>
+      <td class="new-row-cell" data-type="text" data-id="new-nota" data-field="factura" onclick="handleCellClick(this)"></td>
+      <td class="nota-empty">-</td>
+      <td class="fecha-creado">-</td>
+      <td><span class="category-badge category-badge--notificacion">Notificación</span></td>
+      <td class="new-row-cell" data-type="text" data-id="new-nota" data-field="observacion" onclick="handleCellClick(this)"></td>
+      <td class="nota-empty">-</td>
+      <td class="nota-empty">-</td>
+      <td class="table-actions"></td>
+    `;
+    tbody.insertBefore(newRow, tbody.firstChild);
+    const factCell = newRow.querySelector('[data-field="factura"]');
+    if (factCell) {
+      const rect = factCell.getBoundingClientRect();
+      currentCell = factCell;
+      currentEditType = 'text';
+      editor.style.display = 'block';
+      document.body.classList.add('editor-open');
+      editor.style.top = rect.top + 'px';
+      editor.style.left = rect.left + 'px';
+      editor.style.width = rect.width + 'px';
+      editor.style.height = rect.height + 'px';
+      editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura" style="width:100%;min-height:100%;padding:0.5rem;border:none;background:transparent;font:inherit;font-size:13px;box-sizing:border-box;resize:none;overflow-x:hidden;white-space:pre-wrap;word-wrap:break-word;text-transform:uppercase;"></textarea>`;
+      setTimeout(function(){ var t = editor.querySelector('textarea'); if (t) t.focus(); }, 10);
+    }
+  }
   function cancelNewRow() { isAdding = false; renderTable(); }
 
   async function saveNewRow() {
@@ -1734,8 +1805,11 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   }
 
   // ====== ELIMINAR ======
-  async function deleteError(id) { 
-    if (!window._canWrite) return;
+  async function deleteError(id) {
+    var _delErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===id}) : null;
+    if (_esNota(_delErr)) {
+      if (!_puedeEditarNota(_delErr)) return;
+    } else if (!window._canWrite) return;
     if (!await Modal.confirm('¿Eliminar?')) return; 
     const res = await fetch(`/api/control-errores/${id}`, { method: 'DELETE' }); 
     const result = await res.json(); 
@@ -1796,18 +1870,18 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
         
         const initials = e.responsable ? e.responsable.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '??';
         
-        html += `<tr>
+        html += `<tr class="${e.es_nota ? 'row-nota' : ''}">
           <td class="fecha-creado">${escapeHtml(toTitleCase(e.validador || '-'))}</td>
           <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="factura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.factura || 'ERR-' + e.id)}</span>
           </td>
-          <td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="text" data-id="${e.id}" data-field="refactura" onclick="handleCellClick(this)">
             <span>${escapeHtml(e.refactura || '')}</span>
-          </td>
+          </td>`}
           <td class="fecha-creado">${formatFecha(e.creado_en)}</td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td><span class="category-badge category-badge--notificacion">Notificación</span></td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="tipo_error" onclick="handleCellClick(this)">
             <span class="category-badge category-badge--${categoryClass}">${escapeHtml(e.tipo_error)}</span>
-          </td>
+          </td>`}
           <td class="editable-cell obs-cell ${e.imagenes_count > 0 ? 'has-images' : ''}" data-type="text" data-id="${e.id}" data-field="observacion" onclick="handleCellClick(this)">
             <span class="obs-cell-wrapper">${escapeHtml(e.observacion||'-')}</span>
             <button class="obs-img-btn" onclick="event.stopPropagation(); openImageModal('${e.id}')" title="${e.imagenes_count > 0 ? 'Ver imágenes' : 'Subir imagen'}">
@@ -1815,21 +1889,21 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
               ${e.imagenes_count > 0 ? `<span class="obs-badge">${e.imagenes_count}</span>` : ''}
             </button>
           </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="responsable" data-value="${escapeHtml(e.responsable)}" onclick="handleCellClick(this)">
             <div style="display: flex; align-items: center;">
               <span class="avatar-initials">${initials}</span>
               <span>${escapeHtml(toTitleCase(e.responsable))}</span>
             </div>
-          </td>
-          <td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
+          </td>`}
+          ${e.es_nota ? '<td class="nota-empty">-</td>' : `<td class="editable-cell" data-type="select" data-id="${e.id}" data-field="estado" data-value="${escapeHtml(e.estado)}" onclick="handleCellClick(this)">
             <span class="badge ${e.estado==='S'?'badge--pending':'badge--resolved'}">${e.estado==='S'?'Pendiente':'Resuelto'}</span>
-          </td>
-          <td class="table-actions">
+          </td>`}
+          <td class="table-actions">${e.es_nota ? '' : `
             <button class="action-icon action-icon--add-note ${e.observacion_facturador ? 'has-note' : ''}" onclick="event.stopPropagation(); openFacturadorEditor('${e.id}', this)" title="${e.observacion_facturador ? 'Ver/editar observación facturador' : 'Agregar observación facturador'}">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               ${e.imagenes_facturador_count > 0 ? `<span class="facturador-badge">${e.imagenes_facturador_count}</span>` : ''}
-            </button>
-            <button class="action-icon action-icon--delete" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
+            </button>`}
+            <button class="action-icon action-icon--delete${(e.es_nota && (window._isAdmin || (window._username && e.created_by === window._username))) ? ' always-enabled' : ''}" onmousedown="event.stopPropagation(); deleteError('${e.id}')" title="Eliminar">
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
             </button>
           </td>
@@ -1973,6 +2047,8 @@ function exportarExcel() {
 
   async function openImageModal(errorId, scope = '') {
     currentImageErrorId = errorId;
+    var _imgErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===errorId}) : null;
+    var _canUp = window._canWrite || _puedeEditarNota(_imgErr);
     currentImageScope = scope;
     const modal = document.getElementById('image-modal');
     const listEl = document.getElementById('modal-images-list');
@@ -2004,8 +2080,8 @@ function exportarExcel() {
           ${canDelete ? `<button class="modal-delete-img" onclick="event.stopPropagation(); deleteImage('${errorId}','${filename}','${scope}')">&times;</button>` : ''}
         </div>`;
       }).join('');
-      // Solo mostrar dropzone si tiene permiso de escritura y hay espacio en el scope
-      if (window._canWrite) {
+      // Solo mostrar dropzone si puede subir y hay espacio en el scope
+      if (_canUp) {
         dropzone.style.display = result.data.count >= 3 ? 'none' : 'block';
       }
     } else {
@@ -2014,8 +2090,8 @@ function exportarExcel() {
 
     modal.classList.add('open');
 
-    // Event listeners (solo si tiene permiso de escritura)
-    if (window._canWrite) {
+    // Event listeners (solo si puede subir)
+    if (_canUp) {
       dropzone.onclick = () => fileInput.click();
       fileInput.onchange = () => { uploadImages(errorId, fileInput.files, scope); fileInput.value = ''; };
       dropzone.ondragover = (e) => { e.preventDefault(); dropzone.classList.add('dragover'); };
@@ -2038,7 +2114,8 @@ function exportarExcel() {
   });
 
   async function uploadImages(errorId, files, scope = '') {
-    if (!window._canWrite) return;
+    var _upErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===errorId}) : null;
+    if (!(window._canWrite || _puedeEditarNota(_upErr))) return;
     const scopeQuery = _scopeQuery(scope);
     for (const file of files) {
       const name = file.name.toLowerCase();
@@ -2056,7 +2133,8 @@ function exportarExcel() {
   }
 
   async function deleteImage(errorId, filename, scope = '') {
-    if (!window._canWrite) return;
+    var _delImgErr = (typeof cachedErrores !== 'undefined') ? cachedErrores.find(function(e){return e.id===errorId}) : null;
+    if (!(window._canWrite || _puedeEditarNota(_delImgErr))) return;
     if (!await Modal.confirm('¿Eliminar imagen?')) return;
     const scopeQuery = scope ? `&scope=${encodeURIComponent(scope)}` : '';
     const res = await fetch(`/api/control-errores/${errorId}/imagenes/?filename=${encodeURIComponent(filename)}${scopeQuery}`, { method: 'DELETE' });
@@ -2775,6 +2853,8 @@ function exportarExcel() {
   window._canWrite = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
   // Permiso de adjuntos facturador: control_urgencias (con o sin :write) o admin *
   window._canFacturadorAttach = {{ 'true' if '*' in session.get('permisos', []) or 'control_urgencias' in session.get('permisos', []) or 'control_urgencias:write' in session.get('permisos', []) else 'false' }};
+  window._username = '{{ session.get("username", "") }}';
+  window._isAdmin = {{ 'true' if '*' in session.get('permisos', []) else 'false' }};
   const currentUserName = '{{ (session.get("primer_nombre", "") + " " + session.get("apellido_1", "")).strip() }}'.trim() || '-';
 
   function updateDisabledState() {
@@ -2841,15 +2921,17 @@ function exportarExcel() {
         }
       });
 
-      // Deshabilitar nueva fila
+      // Deshabilitar nueva fila, salvo la de notas (lectura crea notas: S1)
       document.querySelectorAll('.new-row-cell').forEach(cell => {
+        if (cell.closest && cell.closest('#new-row.row-nota')) return;
         cell.classList.add('disabled-action');
         cell.style.pointerEvents = 'none';
         cell.style.opacity = '0.5';
       });
 
-      // Deshabilitar solo delete (view y edit siguen habilitados sin auth)
+      // Deshabilitar solo delete, salvo notas propias (ver TODOS, tocar lo suyo: S1/S6)
       document.querySelectorAll('.action-icon--delete').forEach(btn => {
+        if (btn.classList.contains('always-enabled')) return;
         btn.classList.add('disabled-action');
       });
 

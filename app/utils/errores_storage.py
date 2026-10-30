@@ -452,6 +452,7 @@ def crear_error(
     validador: str = "",
     created_by: str = "",
     refactura: str = "",
+    es_nota: bool = False,
 ) -> dict[str, Any]:
     """Crea un error de forma ATÓMICA bajo ``_write_lock``.
 
@@ -482,6 +483,7 @@ def crear_error(
             "responsable": responsable,
             "validador": validador,
             "created_by": created_by,
+            "es_nota": bool(es_nota),
             "creado_en": datetime.now().isoformat(),
             "actualizado_en": datetime.now().isoformat(),
             # Última vez que se fijó/cambió el estado (solo backend, no visible).

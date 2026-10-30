@@ -27,7 +27,7 @@ from app.constants.base import (
     ORGANIZATIONAL_AREAS,
     VALID_AREA_SLUGS,
 )
-from app.constants.urgencias import ERROR_TIPO_NOTIFICACION
+from app.constants.urgencias import ERROR_TIPO_NOTIFICACION, ERROR_NOTA_FIELD
 from app.utils import users_store
 
 logger = logging.getLogger(__name__)
@@ -342,6 +342,27 @@ def check_for_changes(since: str | None = None) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
+def _add_nota(data: dict[str, Any], sess: dict[str, Any]) -> dict[str, Any]:
+    """Crear una nota de lectura (S1/S2/S5/S8).
+
+    Categoría fija Notificación, sin responsable/estado/refactura y
+    propiedad por ``created_by``. Nunca genera aviso (sin responsable).
+    """
+    factura = (data.get("factura", "").strip() or "").upper()
+    if not factura:
+        return {"status": "error", "data": {}, "errors": ["Factura requerida"]}
+    observacion = (data.get("observacion", "").strip() or "").upper()
+    validador = f"{sess.get('primer_nombre', '')} {sess.get('apellido_1', '')}".strip().upper()
+    created_by = sess.get("username", "")
+    nuevo = crear_error(
+        ERROR_TIPO_NOTIFICACION, factura, observacion, "", "",
+        "", validador=validador, created_by=created_by,
+        refactura="", es_nota=True,
+    )
+    logger.info("[BACK] Nota creada con ID: %s", nuevo["id"])
+    return {"status": "success", "data": {"error": nuevo}, "errors": []}
+
+
 def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Crear un nuevo error.
 
@@ -350,6 +371,9 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
     """
     try:
         sess = session if session is not None else flask.session
+
+        if bool(data.get(ERROR_NOTA_FIELD, False) or data.get("es_nota", False)):
+            return _add_nota(data, sess)
 
         tipo_error = normalizar_tipo_error(data.get("tipo_error", ""))
         factura = (data.get("factura", "").strip() or "").upper()
@@ -383,7 +407,7 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
         nuevo = crear_error(
             tipo_error, factura, observacion, estado, responsable,
             observacion_facturador, validador=validador, created_by=created_by,
-            refactura=refactura,
+            refactura=refactura, es_nota=False,
         )
         logger.info("[BACK] Error creado con ID: %s", nuevo["id"])
         return {"status": "success", "data": {"error": nuevo}, "errors": []}
@@ -398,6 +422,9 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+
+        if bool(existente.get(ERROR_NOTA_FIELD, False)):
+            return _update_nota(error_id, data, existente)
 
         # Permisos de escritura: "*" o "control_urgencias:write" = full access
         user_permisos = session.get("permisos", [])
@@ -416,26 +443,27 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
                     ],
                 }, 403
 
-        # Solo procesar campos que vienen en el request
+        # Solo procesar campos que vienen en el request (es_nota inmutable).
         kwargs = {}
-        if "tipo_error" in data:
-            kwargs["tipo_error"] = normalizar_tipo_error(data["tipo_error"])
-        if "factura" in data:
-            kwargs["factura"] = (data["factura"].strip() if data["factura"] else "").upper()
-        if "observacion" in data:
-            kwargs["observacion"] = (data["observacion"].strip() if data["observacion"] else "").upper()
-        if "observacion_facturador" in data:
-            kwargs["observacion_facturador"] = data["observacion_facturador"].strip() if data["observacion_facturador"] else ""
-        if "estado" in data:
-            kwargs["estado"] = data["estado"].strip() if data["estado"] else ""
-        if "responsable" in data:
-            responsable = data["responsable"].strip() if data["responsable"] else ""
+        data_sin_nota = {k: v for k, v in data.items() if k != ERROR_NOTA_FIELD and k != "es_nota"}
+        if "tipo_error" in data_sin_nota:
+            kwargs["tipo_error"] = normalizar_tipo_error(data_sin_nota["tipo_error"])
+        if "factura" in data_sin_nota:
+            kwargs["factura"] = (data_sin_nota["factura"].strip() if data_sin_nota["factura"] else "").upper()
+        if "observacion" in data_sin_nota:
+            kwargs["observacion"] = (data_sin_nota["observacion"].strip() if data_sin_nota["observacion"] else "").upper()
+        if "observacion_facturador" in data_sin_nota:
+            kwargs["observacion_facturador"] = data_sin_nota["observacion_facturador"].strip() if data_sin_nota["observacion_facturador"] else ""
+        if "estado" in data_sin_nota:
+            kwargs["estado"] = data_sin_nota["estado"].strip() if data_sin_nota["estado"] else ""
+        if "responsable" in data_sin_nota:
+            responsable = data_sin_nota["responsable"].strip() if data_sin_nota["responsable"] else ""
             kwargs["responsable"] = (
                 _resolve_responsable_identity(responsable) or responsable
             ).upper()
-        if "refactura" in data:
+        if "refactura" in data_sin_nota:
             kwargs["refactura"] = (
-                data["refactura"].strip() if data["refactura"] else ""
+                data_sin_nota["refactura"].strip() if data_sin_nota["refactura"] else ""
             ).upper()
 
         # El aviso a Revisor solo puede dispararse al tocar responsable u
@@ -454,9 +482,66 @@ def update_error(error_id: str, data: dict[str, Any]) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
-def delete_error(error_id: str) -> dict[str, Any]:
-    """Eliminar un error."""
+def _update_nota(error_id: str, data: dict[str, Any], existente: dict[str, Any]) -> dict[str, Any]:
+    """Actualizar nota propia (S1/S6): solo dueño o admin, solo factura/observacion."""
+    user_permisos = session.get("permisos", [])
+    is_admin = "*" in user_permisos
+    username = session.get("username", "")
+    owner = existente.get("created_by", "")
+    if not (is_admin or (username and username == owner)):
+        return {
+            "status": "error", "data": {},
+            "errors": ["Solo el autor puede editar la nota"],
+        }, 403
+    payload = {k: v for k, v in data.items() if k != ERROR_NOTA_FIELD and k != "es_nota"}
+    prohibited = set(payload.keys()) - {"factura", "observacion"}
+    if prohibited:
+        return {
+            "status": "error", "data": {},
+            "errors": [f"Nota: campos no editables: {', '.join(sorted(prohibited))}"],
+        }, 403
+    kwargs: dict[str, Any] = {}
+    if "factura" in payload:
+        kwargs["factura"] = (payload["factura"].strip() if payload["factura"] else "").upper()
+    if "observacion" in payload:
+        kwargs["observacion"] = (payload["observacion"].strip() if payload["observacion"] else "").upper()
+    actualizado = actualizar_error(error_id, **kwargs)
+    logger.info("[BACK] Nota actualizada: %s", error_id)
+    return {"status": "success", "data": {"error": actualizado}, "errors": []}
+
+
+def delete_error(error_id: str, session_param: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Eliminar un error o una nota propia (S1/S6).
+
+    Notas: solo dueño o admin. Comunes: requieren write o admin.
+    """
     try:
+        sess = session_param if session_param is not None else session
+        existente = obtener_error(error_id)
+        if not existente:
+            return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}
+        try:
+            permisos = sess.get("permisos", [])
+        except Exception:
+            permisos = []
+        is_admin = "*" in permisos
+        is_full_write = is_admin or "control_urgencias:write" in permisos
+        if bool(existente.get(ERROR_NOTA_FIELD, False)):
+            try:
+                username = sess.get("username", "")
+            except Exception:
+                username = ""
+            owner = existente.get("created_by", "")
+            if not (is_admin or (username and username == owner)):
+                return {
+                    "status": "error", "data": {},
+                    "errors": ["Solo el autor puede eliminar la nota"],
+                }, 403
+        elif not is_full_write:
+            return {
+                "status": "error", "data": {},
+                "errors": ["Permiso denegado"],
+            }, 403
         eliminado = eliminar_error(error_id)
         if eliminado:
             logger.info("[BACK] Error eliminado: %s", error_id)
