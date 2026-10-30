@@ -86,6 +86,19 @@ class TestUpdateNota:
         assert isinstance(result, tuple) and result[1] == 400
         assert result[0]["status"] == "error"
 
+    def test_comun_sin_factura_400(self):
+        """Novedad común sin factura → 400 igual que la nota (no más ERR-<id>)."""
+        with patch("app.services.control_errores_service.crear_error") as mock_crear:
+            result = add_error(
+                {"tipo_error": "Error", "factura": "", "observacion": "x",
+                 "estado": "S", "responsable": "ALGUIEN"},
+                session={"username": "v", "primer_nombre": "V", "apellido_1": "A",
+                          "permisos": ["control_urgencias:write"]},
+            )
+        assert isinstance(result, tuple) and result[1] == 400
+        assert result[0]["errors"] == ["Factura requerida"]
+        mock_crear.assert_not_called()
+
 
 class TestDeleteSessionKwarg:
     def test_admin_borra_comun_con_session_kwarg(self):

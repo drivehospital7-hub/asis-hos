@@ -377,6 +377,8 @@ def add_error(data: dict[str, Any], session: dict[str, Any] | None = None) -> di
 
         tipo_error = normalizar_tipo_error(data.get("tipo_error", ""))
         factura = (data.get("factura", "").strip() or "").upper()
+        if not factura:
+            return {"status": "error", "data": {}, "errors": ["Factura requerida"]}, 400
         refactura = (data.get("refactura", "").strip() or "").upper()
         observacion = (data.get("observacion", "").strip() or "").upper()
         observacion_facturador = data.get("observacion_facturador", "").strip() or ""

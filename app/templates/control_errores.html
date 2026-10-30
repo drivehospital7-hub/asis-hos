@@ -1436,6 +1436,9 @@
             closeEditor(); loadErrores(); return;
           }
         }
+      } else {
+        await Modal.alert('Factura requerida');
+        closeEditor(); loadErrores(); return;
       }
     var data = { tipo_error: 'Notificación', factura: factura, refactura: refactura, observacion: '', observacion_facturador: '', estado: 'S', responsable: '' };
       createNewError(data);
@@ -1784,7 +1787,7 @@ editor.innerHTML = `<textarea id="editor-input" placeholder="Número de factura"
   async function saveNewRow() {
     var factura = (document.getElementById('newFactura')?.value?.trim() || '').toUpperCase();
     var refactura = (document.getElementById('newRefactura')?.value?.trim() || '').toUpperCase();
-    if (!factura) { isAdding = false; loadErrores(); return; }
+    if (!factura) { await Modal.alert('Factura requerida'); return; }
     var dup = await buscarDuplicadosGlobal(factura);
     if (dup.length && !await Modal.confirm(mensajeDuplicado(factura, dup, 'Crear'))) {
       isAdding = false; loadErrores(); return;
