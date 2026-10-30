@@ -1,7 +1,7 @@
 """RED TDD notas (S1,S2,S6,S8): flag es_nota, forzado y propiedad created_by."""
 from unittest.mock import patch
 from app import create_app
-from app.services.control_errores_service import add_error, update_error
+from app.services.control_errores_service import add_error, update_error, get_errores
 
 _APP = create_app({"TESTING": True, "SECRET_KEY": "test-secret-key"})
 
@@ -150,3 +150,36 @@ class TestDeleteSessionKwarg:
             result = update_error("n1", {"estado": "N", "observacion_facturador": "x"})
         assert isinstance(result, tuple) and result[1] == 403
         mock_upd.assert_not_called()
+
+
+class TestNotasVisiblesFacturador:
+    def test_facturador_ve_notas_ajenas_y_solo_sus_comunes(self):
+        """El filtro de propietario no debe esconder notas (sin responsable)."""
+        fixture = [
+            {"id": "n1", "tipo_error": "Notificación", "estado": "",
+             "responsable": "", "created_by": "otro",
+             "creado_en": "2026-10-01T10:00:00", "es_nota": True},
+            {"id": "c1", "tipo_error": "Error", "estado": "S",
+             "responsable": "ANA LUZ", "created_by": "ana1",
+             "creado_en": "2026-10-01T11:00:00"},
+            {"id": "c2", "tipo_error": "Error", "estado": "S",
+             "responsable": "PEDRO", "created_by": "pedro",
+             "creado_en": "2026-10-01T12:00:00"},
+        ]
+        sess = {"rol": "facturador", "username": "ana1",
+                "primer_nombre": "Ana", "apellido_1": "Luz",
+                "permisos": ["control_urgencias"]}
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count",
+                  return_value=0),
+            patch("app.services.control_errores_service.users_store.get_user",
+                  return_value={"primer_nombre": "Ana", "apellido_1": "Luz",
+                                "rol": "facturador"}),
+        ):
+            result = get_errores(session=sess)
+        assert result["status"] == "success"
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"n1", "c1"}

@@ -345,9 +345,11 @@ def listar_errores(
         else:
             errores = [e for e in errores if e.get("responsable") == responsable]
     if owner_identity is not None:
+        # Las notas (es_nota) no tienen responsable: son informativas y
+        # visibles para todos (S1/S3); el dueño solo limita edición/borrado.
         errores = [
             e for e in errores
-            if _responsable_coincide_con_owner(
+            if bool(e.get("es_nota")) or _responsable_coincide_con_owner(
                 e.get("responsable", ""),
                 owner_identity,
                 e.get("created_by", ""),
