@@ -153,20 +153,20 @@ class TestDeleteSessionKwarg:
 
 
 class TestNotasVisiblesFacturador:
-    def test_facturador_ve_notas_ajenas_y_solo_sus_comunes(self):
-        """El filtro de propietario no debe esconder notas (sin responsable)."""
+    def test_facturador_ve_sus_notas_y_las_de_su_area(self):
+        """Notas: propias siempre + misma área; otras áreas, no."""
         fixture = [
             {"id": "n1", "tipo_error": "Notificación", "estado": "",
-             "responsable": "", "created_by": "otro",
+             "responsable": "", "created_by": "colega",
              "creado_en": "2026-10-01T10:00:00", "es_nota": True},
             {"id": "n2", "tipo_error": "Notificación", "estado": "",
              "responsable": "", "created_by": "ana1",
              "creado_en": "2026-10-01T10:30:00", "es_nota": True},
+            {"id": "n3", "tipo_error": "Notificación", "estado": "",
+             "responsable": "", "created_by": "externo",
+             "creado_en": "2026-10-01T11:00:00", "es_nota": True},
             {"id": "c1", "tipo_error": "Error", "estado": "S",
              "responsable": "ANA LUZ", "created_by": "ana1",
-             "creado_en": "2026-10-01T11:00:00"},
-            {"id": "c2", "tipo_error": "Error", "estado": "S",
-             "responsable": "PEDRO", "created_by": "pedro",
              "creado_en": "2026-10-01T12:00:00"},
         ]
         sess = {"rol": "facturador", "username": "ana1",
@@ -181,11 +181,19 @@ class TestNotasVisiblesFacturador:
             patch("app.services.control_errores_service.users_store.get_user",
                   return_value={"primer_nombre": "Ana", "apellido_1": "Luz",
                                 "rol": "facturador"}),
+            patch("app.services.control_errores_service.users_store.get_facturadores",
+                  return_value=[
+                      {"username": "ana1", "areas": ["urgencias"]},
+                      {"username": "colega", "areas": ["urgencias"]},
+                      {"username": "externo", "areas": ["consulta"]},
+                  ]),
+            patch("app.services.control_errores_service.users_store.get_validadores",
+                  return_value=[]),
         ):
             result = get_errores(session=sess)
         assert result["status"] == "success"
         ids = {e["id"] for e in result["data"]["errores"]}
-        assert ids == {"n2", "c1"}
+        assert ids == {"n1", "n2", "c1"}
 
     def test_validador_ve_todas_las_notas(self):
         """Sin filtro de propietario se ven todas las notas."""

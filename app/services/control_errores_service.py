@@ -232,6 +232,18 @@ def get_opciones(session: dict[str, Any] | None = None) -> dict[str, Any]:
         return {"status": "error", "data": {}, "errors": [str(e)]}
 
 
+def _nota_comparte_area(
+    nota: dict[str, Any],
+    viewer_areas: set[str],
+    areas_por_usuario: dict[str, set[str]],
+) -> bool:
+    """True si creador y lector comparten al menos un área (S1 visibilidad)."""
+    if not viewer_areas:
+        return False
+    creator_areas = areas_por_usuario.get(nota.get("created_by", ""), set())
+    return bool(viewer_areas & creator_areas)
+
+
 def _filtrar_por_facturas(
     errores: list[dict[str, Any]], facturas: list[str] | None
 ) -> list[dict[str, Any]]:
@@ -306,14 +318,22 @@ def get_errores(
 
         errores = _filtrar_por_facturas(errores, facturas)
 
-        # Notas y propietario: el facturador solo ve SUS notas (created_by),
-        # igual que solo ve sus novedades (responsable). Validador/admin/otros
-        # (owner sin resolver) ven todas las notas.
+        # Notas y propietario: el facturador ve SUS notas (created_by) y las
+        # de su MISMA área (áreas del creador); lo demás, invisible.
+        # Validador/admin/otros (owner sin resolver) ven todas las notas.
         if owner_identities is not None:
             username = (sess.get("username", "") or "")
+            areas_por_usuario: dict[str, set[str]] = {}
+            for u in users_store.get_facturadores() + users_store.get_validadores():
+                areas_por_usuario.setdefault(
+                    u.get("username", ""), set(u.get("areas", []) or [])
+                )
+            viewer_areas = areas_por_usuario.get(username, set())
             errores = [
                 e for e in errores
-                if not e.get("es_nota") or e.get("created_by") == username
+                if not e.get("es_nota")
+                or e.get("created_by") == username
+                or _nota_comparte_area(e, viewer_areas, areas_por_usuario)
             ]
 
         logger.info(
