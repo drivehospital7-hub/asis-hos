@@ -510,13 +510,13 @@ def _update_nota(error_id: str, data: dict[str, Any], existente: dict[str, Any])
     return {"status": "success", "data": {"error": actualizado}, "errors": []}
 
 
-def delete_error(error_id: str, session_param: dict[str, Any] | None = None) -> dict[str, Any]:
+def delete_error(error_id: str, session: dict[str, Any] | None = None) -> dict[str, Any]:
     """Eliminar un error o una nota propia (S1/S6).
 
     Notas: solo dueño o admin. Comunes: requieren write o admin.
     """
     try:
-        sess = session_param if session_param is not None else session
+        sess = session if session is not None else flask.session
         existente = obtener_error(error_id)
         if not existente:
             return {"status": "error", "data": {}, "errors": ["Error no encontrado"]}

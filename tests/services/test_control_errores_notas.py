@@ -85,3 +85,18 @@ class TestUpdateNota:
         result = add_error({"es_nota": True, "factura": "", "observacion": "x"}, session=_sess_lectura())
         assert isinstance(result, tuple) and result[1] == 400
         assert result[0]["status"] == "error"
+
+
+class TestDeleteSessionKwarg:
+    def test_admin_borra_comun_con_session_kwarg(self):
+        """La ruta llama delete_error(id, session=dict) — el kwarg debe existir."""
+        from app.services.control_errores_service import delete_error
+        with (
+            patch("app.services.control_errores_service.obtener_error") as mock_get,
+            patch("app.services.control_errores_service.eliminar_error") as mock_del,
+        ):
+            mock_get.return_value = {"id": "x", "created_by": "otro"}
+            mock_del.return_value = True
+            result = delete_error("x", session={"username": "admin1", "permisos": ["*"]})
+        assert result["status"] == "success"
+        mock_del.assert_called_once_with("x")
