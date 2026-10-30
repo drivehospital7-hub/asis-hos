@@ -159,6 +159,9 @@ class TestNotasVisiblesFacturador:
             {"id": "n1", "tipo_error": "Notificación", "estado": "",
              "responsable": "", "created_by": "otro",
              "creado_en": "2026-10-01T10:00:00", "es_nota": True},
+            {"id": "n2", "tipo_error": "Notificación", "estado": "",
+             "responsable": "", "created_by": "ana1",
+             "creado_en": "2026-10-01T10:30:00", "es_nota": True},
             {"id": "c1", "tipo_error": "Error", "estado": "S",
              "responsable": "ANA LUZ", "created_by": "ana1",
              "creado_en": "2026-10-01T11:00:00"},
@@ -182,4 +185,29 @@ class TestNotasVisiblesFacturador:
             result = get_errores(session=sess)
         assert result["status"] == "success"
         ids = {e["id"] for e in result["data"]["errores"]}
-        assert ids == {"n1", "c1"}
+        assert ids == {"n2", "c1"}
+
+    def test_validador_ve_todas_las_notas(self):
+        """Sin filtro de propietario se ven todas las notas."""
+        fixture = [
+            {"id": "n1", "tipo_error": "Notificación", "estado": "",
+             "responsable": "", "created_by": "otro",
+             "creado_en": "2026-10-01T10:00:00", "es_nota": True},
+            {"id": "n2", "tipo_error": "Notificación", "estado": "",
+             "responsable": "", "created_by": "ana1",
+             "creado_en": "2026-10-01T10:30:00", "es_nota": True},
+        ]
+        sess = {"rol": "validador", "username": "val1",
+                "primer_nombre": "V", "apellido_1": "A",
+                "permisos": ["control_urgencias:write"]}
+        with (
+            _APP.test_request_context(),
+            patch("app.utils.errores_storage._leer_datos",
+                  return_value={"errores": fixture}),
+            patch("app.utils.errores_storage.obtener_imagenes_count",
+                  return_value=0),
+        ):
+            result = get_errores(session=sess)
+        assert result["status"] == "success"
+        ids = {e["id"] for e in result["data"]["errores"]}
+        assert ids == {"n1", "n2"}

@@ -306,6 +306,16 @@ def get_errores(
 
         errores = _filtrar_por_facturas(errores, facturas)
 
+        # Notas y propietario: el facturador solo ve SUS notas (created_by),
+        # igual que solo ve sus novedades (responsable). Validador/admin/otros
+        # (owner sin resolver) ven todas las notas.
+        if owner_identities is not None:
+            username = (sess.get("username", "") or "")
+            errores = [
+                e for e in errores
+                if not e.get("es_nota") or e.get("created_by") == username
+            ]
+
         logger.info(
             "[BACK] Listando errores - tipo: %s, estado: %s, responsable: %s, validador: %s, area: %s, owner: %s, total: %d",
             tipo_error,

@@ -559,6 +559,11 @@ body.editor-open {
 }
 
 /* Iconos de acciÃ³n en tabla */
+/* Borrar deshabilitado (lectura sobre lo ajeno): apagado y sin mano */
+.table-actions .action-icon.disabled-action {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .action-icon {
   width: 24px;
   height: 24px;
