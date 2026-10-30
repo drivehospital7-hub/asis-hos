@@ -59,10 +59,6 @@
   </button>
 </div>
 
-<div class="notas-toolbar">
-  <button id="btnAddNota" class="btn-nota-add" onclick="addNewNota()" title="Agregar nota">+</button>
-</div>
-
 <div class="table-wrapper">
   <table class="table" id="erroresTable">
     <thead>
@@ -75,7 +71,7 @@
         <th>Descripción</th>
         <th>Responsable</th>
         <th>Estado</th>
-        <th>Acciones</th>
+        <th class="th-acciones">Acciones <button id="btnAddNota" class="btn-nota-add" onclick="addNewNota()" title="Agregar nota">+</button></th>
       </tr>
     </thead>
     <tbody id="erroresBody"><tr><td colspan="9" class="empty-state">Cargando...</td></tr></tbody>
