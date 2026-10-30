@@ -8,6 +8,8 @@ Todas las rutas de red se configuran via MONITOREO_CARPETAS_ROOTS env var.
 
 from __future__ import annotations
 
+import os
+
 # =============================================================================
 # STATUS - Keywords de inferencia de estado
 # =============================================================================
@@ -38,21 +40,32 @@ CAP_REGEX: str = r"CAP\d+_\w+\d+"
 
 ENV_MONITOREO_ROOTS: str = "MONITOREO_CARPETAS_ROOTS"
 
+ENV_SCAN_TIMEOUT: str = "MONITOREO_SCAN_TIMEOUT"
+"""Env var con el timeout por raíz en segundos (requiere reiniciar)."""
+
+SCAN_TIMEOUT_DEFAULT: int = 300
+"""Default cuando la env var no existe o es inválida."""
+
+
+def _resolve_scan_timeout() -> int:
+    """Lee ENV_SCAN_TIMEOUT con fallback a SCAN_TIMEOUT_DEFAULT (min 1)."""
+    try:
+        return max(1, int(os.getenv(ENV_SCAN_TIMEOUT, str(SCAN_TIMEOUT_DEFAULT))))
+    except (TypeError, ValueError):
+        return SCAN_TIMEOUT_DEFAULT
+
 # =============================================================================
 # TIMEOUTS - Configuración de escaneo
 # =============================================================================
 
-SCAN_TIMEOUT_PER_FACTURADOR: int = 120
+SCAN_TIMEOUT_PER_FACTURADOR: int = _resolve_scan_timeout()
 """Tiempo máximo en segundos para escanear un solo facturador.
 
-NOTA (2026-09): 120s puede ser poco para un root UNC grande con miles de
-carpetas en SMB lento — se evaluó subirlo a 300s o hacerlo configurable
-por env var. Se MANTIENE en 120 a propósito: con el pre-probe acotado por
-`ROOT_PROBE_TIMEOUT` + el guard anti-solapamiento del scheduler, un root
-que excede este timeout genera una entrada de error acotada en vez de
-colgar el request/scheduler. Si hay evidencia de timeouts legítimos (roots
-accesibles pero lentos que siempre caen en timeout), subir a 300 o leer de
-env var es el cambio previsto — ningún test actual lo exige."""
+NOTA (2026-10): default 300 tras evidencia de timeout legítimo
+(raíz `0 OCTUBRE` accesible pero lenta, siempre caía en 120s).
+Ajustable con MONITOREO_SCAN_TIMEOUT (requiere reiniciar el server);
+valor inválido o ausente → 300. Un root que igual exceda genera una
+entrada de error acotada en vez de colgar el request/scheduler."""
 
 MAX_CONCURRENT_SCANS: int = 3
 """Máximo de escaneos simultáneos (semáforo de concurrencia)."""
