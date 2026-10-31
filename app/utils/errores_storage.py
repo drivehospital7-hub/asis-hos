@@ -345,9 +345,11 @@ def listar_errores(
         else:
             errores = [e for e in errores if e.get("responsable") == responsable]
     if owner_identity is not None:
+        # Las notas (es_nota) no tienen responsable: son informativas y
+        # visibles para todos (S1/S3); el dueño solo limita edición/borrado.
         errores = [
             e for e in errores
-            if _responsable_coincide_con_owner(
+            if bool(e.get("es_nota")) or _responsable_coincide_con_owner(
                 e.get("responsable", ""),
                 owner_identity,
                 e.get("created_by", ""),
@@ -452,6 +454,7 @@ def crear_error(
     validador: str = "",
     created_by: str = "",
     refactura: str = "",
+    es_nota: bool = False,
 ) -> dict[str, Any]:
     """Crea un error de forma ATÓMICA bajo ``_write_lock``.
 
@@ -482,6 +485,7 @@ def crear_error(
             "responsable": responsable,
             "validador": validador,
             "created_by": created_by,
+            "es_nota": bool(es_nota),
             "creado_en": datetime.now().isoformat(),
             "actualizado_en": datetime.now().isoformat(),
             # Última vez que se fijó/cambió el estado (solo backend, no visible).

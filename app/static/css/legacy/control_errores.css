@@ -559,6 +559,11 @@ body.editor-open {
 }
 
 /* Iconos de acciÃ³n en tabla */
+/* Borrar deshabilitado (lectura sobre lo ajeno): apagado y sin mano */
+.table-actions .action-icon.disabled-action {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
 .action-icon {
   width: 24px;
   height: 24px;
@@ -1235,4 +1240,36 @@ body.editor-open {
 .editor-dropzone-text {
   color: var(--muted-foreground);
   font-size: 0.85rem;
+}
+
+/* Notas de lectura (S7): fondo distinto para todas las notas */
+.btn-nota-add {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--foreground);
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+}
+.th-acciones {
+  white-space: nowrap;
+}
+.btn-nota-add:hover {
+  background: var(--muted);
+}
+.table tbody tr.row-nota {
+  background: #eff6ff;
+}
+.table tbody tr.row-nota:hover {
+  background: #dbeafe;
+}
+td.nota-empty {
+  color: var(--muted-foreground);
+  opacity: 0.6;
 }

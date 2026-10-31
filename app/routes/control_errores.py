@@ -55,13 +55,14 @@ def _validar_error_id(error_id: str) -> tuple[bool, tuple | None]:
     return True, None
 
 
-def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
+def _validar_permiso_imagen(scope: str, error_id: str | None = None) -> tuple[bool, tuple | None]:
     """Valida el permiso de subir/eliminar adjuntos según el scope (FA-4, D15).
 
     - scope ``facturador``: permitido a quien tenga ``control_urgencias``
       (con o sin ``:write``) o admin (``*``).
     - scope ``""`` (observación): se requiere ``control_urgencias:write``
-      (o admin).
+      (o admin), SALVO nota propia (S1/S5): el dueño con lectura puede
+      adjuntar a sus notas.
 
     El rol ``responsable_facturacion`` NO otorga acceso al flujo de imágenes.
 
@@ -81,6 +82,11 @@ def _validar_permiso_imagen(scope: str) -> tuple[bool, tuple | None]:
         )
     else:
         allowed = "control_urgencias:write" in permisos
+        if not allowed and error_id:
+            nota = obtener_error(error_id)
+            if nota and nota.get("es_nota"):
+                username = session.get("username", "")
+                allowed = bool(username and nota.get("created_by") == username)
     if not allowed:
         return False, (
             jsonify({"status": "error", "data": {}, "errors": ["Permiso denegado"]}),
@@ -226,11 +232,19 @@ def check_changes():
 
 
 @control_errores_bp.post("/api/control-errores")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def crear_error():
-    """Crear un nuevo error (created_by automático desde la sesión)."""
+    """Crear un nuevo error o una nota (notas: lectura puede crear las suyas)."""
     data = request.get_json() or {}
-    return jsonify(add_error(data, session=dict(session)))
+    es_nota = bool(data.get("es_nota", False))
+    if not es_nota:
+        permisos = session.get("permisos", [])
+        if "*" not in permisos and "control_urgencias:write" not in permisos:
+            return jsonify({"status": "error", "data": {}, "errors": ["Permiso denegado"]}), 403
+    result = add_error(data, session=dict(session))
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 @control_errores_bp.put("/api/control-errores/<error_id>")
@@ -245,13 +259,16 @@ def actualizar_error(error_id: str):
 
 
 @control_errores_bp.delete("/api/control-errores/<error_id>")
-@permiso_requerido("control_urgencias:write")
+@permiso_requerido("control_urgencias", "control_urgencias:write")
 def eliminar_error(error_id: str):
-    """Eliminar un error."""
+    """Eliminar un error o una nota propia."""
     valid, err = _validar_error_id(error_id)
     if not valid:
         return err
-    return jsonify(delete_error(error_id))
+    result = delete_error(error_id, session=dict(session))
+    if isinstance(result, tuple):
+        return jsonify(result[0]), result[1]
+    return jsonify(result)
 
 
 # =============================================================================
@@ -285,7 +302,7 @@ def subir_imagen(error_id: str):
     scope, err = _validar_scope()
     if err:
         return err
-    valid, err = _validar_permiso_imagen(scope)
+    valid, err = _validar_permiso_imagen(scope, error_id)
     if not valid:
         return err
     if "imagen" not in request.files:
@@ -311,7 +328,7 @@ def eliminar_imagen(error_id: str):
     scope, err = _validar_scope()
     if err:
         return err
-    valid, err = _validar_permiso_imagen(scope)
+    valid, err = _validar_permiso_imagen(scope, error_id)
     if not valid:
         return err
     if not obtener_error(error_id):
