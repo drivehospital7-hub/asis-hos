@@ -91,6 +91,30 @@ class TestConstantsMonitoreoCarpetas:
         assert isinstance(SCAN_TIMEOUT_PER_FACTURADOR, int)
         assert SCAN_TIMEOUT_PER_FACTURADOR > 0
 
+    def test_scan_timeout_default_300_sin_env(self, monkeypatch) -> None:
+        """Sin MONITOREO_SCAN_TIMEOUT el default es 300 (evidencia 0 OCTUBRE)."""
+        import importlib
+        import app.constants.monitoreo_carpetas as mc
+        monkeypatch.delenv("MONITOREO_SCAN_TIMEOUT", raising=False)
+        mc = importlib.reload(mc)
+        assert mc.SCAN_TIMEOUT_PER_FACTURADOR == 300
+
+    def test_scan_timeout_respeta_env(self, monkeypatch) -> None:
+        """MONITOREO_SCAN_TIMEOUT=600 se honra tras reimport."""
+        import importlib
+        import app.constants.monitoreo_carpetas as mc
+        monkeypatch.setenv("MONITOREO_SCAN_TIMEOUT", "600")
+        mc = importlib.reload(mc)
+        assert mc.SCAN_TIMEOUT_PER_FACTURADOR == 600
+
+    def test_scan_timeout_env_invalido_cae_a_default(self, monkeypatch) -> None:
+        """Env no numérico o <=0 → default 300, nunca revienta el import."""
+        import importlib
+        import app.constants.monitoreo_carpetas as mc
+        monkeypatch.setenv("MONITOREO_SCAN_TIMEOUT", "no-numero")
+        mc = importlib.reload(mc)
+        assert mc.SCAN_TIMEOUT_PER_FACTURADOR == 300
+
     def test_max_concurrent_is_positive_int(self) -> None:
         """MAX_CONCURRENT_SCANS must be a positive int."""
         assert isinstance(MAX_CONCURRENT_SCANS, int)
